@@ -114,21 +114,6 @@ void TacticalSolutionView::drawVectors()
         return;
     }
 
-    // Our ship
-    qreal ownShipSpeed = 30;
-    qreal ownShipBearing = 90; //  Nautical degrees
-
-    qreal sensorBearing = 250;
-
-    // selected track
-    qreal selectedTrackSpeed = 30;
-    qreal selectedTrackRange = 50;
-    qreal selectedTrackBearing = 200;
-
-    // adopted track
-    qreal adoptedTrackSpeed = 30;
-    qreal adoptedTrackRange = 100;
-    qreal adoptedTrackBearing = 300;
 
     // Create store for all the Vector Points
     VectorPointPairs pointStore;
@@ -160,8 +145,8 @@ void TacticalSolutionView::drawVectors()
     qDebug() << "Guide Box: width: " << guidebox.width() << ", height: " << guidebox.height();
     qDebug() << "Zoom Box: width:" << zoomBox.width() << ", height: " << zoomBox.height();
 
-    DrawUtils::addTestPattern(scene, guidebox);
-    DrawUtils::addTestPattern(scene, zoomBox);
+    // DrawUtils::addTestPattern(scene, guidebox);
+    // DrawUtils::addTestPattern(scene, zoomBox);
 
     // Compute the transformation to adjust the zooming and panning
     QTransform zoomtransform = DrawUtils::computeTransformationMatrix(zoomBox, scene->sceneRect());
@@ -181,7 +166,7 @@ void TacticalSolutionView::drawVectors()
     scene->addLine(QLineF(ownShipPosition, p1), bearingPen);
 
     // Draw a refernce Line
-    DrawUtils::addTestLine(scene, QLineF(p1, p2));
+    // DrawUtils::addTestLine(scene, QLineF(p1, p2));
     // Draw the Bearing Line
 
     // Get the farthest perpedicular point from the line
@@ -190,9 +175,9 @@ void TacticalSolutionView::drawVectors()
     // Generate the perpendicular lines
     auto lines = getOutlineLines(QLineF(p1, p2), distance);
 
-    DrawUtils::addTestLine(scene, lines.first);
+    // DrawUtils::addTestLine(scene, lines.first);
 
-    DrawUtils::addTestLine(scene, lines.second);
+    // DrawUtils::addTestLine(scene, lines.second);
 
     QPointF ownShipEnd = pointStore.ownShipPoints.second;
 
@@ -200,7 +185,7 @@ void TacticalSolutionView::drawVectors()
     qreal d1 = DrawUtils::calculatePerpendicularDistance(ownShipEnd, lines.first.p1(), lines.first.p2());
     qreal d2 = DrawUtils::calculatePerpendicularDistance(ownShipEnd, lines.second.p1(), lines.second.p2());
 
-    QLineF chosenLine   = (d1 < d2) ? lines.first : lines.second;
+    QLineF chosenLine = (d1 < d2) ? lines.first : lines.second;
     QLineF oppositeLine = (d1 < d2) ? lines.second : lines.first;
 
     qDebug() << "Chosen Line: " << chosenLine;
@@ -210,22 +195,21 @@ void TacticalSolutionView::drawVectors()
     DrawUtils::transformAllSceneItems(scene, zoomtransform);
 
     // Transform stored points
-    pointStore.ownShipPoints.first  = zoomtransform.map(pointStore.ownShipPoints.first);
+    pointStore.ownShipPoints.first = zoomtransform.map(pointStore.ownShipPoints.first);
     pointStore.ownShipPoints.second = zoomtransform.map(pointStore.ownShipPoints.second);
-    pointStore.selectedTrackPoints.first  = zoomtransform.map(pointStore.selectedTrackPoints.first);
+    pointStore.selectedTrackPoints.first = zoomtransform.map(pointStore.selectedTrackPoints.first);
     pointStore.selectedTrackPoints.second = zoomtransform.map(pointStore.selectedTrackPoints.second);
-    pointStore.adoptedTrackPoints.first  = zoomtransform.map(pointStore.adoptedTrackPoints.first);
+    pointStore.adoptedTrackPoints.first = zoomtransform.map(pointStore.adoptedTrackPoints.first);
     pointStore.adoptedTrackPoints.second = zoomtransform.map(pointStore.adoptedTrackPoints.second);
 
     // Transform the lines
     oppositeLine = zoomtransform.map(oppositeLine);
 
-
     std::vector<QPointF> shadedPolygon;
 
-    // We find the intersection between the parallel line that is the 
+    // We find the intersection between the parallel line that is the
     // opposite of the ownShip course direction, we can calculate
-    // this by seeing which of the distances is the closest the endpoint 
+    // this by seeing which of the distances is the closest the endpoint
     // of the ownship vector to the outline lines
 
     QVector<QPointF> halfA, halfB;
@@ -241,12 +225,12 @@ void TacticalSolutionView::drawVectors()
     {
         // Shade Half B
         DrawUtils::drawShadedPolygon(scene, halfB, pen, brush);
-    } else 
+    }
+    else
     {
         // Shade Half A
         DrawUtils::drawShadedPolygon(scene, halfA, pen, brush);
     }
-   
 }
 
 /**
@@ -256,39 +240,40 @@ void TacticalSolutionView::drawVectors()
  * @param distance The perpendicular distance from the original line
  * @return QPair<QLineF, QLineF> Two parallel lines, one on each side of the original
  */
-QPair<QLineF, QLineF> TacticalSolutionView::getOutlineLines(const QLineF& line, const qreal distance)
+QPair<QLineF, QLineF> TacticalSolutionView::getOutlineLines(const QLineF &line, const qreal distance)
 {
     // Calculate the direction vector of the line
     QPointF direction = line.p2() - line.p1();
-    
+
     // Calculate the length of the direction vector
     qreal length = std::sqrt(direction.x() * direction.x() + direction.y() * direction.y());
-    
+
     // Handle degenerate case where line has zero length
-    if (qFuzzyIsNull(length)) {
+    if (qFuzzyIsNull(length))
+    {
         return QPair<QLineF, QLineF>(line, line);
     }
-    
+
     // Normalize the direction vector
     QPointF unitDirection = QPointF(direction.x() / length, direction.y() / length);
-    
+
     // Calculate the perpendicular vector (rotate 90 degrees counterclockwise)
     QPointF perpendicular = QPointF(-unitDirection.y(), unitDirection.x());
-    
+
     // Scale the perpendicular vector by the desired distance
     // Since the caller passes distance/2, this creates lines at the correct offset
     QPointF offset = QPointF(perpendicular.x() * distance, perpendicular.y() * distance);
-    
+
     // Create the first parallel line (offset in positive perpendicular direction)
     QPointF p1_offset_pos = line.p1() + offset;
     QPointF p2_offset_pos = line.p2() + offset;
     QLineF line1(p1_offset_pos, p2_offset_pos);
-    
+
     // Create the second parallel line (offset in negative perpendicular direction)
     QPointF p1_offset_neg = line.p1() - offset;
     QPointF p2_offset_neg = line.p2() - offset;
     QLineF line2(p1_offset_neg, p2_offset_neg);
-    
+
     return QPair<QLineF, QLineF>(line1, line2);
 }
 
@@ -537,4 +522,28 @@ QRectF TacticalSolutionView::getZoomBoxFromGuideBox(const QRectF guidebox)
         deltay);
 
     return zoomBox;
+}
+
+void TacticalSolutionView::setData(
+    const qreal &ownShipSpeed,
+    const qreal &ownShipBearing,
+    const qreal &sensorBearing,
+    const qreal &adoptedTrackRange,
+    const qreal &adoptedTrackSpeed,
+    const qreal &adoptedTrackBearing,
+    const qreal &selectedTrackRange,
+    const qreal &selectedTrackSpeed,
+    const qreal &selectedTrackBearing)
+{
+    this->ownShipSpeed = ownShipSpeed;
+    this->ownShipBearing = ownShipBearing;
+    this->sensorBearing = sensorBearing;
+    this->adoptedTrackRange = adoptedTrackRange;
+    this->adoptedTrackSpeed = adoptedTrackSpeed;
+    this->adoptedTrackBearing = adoptedTrackBearing;
+    this->selectedTrackRange = selectedTrackRange;
+    this->selectedTrackSpeed = selectedTrackSpeed;
+    this->selectedTrackBearing = selectedTrackBearing;
+
+    this->update();
 }
