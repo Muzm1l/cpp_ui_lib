@@ -29,6 +29,10 @@ public:
                 const std::vector<double>& y1, 
                 const std::vector<double>& y2);
 
+    void setAxesLabels(const QString& xLabel, 
+                       const QString& y1Label, 
+                       const QString& y2Label);
+
 protected:
     void paintEvent(QPaintEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
@@ -66,6 +70,11 @@ private:
                                      const QColor& textColor,
                                      const QColor& borderColor,
                                      const QColor& backgroundColor);
+
+    // Axis labels
+    QString leftAxisLabelText;
+    QString rightAxisLabelText;
+    QString bottomAxisLabelText;
 
 };
 #endif // TWOAXISGRAPH_H

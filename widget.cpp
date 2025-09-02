@@ -14,6 +14,7 @@ Widget::Widget(QWidget *parent)
     
     // Set the data to the graph widget
     ui->widget->setData(x_data, y1_data, y2_data);
+    ui->widget->setAxesLabels("Time (s)", "Speed (m/s)", "Distance (m)");
 }
 
 Widget::~Widget()
