@@ -4,8 +4,9 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "~/Qt/",
-                "/Users/krishna/Qt/6.9.2/macos/lib/QtWidgets.framework/Versions/A/Headers"
+                "~/Qt/**",
+                "/Users/krishna/Qt/**",
+                "/Users/krishna/Qt/QtDesignStudio/Qt Design Studio.app/Contents/Resources/qt6_design_studio_reduced_version/lib/QtWidgets.framework/Versions/A/Headers/**"
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

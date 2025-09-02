@@ -17,16 +17,21 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     main.cpp \
+    tacticalsolutionview.cpp \
     twoaxisdata.cpp \
     twoaxisgraph.cpp \
-    widget.cpp
+    widget.cpp \
+    drawutils.cpp
 
 HEADERS += \
+    tacticalsolutionview.h \
     twoaxisdata.h \
     twoaxisgraph.h \
-    widget.h
+    widget.h \
+    drawutils.h
 
 FORMS += \
+    tacticalsolutionview.ui \
     twoaxisgraph.ui \
     widget.ui
 

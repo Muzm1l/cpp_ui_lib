@@ -317,7 +317,7 @@ void TwoAxisGraph::drawAxesLabels()
     QFont infoFont("Arial", 8);
 
     // Create a text item
-    QGraphicsSimpleTextItem *bottomAxesLabelItem = new QGraphicsSimpleTextItem("Simple Text");
+    QGraphicsSimpleTextItem *bottomAxesLabelItem = new QGraphicsSimpleTextItem(this->bottomAxisLabelText);
     bottomAxesLabelItem->setBrush(Qt::white);
     bottomAxesLabelItem->setFont(infoFont);
 
@@ -330,7 +330,7 @@ void TwoAxisGraph::drawAxesLabels()
     scene->addItem(bottomAxesLabelItem);
 
     // Left axis label
-    QGraphicsSimpleTextItem *leftAxesLabelItem = new QGraphicsSimpleTextItem("Left Axis");
+    QGraphicsSimpleTextItem *leftAxesLabelItem = new QGraphicsSimpleTextItem(this->leftAxisLabelText);
     leftAxesLabelItem->setBrush(Qt::white);
     leftAxesLabelItem->setFont(infoFont);
 
@@ -342,7 +342,7 @@ void TwoAxisGraph::drawAxesLabels()
     scene->addItem(leftAxesLabelItem);
 
     // Right axis label
-    QGraphicsSimpleTextItem *rightAxesLabelItem = new QGraphicsSimpleTextItem("Right Axis");
+    QGraphicsSimpleTextItem *rightAxesLabelItem = new QGraphicsSimpleTextItem(this->rightAxisLabelText);
     rightAxesLabelItem->setBrush(Qt::white);
     rightAxesLabelItem->setFont(infoFont);
 
@@ -570,4 +570,21 @@ QRectF TwoAxisGraph::getGraphDrawArea() const
 
     graphArea.adjust(hMargin, vMargin, -hMargin, -vMargin);
     return graphArea;
+}
+
+/**
+ * @brief Set the axes labels for the graph.
+ *
+ * @param xLabel
+ * @param y1Label
+ * @param y2Label
+ */
+void TwoAxisGraph::setAxesLabels(const QString &xLabel,
+                                 const QString &y1Label,
+                                 const QString &y2Label)
+{
+    // Currently not implemented - placeholder for future use
+    leftAxisLabelText = y1Label;
+    rightAxisLabelText = y2Label;
+    bottomAxisLabelText = xLabel;
 }
