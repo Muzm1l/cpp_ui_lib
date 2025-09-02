@@ -154,13 +154,15 @@ void TacticalSolutionView::drawVectors()
 
     // Draw test line that goes through a point for a given angle
     // Get the largest distance
-    auto largestRange = std::max(adoptedTrackRange, selectedTrackRange);
+    auto sceneRect = scene->sceneRect();
+    auto bearingLineRange = std::max(sceneRect.width(), sceneRect.height());
     QPointF ownShipPosition = DrawUtils::bearingToCartesian(0, 0, scene->sceneRect());
 
     // Use this to draw the bearings line and the bisection ref line
-    auto p1 = DrawUtils::calculateEndpoint(ownShipPosition, largestRange * 5, sensorBearing);
-    auto p2 = DrawUtils::calculateEndpoint(ownShipPosition, largestRange * 5, DrawUtils::flipBearing(sensorBearing));
+    auto p1 = DrawUtils::calculateEndpoint(ownShipPosition, bearingLineRange * 5, sensorBearing);
+    auto p2 = DrawUtils::calculateEndpoint(ownShipPosition, bearingLineRange * 5, DrawUtils::flipBearing(sensorBearing));
 
+    // Draw the bearing line
     QPen bearingPen(Qt::green, 2);
 
     scene->addLine(QLineF(ownShipPosition, p1), bearingPen);
