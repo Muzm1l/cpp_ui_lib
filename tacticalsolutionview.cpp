@@ -537,15 +537,59 @@ void TacticalSolutionView::setData(
     const qreal &selectedTrackSpeed,
     const qreal &selectedTrackBearing)
 {
-    this->ownShipSpeed = ownShipSpeed;
-    this->ownShipBearing = ownShipBearing;
-    this->sensorBearing = sensorBearing;
-    this->adoptedTrackRange = adoptedTrackRange;
-    this->adoptedTrackSpeed = adoptedTrackSpeed;
-    this->adoptedTrackBearing = adoptedTrackBearing;
-    this->selectedTrackRange = selectedTrackRange;
-    this->selectedTrackSpeed = selectedTrackSpeed;
+    // Store bearings as-is (angles don’t scale)
+    this->ownShipBearing     = ownShipBearing;
+    this->sensorBearing      = sensorBearing;
+    this->adoptedTrackBearing  = adoptedTrackBearing;
     this->selectedTrackBearing = selectedTrackBearing;
 
+    if (!scene || scene->sceneRect().isEmpty()) {
+        // If scene not ready, store raw values without scaling
+        this->ownShipSpeed     = ownShipSpeed;
+        this->adoptedTrackSpeed = adoptedTrackSpeed;
+        this->selectedTrackSpeed = selectedTrackSpeed;
+        this->adoptedTrackRange  = adoptedTrackRange;
+        this->selectedTrackRange = selectedTrackRange;
+        this->update();
+        return;
+    }
+
+    // ------------------------------
+    // Step 1: Get scene dimensions
+    // ------------------------------
+    qreal sceneDim = std::min(scene->sceneRect().width(), scene->sceneRect().height());
+    qreal usableSceneSize = sceneDim * 0.8;   // leave ~10% margin on each side
+
+    // ------------------------------
+    // Step 2: Compute max extents
+    // ------------------------------
+    qreal maxRange = std::max(adoptedTrackRange, selectedTrackRange);
+    qreal maxSpeed = std::max({ownShipSpeed, adoptedTrackSpeed, selectedTrackSpeed});
+
+    // ------------------------------
+    // Step 3: Compute normalization factors
+    // ------------------------------
+    qreal rangeNorm = 1.0;
+    qreal speedNorm = 1.0;
+
+    if (maxRange > 0)
+        rangeNorm = (usableSceneSize * 0.5) / maxRange;   // ranges fit ~50% radius
+
+    if (maxSpeed > 0)
+        speedNorm = (usableSceneSize * 0.2) / maxSpeed;   // speeds fit ~20% radius
+
+    // ------------------------------
+    // Step 4: Apply normalization
+    // ------------------------------
+    this->ownShipSpeed       = ownShipSpeed     * speedNorm;
+    this->adoptedTrackSpeed  = adoptedTrackSpeed * speedNorm;
+    this->selectedTrackSpeed = selectedTrackSpeed * speedNorm;
+
+    this->adoptedTrackRange  = adoptedTrackRange * rangeNorm;
+    this->selectedTrackRange = selectedTrackRange * rangeNorm;
+
+    // ------------------------------
+    // Step 5: Trigger redraw
+    // ------------------------------
     this->update();
 }
