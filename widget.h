@@ -6,9 +6,11 @@
 #include <cstdlib>
 #include <ctime>
 
-
 QT_BEGIN_NAMESPACE
-namespace Ui { class Widget; }
+namespace Ui
+{
+    class Widget;
+}
 QT_END_NAMESPACE
 
 class Widget : public QWidget
@@ -22,7 +24,7 @@ public:
 private:
     Ui::Widget *ui;
 
-    QTimer *timer;                    ///< Timer for simulation updates
+    QTimer *timer; ///< Timer for simulation updates
 
     long simTick;
 
@@ -35,7 +37,7 @@ private:
     qreal currentShipSpeed;
     qreal prevOwnShipBearing;
     qreal prevShipSpeed;
-    
+
     // Selected Track Info
     qreal currentSelectedTrackRange;
     qreal currentSelectedTrackBearing;
@@ -44,7 +46,6 @@ private:
     qreal prevSelectedTrackRange;
     qreal prevSelectedTrackBearing;
     qreal prevSelectedTrackSpeed;
-
 
     // Adopted Track Info
     qreal currentAdoptedTrackRange;
@@ -55,15 +56,13 @@ private:
     qreal prevAdoptedTrackBearing;
     qreal prevAdoptedTrackSpeed;
 
-
 private slots:
     /**
      * @brief Updates simulation state every timer interval
-     * 
+     *
      * Called every 2 seconds to update target position, bearing, range,
      * and bearing rate calculations. Triggers widget repaint.
      */
     void updateSimulation();
-
 };
 #endif // WIDGET_H
