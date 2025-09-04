@@ -42,19 +42,23 @@ private:
     qreal currentSelectedTrackRange;
     qreal currentSelectedTrackBearing;
     qreal currentSelectedTrackSpeed;
+    qreal currentSelectedTrackCourse;
 
     qreal prevSelectedTrackRange;
     qreal prevSelectedTrackBearing;
     qreal prevSelectedTrackSpeed;
+    qreal prevSelectedTrackCourse;
 
     // Adopted Track Info
     qreal currentAdoptedTrackRange;
     qreal currentAdoptedTrackBearing;
     qreal currentAdoptedTrackSpeed;
+    qreal currentAdoptedTrackCourse;
 
     qreal prevAdoptedTrackRange;
     qreal prevAdoptedTrackBearing;
     qreal prevAdoptedTrackSpeed;
+    qreal prevAdoptedTrackCourse;
 
 private slots:
     /**

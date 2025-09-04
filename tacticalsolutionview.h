@@ -36,7 +36,10 @@ public:
         const qreal &adoptedTrackBearing,
         const qreal &selectedTrackRange,
         const qreal &selectedTrackSpeed,
-        const qreal &selectedTrackBearing);
+        const qreal &selectedTrackBearing,
+        const qreal &adoptedTrackCourse,
+        const qreal &selectedTrackCourse
+    );
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -51,8 +54,8 @@ private:
 
     void drawVectors();
     void drawOwnShipVector(qreal ownShipSpeed, qreal ownShipBearing);
-    void drawSelectedTrackVector(qreal sensorBearing, qreal selectedTrackRange, qreal selectedTrackBearing, qreal selectedTrackSpeed);
-    void drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed);
+    void drawSelectedTrackVector(qreal sensorBearing, qreal selectedTrackRange, qreal selectedTrackBearing, qreal selectedTrackSpeed, qreal selectedTrackCourse);
+    void drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed, qreal adoptedTrackCourse);
     double getFarthestDistance(VectorPointPairs *pointStore, const QPointF &linePoint1, const QPointF &linePoint2);
     QPair<QLineF, QLineF> getOutlineLines(const QLineF &line, const qreal distance);
 
@@ -66,9 +69,14 @@ private:
         qreal selectedTrackRange,
         qreal selectedTrackSpeed,
         qreal selectedTrackBearing,
+        qreal adoptedTrackCourse,
+        qreal selectedTrackCourse,
         VectorPointPairs *pointStore);
 
     QRectF getZoomBoxFromGuideBox(const QRectF guidebox);
+    
+    // Utility function to normalize angles to 0-360 degree range
+    qreal normalizeAngle(qreal angle);
 
 private:
     Ui::TacticalSolutionView *ui;
@@ -81,9 +89,11 @@ private:
     qreal adoptedTrackRange;
     qreal adoptedTrackSpeed;
     qreal adoptedTrackBearing;
+    qreal adoptedTrackCourse;
     qreal selectedTrackRange;
     qreal selectedTrackSpeed;
     qreal selectedTrackBearing;
+    qreal selectedTrackCourse;
 };
 
 #endif // TACTICALSOLUTIONVIEW_H

@@ -121,10 +121,10 @@ void TacticalSolutionView::drawVectors()
     drawOwnShipVector(ownShipSpeed, ownShipBearing);
 
     // Draw the selected track vector
-    drawSelectedTrackVector(sensorBearing, selectedTrackRange, selectedTrackBearing, selectedTrackSpeed);
+    drawSelectedTrackVector(sensorBearing, selectedTrackRange, selectedTrackBearing, selectedTrackSpeed, selectedTrackCourse);
 
     // Adopted track vector
-    drawAdoptedTrackVector(sensorBearing, adoptedTrackRange, adoptedTrackBearing, adoptedTrackSpeed);
+    drawAdoptedTrackVector(sensorBearing, adoptedTrackRange, adoptedTrackBearing, adoptedTrackSpeed, adoptedTrackCourse);
 
     // Get guidebox
     QRectF guidebox = getGuideBox(
@@ -137,6 +137,8 @@ void TacticalSolutionView::drawVectors()
         selectedTrackRange,
         selectedTrackSpeed,
         selectedTrackBearing,
+        adoptedTrackCourse,
+        selectedTrackCourse,
         &pointStore);
 
     QRectF zoomBox = getZoomBoxFromGuideBox(guidebox);
@@ -335,14 +337,14 @@ void TacticalSolutionView::drawOwnShipVector(qreal ownShipSpeed, qreal ownShipBe
  * @param selectedTrackBearing
  * @param magnitude
  */
-void TacticalSolutionView::drawSelectedTrackVector(qreal sensorBearing, qreal selectedTrackRange, qreal selectedTrackBearing, qreal selectedTrackSpeed)
+void TacticalSolutionView::drawSelectedTrackVector(qreal sensorBearing, qreal selectedTrackRange, qreal selectedTrackBearing, qreal selectedTrackSpeed, qreal selectedTrackCourse)
 {
     QPointF selectedTrackPosition = DrawUtils::bearingToCartesian(
         selectedTrackRange,
-        sensorBearing,
+        selectedTrackBearing,
         this->scene->sceneRect());
     // Draw a figure (circle) at each position
-    DrawUtils::drawCourseVector(scene, selectedTrackPosition, selectedTrackSpeed / SPEED_NORMALIZATION_FACTOR, selectedTrackBearing, Qt::yellow);
+    DrawUtils::drawCourseVector(scene, selectedTrackPosition, selectedTrackSpeed / SPEED_NORMALIZATION_FACTOR, selectedTrackCourse, Qt::yellow);
 }
 
 /**
@@ -353,14 +355,14 @@ void TacticalSolutionView::drawSelectedTrackVector(qreal sensorBearing, qreal se
  * @param adoptedTrackBearing
  * @param magnitude
  */
-void TacticalSolutionView::drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed)
+void TacticalSolutionView::drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed, qreal adoptedTrackCourse)
 {
     QPointF adoptedTrackPosition = DrawUtils::bearingToCartesian(
         adoptedTrackRange,
-        sensorBearing,
+        adoptedTrackBearing,
         this->scene->sceneRect());
     // Draw a figure (circle) at each position
-    DrawUtils::drawCourseVector(scene, adoptedTrackPosition, adoptedTrackSpeed / SPEED_NORMALIZATION_FACTOR, adoptedTrackBearing, Qt::red);
+    DrawUtils::drawCourseVector(scene, adoptedTrackPosition, adoptedTrackSpeed / SPEED_NORMALIZATION_FACTOR, adoptedTrackCourse, Qt::red);
 }
 
 /**
@@ -387,6 +389,8 @@ QRectF TacticalSolutionView::getGuideBox(
     qreal selectedTrackRange,
     qreal selectedTrackSpeed,
     qreal selectedTrackBearing,
+    qreal adoptedTrackCourse,
+    qreal selectedTrackCourse,
     VectorPointPairs *pointStore)
 {
     std::vector<QPointF> guideBoxPoints;
@@ -411,10 +415,10 @@ QRectF TacticalSolutionView::getGuideBox(
     // Selected Track Vector
     QPointF selectedTrackPosition = DrawUtils::bearingToCartesian(
         selectedTrackRange,
-        sensorBearing,
+        selectedTrackBearing,
         this->scene->sceneRect());
 
-    endpoint = DrawUtils::calculateEndpoint(selectedTrackPosition, selectedTrackSpeed, selectedTrackBearing);
+    endpoint = DrawUtils::calculateEndpoint(selectedTrackPosition, selectedTrackSpeed, selectedTrackCourse);
 
     // Add to the guidebox list
     guideBoxPoints.push_back(selectedTrackPosition);
@@ -426,10 +430,10 @@ QRectF TacticalSolutionView::getGuideBox(
     // Adopted Track Vector
     QPointF adoptedTrackPosition = DrawUtils::bearingToCartesian(
         adoptedTrackRange,
-        sensorBearing,
+        adoptedTrackBearing,
         this->scene->sceneRect());
 
-    endpoint = DrawUtils::calculateEndpoint(adoptedTrackPosition, adoptedTrackSpeed, adoptedTrackBearing);
+    endpoint = DrawUtils::calculateEndpoint(adoptedTrackPosition, adoptedTrackSpeed, adoptedTrackCourse);
 
     // Add to the guidebox list
     guideBoxPoints.push_back(adoptedTrackPosition);
@@ -534,13 +538,18 @@ void TacticalSolutionView::setData(
     const qreal &adoptedTrackBearing,
     const qreal &selectedTrackRange,
     const qreal &selectedTrackSpeed,
-    const qreal &selectedTrackBearing)
+    const qreal &selectedTrackBearing,
+    const qreal &adoptedTrackCourse,
+    const qreal &selectedTrackCourse
+)
 {
     // Store bearings as-is (angles don’t scale)
-    this->ownShipBearing = ownShipBearing;
-    this->sensorBearing = sensorBearing;
-    this->adoptedTrackBearing = adoptedTrackBearing;
-    this->selectedTrackBearing = selectedTrackBearing;
+    this->ownShipBearing = normalizeAngle(ownShipBearing);
+    this->sensorBearing = normalizeAngle(sensorBearing);
+    this->adoptedTrackBearing = normalizeAngle(adoptedTrackBearing);
+    this->selectedTrackBearing = normalizeAngle(selectedTrackBearing);
+    this->adoptedTrackCourse = normalizeAngle(adoptedTrackCourse);
+    this->selectedTrackCourse = normalizeAngle(selectedTrackCourse);
 
     if (!scene || scene->sceneRect().isEmpty())
     {
@@ -592,4 +601,16 @@ void TacticalSolutionView::setData(
     // Step 5: Trigger redraw
     // ------------------------------
     this->update();
+}
+
+qreal TacticalSolutionView::normalizeAngle(qreal angle)
+{
+    // Normalize angle to 0-360 degree range
+    while (angle < 0) {
+        angle += 360.0;
+    }
+    while (angle >= 360.0) {
+        angle -= 360.0;
+    }
+    return angle;
 }
