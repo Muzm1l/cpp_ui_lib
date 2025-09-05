@@ -1,7 +1,7 @@
 #ifndef TACTICALSOLUTIONVIEW_H
 #define TACTICALSOLUTIONVIEW_H
 
-#include <QWidget>
+#include <QGraphicsView>
 #include <QPainter>
 #include <QDebug>
 #include <QGraphicsScene>
@@ -12,7 +12,7 @@ namespace Ui
     class TacticalSolutionView;
 }
 
-class TacticalSolutionView : public QWidget
+class TacticalSolutionView : public QGraphicsView
 {
     Q_OBJECT
 
@@ -42,20 +42,21 @@ public:
     );
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
     // void resizeEvent(QResizeEvent *event) override;
     // void mouseMoveEvent(QMouseEvent *event) override;
 
 private:
     // Drawing functions
     void draw();
-    void drawBackground();
+    void drawCustomBackground();
     void drawTestPattern();
 
     void drawVectors();
     void drawOwnShipVector(qreal ownShipSpeed, qreal ownShipBearing);
     void drawSelectedTrackVector(qreal sensorBearing, qreal selectedTrackRange, qreal selectedTrackBearing, qreal selectedTrackSpeed, qreal selectedTrackCourse);
     void drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed, qreal adoptedTrackCourse);
+    void drawVectorsFromPointStore(const VectorPointPairs &pointStore);
+    void drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color);
     double getFarthestDistance(VectorPointPairs *pointStore, const QPointF &linePoint1, const QPointF &linePoint2);
     QPair<QLineF, QLineF> getOutlineLines(const QLineF &line, const qreal distance);
 

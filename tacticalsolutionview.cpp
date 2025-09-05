@@ -10,7 +10,7 @@ const qreal ZOOMBOX_EXPANSION_FACTOR = 1.2;
  * @param parent
  */
 TacticalSolutionView::TacticalSolutionView(QWidget *parent)
-    : QWidget(parent), ui(new Ui::TacticalSolutionView)
+    : QGraphicsView(parent), ui(new Ui::TacticalSolutionView)
 {
     ui->setupUi(this);
 
@@ -26,12 +26,22 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
     // Initialize scene
     scene = new QGraphicsScene(this);
     scene->setSceneRect(0, 0, width(), height());
+    setScene(scene);
+    
+    // Optimize QGraphicsView performance
+    setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
+    setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    setRenderHint(QPainter::Antialiasing);
 
     // Make sure widget expands
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 
     // Enable mouse tracking
     // setMouseTracking(true);
+    
+    // Initial draw
+    draw();
 }
 
 /**
@@ -59,7 +69,7 @@ void TacticalSolutionView::draw()
     scene->setSceneRect(0, 0, width(), height());
 
     // Draw in layers from back to front
-    drawBackground();
+    drawCustomBackground();
     // DrawUtils::drawDefaultTestPattern(scene);
 
     drawVectors();
@@ -71,7 +81,7 @@ void TacticalSolutionView::draw()
  * @brief Draw the background for the graph.
  *
  */
-void TacticalSolutionView::drawBackground()
+void TacticalSolutionView::drawCustomBackground()
 {
     if (!scene)
         return;
@@ -79,28 +89,7 @@ void TacticalSolutionView::drawBackground()
     // Draw the background - currently empty as we use widget background
 }
 
-/**
- * @brief Handle paint events for the graph.
- *
- * @param event
- */
-void TacticalSolutionView::paintEvent(QPaintEvent *event)
-{
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
 
-    if (scene)
-    {
-        // Draw all elements
-        draw();
-
-        // Render the scene to the widget
-        scene->render(&painter, rect(), scene->sceneRect());
-    }
-
-    qDebug() << "Paint event - Widget size:" << width() << "x" << height();
-}
 
 /// @brief Draws the various vectors
 /// @param ownShipPosition
@@ -117,16 +106,7 @@ void TacticalSolutionView::drawVectors()
     // Create store for all the Vector Points
     VectorPointPairs pointStore;
 
-    // Draw the ownship vector
-    drawOwnShipVector(ownShipSpeed, ownShipBearing);
-
-    // Draw the selected track vector
-    drawSelectedTrackVector(sensorBearing, selectedTrackRange, selectedTrackBearing, selectedTrackSpeed, selectedTrackCourse);
-
-    // Adopted track vector
-    drawAdoptedTrackVector(sensorBearing, adoptedTrackRange, adoptedTrackBearing, adoptedTrackSpeed, adoptedTrackCourse);
-
-    // Get guidebox
+    // Calculate guidebox and store all points
     QRectF guidebox = getGuideBox(
         ownShipSpeed,
         ownShipBearing,
@@ -140,6 +120,9 @@ void TacticalSolutionView::drawVectors()
         adoptedTrackCourse,
         selectedTrackCourse,
         &pointStore);
+
+    // Draw vectors using the stored points
+    drawVectorsFromPointStore(pointStore);
 
     QRectF zoomBox = getZoomBoxFromGuideBox(guidebox);
 
@@ -319,7 +302,6 @@ double TacticalSolutionView::getFarthestDistance(VectorPointPairs *pointStore, c
  */
 void TacticalSolutionView::drawOwnShipVector(qreal ownShipSpeed, qreal ownShipBearing)
 {
-    QPointF ownShipBearingPosition = QPointF(0, 0);
     QPointF ownShipPosition = DrawUtils::bearingToCartesian(
         0,
         0,
@@ -396,8 +378,6 @@ QRectF TacticalSolutionView::getGuideBox(
     std::vector<QPointF> guideBoxPoints;
 
     // Own Ship Vector
-    QPointF ownShipBearingPosition = QPointF(0, 0);
-
     QPointF ownShipPosition = DrawUtils::bearingToCartesian(
         0,
         0,
@@ -410,7 +390,7 @@ QRectF TacticalSolutionView::getGuideBox(
     guideBoxPoints.push_back(endpoint);
 
     // Store the points
-    pointStore->ownShipPoints = qMakePair(ownShipBearingPosition, endpoint);
+    pointStore->ownShipPoints = qMakePair(ownShipPosition, endpoint);
 
     // Selected Track Vector
     QPointF selectedTrackPosition = DrawUtils::bearingToCartesian(
@@ -559,7 +539,7 @@ void TacticalSolutionView::setData(
         this->selectedTrackSpeed = selectedTrackSpeed;
         this->adoptedTrackRange = adoptedTrackRange;
         this->selectedTrackRange = selectedTrackRange;
-        this->update();
+        this->draw();
         return;
     }
 
@@ -600,7 +580,7 @@ void TacticalSolutionView::setData(
     // ------------------------------
     // Step 5: Trigger redraw
     // ------------------------------
-    this->update();
+    this->draw();
 }
 
 qreal TacticalSolutionView::normalizeAngle(qreal angle)
@@ -613,4 +593,50 @@ qreal TacticalSolutionView::normalizeAngle(qreal angle)
         angle -= 360.0;
     }
     return angle;
+}
+
+void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &pointStore)
+{
+    // Draw own ship vector (cyan)
+    drawCourseVectorFromEndpoints(pointStore.ownShipPoints.first, pointStore.ownShipPoints.second, Qt::cyan);
+    
+    // Draw selected track vector (yellow)
+    drawCourseVectorFromEndpoints(pointStore.selectedTrackPoints.first, pointStore.selectedTrackPoints.second, Qt::yellow);
+    
+    // Draw adopted track vector (red)
+    drawCourseVectorFromEndpoints(pointStore.adoptedTrackPoints.first, pointStore.adoptedTrackPoints.second, Qt::red);
+}
+
+void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color)
+{
+    if (!scene)
+        return;
+        
+    qreal headLen = 5;
+    qreal headAngleDeg = 30;
+    int radius = 5;
+    
+    QPen pen(color);
+    QBrush brush(color);
+    
+    // Draw filled circle at start point
+    scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius, radius * 2, radius * 2, pen, brush);
+    
+    // Draw line from start to end point
+    pen.setWidth(2);
+    scene->addLine(QLineF(startPoint, endPoint), pen);
+    
+    // Calculate arrow head points
+    qreal angle = qAtan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
+    qreal a1 = angle + qDegreesToRadians(180.0 - headAngleDeg);
+    qreal a2 = angle - qDegreesToRadians(180.0 - headAngleDeg);
+    
+    QPointF h1(endPoint.x() + headLen * qCos(a1), endPoint.y() + headLen * qSin(a1));
+    QPointF h2(endPoint.x() + headLen * qCos(a2), endPoint.y() + headLen * qSin(a2));
+    
+    // Draw arrow head as filled polygon
+    QPolygonF head;
+    head << endPoint << h1 << h2;
+    
+    scene->addPolygon(head, pen, brush);
 }
