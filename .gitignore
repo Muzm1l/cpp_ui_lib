@@ -73,3 +73,39 @@ Thumbs.db
 
 
 build/
+
+# Build artifacts
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+build/
+debug/
+release/
+
+# Qt-specific generated files
+object_script.*
+*_plugin_import.cpp
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+
+# Temporary and cache files
+*.user
+*.pro.user*
+*.qrc.rc
+*.bak
+*.tmp
+
+# IDE/Editor specific files
+.vscode/
+.idea/
+
+# Operating System specific files
+.DS_Store
+Thumbs.db
