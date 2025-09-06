@@ -39,6 +39,8 @@ public:
     static bool splitRectWithLine(const QLineF &line, const QRectF &rect,
                                   QVector<QPointF> &poly1, QVector<QPointF> &poly2);
     static void drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen& pen, const QBrush& brush);
+
+    static qreal capPolarAngle(qreal angle);
 };
 
 #endif // DRAWUTILS_H

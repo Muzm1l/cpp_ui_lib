@@ -122,6 +122,12 @@ void DrawUtils::addTestPattern(QGraphicsScene *scene, QRectF rectToDraw)
     scene->addRect(rectToDraw, testPen);
 }
 
+/**
+ * @brief Adds a test line to the scene
+ * 
+ * @param scene 
+ * @param lineToDraw 
+ */
 void DrawUtils::addTestLine(QGraphicsScene *scene, QLineF lineToDraw)
 {
     if (!scene)
@@ -138,8 +144,9 @@ void DrawUtils::addTestLine(QGraphicsScene *scene, QLineF lineToDraw)
 }
 
 /**
- * @brief Draw a test pattern for debugging purposes.
- *
+ * @brief Draws the default test pattern
+ * 
+ * @param scene 
  */
 void DrawUtils::drawDefaultTestPattern(QGraphicsScene *scene)
 {
@@ -244,6 +251,14 @@ void DrawUtils::transformAllSceneItems(QGraphicsScene *scene, const QTransform &
     }
 }
 
+/**
+ * @brief Creates a line from a point and an angle
+ * 
+ * @param startPoint 
+ * @param angleInDegrees 
+ * @param length 
+ * @return QGraphicsLineItem* 
+ */
 QGraphicsLineItem *DrawUtils::createLineFromPointAndAngle(const QPointF &startPoint,
                                                           qreal angleInDegrees,
                                                           qreal length)
@@ -257,11 +272,24 @@ QGraphicsLineItem *DrawUtils::createLineFromPointAndAngle(const QPointF &startPo
     return new QGraphicsLineItem(line);
 }
 
+/**
+ * @brief Computes the cartesian distance between two points
+ * 
+ * @param source 
+ * @param target 
+ * @return qreal 
+ */
 qreal DrawUtils::computeCartesianDistance(QPointF source, QPointF target)
 {
     return sqrt(pow(target.x() - source.x(), 2) + pow(target.y() - source.y(), 2));
 }
 
+/**
+ * @brief Flips the bearing
+ * 
+ * @param bearing 
+ * @return qreal 
+ */
 qreal DrawUtils::flipBearing(qreal bearing)
 {
     if (bearing < 180)
@@ -274,6 +302,14 @@ qreal DrawUtils::flipBearing(qreal bearing)
     }
 }
 
+/**
+ * @brief Calculates the perpendicular distance from a point to a line
+ * 
+ * @param point 
+ * @param linePoint1 
+ * @param linePoint2 
+ * @return qreal 
+ */
 qreal DrawUtils::calculatePerpendicularDistance(const QPointF &point, const QPointF &linePoint1, const QPointF &linePoint2)
 {
     // Vector from linePoint1 to linePoint2
@@ -431,6 +467,14 @@ bool DrawUtils::splitRectWithLine(const QLineF &line, const QRectF &rect,
     return true;
 }
 
+/**
+ * @brief Draws a shaded polygon
+ * 
+ * @param scene 
+ * @param poly 
+ * @param pen 
+ * @param brush 
+ */
 void DrawUtils::drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen& pen, const QBrush& brush)
 {
     if (!scene || poly.size() < 3) // must be at least a triangle
@@ -444,23 +488,19 @@ void DrawUtils::drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly,
     scene->addPolygon(polygon, pen, brush);
 }
 
-// /**
-//  * Example usage function
-//  */
-// void exampleUsage()
-// {
-//     // Example rectangles
-//     QRectF sourceRect(10, 20, 100, 50);  // Rectangle at (10,20) with size 100x50
-//     QRectF targetRect(0, 0, 200, 300);   // Rectangle at (0,0) with size 200x300
-
-//     // Compute transformation
-//     QTransform transform = computeTransformationMatrix(sourceRect, targetRect);
-
-//     // Apply transformation to source rectangle
-//     QRectF transformedRect = transform.mapRect(sourceRect);
-
-//     // The transformed rectangle should now be centered in targetRect
-//     // with its largest dimension (100) scaled to match targetRect's smallest dimension (200)
-//     // So the scale factor would be 200/100 = 2.0
-//     // Final size would be 200x100, centered at (100, 150)
-// }
+/**
+ * @brief Cap the polar angle
+ * 
+ * @param angle 
+ * @return qreal 
+ */
+qreal DrawUtils::capPolarAngle(qreal angle)
+{
+    if (angle < 0) {
+        angle += 360.0;
+    }
+    while (angle >= 360.0) {
+        angle -= 360.0;
+    }
+    return angle;
+}

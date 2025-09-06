@@ -76,8 +76,6 @@ private:
 
     QRectF getZoomBoxFromGuideBox(const QRectF guidebox);
     
-    // Utility function to normalize angles to 0-360 degree range
-    qreal normalizeAngle(qreal angle);
 
 private:
     Ui::TacticalSolutionView *ui;

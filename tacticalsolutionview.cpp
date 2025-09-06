@@ -524,12 +524,12 @@ void TacticalSolutionView::setData(
 )
 {
     // Store bearings as-is (angles don’t scale)
-    this->ownShipBearing = normalizeAngle(ownShipBearing);
-    this->sensorBearing = normalizeAngle(sensorBearing);
-    this->adoptedTrackBearing = normalizeAngle(adoptedTrackBearing);
-    this->selectedTrackBearing = normalizeAngle(selectedTrackBearing);
-    this->adoptedTrackCourse = normalizeAngle(adoptedTrackCourse);
-    this->selectedTrackCourse = normalizeAngle(selectedTrackCourse);
+    this->ownShipBearing = DrawUtils::capPolarAngle(ownShipBearing);
+    this->sensorBearing = DrawUtils::capPolarAngle(sensorBearing);
+    this->adoptedTrackBearing = DrawUtils::capPolarAngle(adoptedTrackBearing);
+    this->selectedTrackBearing = DrawUtils::capPolarAngle(selectedTrackBearing);
+    this->adoptedTrackCourse = DrawUtils::capPolarAngle(adoptedTrackCourse);
+    this->selectedTrackCourse = DrawUtils::capPolarAngle(selectedTrackCourse);
 
     if (!scene || scene->sceneRect().isEmpty())
     {
@@ -583,17 +583,6 @@ void TacticalSolutionView::setData(
     this->draw();
 }
 
-qreal TacticalSolutionView::normalizeAngle(qreal angle)
-{
-    // Normalize angle to 0-360 degree range
-    while (angle < 0) {
-        angle += 360.0;
-    }
-    while (angle >= 360.0) {
-        angle -= 360.0;
-    }
-    return angle;
-}
 
 void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &pointStore)
 {
