@@ -17,23 +17,26 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     main.cpp \
+    mainwindow.cpp \
     tacticalsolutionview.cpp \
     twoaxisdata.cpp \
     twoaxisgraph.cpp \
-    widget.cpp \
+    waterfallgraph.cpp \
     drawutils.cpp
 
 HEADERS += \
+    mainwindow.h \
     tacticalsolutionview.h \
     twoaxisdata.h \
     twoaxisgraph.h \
-    widget.h \
+    waterfallgraph.h \
     drawutils.h
 
 FORMS += \
+    mainwindow.ui \
     tacticalsolutionview.ui \
     twoaxisgraph.ui \
-    widget.ui
+    waterfallgraph.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

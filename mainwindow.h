@@ -1,7 +1,7 @@
-#ifndef WIDGET_H
-#define WIDGET_H
+#ifndef MAINWINDOW_H
+#define MAINWINDOW_H
 
-#include <QWidget>
+#include <QMainWindow>
 #include <QTimer>
 #include <cstdlib>
 #include <ctime>
@@ -9,20 +9,20 @@
 QT_BEGIN_NAMESPACE
 namespace Ui
 {
-    class Widget;
+    class MainWindow;
 }
 QT_END_NAMESPACE
 
-class Widget : public QWidget
+class MainWindow : public QMainWindow
 {
     Q_OBJECT
 
 public:
-    Widget(QWidget *parent = nullptr);
-    ~Widget();
+    explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow();
 
 private:
-    Ui::Widget *ui;
+    Ui::MainWindow *ui;
 
     QTimer *timer; ///< Timer for simulation updates
 
@@ -69,4 +69,5 @@ private slots:
      */
     void updateSimulation();
 };
-#endif // WIDGET_H
+
+#endif // MAINWINDOW_H

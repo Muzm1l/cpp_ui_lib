@@ -1,16 +1,19 @@
-#include "widget.h"
-#include "ui_widget.h"
+#include "mainwindow.h"
+#include "ui_mainwindow.h"
 
-Widget::Widget(QWidget *parent)
-    : QWidget(parent), ui(new Ui::Widget), timer(new QTimer(this))
+MainWindow::MainWindow(QWidget *parent)
+    : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this))
 {
     ui->setupUi(this);
-    // inside Widget constructor
+
+    
+
+    // inside MainWindow constructor
     std::srand(std::time(nullptr));
 
     this->simTick = 0;
     // Set up timer for simulation updates (every 2 seconds)
-    connect(timer, &QTimer::timeout, this, &Widget::updateSimulation);
+    connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
     timer->start(2000); // 2000ms = 2 seconds
 
     // Initialize some sample data for the graph
@@ -54,7 +57,7 @@ Widget::Widget(QWidget *parent)
         this->currentSelectedTrackCourse);
 }
 
-Widget::~Widget()
+MainWindow::~MainWindow()
 {
     delete ui;
 }
@@ -65,7 +68,7 @@ Widget::~Widget()
  * Updates target position, recalculates bearing/range/rate,
  * and triggers widget repaint. This is the main simulation loop.
  */
-void Widget::updateSimulation()
+void MainWindow::updateSimulation()
 {
     this->simTick++;
     qDebug() << "Sim Tick: " << this->simTick;
