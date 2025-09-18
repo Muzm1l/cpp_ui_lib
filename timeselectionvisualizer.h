@@ -6,10 +6,21 @@
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QTime>
+#include <QList>
 
 // Compile-time parameters
 #define BUTTON_SIZE 32
 #define GRAPHICS_VIEW_WIDTH 32
+#define MAX_TIME_SELECTIONS 5
+
+struct TimeSelectionSpan {
+    QTime startTime;
+    QTime endTime;
+    
+    TimeSelectionSpan() = default;
+    TimeSelectionSpan(const QTime& start, const QTime& end) : startTime(start), endTime(end) {}
+};
 
 namespace Ui {
 class TimeSelectionVisualizer;
@@ -21,9 +32,27 @@ class TimeVisualizerWidget : public QWidget
 
 public:
     explicit TimeVisualizerWidget(QWidget *parent = nullptr);
+    
+    // Time selection management
+    void addTimeSelection(TimeSelectionSpan span);
+    void clearTimeSelections();
+    
+    // Properties
+    void setTimeLineLength(const QTime& length);
+    void setCurrentTime(const QTime& currentTime);
+    
+    QTime getTimeLineLength() const { return m_timeLineLength; }
+    QTime getCurrentTime() const { return m_currentTime; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+
+private:
+    QList<TimeSelectionSpan> m_timeSelections;
+    QTime m_timeLineLength;
+    QTime m_currentTime;
+    
+    void updateVisualization();
 };
 
 class TimeSelectionVisualizer : public QWidget
@@ -33,6 +62,15 @@ class TimeSelectionVisualizer : public QWidget
 public:
     explicit TimeSelectionVisualizer(QWidget *parent = nullptr);
     ~TimeSelectionVisualizer();
+    
+    // Delegate methods to the visualizer widget
+    void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
+    void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
+    void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
+    void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
+
+private slots:
+    void onButtonClicked();
 
 private:
     Ui::TimeSelectionVisualizer *ui;

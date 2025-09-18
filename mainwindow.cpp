@@ -2,7 +2,7 @@
 #include "ui_mainwindow.h"
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this))
+    : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this))
 {
     ui->setupUi(this);
 
@@ -15,6 +15,10 @@ MainWindow::MainWindow(QWidget *parent)
     // Set up timer for simulation updates (every 2 seconds)
     connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
     timer->start(2000); // 2000ms = 2 seconds
+    
+    // Set up timer for current time updates (every second)
+    connect(timeUpdateTimer, &QTimer::timeout, this, &MainWindow::updateCurrentTime);
+    timeUpdateTimer->start(1000); // 1000ms = 1 second
 
     // Initialize some sample data for the graph
     std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
@@ -55,6 +59,9 @@ MainWindow::MainWindow(QWidget *parent)
         this->currentSelectedTrackBearing,
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
+
+    // Configure TimeSelectionVisualizer
+    configureTimeVisualizer();
 }
 
 MainWindow::~MainWindow()
@@ -115,3 +122,49 @@ void MainWindow::updateSimulation()
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
 }
+
+void MainWindow::configureTimeVisualizer()
+{
+    // Set timeline length to 1 hour (60 minutes)
+    ui->timeVisualizer->setTimeLineLength(QTime(1, 0, 0));
+    
+    // Set initial current time to system time
+    ui->timeVisualizer->setCurrentTime(QTime::currentTime());
+    
+    // Add some sample time selections relative to current time
+    QTime currentTime = QTime::currentTime();
+    
+    // Create selections that are within the visible range (last hour)
+    // Selection 1: 5-10 minutes ago (should be visible)
+    QTime start1 = currentTime.addSecs(-10 * 60); // 10 minutes ago
+    QTime end1 = currentTime.addSecs(-5 * 60);   // 5 minutes ago
+    TimeSelectionSpan span1(start1, end1);
+    
+    // Selection 2: 20-25 minutes ago (should be visible)
+    QTime start2 = currentTime.addSecs(-25 * 60); // 25 minutes ago
+    QTime end2 = currentTime.addSecs(-20 * 60);   // 20 minutes ago
+    TimeSelectionSpan span2(start2, end2);
+    
+    // Selection 3: 35-45 minutes ago (should be visible)
+    QTime start3 = currentTime.addSecs(-45 * 60); // 45 minutes ago
+    QTime end3 = currentTime.addSecs(-35 * 60);   // 35 minutes ago
+    TimeSelectionSpan span3(start3, end3);
+    
+    // Selection 4: 2-3 minutes ago (should be visible)
+    QTime start4 = currentTime.addSecs(-3 * 60); // 3 minutes ago
+    QTime end4 = currentTime.addSecs(-2 * 60);   // 2 minutes ago
+    TimeSelectionSpan span4(start4, end4);
+    
+    
+    ui->timeVisualizer->addTimeSelection(span1);
+    ui->timeVisualizer->addTimeSelection(span2);
+    ui->timeVisualizer->addTimeSelection(span3);
+    ui->timeVisualizer->addTimeSelection(span4);
+}
+
+void MainWindow::updateCurrentTime()
+{
+    // Update the current time to the system time
+    ui->timeVisualizer->setCurrentTime(QTime::currentTime());
+}
+

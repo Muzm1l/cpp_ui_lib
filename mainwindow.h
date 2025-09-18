@@ -5,6 +5,7 @@
 #include <QTimer>
 #include <cstdlib>
 #include <ctime>
+#include "timeselectionvisualizer.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -25,6 +26,9 @@ private:
     Ui::MainWindow *ui;
 
     QTimer *timer; ///< Timer for simulation updates
+    QTimer *timeUpdateTimer; ///< Timer for updating current time
+    
+    void configureTimeVisualizer();
 
     long simTick;
 
@@ -68,6 +72,14 @@ private slots:
      * and bearing rate calculations. Triggers widget repaint.
      */
     void updateSimulation();
+    
+    /**
+     * @brief Updates the current time in the time visualizer
+     *
+     * Called every second to update the current time to system time.
+     */
+    void updateCurrentTime();
+    
 };
 
 #endif // MAINWINDOW_H
