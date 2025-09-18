@@ -53,6 +53,7 @@ private:
     QTime m_currentTime;
     
     void updateVisualization();
+    void drawSelection(QPainter &painter, const TimeSelectionSpan &span);
 };
 
 class TimeSelectionVisualizer : public QWidget
