@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>800</width>
-    <height>600</height>
+    <width>1019</width>
+    <height>717</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -27,8 +27,8 @@
    <widget class="TacticalSolutionView" name="widget_2" native="true">
     <property name="geometry">
      <rect>
-      <x>140</x>
-      <y>250</y>
+      <x>180</x>
+      <y>330</y>
       <width>226</width>
       <height>240</height>
      </rect>
@@ -39,8 +39,8 @@
      <rect>
       <x>620</x>
       <y>70</y>
-      <width>231</width>
-      <height>411</height>
+      <width>351</width>
+      <height>461</height>
      </rect>
     </property>
    </widget>
@@ -50,10 +50,16 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>800</width>
+     <width>1019</width>
      <height>37</height>
     </rect>
    </property>
+   <widget class="QMenu" name="menuUI_Sandbox">
+    <property name="title">
+     <string>UI-Sandbox</string>
+    </property>
+   </widget>
+   <addaction name="menuUI_Sandbox"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
  </widget>

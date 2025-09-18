@@ -4,6 +4,12 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QMouseEvent>
+#include <QGraphicsSceneMouseEvent>
+#include <QVBoxLayout>
+#include <QResizeEvent>
+#include <QShowEvent>
+#include <vector>
 #include "drawutils.h"
 
 namespace Ui {
@@ -15,13 +21,53 @@ class waterfallgraph : public QWidget
     Q_OBJECT
 
 public:
-    explicit waterfallgraph(QWidget *parent = nullptr);
+    explicit waterfallgraph(QWidget *parent = nullptr, bool enableGrid = true, int gridDivisions = 10);
     ~waterfallgraph();
+    
+    // Data handling
+    void setData(const std::vector<double>& xData, const std::vector<double>& yData);
+    
+    // Mouse event handlers (virtual so they can be overridden in derived classes)
+    virtual void onMouseClick(const QPointF& scenePos);
+    virtual void onMouseDrag(const QPointF& scenePos);
+
+protected:
+    // Override mouse events
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    
+    // Override resize event
+    void resizeEvent(QResizeEvent *event) override;
+    
+    // Override show event
+    void showEvent(QShowEvent *event) override;
 
 private:
     Ui::waterfallgraph *ui;
     QGraphicsView *graphicsView;
     QGraphicsScene *graphicsScene;
+    
+    // Drawing area and grid
+    QRectF drawingArea;
+    bool gridEnabled;
+    int gridDivisions;
+    void setupDrawingArea();
+    void drawGrid();
+    void clearGrid();
+    void updateGraphicsDimensions();
+    void forceBackgroundUpdate();
+    
+    // Data storage
+    std::vector<double> xData;
+    std::vector<double> yData;
+    
+    // Mouse tracking
+    bool isDragging;
+    QPointF lastMousePos;
+    
+    // Grid tracking
+    QList<QGraphicsItem*> gridItems;
 };
 
 #endif // WATERFALLGRAPH_H
