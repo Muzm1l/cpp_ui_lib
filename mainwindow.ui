@@ -18,7 +18,7 @@
     <property name="geometry">
      <rect>
       <x>10</x>
-      <y>20</y>
+      <y>30</y>
       <width>531</width>
       <height>171</height>
      </rect>
@@ -37,10 +37,20 @@
    <widget class="waterfallgraph" name="widget_3" native="true">
     <property name="geometry">
      <rect>
-      <x>620</x>
-      <y>70</y>
+      <x>560</x>
+      <y>60</y>
       <width>351</width>
       <height>461</height>
+     </rect>
+    </property>
+   </widget>
+   <widget class="TimeSelectionVisualizer" name="timeVisualizer" native="true">
+    <property name="geometry">
+     <rect>
+      <x>959</x>
+      <y>50</y>
+      <width>41</width>
+      <height>471</height>
      </rect>
     </property>
    </widget>
@@ -80,6 +90,12 @@
    <class>waterfallgraph</class>
    <extends>QWidget</extends>
    <header>waterfallgraph.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>TimeSelectionVisualizer</class>
+   <extends>QWidget</extends>
+   <header>timeselectionvisualizer.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>
