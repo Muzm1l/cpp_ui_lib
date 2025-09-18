@@ -15,24 +15,47 @@ void TimeVisualizerWidget::drawSelection(QPainter &painter, const TimeSelectionS
 {
     // First get the draw area
     QRect drawArea = rect();
+    int widgetHeight = drawArea.height();
+    int widgetWidth = drawArea.width();
 
-    // Now get the time span
-    int startSeconds = span.startTime.hour() * 3600 + span.startTime.minute() * 60 + span.startTime.second();
-    int endSeconds = span.endTime.hour() * 3600 + span.endTime.minute() * 60 + span.endTime.second();
-
-    // Now get the pixels per second
-    int pixelsPerSecond = drawArea.height() / (endSeconds - startSeconds);
+    // Calculate the total timeline duration in seconds
+    int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
     
-    // Now based on the current time identify the start and end y positions
-    int startY = static_cast<int>((m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second() - endSeconds) * pixelsPerSecond);
-    int endY = static_cast<int>((m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second() - startSeconds) * pixelsPerSecond);
+    if (totalSeconds <= 0 || widgetHeight <= 0) {
+        return; // Invalid parameters
+    }
 
-    // Now draw the selection
-    painter.fillRect(0, startY, drawArea.width(), endY - startY, QColor(255, 255, 255));
+    // Calculate pixels per second
+    double pixelsPerSecond = static_cast<double>(widgetHeight) / totalSeconds;
 
-    // Now draw the border
-    painter.setPen(QPen(QColor(150, 150, 150), 1));
-    painter.drawRect(0, startY, drawArea.width(), endY - startY);
+    // Get current time and selection times in seconds
+    int currentTimeSeconds = m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second();
+    int selectionStartSeconds = span.startTime.hour() * 3600 + span.startTime.minute() * 60 + span.startTime.second();
+    int selectionEndSeconds = span.endTime.hour() * 3600 + span.endTime.minute() * 60 + span.endTime.second();
+
+    // Calculate the visible time range (currentTime is at top, currentTime-timespan is at bottom)
+    int timeSpanStartSeconds = currentTimeSeconds - totalSeconds;
+
+    // Check if selection overlaps with visible range
+    if (selectionEndSeconds >= timeSpanStartSeconds && selectionStartSeconds <= currentTimeSeconds) {
+        // Calculate Y positions relative to currentTime (top of widget)
+        int topY = static_cast<int>((currentTimeSeconds - selectionEndSeconds) * pixelsPerSecond);
+        int bottomY = static_cast<int>((currentTimeSeconds - selectionStartSeconds) * pixelsPerSecond);
+
+        // Clamp to widget bounds
+        topY = qMax(0, qMin(widgetHeight, topY));
+        bottomY = qMax(0, qMin(widgetHeight, bottomY));
+
+        // Ensure the rectangle is at least 1 pixel high
+        int rectHeight = qMax(1, bottomY - topY);
+
+        // Now draw the selection
+        painter.fillRect(0, topY, widgetWidth, rectHeight, QColor(255, 255, 255));
+
+        // Now draw the border
+        painter.setPen(QPen(QColor(150, 150, 150), 1));
+        painter.drawRect(0, topY, widgetWidth, rectHeight);
+    }
 }
 
 void TimeVisualizerWidget::paintEvent(QPaintEvent *event)
@@ -45,10 +68,7 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent *event)
     
     // Draw time selection rectangles
     if (!m_timeSelections.isEmpty() && !m_timeLineLength.isNull() && !m_currentTime.isNull()) {
-        qDebug() << "Drawing time selections";
-            
         for (const TimeSelectionSpan& span : m_timeSelections) {
-            qDebug() << "Drawing time selection: " << span.startTime << " to " << span.endTime;
             drawSelection(painter, span);
         }
     }
