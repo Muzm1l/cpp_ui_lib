@@ -2,12 +2,13 @@
 #define WATERFALLGRAPH_H
 
 #include <QWidget>
+#include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QMouseEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
-#include <QPainter>
+#include <QVBoxLayout>
 #include <QPalette>
 #include <vector>
 #include "drawutils.h"
@@ -32,9 +33,6 @@ public:
     virtual void onMouseDrag(const QPointF& scenePos);
 
 protected:
-    // Override paint event
-    void paintEvent(QPaintEvent *event) override;
-    
     // Override mouse events
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -48,6 +46,7 @@ protected:
 
 private:
     Ui::waterfallgraph *ui;
+    QGraphicsView *graphicsView;
     QGraphicsScene *graphicsScene;
     
     // Drawing area and grid
@@ -57,6 +56,7 @@ private:
     void draw();
     void setupDrawingArea();
     void drawGrid();
+    void updateGraphicsDimensions();
     
     // Data storage
     std::vector<double> xData;

@@ -1,9 +1,17 @@
 #include "waterfallgraph.h"
 #include "ui_waterfallgraph.h"
 
+/**
+ * @brief Construct a new waterfallgraph::waterfallgraph object
+ * 
+ * @param parent 
+ * @param enableGrid 
+ * @param gridDivisions 
+ */
 waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisions)
     : QWidget(parent)
     , ui(new Ui::waterfallgraph)
+    , graphicsView(nullptr)
     , graphicsScene(nullptr)
     , gridEnabled(enableGrid)
     , gridDivisions(gridDivisions)
@@ -11,7 +19,7 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
 {
     ui->setupUi(this);
     
-    // Set black background (like two-axis graph)
+    // Set black background
     QPalette pal = palette();
     pal.setColor(QPalette::Window, Qt::black);
     setPalette(pal);
@@ -22,7 +30,26 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     
     // Initialize scene
     graphicsScene = new QGraphicsScene(this);
-    graphicsScene->setSceneRect(0, 0, width(), height());
+    graphicsScene->setBackgroundBrush(QBrush(Qt::black));
+    
+    // Create graphics view
+    graphicsView = new QGraphicsView(graphicsScene, this);
+    graphicsView->setRenderHint(QPainter::Antialiasing);
+    graphicsView->setDragMode(QGraphicsView::NoDrag); // We'll handle our own mouse events
+    
+    // Set black background for view
+    graphicsView->setBackgroundBrush(QBrush(Qt::black));
+    
+    // Disable scrollbars
+    graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    
+    // Set up layout to make the graphics view fill the widget with 1% margin
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(graphicsView);
+    setLayout(layout);
     
     // Make sure widget expands
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -30,35 +57,26 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     // Enable mouse tracking
     setMouseTracking(true);
     
-    // Initial draw will happen in paintEvent
+    // Initial setup will happen in showEvent
     qDebug() << "Constructor - Widget size:" << this->size();
-    qDebug() << "Constructor - Graphics scene rect:" << graphicsScene->sceneRect();
 }
 
+/**
+ * @brief Destroy the waterfallgraph::waterfallgraph object
+ * 
+ */
 waterfallgraph::~waterfallgraph()
 {
     delete ui;
-    // Note: graphicsScene is a child scene, so it will be automatically deleted by Qt's parent-child mechanism
+    // Note: graphicsView and graphicsScene are child widgets/scenes, so they will be automatically deleted by Qt's parent-child mechanism
 }
 
-void waterfallgraph::paintEvent(QPaintEvent *event)
-{
-    Q_UNUSED(event);
-    QPainter painter(this);
-    painter.setRenderHint(QPainter::Antialiasing);
-
-    if (graphicsScene)
-    {
-        // Draw all elements
-        draw();
-
-        // Render the scene to the widget
-        graphicsScene->render(&painter, rect(), graphicsScene->sceneRect());
-    }
-
-    qDebug() << "Paint event - Widget size:" << width() << "x" << height();
-}
-
+/**
+ * @brief Set the data for the graph.
+ * 
+ * @param xData 
+ * @param yData 
+ */
 void waterfallgraph::setData(const std::vector<double>& xData, const std::vector<double>& yData)
 {
     // Validate that both vectors have the same size
@@ -75,6 +93,11 @@ void waterfallgraph::setData(const std::vector<double>& xData, const std::vector
     // TODO: Redraw the graph with the new data
 }
 
+/**
+ * @brief Handle mouse click events.
+ * 
+ * @param scenePos 
+ */
 void waterfallgraph::onMouseClick(const QPointF& scenePos)
 {
     qDebug() << "Mouse clicked at scene position:" << scenePos;
@@ -87,6 +110,10 @@ void waterfallgraph::onMouseDrag(const QPointF& scenePos)
     // This is a virtual function that can be overridden in derived classes
 }
 
+/**
+ * @brief Draw the graph.
+ * 
+ */
 void waterfallgraph::draw()
 {
     if (!graphicsScene)
@@ -110,6 +137,62 @@ void waterfallgraph::draw()
     DrawUtils::drawDefaultTestPattern(graphicsScene);
 }
 
+/**
+ * @brief Update the graphics dimensions.
+ * 
+ */
+void waterfallgraph::updateGraphicsDimensions()
+{
+    if (!graphicsView || !graphicsScene) return;
+    
+    // Get the current size of the graphics view
+    QSize viewSize = graphicsView->size();
+    QSize widgetSize = this->size();
+    
+    qDebug() << "updateGraphicsDimensions - Widget size:" << widgetSize;
+    qDebug() << "updateGraphicsDimensions - Graphics view size:" << viewSize;
+    
+    // Only update if we have valid dimensions
+    if (viewSize.width() > 0 && viewSize.height() > 0) {
+        // Make scene 1% smaller than view to prevent wiggle
+        double reductionFactor = 0.99; // 1% smaller
+        int sceneWidth = static_cast<int>(viewSize.width() * reductionFactor);
+        int sceneHeight = static_cast<int>(viewSize.height() * reductionFactor);
+        
+        // Center the scene within the view
+        int offsetX = (viewSize.width() - sceneWidth) / 2;
+        int offsetY = (viewSize.height() - sceneHeight) / 2;
+        
+        QRectF newSceneRect(offsetX, offsetY, sceneWidth, sceneHeight);
+        graphicsScene->setSceneRect(newSceneRect);
+        
+        // Ensure the graphics view fits the scene exactly (no scrollbars)
+        graphicsView->setSceneRect(newSceneRect);
+        graphicsView->resetTransform(); // Reset any scaling
+        graphicsView->setTransform(QTransform()); // Ensure 1:1 mapping
+        
+        // Update the drawing area
+        setupDrawingArea();
+        
+        // Draw grid if enabled
+        if (gridEnabled) {
+            drawGrid();
+        }
+        
+        // Draw test geometry using drawutils
+        DrawUtils::drawDefaultTestPattern(graphicsScene);
+        
+        qDebug() << "Graphics dimensions updated successfully to:" << viewSize;
+        qDebug() << "Scene rect is now:" << graphicsScene->sceneRect();
+    } else {
+        qDebug() << "Graphics view size is invalid, skipping update";
+    }
+}
+
+/**
+ * @brief Setup the drawing area.
+ * 
+ */
 void waterfallgraph::setupDrawingArea()
 {
     // Set up the drawing area to cover the entire scene
@@ -118,7 +201,10 @@ void waterfallgraph::setupDrawingArea()
 }
 
 
-
+/**
+ * @brief Draw the grid.
+ * 
+ */
 void waterfallgraph::drawGrid()
 {
     if (!graphicsScene || !gridEnabled || drawingArea.isEmpty() || gridDivisions <= 0) return;
@@ -144,11 +230,16 @@ void waterfallgraph::drawGrid()
     graphicsScene->addRect(drawingArea, borderPen);
 }
 
+/**
+ * @brief Handle mouse press events.
+ * 
+ * @param event 
+ */
 void waterfallgraph::mousePressEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
         // Convert widget coordinates to scene coordinates
-        QPointF scenePos = QPointF(event->pos());
+        QPointF scenePos = graphicsView->mapToScene(event->pos());
         
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos)) {
@@ -161,11 +252,16 @@ void waterfallgraph::mousePressEvent(QMouseEvent *event)
     QWidget::mousePressEvent(event);
 }
 
+/**
+ * @brief Handle mouse move events.
+ * 
+ * @param event 
+ */
 void waterfallgraph::mouseMoveEvent(QMouseEvent *event)
 {
     if (isDragging && (event->buttons() & Qt::LeftButton)) {
         // Convert widget coordinates to scene coordinates
-        QPointF scenePos = QPointF(event->pos());
+        QPointF scenePos = graphicsView->mapToScene(event->pos());
         
         // Check if the move is within the drawing area
         if (drawingArea.contains(scenePos)) {
@@ -177,6 +273,11 @@ void waterfallgraph::mouseMoveEvent(QMouseEvent *event)
     QWidget::mouseMoveEvent(event);
 }
 
+/**
+ * @brief Handle mouse release events.
+ * 
+ * @param event 
+ */
 void waterfallgraph::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
@@ -186,26 +287,34 @@ void waterfallgraph::mouseReleaseEvent(QMouseEvent *event)
     QWidget::mouseReleaseEvent(event);
 }
 
+/**
+ * @brief Handle resize events.
+ * 
+ * @param event 
+ */
 void waterfallgraph::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
-    if (graphicsScene)
-    {
-        // Redraw will happen in paintEvent
-        update();
-
-        qDebug() << "Resize event - New size:" << size();
-    }
+    
+    // Update graphics dimensions when the widget is resized
+    updateGraphicsDimensions();
+    
+    qDebug() << "Resize event - New size:" << size();
 }
 
-
+/**
+ * @brief Handle show events.
+ * 
+ * @param event 
+ */
 void waterfallgraph::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
     
     // This is called when the widget becomes visible
     qDebug() << "showEvent - Widget size:" << this->size();
+    qDebug() << "showEvent - Graphics view size:" << graphicsView->size();
     
-    // Force a redraw
-    update();
+    // Update graphics dimensions now that we're visible
+    updateGraphicsDimensions();
 }
