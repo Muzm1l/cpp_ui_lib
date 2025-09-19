@@ -7,6 +7,7 @@
 #include <ctime>
 #include "timeselectionvisualizer.h"
 #include "timelineview.h"
+#include "zoompanel.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -31,6 +32,7 @@ private:
     
     void configureTimeVisualizer();
     void configureTimelineView();
+    void configureZoomPanel();
     void updateTimeline();
 
     long simTick;

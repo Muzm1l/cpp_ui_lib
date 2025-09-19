@@ -24,7 +24,8 @@ SOURCES += \
     twoaxisdata.cpp \
     twoaxisgraph.cpp \
     waterfallgraph.cpp \
-    drawutils.cpp
+    drawutils.cpp \
+    zoompanel.cpp
 
 HEADERS += \
     mainwindow.h \
@@ -34,7 +35,8 @@ HEADERS += \
     twoaxisdata.h \
     twoaxisgraph.h \
     waterfallgraph.h \
-    drawutils.h
+    drawutils.h \
+    zoompanel.h
 
 FORMS += \
     mainwindow.ui \
@@ -42,7 +44,8 @@ FORMS += \
     timelineview.ui \
     timeselectionvisualizer.ui \
     twoaxisgraph.ui \
-    waterfallgraph.ui
+    waterfallgraph.ui \
+    zoompanel.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
