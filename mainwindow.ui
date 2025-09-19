@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1019</width>
+    <width>1182</width>
     <height>717</height>
    </rect>
   </property>
@@ -54,13 +54,23 @@
      </rect>
     </property>
    </widget>
+   <widget class="TimelineView" name="timelineView" native="true">
+    <property name="geometry">
+     <rect>
+      <x>1040</x>
+      <y>90</y>
+      <width>120</width>
+      <height>431</height>
+     </rect>
+    </property>
+   </widget>
   </widget>
   <widget class="QMenuBar" name="menubar">
    <property name="geometry">
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1019</width>
+     <width>1182</width>
      <height>37</height>
     </rect>
    </property>
@@ -96,6 +106,12 @@
    <class>TimeSelectionVisualizer</class>
    <extends>QWidget</extends>
    <header>timeselectionvisualizer.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>TimelineView</class>
+   <extends>QWidget</extends>
+   <header>timelineview.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

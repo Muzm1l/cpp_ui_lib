@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <ctime>
 #include "timeselectionvisualizer.h"
+#include "timelineview.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -29,6 +30,8 @@ private:
     QTimer *timeUpdateTimer; ///< Timer for updating current time
     
     void configureTimeVisualizer();
+    void configureTimelineView();
+    void updateTimeline();
 
     long simTick;
 

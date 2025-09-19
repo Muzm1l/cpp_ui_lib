@@ -8,19 +8,14 @@
 #include <QPaintEvent>
 #include <QTime>
 #include <QList>
+#include "timelineutils.h"
 
 // Compile-time parameters
 #define BUTTON_SIZE 32
 #define GRAPHICS_VIEW_WIDTH 32
 #define MAX_TIME_SELECTIONS 5
 
-struct TimeSelectionSpan {
-    QTime startTime;
-    QTime endTime;
-    
-    TimeSelectionSpan() = default;
-    TimeSelectionSpan(const QTime& start, const QTime& end) : startTime(start), endTime(end) {}
-};
+
 
 namespace Ui {
 class TimeSelectionVisualizer;

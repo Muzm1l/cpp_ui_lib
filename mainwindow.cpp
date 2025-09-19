@@ -60,8 +60,11 @@ MainWindow::MainWindow(QWidget *parent)
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
 
-    // Configure TimeSelectionVisualizer
+    // Configure TimeSelectionVisualizer 
     configureTimeVisualizer();
+
+    // Configure TimelineView
+    configureTimelineView();
 }
 
 MainWindow::~MainWindow()
@@ -78,7 +81,7 @@ MainWindow::~MainWindow()
 void MainWindow::updateSimulation()
 {
     this->simTick++;
-    qDebug() << "Sim Tick: " << this->simTick;
+    // qDebug() << "Sim Tick: " << this->simTick;
 
     auto randPercent = [](int max)
     {
@@ -160,11 +163,32 @@ void MainWindow::configureTimeVisualizer()
     ui->timeVisualizer->addTimeSelection(span2);
     ui->timeVisualizer->addTimeSelection(span3);
     ui->timeVisualizer->addTimeSelection(span4);
+    
 }
+
+void MainWindow::configureTimelineView()
+{
+    ui->timelineView->setTimeLineLength(TimeInterval::FifteenMinutes); // 15 minutes
+    ui->timelineView->setCurrentTime(QTime::currentTime());
+    ui->timelineView->setNumberOfDivisions(15); // 15 segments
+
+    // Create a new timer that fires every minute
+    QTimer *timelineUpdateTimer = new QTimer(this);
+    connect(timelineUpdateTimer, &QTimer::timeout, this, &MainWindow::updateTimeline);
+    timelineUpdateTimer->start(60000); // 60000ms = 1 minute
+    
+}
+
+void MainWindow::updateTimeline()
+{
+    ui->timelineView->setCurrentTime(QTime::currentTime());
+}
+
 
 void MainWindow::updateCurrentTime()
 {
     // Update the current time to the system time
     ui->timeVisualizer->setCurrentTime(QTime::currentTime());
+    ui->timelineView->setCurrentTime(QTime::currentTime());
 }
 

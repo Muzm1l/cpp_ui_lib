@@ -19,6 +19,7 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     tacticalsolutionview.cpp \
+    timelineview.cpp \
     timeselectionvisualizer.cpp \
     twoaxisdata.cpp \
     twoaxisgraph.cpp \
@@ -28,6 +29,7 @@ SOURCES += \
 HEADERS += \
     mainwindow.h \
     tacticalsolutionview.h \
+    timelineview.h \
     timeselectionvisualizer.h \
     twoaxisdata.h \
     twoaxisgraph.h \
@@ -37,6 +39,7 @@ HEADERS += \
 FORMS += \
     mainwindow.ui \
     tacticalsolutionview.ui \
+    timelineview.ui \
     timeselectionvisualizer.ui \
     twoaxisgraph.ui \
     waterfallgraph.ui

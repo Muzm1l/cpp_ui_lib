@@ -74,7 +74,7 @@ void TacticalSolutionView::draw()
 
     drawVectors();
 
-    qDebug() << "Draw completed - Scene rect:" << scene->sceneRect();
+    // qDebug() << "Draw completed - Scene rect:" << scene->sceneRect();
 }
 
 /**
@@ -126,15 +126,15 @@ void TacticalSolutionView::drawVectors()
 
     QRectF zoomBox = getZoomBoxFromGuideBox(guidebox);
 
-    qDebug() << "Guide Box: width: " << guidebox.width() << ", height: " << guidebox.height();
-    qDebug() << "Zoom Box: width:" << zoomBox.width() << ", height: " << zoomBox.height();
+    // qDebug() << "Guide Box: width: " << guidebox.width() << ", height: " << guidebox.height();
+    // qDebug() << "Zoom Box: width:" << zoomBox.width() << ", height: " << zoomBox.height();
 
     // DrawUtils::addTestPattern(scene, guidebox);
     // DrawUtils::addTestPattern(scene, zoomBox);
 
     // Compute the transformation to adjust the zooming and panning
     QTransform zoomtransform = DrawUtils::computeTransformationMatrix(zoomBox, scene->sceneRect());
-    qDebug() << "Scene Box: width:" << scene->sceneRect().width() << ", height: " << scene->sceneRect().height();
+    // qDebug() << "Scene Box: width:" << scene->sceneRect().width() << ", height: " << scene->sceneRect().height();
 
     // Draw test line that goes through a point for a given angle
     // Get the largest distance
@@ -174,8 +174,8 @@ void TacticalSolutionView::drawVectors()
     QLineF chosenLine = (d1 < d2) ? lines.first : lines.second;
     QLineF oppositeLine = (d1 < d2) ? lines.second : lines.first;
 
-    qDebug() << "Chosen Line: " << chosenLine;
-    qDebug() << "Opposite Line: " << oppositeLine;
+    // qDebug() << "Chosen Line: " << chosenLine;
+    // qDebug() << "Opposite Line: " << oppositeLine;
 
     // Apply the transform
     DrawUtils::transformAllSceneItems(scene, zoomtransform);
@@ -283,13 +283,13 @@ double TacticalSolutionView::getFarthestDistance(VectorPointPairs *pointStore, c
     std::vector<qreal> distances = {d1, d2, d3};
     auto maxref = std::max_element(distances.begin(), distances.end());
 
-    qDebug() << "own ship: " << d1;
-    qDebug() << "adopted tracl: " << d2;
-    qDebug() << "selected tracl: " << d3;
+    // qDebug() << "own ship: " << d1;
+    // qDebug() << "adopted tracl: " << d2;
+    // qDebug() << "selected tracl: " << d3;
 
     qreal maxValue = *maxref;
 
-    qDebug() << "max distance: " << maxValue;
+    // qDebug() << "max distance: " << maxValue;
 
     return maxValue;
 }

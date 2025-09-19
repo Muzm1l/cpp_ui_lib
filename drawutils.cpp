@@ -193,7 +193,7 @@ QTransform DrawUtils::computeTransformationMatrix(const QRectF &sourceRect, cons
 
     // Uniform scale factor
     qreal scaleFactor = targetSmallestDimension / sourceLargestDimension;
-    qDebug() << "Scale Factor: " << scaleFactor;
+    // qDebug() << "Scale Factor: " << scaleFactor;
 
     QPointF sourceCenter = sourceRect.center();
     QPointF targetCenter = targetRect.center();
