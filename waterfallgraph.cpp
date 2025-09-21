@@ -24,9 +24,8 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     setPalette(pal);
     setAutoFillBackground(true);
     
-    // Set fixed size constraints
-    setMaximumSize(800, 400); // Set both max width and height
-    setFixedHeight(350); // Force a fixed height
+    // Ensure the widget expands to fill all available space in the parent container
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
     // Initialize scene
     graphicsScene = new QGraphicsScene(this);

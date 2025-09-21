@@ -8,6 +8,7 @@
 #include "timeselectionvisualizer.h"
 #include "timelineview.h"
 #include "zoompanel.h"
+#include "graphlayout.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -34,6 +35,7 @@ private:
     // void configureTimelineView();
     // void configureZoomPanel();
     // void updateTimeline();
+    void configureLayoutSelection();
 
     long simTick;
 
@@ -77,6 +79,13 @@ private slots:
      * and bearing rate calculations. Triggers widget repaint.
      */
     void updateSimulation();
+    
+    /**
+     * @brief Handles layout type changes from the combobox
+     *
+     * Called when user selects a different layout type from the combobox.
+     */
+    void onLayoutTypeChanged(int index);
     
     // /**
     //  * @brief Updates the current time in the time visualizer

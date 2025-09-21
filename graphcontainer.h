@@ -15,6 +15,19 @@ class GraphContainer : public QWidget
     Q_OBJECT
 public:
     explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true);
+    void setShowTimelineView(bool showTimelineView);
+    bool getShowTimelineView();
+    
+    // Sizing methods
+    int getTimelineWidth() const;
+    
+    // Graph view sizing methods
+    void setGraphViewSize(int width, int height);
+    QSize getGraphViewSize() const;
+    QSize getTotalContainerSize() const;
+    
+private:
+    void updateTotalContainerSize();
 
 signals:
     void NewTimeSelectionCreated(qreal startTime, qreal endTime);
@@ -30,6 +43,10 @@ private:
     TimeSelectionVisualizer *m_timelineSelectionView;
     TimelineView *m_timelineView;
     bool m_showTimelineView;
+    
+    // Sizing properties
+    int m_timelineWidth;
+    QSize m_graphViewSize;
 };
 
 #endif // GRAPHCONTAINER_H

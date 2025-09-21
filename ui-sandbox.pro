@@ -17,6 +17,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     graphcontainer.cpp \
+    graphlayout.cpp \
     main.cpp \
     mainwindow.cpp \
     tacticalsolutionview.cpp \
@@ -30,6 +31,7 @@ SOURCES += \
 
 HEADERS += \
     graphcontainer.h \
+    graphlayout.h \
     mainwindow.h \
     tacticalsolutionview.h \
     timelineview.h \

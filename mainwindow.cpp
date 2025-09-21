@@ -57,6 +57,9 @@ MainWindow::MainWindow(QWidget *parent)
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
 
+    // Configure layout selection combobox
+    configureLayoutSelection();
+
     // // Configure TimeSelectionVisualizer 
     // configureTimeVisualizer();
 
@@ -232,4 +235,28 @@ void MainWindow::updateSimulation()
 //         // For example, update other UI elements or trigger other actions
 //     });
 // }
+
+void MainWindow::configureLayoutSelection()
+{
+    // Populate combobox with layout type options
+    ui->layoutSelectionComboBox->addItem("1 Window", static_cast<int>(LayoutType::GPW1W));
+    ui->layoutSelectionComboBox->addItem("4 Windows (2x2)", static_cast<int>(LayoutType::GPW4W));
+    ui->layoutSelectionComboBox->addItem("2 Windows Vertical", static_cast<int>(LayoutType::GPW2WV));
+    ui->layoutSelectionComboBox->addItem("2 Windows Horizontal", static_cast<int>(LayoutType::GPW2WH));
+    ui->layoutSelectionComboBox->addItem("4 Windows Horizontal", static_cast<int>(LayoutType::GPW4WH));
+    ui->layoutSelectionComboBox->addItem("Hidden", static_cast<int>(LayoutType::HIDDEN));
+    
+    // Set default selection to 1 Window
+    ui->layoutSelectionComboBox->setCurrentIndex(5);
+    
+    // Connect combobox to slot
+    connect(ui->layoutSelectionComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onLayoutTypeChanged);
+}
+
+void MainWindow::onLayoutTypeChanged(int index)
+{
+    LayoutType layoutType = static_cast<LayoutType>(ui->layoutSelectionComboBox->itemData(index).toInt());
+    ui->graphgrid->setLayoutType(layoutType);
+}
 
