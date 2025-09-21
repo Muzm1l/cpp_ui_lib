@@ -40,14 +40,24 @@ TimelineVisualizerWidget::~TimelineVisualizerWidget()
 {
 }
 
+void TimelineVisualizerWidget::setIsAbsoluteTime(bool isAbsoluteTime)
+{
+    m_isAbsoluteTime = isAbsoluteTime;
+    updateVisualization();
+}
+
 // No time selection methods needed for TimelineView
 
 // No drawSelection method needed for TimelineView
 
-QString TimelineVisualizerWidget::getTimeLabel(int segmentNumber)
+QString TimelineVisualizerWidget::getTimeLabel(int segmentNumber, bool isAbsoluteTime)
 {
     QString timestamp;
-    if (!m_timeLineLength.isNull() && !m_currentTime.isNull()) {
+    if (m_timeLineLength.isNull() || m_currentTime.isNull()) {
+        return timestamp;
+    }
+
+    if (isAbsoluteTime) {
         // Calculate the time interval per segment
         int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
         int segmentIntervalSeconds = totalSeconds / m_numberOfDivisions;
@@ -73,6 +83,24 @@ QString TimelineVisualizerWidget::getTimeLabel(int segmentNumber)
         
         timestamp = segmentTime.toString("HH:mm");
     }
+    else {
+        // Calculate the time interval per segment
+        int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+        int segmentIntervalSeconds = totalSeconds / m_numberOfDivisions;
+
+        // The difference from current time to this segment is segmentNumber * segmentIntervalSeconds
+        int diffSeconds = segmentNumber * segmentIntervalSeconds;
+
+        int diffHours = diffSeconds / 3600;
+        int diffMinutes = (diffSeconds % 3600) / 60;
+        int diffSecs = diffSeconds % 60;
+
+        // Format as "-HH:MM"
+        timestamp = QString("-%1:%2")
+                        .arg(diffHours, 2, 10, QChar('0'))
+                        .arg(diffMinutes, 2, 10, QChar('0'));
+
+    }
     return timestamp;
 }
 
@@ -93,7 +121,7 @@ void TimelineVisualizerWidget::drawSegment(QPainter &painter, int segmentNumber)
     double y = segmentNumber * segmentHeight;
         
     // Calculate timestamp for this segment
-    QString timestamp = getTimeLabel(segmentNumber);
+    QString timestamp = getTimeLabel(segmentNumber, m_isAbsoluteTime);
     if (timestamp.isNull()) {
         return; // No timestamp to draw, but segment background is already drawn
     }
@@ -333,6 +361,7 @@ void TimelineView::onIntervalButtonClicked()
 void TimelineView::onTimeModeButtonClicked()
 {
     m_isAbsoluteTime = !m_isAbsoluteTime;
+    m_visualizerWidget->setIsAbsoluteTime(m_isAbsoluteTime);
     updateTimeModeButtonText(m_isAbsoluteTime);
 }   
 

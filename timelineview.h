@@ -22,14 +22,12 @@ class TimelineVisualizerWidget : public QWidget
 public:
     explicit TimelineVisualizerWidget(QWidget *parent = nullptr);
     ~TimelineVisualizerWidget();
-    
-           // No time selection management needed for TimelineView
         
     // Properties
     void setTimeLineLength(const QTime& length);
     void setCurrentTime(const QTime& currentTime);
     void setNumberOfDivisions(int divisions);
-    
+    void setIsAbsoluteTime(bool isAbsoluteTime);
     QTime getTimeLineLength() const { return m_timeLineLength; }
     QTime getCurrentTime() const { return m_currentTime; }
     int getNumberOfDivisions() const { return m_numberOfDivisions; }
@@ -41,13 +39,12 @@ private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes
     QTime m_currentTime;
     int m_numberOfDivisions = 15; // Default to 15 segments
-    
+    bool m_isAbsoluteTime = true;
     void updateVisualization();
     void drawSegment(QPainter &painter, int segmentNumber);
     void drawChevron(QPainter &painter, int yOffset);
-    QString getTimeLabel(int segmentNumber);
+    QString getTimeLabel(int segmentNumber, bool isAbsoluteTime);
     void drawChevronLabels(QPainter &painter, int yOffset);
-
 
 };
     
