@@ -24,8 +24,9 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     setPalette(pal);
     setAutoFillBackground(true);
     
-    // Set minimum size
-    setMinimumSize(400, 300);
+    // Set fixed size constraints
+    setMaximumSize(800, 400); // Set both max width and height
+    setFixedHeight(350); // Force a fixed height
     
     // Initialize scene
     graphicsScene = new QGraphicsScene(this);
@@ -43,6 +44,13 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
+    // Ensure the view fits the scene exactly
+    graphicsView->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    graphicsView->setFrameStyle(QFrame::NoFrame);
+    
+    // Set size policy for graphics view to fill the widget
+    graphicsView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
     // Set up layout to make the graphics view fill the widget with no margins
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
@@ -50,8 +58,7 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     layout->addWidget(graphicsView);
     setLayout(layout);
     
-    // Make sure widget expands
-    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    // Size policy will be set by parent container
     
     // Enable mouse tracking
     setMouseTracking(true);
@@ -120,9 +127,6 @@ void waterfallgraph::draw()
     // Clear existing items
     graphicsScene->clear();
 
-    // Update scene rect to match widget size
-    graphicsScene->setSceneRect(0, 0, width(), height());
-
     // Update the drawing area
     setupDrawingArea();
 
@@ -143,47 +147,32 @@ void waterfallgraph::updateGraphicsDimensions()
 {
     if (!graphicsView || !graphicsScene) return;
     
-    // Get the current size of the graphics view
-    QSize viewSize = graphicsView->size();
+    // Get the current size of the widget
     QSize widgetSize = this->size();
     
     qDebug() << "updateGraphicsDimensions - Widget size:" << widgetSize;
-    qDebug() << "updateGraphicsDimensions - Graphics view size:" << viewSize;
     
     // Only update if we have valid dimensions
-    if (viewSize.width() > 0 && viewSize.height() > 0) {
-        // Make scene 1% smaller than view to prevent wiggle
-        double reductionFactor = 0.99; // 1% smaller
-        int sceneWidth = static_cast<int>(viewSize.width() * reductionFactor);
-        int sceneHeight = static_cast<int>(viewSize.height() * reductionFactor);
-        
-        // Center the scene within the view
-        int offsetX = (viewSize.width() - sceneWidth) / 2;
-        int offsetY = (viewSize.height() - sceneHeight) / 2;
-        
-        QRectF newSceneRect(offsetX, offsetY, sceneWidth, sceneHeight);
+    if (widgetSize.width() > 0 && widgetSize.height() > 0) {
+        // Set scene rect to match widget size exactly
+        QRectF newSceneRect(0, 0, widgetSize.width(), widgetSize.height());
         graphicsScene->setSceneRect(newSceneRect);
         
         // Ensure the graphics view fits the scene exactly (no scrollbars)
-        graphicsView->setSceneRect(newSceneRect);
+        graphicsView->fitInView(newSceneRect, Qt::KeepAspectRatio);
         graphicsView->resetTransform(); // Reset any scaling
         graphicsView->setTransform(QTransform()); // Ensure 1:1 mapping
         
         // Update the drawing area
         setupDrawingArea();
         
-        // Draw grid if enabled
-        if (gridEnabled) {
-            drawGrid();
-        }
+        // Redraw the scene
+        draw();
         
-        // Draw test geometry using drawutils
-        DrawUtils::drawDefaultTestPattern(graphicsScene);
-        
-        qDebug() << "Graphics dimensions updated successfully to:" << viewSize;
+        qDebug() << "Graphics dimensions updated successfully to:" << widgetSize;
         qDebug() << "Scene rect is now:" << graphicsScene->sceneRect();
     } else {
-        qDebug() << "Graphics view size is invalid, skipping update";
+        qDebug() << "Widget size is invalid, skipping update";
     }
 }
 
@@ -247,6 +236,7 @@ void waterfallgraph::mousePressEvent(QMouseEvent *event)
         }
     }
     
+    // Call parent implementation
     QWidget::mousePressEvent(event);
 }
 
@@ -268,6 +258,7 @@ void waterfallgraph::mouseMoveEvent(QMouseEvent *event)
         }
     }
     
+    // Call parent implementation
     QWidget::mouseMoveEvent(event);
 }
 
@@ -282,6 +273,7 @@ void waterfallgraph::mouseReleaseEvent(QMouseEvent *event)
         isDragging = false;
     }
     
+    // Call parent implementation
     QWidget::mouseReleaseEvent(event);
 }
 
@@ -293,6 +285,11 @@ void waterfallgraph::mouseReleaseEvent(QMouseEvent *event)
 void waterfallgraph::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
+    
+    // Ensure graphics view fits the widget exactly
+    if (graphicsView) {
+        graphicsView->resize(event->size());
+    }
     
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
@@ -312,6 +309,11 @@ void waterfallgraph::showEvent(QShowEvent *event)
     // This is called when the widget becomes visible
     qDebug() << "showEvent - Widget size:" << this->size();
     qDebug() << "showEvent - Graphics view size:" << graphicsView->size();
+    
+    // Ensure graphics view fits the widget exactly
+    if (graphicsView) {
+        graphicsView->resize(this->size());
+    }
     
     // Update graphics dimensions now that we're visible
     updateGraphicsDimensions();

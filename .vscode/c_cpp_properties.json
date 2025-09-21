@@ -6,7 +6,11 @@
                 "${workspaceFolder}/**",
                 "~/Qt/**",
                 "/Users/krishna/Qt/**",
-                "/Users/krishna/Qt/QtDesignStudio/Qt Design Studio.app/Contents/Resources/qt6_design_studio_reduced_version/lib/QtWidgets.framework/Versions/A/Headers/**"
+                "/Users/krishna/Qt/6.9.2/macos/lib/QtWidgets.framework/Headers/",
+                "/Users/krishna/Qt/6.9.2/macos/lib/**",
+                //QObject
+                "/Users/krishna/Qt/6.9.2/macos/lib/QtCore.framework/Headers/"
+
             ],
             "defines": [],
             "compilerPath": "/usr/bin/clang",

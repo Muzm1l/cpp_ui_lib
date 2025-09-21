@@ -34,23 +34,13 @@
      </rect>
     </property>
    </widget>
-   <widget class="waterfallgraph" name="widget_3" native="true">
+   <widget class="GraphContainer" name="graphContainer" native="true">
     <property name="geometry">
      <rect>
       <x>560</x>
       <y>110</y>
       <width>351</width>
       <height>461</height>
-     </rect>
-    </property>
-   </widget>
-   <widget class="TimelineView" name="timelineView" native="true">
-    <property name="geometry">
-     <rect>
-      <x>1110</x>
-      <y>130</y>
-      <width>120</width>
-      <height>431</height>
      </rect>
     </property>
    </widget>
@@ -112,21 +102,11 @@
       <height>30</height>
      </rect>
     </property>
-    <property name="text">
-     <string>Indicator Value: 0.50</string>
-    </property>
     <property name="styleSheet">
      <string>font-weight: bold; font-size: 12px;</string>
     </property>
-   </widget>
-   <widget class="TimeSelectionVisualizer" name="timeVisualizer" native="true">
-    <property name="geometry">
-     <rect>
-      <x>1060</x>
-      <y>110</y>
-      <width>41</width>
-      <height>471</height>
-     </rect>
+    <property name="text">
+     <string>Indicator Value: 0.50</string>
     </property>
    </widget>
   </widget>
@@ -162,27 +142,15 @@
    <container>1</container>
   </customwidget>
   <customwidget>
-   <class>waterfallgraph</class>
-   <extends>QWidget</extends>
-   <header>waterfallgraph.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>TimeSelectionVisualizer</class>
-   <extends>QWidget</extends>
-   <header>timeselectionvisualizer.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
-   <class>TimelineView</class>
-   <extends>QWidget</extends>
-   <header>timelineview.h</header>
-   <container>1</container>
-  </customwidget>
-  <customwidget>
    <class>ZoomPanel</class>
    <extends>QWidget</extends>
    <header>zoompanel.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>GraphContainer</class>
+   <extends>QWidget</extends>
+   <header>graphcontainer.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

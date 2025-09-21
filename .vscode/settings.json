@@ -62,5 +62,14 @@
         "algorithm": "cpp",
         "qtmath": "cpp"
     },
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "clangd.arguments": [
+        "--background-index",
+        "--clang-tidy",
+        "--header-insertion=iwyu",
+        "--header-insertion-decorators",
+        "--header-insertion-modifications",
+        "-I/Users/krishna/Qt/6.9.2/macos/lib/QtCore.framework/Headers",
+        "-I/Users/krishna/Qt/6.9.2/macos/lib/QtWidgets.framework/Headers"
+    ]
 }

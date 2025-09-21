@@ -16,9 +16,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
     timer->start(2000); // 2000ms = 2 seconds
     
-    // Set up timer for current time updates (every second)
-    connect(timeUpdateTimer, &QTimer::timeout, this, &MainWindow::updateCurrentTime);
-    timeUpdateTimer->start(1000); // 1000ms = 1 second
 
     // Initialize some sample data for the graph
     std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
@@ -60,14 +57,19 @@ MainWindow::MainWindow(QWidget *parent)
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
 
-    // Configure TimeSelectionVisualizer 
-    configureTimeVisualizer();
+    // // Configure TimeSelectionVisualizer 
+    // configureTimeVisualizer();
 
-    // Configure TimelineView
-    configureTimelineView();
+    // // Configure TimelineView
+    // configureTimelineView();
     
-    // Configure Zoom Panel test functionality
-    configureZoomPanel();
+    // // Configure Zoom Panel test functionality
+    // configureZoomPanel();
+
+    // // Set up timer for current time updates (every second)
+    // connect(timeUpdateTimer, &QTimer::timeout, this, &MainWindow::updateCurrentTime);
+    // timeUpdateTimer->start(1000); // 1000ms = 1 second
+    
 }
 
 MainWindow::~MainWindow()
@@ -129,105 +131,105 @@ void MainWindow::updateSimulation()
         this->currentSelectedTrackCourse);
 }
 
-void MainWindow::configureTimeVisualizer()
-{
-    // Set timeline length to 1 hour (60 minutes)
-    ui->timeVisualizer->setTimeLineLength(QTime(1, 0, 0));
+// void MainWindow::configureTimeVisualizer()
+// {
+//     // Set timeline length to 1 hour (60 minutes)
+//     ui->timeVisualizer->setTimeLineLength(QTime(1, 0, 0));
     
-    // Set initial current time to system time
-    ui->timeVisualizer->setCurrentTime(QTime::currentTime());
+//     // Set initial current time to system time
+//     ui->timeVisualizer->setCurrentTime(QTime::currentTime());
     
-    // Add some sample time selections relative to current time
-    QTime currentTime = QTime::currentTime();
+//     // Add some sample time selections relative to current time
+//     QTime currentTime = QTime::currentTime();
     
-    // Create selections that are within the visible range (last hour)
-    // Selection 1: 5-10 minutes ago (should be visible)
-    QTime start1 = currentTime.addSecs(-10 * 60); // 10 minutes ago
-    QTime end1 = currentTime.addSecs(-5 * 60);   // 5 minutes ago
-    TimeSelectionSpan span1(start1, end1);
+//     // Create selections that are within the visible range (last hour)
+//     // Selection 1: 5-10 minutes ago (should be visible)
+//     QTime start1 = currentTime.addSecs(-10 * 60); // 10 minutes ago
+//     QTime end1 = currentTime.addSecs(-5 * 60);   // 5 minutes ago
+//     TimeSelectionSpan span1(start1, end1);
     
-    // Selection 2: 20-25 minutes ago (should be visible)
-    QTime start2 = currentTime.addSecs(-25 * 60); // 25 minutes ago
-    QTime end2 = currentTime.addSecs(-20 * 60);   // 20 minutes ago
-    TimeSelectionSpan span2(start2, end2);
+//     // Selection 2: 20-25 minutes ago (should be visible)
+//     QTime start2 = currentTime.addSecs(-25 * 60); // 25 minutes ago
+//     QTime end2 = currentTime.addSecs(-20 * 60);   // 20 minutes ago
+//     TimeSelectionSpan span2(start2, end2);
     
-    // Selection 3: 35-45 minutes ago (should be visible)
-    QTime start3 = currentTime.addSecs(-45 * 60); // 45 minutes ago
-    QTime end3 = currentTime.addSecs(-35 * 60);   // 35 minutes ago
-    TimeSelectionSpan span3(start3, end3);
+//     // Selection 3: 35-45 minutes ago (should be visible)
+//     QTime start3 = currentTime.addSecs(-45 * 60); // 45 minutes ago
+//     QTime end3 = currentTime.addSecs(-35 * 60);   // 35 minutes ago
+//     TimeSelectionSpan span3(start3, end3);
     
-    // Selection 4: 2-3 minutes ago (should be visible)
-    QTime start4 = currentTime.addSecs(-3 * 60); // 3 minutes ago
-    QTime end4 = currentTime.addSecs(-2 * 60);   // 2 minutes ago
-    TimeSelectionSpan span4(start4, end4);
+//     // Selection 4: 2-3 minutes ago (should be visible)
+//     QTime start4 = currentTime.addSecs(-3 * 60); // 3 minutes ago
+//     QTime end4 = currentTime.addSecs(-2 * 60);   // 2 minutes ago
+//     TimeSelectionSpan span4(start4, end4);
     
     
-    ui->timeVisualizer->addTimeSelection(span1);
-    ui->timeVisualizer->addTimeSelection(span2);
-    ui->timeVisualizer->addTimeSelection(span3);
-    ui->timeVisualizer->addTimeSelection(span4);
+//     ui->timeVisualizer->addTimeSelection(span1);
+//     ui->timeVisualizer->addTimeSelection(span2);
+//     ui->timeVisualizer->addTimeSelection(span3);
+//     ui->timeVisualizer->addTimeSelection(span4);
     
-}
+// }
 
-void MainWindow::configureTimelineView()
-{
-    ui->timelineView->setTimeLineLength(TimeInterval::FifteenMinutes); // 15 minutes
-    ui->timelineView->setCurrentTime(QTime::currentTime());
-    ui->timelineView->setNumberOfDivisions(15); // 15 segments
+// void MainWindow::configureTimelineView()
+// {
+//     ui->timelineView->setTimeLineLength(TimeInterval::FifteenMinutes); // 15 minutes
+//     ui->timelineView->setCurrentTime(QTime::currentTime());
+//     ui->timelineView->setNumberOfDivisions(15); // 15 segments
 
-    // Create a new timer that fires every minute
-    QTimer *timelineUpdateTimer = new QTimer(this);
-    connect(timelineUpdateTimer, &QTimer::timeout, this, &MainWindow::updateTimeline);
-    timelineUpdateTimer->start(60000); // 60000ms = 1 minute
+//     // Create a new timer that fires every minute
+//     QTimer *timelineUpdateTimer = new QTimer(this);
+//     connect(timelineUpdateTimer, &QTimer::timeout, this, &MainWindow::updateTimeline);
+//     timelineUpdateTimer->start(60000); // 60000ms = 1 minute
     
-}
+// }
 
-void MainWindow::updateTimeline()
-{
-    ui->timelineView->setCurrentTime(QTime::currentTime());
-}
+// void MainWindow::updateTimeline()
+// {
+//     ui->timelineView->setCurrentTime(QTime::currentTime());
+// }
 
 
-void MainWindow::updateCurrentTime()
-{
-    // Update the current time to the system time
-    ui->timeVisualizer->setCurrentTime(QTime::currentTime());
-    ui->timelineView->setCurrentTime(QTime::currentTime());
-}
+// void MainWindow::updateCurrentTime()
+// {
+//     // Update the current time to the system time
+//     ui->timeVisualizer->setCurrentTime(QTime::currentTime());
+//     ui->timelineView->setCurrentTime(QTime::currentTime());
+// }
 
-void MainWindow::configureZoomPanel()
-{
-    // Connect test buttons to zoom panel indicator
-    connect(ui->testButton0, &QPushButton::clicked, [this]() {
-        ui->zoomPanel->setIndicatorValue(0.0);
-    });
+// void MainWindow::configureZoomPanel()
+// {
+//     // Connect test buttons to zoom panel indicator
+//     connect(ui->testButton0, &QPushButton::clicked, [this]() {
+//         ui->zoomPanel->setIndicatorValue(0.0);
+//     });
     
-    connect(ui->testButton50, &QPushButton::clicked, [this]() {
-        ui->zoomPanel->setIndicatorValue(0.5);
-    });
+//     connect(ui->testButton50, &QPushButton::clicked, [this]() {
+//         ui->zoomPanel->setIndicatorValue(0.5);
+//     });
     
-    connect(ui->testButton100, &QPushButton::clicked, [this]() {
-        ui->zoomPanel->setIndicatorValue(1.0);
-    });
+//     connect(ui->testButton100, &QPushButton::clicked, [this]() {
+//         ui->zoomPanel->setIndicatorValue(1.0);
+//     });
         
-    // Initialize zoom panel with a default value
-    ui->zoomPanel->setIndicatorValue(0.3);
+//     // Initialize zoom panel with a default value
+//     ui->zoomPanel->setIndicatorValue(0.3);
     
-    // Initialize label values
-    ui->zoomPanel->setLeftLabelValue(0.0);  // Left reference value
-    ui->zoomPanel->setCenterLabelValue(0.5); // Center value
-    ui->zoomPanel->setRightLabelValue(1.0);  // Range for upper bound
+//     // Initialize label values
+//     ui->zoomPanel->setLeftLabelValue(0.0);  // Left reference value
+//     ui->zoomPanel->setCenterLabelValue(0.5); // Center value
+//     ui->zoomPanel->setRightLabelValue(1.0);  // Range for upper bound
     
-    // Initialize the indicator value label
-    ui->indicatorValueLabel->setText("Bounds: [0.35, 0.80]");
+//     // Initialize the indicator value label
+//     ui->indicatorValueLabel->setText("Bounds: [0.35, 0.80]");
     
-    // Connect to zoom panel value changed signal
-    connect(ui->zoomPanel, &ZoomPanel::valueChanged, [this](ZoomBounds bounds) {
-        // Update the indicator value label on main window with bounds
-        ui->indicatorValueLabel->setText(QString("Bounds: [%1, %2]").arg(bounds.lowerbound, 0, 'f', 2).arg(bounds.upperbound, 0, 'f', 2));
+//     // Connect to zoom panel value changed signal
+//     connect(ui->zoomPanel, &ZoomPanel::valueChanged, [this](ZoomBounds bounds) {
+//         // Update the indicator value label on main window with bounds
+//         ui->indicatorValueLabel->setText(QString("Bounds: [%1, %2]").arg(bounds.lowerbound, 0, 'f', 2).arg(bounds.upperbound, 0, 'f', 2));
         
-        // You can add additional logic here to respond to value changes
-        // For example, update other UI elements or trigger other actions
-    });
-}
+//         // You can add additional logic here to respond to value changes
+//         // For example, update other UI elements or trigger other actions
+//     });
+// }
 

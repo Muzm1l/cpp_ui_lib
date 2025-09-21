@@ -8,6 +8,7 @@
 #include <QPaintEvent>
 #include <QTime>
 #include <QList>
+#include <QObject>
 #include "timelineutils.h"
 
 // Compile-time parameters
@@ -72,15 +73,19 @@ public:
         void intervalChanged(TimeInterval currentInterval);
 
 private:
-    QPushButton *m_button;
+    QPushButton *m_intervalChangeButton;
+    QPushButton *m_timeModeChangeButton;
     TimelineVisualizerWidget *m_visualizerWidget;
     QVBoxLayout *m_layout;
     int intervalIndex = 0;
+    bool m_isAbsoluteTime = true;
     
     void updateButtonText(TimeInterval interval);
+    void updateTimeModeButtonText(bool isAbsoluteTime);
 
 private slots:
-    void onButtonClicked();
+    void onIntervalButtonClicked();
+    void onTimeModeButtonClicked();
 
 };
 

@@ -30,10 +30,10 @@ private:
     QTimer *timer; ///< Timer for simulation updates
     QTimer *timeUpdateTimer; ///< Timer for updating current time
     
-    void configureTimeVisualizer();
-    void configureTimelineView();
-    void configureZoomPanel();
-    void updateTimeline();
+    // void configureTimeVisualizer();
+    // void configureTimelineView();
+    // void configureZoomPanel();
+    // void updateTimeline();
 
     long simTick;
 
@@ -78,12 +78,12 @@ private slots:
      */
     void updateSimulation();
     
-    /**
-     * @brief Updates the current time in the time visualizer
-     *
-     * Called every second to update the current time to system time.
-     */
-    void updateCurrentTime();
+    // /**
+    //  * @brief Updates the current time in the time visualizer
+    //  *
+    //  * Called every second to update the current time to system time.
+    //  */
+    // void updateCurrentTime();
     
 };
 

@@ -218,7 +218,8 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
 
 TimelineView::TimelineView(QWidget *parent)
     : QWidget(parent)
-    , m_button(nullptr)
+    , m_intervalChangeButton(nullptr)
+    , m_timeModeChangeButton(nullptr)
     , m_visualizerWidget(nullptr)
     , m_layout(nullptr)
 {
@@ -231,10 +232,10 @@ TimelineView::TimelineView(QWidget *parent)
     m_layout->setSpacing(0);
     
     // Create button with grey background and white border
-    m_button = new QPushButton("Abs:\ndt: 00:15", this);
-    m_button->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, TIMELINE_VIEW_BUTTON_SIZE);
-    m_button->setContentsMargins(0, 0, 0, 0); // Remove button margins
-    m_button->setStyleSheet(
+    m_intervalChangeButton = new QPushButton("dt: 00:15", this);
+    m_intervalChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, TIMELINE_VIEW_BUTTON_SIZE/2);
+    m_intervalChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
+    m_intervalChangeButton->setStyleSheet(
         "QPushButton {"
         "    background-color: black;"
         "    border: 2px solid white;"
@@ -250,16 +251,42 @@ TimelineView::TimelineView(QWidget *parent)
         "    background-color: dimgrey;"
         "}"
     );
-    
+
+    // setup m_timeModeChangeButton
+    m_timeModeChangeButton = new QPushButton("Abs", this);
+    m_timeModeChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, TIMELINE_VIEW_BUTTON_SIZE/2);
+    m_timeModeChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
+    m_timeModeChangeButton->setStyleSheet(
+        "QPushButton {"
+        "    background-color: black;"
+        "    border: 2px solid white;"
+        "    color: white;"
+        "    font-weight: bold;"
+        "    margin: 0px;"
+        "    padding: 0px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: darkgrey;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: dimgrey;"
+        "}"
+    );
+
+    m_isAbsoluteTime = true;
+    // updateTimeModeButtonText(m_isAbsoluteTime);
+
     // Create visualizer widget
     m_visualizerWidget = new TimelineVisualizerWidget(this);
     
     // Add widgets to layout
-    m_layout->addWidget(m_button);
+    m_layout->addWidget(m_timeModeChangeButton);
+    m_layout->addWidget(m_intervalChangeButton);
     m_layout->addWidget(m_visualizerWidget, 1); // Stretch factor of 1 to fill remaining space
     
     // Connect button click to internal handler
-    connect(m_button, &QPushButton::clicked, this, &TimelineView::onButtonClicked);
+    connect(m_timeModeChangeButton, &QPushButton::clicked, this, &TimelineView::onTimeModeButtonClicked);
+    connect(m_intervalChangeButton, &QPushButton::clicked, this, &TimelineView::onIntervalButtonClicked);
     
     // Set the layout
     setLayout(m_layout);
@@ -283,11 +310,11 @@ void TimelineView::updateButtonText(TimeInterval interval)
 {
     QTime timeInterval = timeIntervalToQTime(interval);
     QString timeString = timeInterval.toString("HH:mm");
-    QString buttonText = QString("Abs:\ndt: %1").arg(timeString);
-    m_button->setText(buttonText);
+    QString buttonText = QString("dt: %1").arg(timeString);
+    m_intervalChangeButton->setText(buttonText);
 }
 
-void TimelineView::onButtonClicked()
+void TimelineView::onIntervalButtonClicked()
 {
     // Cycle through valid time intervals on each button click
     static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
@@ -303,4 +330,14 @@ void TimelineView::onButtonClicked()
     emit intervalChanged(nextInterval);
 }
 
+void TimelineView::onTimeModeButtonClicked()
+{
+    m_isAbsoluteTime = !m_isAbsoluteTime;
+    updateTimeModeButtonText(m_isAbsoluteTime);
+}   
 
+void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
+{
+    QString buttonText = isAbsoluteTime ? "Abs" : "Rel";
+    m_timeModeChangeButton->setText(buttonText);
+}
