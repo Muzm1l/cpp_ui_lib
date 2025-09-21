@@ -88,6 +88,7 @@ waterfallgraph::~waterfallgraph()
 void waterfallgraph::setDataSource(WaterfallData& dataSource)
 {
     this->dataSource = &dataSource;
+    draw(); // Trigger redraw with new data source
     qDebug() << "Data source set successfully";
 }
 
