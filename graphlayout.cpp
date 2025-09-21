@@ -1,35 +1,16 @@
 #include "graphlayout.h"
 #include <QDebug>
 
-GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType)
+GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, const std::vector<QString>& dataSourceLabels)
     : QWidget{parent}
     , m_layoutType(layoutType)
 {
-    // Initialize data sources
-    m_dataSources["LTW"] = new WaterfallData("LTW");
-    m_dataSources["BTW"] = new WaterfallData("BTW");
-    m_dataSources["RTW"] = new WaterfallData("RTW");
+    // Initialize data sources based on provided labels
+    for (const QString& label : dataSourceLabels) {
+        m_dataSources[label] = new WaterfallData(label);
+    }
     
-    m_dataSources["LTW_2"] = new WaterfallData("LTW_2");
-    m_dataSources["BTW_2"] = new WaterfallData("BTW_2");
-    m_dataSources["RTW_2"] = new WaterfallData("RTW_2");
-
-    m_dataSources["LTW_3"] = new WaterfallData("LTW_3");
-    m_dataSources["BTW_3"] = new WaterfallData("BTW_3");
-    m_dataSources["RTW_3"] = new WaterfallData("RTW_3");
-
-    m_dataSources["LTW_4"] = new WaterfallData("LTW_4");
-    m_dataSources["BTW_4"] = new WaterfallData("BTW_4");
-    m_dataSources["RTW_4"] = new WaterfallData("RTW_4");
-    
-    // Create 4 graph containers
-    m_graphContainers.push_back(new GraphContainer(this, true));
-    m_graphContainers.push_back(new GraphContainer(this, true));   
-    m_graphContainers.push_back(new GraphContainer(this, true));
-    m_graphContainers.push_back(new GraphContainer(this, true));
-    
-    // Attach data sources to containers
-    attachContainerDataSources();
+    initializeContainers();
 
     // Create main layout with 1px spacing and no margins
     m_mainLayout = new QVBoxLayout(this);
@@ -175,6 +156,18 @@ void GraphLayout::setGraphViewSize(int width, int height)
         container->setGraphViewSize(width, height);
     }
     updateLayoutSizing();
+}
+
+void GraphLayout::initializeContainers()
+{
+    // Create 4 graph containers
+    m_graphContainers.push_back(new GraphContainer(this, true));
+    m_graphContainers.push_back(new GraphContainer(this, true));   
+    m_graphContainers.push_back(new GraphContainer(this, true));
+    m_graphContainers.push_back(new GraphContainer(this, true));
+    
+    // Attach data sources to containers
+    attachContainerDataSources();
 }
 
 void GraphLayout::attachContainerDataSources()
@@ -481,4 +474,83 @@ void GraphLayout::setCurrentDataOption(const QString& title)
             container->setCurrentDataOption(title);
         }
     }
+}
+
+// Data point methods for specific data sources
+
+void GraphLayout::addDataPointToDataSource(const QString& dataSourceLabel, qreal yValue, const QDateTime& timestamp)
+{
+    auto it = m_dataSources.find(dataSourceLabel);
+    if (it != m_dataSources.end()) {
+        it->second->addDataPoint(yValue, timestamp);
+        qDebug() << "Added data point to" << dataSourceLabel << "y:" << yValue << "time:" << timestamp.toString();
+    } else {
+        qDebug() << "Data source not found:" << dataSourceLabel;
+    }
+}
+
+void GraphLayout::addDataPointsToDataSource(const QString& dataSourceLabel, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+{
+    auto it = m_dataSources.find(dataSourceLabel);
+    if (it != m_dataSources.end()) {
+        it->second->addDataPoints(yValues, timestamps);
+        qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel;
+    } else {
+        qDebug() << "Data source not found:" << dataSourceLabel;
+    }
+}
+
+void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+{
+    auto it = m_dataSources.find(dataSourceLabel);
+    if (it != m_dataSources.end()) {
+        it->second->setData(yData, timestamps);
+        qDebug() << "Set data for" << dataSourceLabel << "size:" << yData.size();
+    } else {
+        qDebug() << "Data source not found:" << dataSourceLabel;
+    }
+}
+
+void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const WaterfallData& data)
+{
+    auto it = m_dataSources.find(dataSourceLabel);
+    if (it != m_dataSources.end()) {
+        it->second->setData(data.getYData(), data.getTimestamps());
+        qDebug() << "Set data for" << dataSourceLabel << "from WaterfallData object";
+    } else {
+        qDebug() << "Data source not found:" << dataSourceLabel;
+    }
+}
+
+void GraphLayout::clearDataSource(const QString& dataSourceLabel)
+{
+    auto it = m_dataSources.find(dataSourceLabel);
+    if (it != m_dataSources.end()) {
+        it->second->clearData();
+        qDebug() << "Cleared data for" << dataSourceLabel;
+    } else {
+        qDebug() << "Data source not found:" << dataSourceLabel;
+    }
+}
+
+// Data source management
+
+WaterfallData* GraphLayout::getDataSource(const QString& dataSourceLabel)
+{
+    auto it = m_dataSources.find(dataSourceLabel);
+    return (it != m_dataSources.end()) ? it->second : nullptr;
+}
+
+bool GraphLayout::hasDataSource(const QString& dataSourceLabel) const
+{
+    return m_dataSources.find(dataSourceLabel) != m_dataSources.end();
+}
+
+std::vector<QString> GraphLayout::getDataSourceLabels() const
+{
+    std::vector<QString> labels;
+    for (const auto& pair : m_dataSources) {
+        labels.push_back(pair.first);
+    }
+    return labels;
 }

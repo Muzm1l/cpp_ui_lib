@@ -31,6 +31,8 @@ private:
     QTimer *timer; ///< Timer for simulation updates
     QTimer *timeUpdateTimer; ///< Timer for updating current time
     
+    GraphLayout *graphgrid; ///< Graph layout widget
+    
     // void configureTimeVisualizer();
     // void configureTimelineView();
     // void configureZoomPanel();

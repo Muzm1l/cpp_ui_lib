@@ -8,6 +8,12 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    // Create GraphLayout programmatically
+    std::vector<QString> dataSourceLabels = {"LTW", "BTW", "RTW"};
+    graphgrid = new GraphLayout(ui->centralwidget, LayoutType::GPW4W, dataSourceLabels);
+    graphgrid->setObjectName("graphgrid");
+    graphgrid->setGeometry(QRect(970, 70, 611, 651));
+
     
 
     // inside MainWindow constructor
@@ -262,54 +268,50 @@ void MainWindow::configureLayoutSelection()
 void MainWindow::onLayoutTypeChanged(int index)
 {
     LayoutType layoutType = static_cast<LayoutType>(ui->layoutSelectionComboBox->itemData(index).toInt());
-    ui->graphgrid->setLayoutType(layoutType);
+    graphgrid->setLayoutType(layoutType);
 }
 
 void MainWindow::demonstrateDataPointMethods()
 {
-    // Create different data sources for demonstration
-    WaterfallData realTimeData;
-    WaterfallData historicalData;
-    WaterfallData simulationData;
+    qDebug() << "=== Data Source Demonstration ===";
     
-    // Create sample data for each source
-    std::vector<qreal> yData1 = {10.0, 25.0, 15.0, 35.0, 20.0, 40.0, 30.0, 45.0, 50.0};
-    std::vector<qreal> yData2 = {5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0};
-    std::vector<qreal> yData3 = {100.0, 90.0, 80.0, 70.0, 60.0, 50.0, 40.0, 30.0, 20.0};
-    
-    // Create timestamps (current time + intervals)
+    // Demonstrate the new data source methods
     QDateTime baseTime = QDateTime::currentDateTime();
-    std::vector<QDateTime> timestamps;
-    for (int i = 0; i < 9; ++i) {
-        timestamps.push_back(baseTime.addMSecs(i * 500)); // 0.5 second intervals
+    
+    // Add data points to specific data sources
+    graphgrid->addDataPointToDataSource("LTW", 25.0, baseTime.addMSecs(1000));
+    graphgrid->addDataPointToDataSource("BTW", 35.0, baseTime.addMSecs(1000));
+    graphgrid->addDataPointToDataSource("RTW", 45.0, baseTime.addMSecs(1000));
+    
+    // Add multiple data points to a specific data source
+    std::vector<qreal> additionalYData = {30.0, 40.0, 50.0};
+    std::vector<QDateTime> additionalTimestamps = {
+        baseTime.addMSecs(1500),
+        baseTime.addMSecs(2000),
+        baseTime.addMSecs(2500)
+    };
+    graphgrid->addDataPointsToDataSource("LTW", additionalYData, additionalTimestamps);
+    
+    // Set data for a specific data source
+    std::vector<qreal> newYData = {10.0, 20.0, 30.0, 40.0, 50.0};
+    std::vector<QDateTime> newTimestamps;
+    for (int i = 0; i < 5; ++i) {
+        newTimestamps.push_back(baseTime.addMSecs(i * 1000));
+    }
+    graphgrid->setDataToDataSource("BTW", newYData, newTimestamps);
+    
+    // Demonstrate data source management
+    qDebug() << "Available data sources:" << graphgrid->getDataSourceLabels().size();
+    qDebug() << "Has LTW data source:" << graphgrid->hasDataSource("LTW");
+    qDebug() << "Has INVALID data source:" << graphgrid->hasDataSource("INVALID");
+    
+    // Get a data source and check its data
+    WaterfallData* ltwData = graphgrid->getDataSource("LTW");
+    if (ltwData) {
+        qDebug() << "LTW data size:" << ltwData->getDataSize();
+        qDebug() << "LTW Y range:" << ltwData->getMinY() << "to" << ltwData->getMaxY();
     }
     
-    // Set data for each source
-    realTimeData.setData(yData1, timestamps);
-    historicalData.setData(yData2, timestamps);
-    simulationData.setData(yData3, timestamps);
-    
-    // Demonstrate data options system
-    qDebug() << "=== Data Options Demonstration ===";
-    
-    // Add data options to all containers
-    ui->graphgrid->addDataOption("Real-Time Data", realTimeData);
-    ui->graphgrid->addDataOption("Historical Data", historicalData);
-    ui->graphgrid->addDataOption("Simulation Data", simulationData);
-    
-    // Set different data options for different containers
-    ui->graphgrid->setCurrentDataOption(0, "Real-Time Data");
-    ui->graphgrid->setCurrentDataOption(1, "Historical Data");
-    ui->graphgrid->setCurrentDataOption(2, "Simulation Data");
-    
-    // Add some additional data points to demonstrate incremental updates
-    ui->graphgrid->addDataPoint(0, 60.0, baseTime.addMSecs(4500));
-    ui->graphgrid->addDataPoint(1, 95.0, baseTime.addMSecs(4500));
-    ui->graphgrid->addDataPoint(2, 10.0, baseTime.addMSecs(4500));
-    
-    qDebug() << "Data options system demonstrated successfully";
-    qDebug() << "Container 0 current option:" << ui->graphgrid->getCurrentDataOption(0);
-    qDebug() << "Container 1 current option:" << ui->graphgrid->getCurrentDataOption(1);
-    qDebug() << "Container 2 current option:" << ui->graphgrid->getCurrentDataOption(2);
+    qDebug() << "Data source methods demonstrated successfully";
 }
 

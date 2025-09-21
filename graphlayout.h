@@ -26,7 +26,7 @@ class GraphLayout : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphLayout(QWidget *parent = nullptr, LayoutType layoutType = LayoutType::GPW4W);
+    explicit GraphLayout(QWidget *parent, LayoutType layoutType, const std::vector<QString>& dataSourceLabels);
     ~GraphLayout();
 
     void setLayoutType(LayoutType layoutType);
@@ -65,6 +65,18 @@ public:
     void removeDataOption(const QString &title);
     void clearDataOptions();
     void setCurrentDataOption(const QString &title);
+    
+    // Data point methods for specific data sources
+    void addDataPointToDataSource(const QString& dataSourceLabel, qreal yValue, const QDateTime& timestamp);
+    void addDataPointsToDataSource(const QString& dataSourceLabel, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
+    void setDataToDataSource(const QString& dataSourceLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
+    void setDataToDataSource(const QString& dataSourceLabel, const WaterfallData& data);
+    void clearDataSource(const QString& dataSourceLabel);
+    
+    // Data source management
+    WaterfallData* getDataSource(const QString& dataSourceLabel);
+    bool hasDataSource(const QString& dataSourceLabel) const;
+    std::vector<QString> getDataSourceLabels() const;
 
 private:
     LayoutType m_layoutType;
@@ -78,6 +90,7 @@ private:
     std::map<QString, WaterfallData *> m_dataSources;
 
     void attachContainerDataSources();
+    void initializeContainers();
 
 signals:
 };
