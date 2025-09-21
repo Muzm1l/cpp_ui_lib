@@ -1,5 +1,4 @@
 #include "waterfallgraph.h"
-#include "ui_waterfallgraph.h"
 
 /**
  * @brief Construct a new waterfallgraph::waterfallgraph object
@@ -10,14 +9,14 @@
  */
 waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisions)
     : QWidget(parent)
-    , ui(new Ui::waterfallgraph)
     , graphicsView(nullptr)
     , graphicsScene(nullptr)
     , gridEnabled(enableGrid)
     , gridDivisions(gridDivisions)
     , isDragging(false)
 {
-    ui->setupUi(this);
+    // Remove all margins and padding for snug fit
+    setContentsMargins(0, 0, 0, 0);
     
     // Set black background
     QPalette pal = palette();
@@ -44,7 +43,7 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     
-    // Set up layout to make the graphics view fill the widget with 1% margin
+    // Set up layout to make the graphics view fill the widget with no margins
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
@@ -67,7 +66,6 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
  */
 waterfallgraph::~waterfallgraph()
 {
-    delete ui;
     // Note: graphicsView and graphicsScene are child widgets/scenes, so they will be automatically deleted by Qt's parent-child mechanism
 }
 

@@ -7,11 +7,6 @@
 #include <QGraphicsScene>
 #include "drawutils.h"
 
-namespace Ui
-{
-    class TacticalSolutionView;
-}
-
 class TacticalSolutionView : public QGraphicsView
 {
     Q_OBJECT
@@ -78,7 +73,6 @@ private:
     
 
 private:
-    Ui::TacticalSolutionView *ui;
     QGraphicsScene *scene;
 
     // Data stores for all the things rendered

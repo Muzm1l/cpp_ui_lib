@@ -1,5 +1,4 @@
 #include "twoaxisgraph.h"
-#include "ui_twoaxisgraph.h"
 #include <QtGui/QResizeEvent>
 #include <QtWidgets/QGraphicsSimpleTextItem>
 
@@ -11,9 +10,10 @@ const int MAX_EVENT_COUNT = 100;
  * @param parent
  */
 TwoAxisGraph::TwoAxisGraph(QWidget *parent)
-    : QWidget(parent), ui(new Ui::TwoAxisGraph), scene(nullptr)
+    : QWidget(parent), scene(nullptr)
 {
-    ui->setupUi(this);
+    // Remove all margins and padding for snug fit
+    setContentsMargins(0, 0, 0, 0);
 
     // Set black background
     QPalette pal = palette();
@@ -43,7 +43,7 @@ TwoAxisGraph::TwoAxisGraph(QWidget *parent)
  */
 TwoAxisGraph::~TwoAxisGraph()
 {
-    delete ui;
+    // No UI to delete anymore
 }
 
 /**

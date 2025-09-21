@@ -14,12 +14,6 @@
 #define TIMELINE_VIEW_BUTTON_SIZE 64
 #define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 128
 
-
-
-namespace Ui {
-class TimelineView;
-}
-
 class TimelineVisualizerWidget : public QWidget
 {
     Q_OBJECT
@@ -78,8 +72,6 @@ public:
         void intervalChanged(TimeInterval currentInterval);
 
 private:
-        Ui::TimelineView *ui;
-
     QPushButton *m_button;
     TimelineVisualizerWidget *m_visualizerWidget;
     QVBoxLayout *m_layout;

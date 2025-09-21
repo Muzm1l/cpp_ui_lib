@@ -7,10 +7,6 @@
 #include <QGraphicsScene>
 #include "twoaxisdata.h"
 
-namespace Ui {
-class TwoAxisGraph;
-}
-
 class TwoAxisGraph : public QWidget
 {
     Q_OBJECT
@@ -51,7 +47,6 @@ private:
     void drawData();
 
 private:
-    Ui::TwoAxisGraph *ui;
     QGraphicsScene *scene;
     QPoint currentMousePos;  // Store current mouse position
     TwoAxisData data;       // Store the plotting data

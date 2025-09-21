@@ -15,12 +15,6 @@
 #define GRAPHICS_VIEW_WIDTH 32
 #define MAX_TIME_SELECTIONS 5
 
-
-
-namespace Ui {
-class TimeSelectionVisualizer;
-}
-
 class TimeVisualizerWidget : public QWidget
 {
     Q_OBJECT
@@ -69,7 +63,6 @@ private slots:
     void onButtonClicked();
 
 private:
-    Ui::TimeSelectionVisualizer *ui;
     QPushButton *m_button;
     TimeVisualizerWidget *m_visualizerWidget;
     QVBoxLayout *m_layout;

@@ -1,5 +1,4 @@
 #include "timelineview.h"
-#include "ui_timelineview.h"
 #include <QDebug>
 
 TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
@@ -9,6 +8,9 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
+    
+    // Remove all margins and padding for snug fit
+    setContentsMargins(0, 0, 0, 0);
 }
 
 void TimelineVisualizerWidget::setTimeLineLength(const QTime& length)
@@ -216,14 +218,14 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
 
 TimelineView::TimelineView(QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::TimelineView)
     , m_button(nullptr)
     , m_visualizerWidget(nullptr)
     , m_layout(nullptr)
 {
-    ui->setupUi(this);
+    // Remove all margins and padding for snug fit
+    setContentsMargins(0, 0, 0, 0);
 
-    // Create vertical layout
+    // Create vertical layout with no margins or spacing
     m_layout = new QVBoxLayout(this);
     m_layout->setContentsMargins(0, 0, 0, 0);
     m_layout->setSpacing(0);
@@ -231,12 +233,15 @@ TimelineView::TimelineView(QWidget *parent)
     // Create button with grey background and white border
     m_button = new QPushButton("Abs:\ndt: 00:15", this);
     m_button->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, TIMELINE_VIEW_BUTTON_SIZE);
+    m_button->setContentsMargins(0, 0, 0, 0); // Remove button margins
     m_button->setStyleSheet(
         "QPushButton {"
         "    background-color: black;"
         "    border: 2px solid white;"
         "    color: white;"
         "    font-weight: bold;"
+        "    margin: 0px;"
+        "    padding: 0px;"
         "}"
         "QPushButton:hover {"
         "    background-color: darkgrey;"
@@ -267,13 +272,11 @@ TimelineView::TimelineView(QWidget *parent)
     
     // Initialize button text with default interval
     updateButtonText(TimeInterval::FifteenMinutes);
-
-    
 }
 
 TimelineView::~TimelineView()
 {
-    delete ui;
+    // No UI to delete anymore
 }
 
 void TimelineView::updateButtonText(TimeInterval interval)

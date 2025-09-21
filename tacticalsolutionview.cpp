@@ -1,5 +1,4 @@
 #include "tacticalsolutionview.h"
-#include "ui_tacticalsolutionview.h"
 
 const qreal SPEED_NORMALIZATION_FACTOR = 1;
 const qreal ZOOMBOX_EXPANSION_FACTOR = 1.2;
@@ -10,9 +9,10 @@ const qreal ZOOMBOX_EXPANSION_FACTOR = 1.2;
  * @param parent
  */
 TacticalSolutionView::TacticalSolutionView(QWidget *parent)
-    : QGraphicsView(parent), ui(new Ui::TacticalSolutionView)
+    : QGraphicsView(parent)
 {
-    ui->setupUi(this);
+    // Remove all margins and padding for snug fit
+    setContentsMargins(0, 0, 0, 0);
 
     // Set black background
     QPalette pal = palette();
@@ -50,7 +50,7 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
  */
 TacticalSolutionView::~TacticalSolutionView()
 {
-    delete ui;
+    // No UI to delete anymore
 }
 
 /**

@@ -13,10 +13,6 @@
 #include <vector>
 #include "drawutils.h"
 
-namespace Ui {
-class waterfallgraph;
-}
-
 class waterfallgraph : public QWidget
 {
     Q_OBJECT
@@ -45,7 +41,6 @@ protected:
     void showEvent(QShowEvent *event) override;
 
 private:
-    Ui::waterfallgraph *ui;
     QGraphicsView *graphicsView;
     QGraphicsScene *graphicsScene;
     

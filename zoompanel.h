@@ -12,10 +12,8 @@
 #include <QThread>
 #include <QMouseEvent>
 #include <QPoint>
-
-namespace Ui {
-class ZoomPanel;
-}
+#include <QFrame>
+#include <QVBoxLayout>
 
 struct ZoomBounds {
     qreal upperbound;
@@ -48,7 +46,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
 
 private:
-    Ui::ZoomPanel *ui;
+    QGraphicsView *m_graphicsView;
     QGraphicsScene *m_scene;
     QGraphicsRectItem *m_indicator;
     QGraphicsTextItem *m_leftText;

@@ -1,9 +1,8 @@
 #include "zoompanel.h"
-#include "ui_zoompanel.h"
 
 ZoomPanel::ZoomPanel(QWidget *parent)
     : QWidget(parent)
-    , ui(new Ui::ZoomPanel)
+    , m_graphicsView(nullptr)
     , m_scene(nullptr)
     , m_indicator(nullptr)
     , m_leftText(nullptr)
@@ -13,20 +12,34 @@ ZoomPanel::ZoomPanel(QWidget *parent)
     , m_currentValue(0.5)
     , m_startedFromRightHalf(false)
 {
-    ui->setupUi(this);
-    
     // Set black background
     this->setStyleSheet("background-color: black;");
     
     // Enable mouse tracking for drag operations
     this->setMouseTracking(true);
     
+    // Create graphics view programmatically
+    m_graphicsView = new QGraphicsView(this);
+    m_graphicsView->setFrameShape(QFrame::NoFrame);
+    m_graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    m_graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    
+    // Remove all margins and padding for snug fit
+    setContentsMargins(0, 0, 0, 0);
+    
     setupGraphicsView();
+    
+    // Set up layout to contain the graphics view
+    QVBoxLayout *layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    layout->addWidget(m_graphicsView);
+    setLayout(layout);
 }
 
 ZoomPanel::~ZoomPanel()
 {
-    delete ui;
+    // No UI to delete anymore
 }
 
 void ZoomPanel::setupGraphicsView()
@@ -44,10 +57,10 @@ void ZoomPanel::setupGraphicsView()
     m_scene->setBackgroundBrush(QBrush(Qt::black));
     
     // Set the scene to the graphics view
-    ui->graphicsView->setScene(m_scene);
+    m_graphicsView->setScene(m_scene);
     
     // Ensure graphics view doesn't interfere with mouse events
-    ui->graphicsView->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+    m_graphicsView->setAttribute(Qt::WA_TransparentForMouseEvents, true);
     
     // Create the visual elements
     createIndicator();

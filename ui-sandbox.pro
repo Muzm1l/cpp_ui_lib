@@ -39,13 +39,7 @@ HEADERS += \
     zoompanel.h
 
 FORMS += \
-    mainwindow.ui \
-    tacticalsolutionview.ui \
-    timelineview.ui \
-    timeselectionvisualizer.ui \
-    twoaxisgraph.ui \
-    waterfallgraph.ui \
-    zoompanel.ui
+    mainwindow.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
