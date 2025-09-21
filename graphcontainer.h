@@ -5,7 +5,12 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QComboBox>
+#include <QDateTime>
+#include <vector>
+#include <map>
+#include <QString>
 #include "waterfallgraph.h"
+#include "waterfalldata.h"
 #include "timeselectionvisualizer.h"
 #include "timelineview.h"
 #include "zoompanel.h"
@@ -26,8 +31,44 @@ public:
     QSize getGraphViewSize() const;
     QSize getTotalContainerSize() const;
     
+    // Data point methods
+    void setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
+    void setData(const WaterfallData& data);
+    void clearData();
+    void addDataPoint(qreal yValue, const QDateTime& timestamp);
+    void addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
+    
+    // Data access methods
+    WaterfallData getData() const;
+    std::vector<std::pair<qreal, QDateTime>> getDataWithinYExtents(qreal yMin, qreal yMax) const;
+    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
+    
+    // Min/max data methods
+    qreal getMinY() const;
+    qreal getMaxY() const;
+    std::pair<qreal, qreal> getYRange() const;
+    
+    // Data options management
+    void addDataOption(const QString& title, WaterfallData& dataSource);
+    void removeDataOption(const QString& title);
+    void clearDataOptions();
+    void setCurrentDataOption(const QString& title);
+    QString getCurrentDataOption() const;
+    std::vector<QString> getAvailableDataOptions() const;
+    WaterfallData* getDataOption(const QString& title);
+    bool hasDataOption(const QString& title) const;
+    
 private:
     void updateTotalContainerSize();
+    void updateComboBoxOptions();
+    void onDataOptionChanged(int index);
+    
+    // Data source management
+    WaterfallData waterfallData;
+    
+    // Data options management
+    std::map<QString, WaterfallData*> dataOptions;
+    QString currentDataOption;
 
 signals:
     void NewTimeSelectionCreated(qreal startTime, qreal endTime);

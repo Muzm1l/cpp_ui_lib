@@ -3,14 +3,25 @@
 #include <QGraphicsEllipseItem>
 #include <QPen>
 #include <QBrush>
+#include <QDateTime>
 
 WaterfallGraphExample::WaterfallGraphExample(QWidget *parent)
     : waterfallgraph(parent)
 {
-    // Example: Set some test data
-    std::vector<double> xData = {1.0, 2.0, 3.0, 4.0, 5.0};
-    std::vector<double> yData = {10.0, 20.0, 30.0, 40.0, 50.0};
-    setData(xData, yData);
+    // Example: Set some test data with more interesting values
+    std::vector<qreal> yData = {10.0, 25.0, 15.0, 35.0, 20.0, 40.0, 30.0, 45.0, 50.0};
+    std::vector<QDateTime> timestamps;
+    
+    // Create timestamps (current time + intervals)
+    QDateTime baseTime = QDateTime::currentDateTime();
+    for (int i = 0; i < 9; ++i) {
+        timestamps.append(baseTime.addMSecs(i * 500)); // 0.5 second intervals
+    }
+    
+    setData(yData, timestamps);
+    
+    // Example: Add a single data point incrementally
+    addDataPoint(60.0, baseTime.addMSecs(4500));
 }
 
 void WaterfallGraphExample::onMouseClick(const QPointF& scenePos)

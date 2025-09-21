@@ -36,6 +36,7 @@ private:
     // void configureZoomPanel();
     // void updateTimeline();
     void configureLayoutSelection();
+    void demonstrateDataPointMethods();
 
     long simTick;
 

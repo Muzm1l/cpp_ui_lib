@@ -13,6 +13,11 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     , graphicsScene(nullptr)
     , gridEnabled(enableGrid)
     , gridDivisions(gridDivisions)
+    , yMin(0.0), yMax(0.0)
+    , timeMin(QDateTime())
+    , timeMax(QDateTime())
+    , dataRangesValid(false)
+    , dataSource(nullptr)
     , isDragging(false)
 {
     // Remove all margins and padding for snug fit
@@ -76,25 +81,198 @@ waterfallgraph::~waterfallgraph()
 }
 
 /**
+ * @brief Set the data source for this waterfall graph.
+ * 
+ * @param dataSource Reference to the WaterfallData object to use
+ */
+void waterfallgraph::setDataSource(WaterfallData& dataSource)
+{
+    this->dataSource = &dataSource;
+    qDebug() << "Data source set successfully";
+}
+
+/**
+ * @brief Get the current data source.
+ * 
+ * @return WaterfallData* Pointer to the current data source, or nullptr if not set
+ */
+WaterfallData* waterfallgraph::getDataSource() const
+{
+    return dataSource;
+}
+
+/**
  * @brief Set the data for the graph.
  * 
- * @param xData 
  * @param yData 
+ * @param timestamps 
  */
-void waterfallgraph::setData(const std::vector<double>& xData, const std::vector<double>& yData)
+void waterfallgraph::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
 {
-    // Validate that both vectors have the same size
-    if (xData.size() != yData.size()) {
-        qDebug() << "Error: xData and yData must have the same size. xData size:" << xData.size() << "yData size:" << yData.size();
+    if (!dataSource) {
+        qDebug() << "Error: No data source set";
         return;
     }
     
-    // Store the data
-    this->xData = xData;
-    this->yData = yData;
+    // Store the data using the data source
+    dataSource->setData(yData, timestamps);
     
-    qDebug() << "Data set successfully. Size:" << xData.size();
-    // TODO: Redraw the graph with the new data
+    qDebug() << "Data set successfully. Size:" << dataSource->getDataSize();
+    
+    // Redraw the graph with the new data
+    draw();
+}
+
+/**
+ * @brief Set the data for the graph using WaterfallData object.
+ * 
+ * @param data 
+ */
+void waterfallgraph::setData(const WaterfallData& data)
+{
+    if (!dataSource) {
+        qDebug() << "Error: No data source set";
+        return;
+    }
+    
+    *dataSource = data;
+    
+    qDebug() << "Data set successfully from WaterfallData object. Size:" << dataSource->getDataSize();
+    
+    // Redraw the graph with the new data
+    draw();
+}
+
+/**
+ * @brief Clear all data from the graph.
+ * 
+ */
+void waterfallgraph::clearData()
+{
+    if (!dataSource) {
+        qDebug() << "Error: No data source set";
+        return;
+    }
+    
+    dataSource->clearData();
+    
+    qDebug() << "Data cleared successfully";
+    
+    // Redraw the graph
+    draw();
+}
+
+/**
+ * @brief Add a single data point to the graph.
+ * 
+ * @param yValue 
+ * @param timestamp 
+ */
+void waterfallgraph::addDataPoint(qreal yValue, const QDateTime& timestamp)
+{
+    if (!dataSource) {
+        qDebug() << "Error: No data source set";
+        return;
+    }
+    
+    dataSource->addDataPoint(yValue, timestamp);
+    
+    qDebug() << "Data point added. New size:" << dataSource->getDataSize();
+    
+    // Redraw the graph with the new data
+    draw();
+}
+
+/**
+ * @brief Add multiple data points to the graph.
+ * 
+ * @param yValues 
+ * @param timestamps 
+ */
+void waterfallgraph::addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+{
+    if (!dataSource) {
+        qDebug() << "Error: No data source set";
+        return;
+    }
+    
+    dataSource->addDataPoints(yValues, timestamps);
+    
+    qDebug() << "Data points added. New size:" << dataSource->getDataSize();
+    
+    // Redraw the graph with the new data
+    draw();
+}
+
+/**
+ * @brief Get all data from the graph.
+ * 
+ * @return WaterfallData 
+ */
+WaterfallData waterfallgraph::getData() const
+{
+    if (!dataSource) {
+        return WaterfallData();
+    }
+    return *dataSource;
+}
+
+/**
+ * @brief Get data within specified y extents.
+ * 
+ * @param yMin 
+ * @param yMax 
+ * @return std::vector<std::pair<qreal, QDateTime>> 
+ */
+std::vector<std::pair<qreal, QDateTime>> waterfallgraph::getDataWithinYExtents(qreal yMin, qreal yMax) const
+{
+    if (!dataSource) {
+        return std::vector<std::pair<qreal, QDateTime>>();
+    }
+    return dataSource->getDataWithinYExtents(yMin, yMax);
+}
+
+/**
+ * @brief Get data within specified time range.
+ * 
+ * @param startTime 
+ * @param endTime 
+ * @return std::vector<std::pair<qreal, QDateTime>> 
+ */
+std::vector<std::pair<qreal, QDateTime>> waterfallgraph::getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
+{
+    if (!dataSource) {
+        return std::vector<std::pair<qreal, QDateTime>>();
+    }
+    return dataSource->getDataWithinTimeRange(startTime, endTime);
+}
+
+/**
+ * @brief Get direct access to y data vector.
+ * 
+ * @return const std::vector<qreal>& 
+ */
+const std::vector<qreal>& waterfallgraph::getYData() const
+{
+    static const std::vector<qreal> emptyVector;
+    if (!dataSource) {
+        return emptyVector;
+    }
+    return dataSource->getYData();
+}
+
+/**
+ * @brief Get direct access to timestamps vector.
+ * 
+ * @return const std::vector<QDateTime>& 
+ */
+const std::vector<QDateTime>& waterfallgraph::getTimestamps() const
+{
+    static const std::vector<QDateTime> emptyVector;
+    if (!dataSource) {
+        return emptyVector;
+    }
+    return dataSource->getTimestamps();
 }
 
 /**
@@ -134,8 +312,11 @@ void waterfallgraph::draw()
         drawGrid();
     }
 
-    // Draw test geometry using drawutils
-    DrawUtils::drawDefaultTestPattern(graphicsScene);
+    // Draw the actual data line if we have data
+    if (dataSource && !dataSource->isEmpty()) {
+        updateDataRanges();
+        drawDataLine();
+    }
 }
 
 /**
@@ -316,4 +497,99 @@ void waterfallgraph::showEvent(QShowEvent *event)
     
     // Update graphics dimensions now that we're visible
     updateGraphicsDimensions();
+}
+
+/**
+ * @brief Update data ranges from the waterfall data.
+ * 
+ */
+void waterfallgraph::updateDataRanges()
+{
+    if (!dataSource || dataSource->isEmpty()) {
+        dataRangesValid = false;
+        return;
+    }
+    
+    auto yRange = dataSource->getYRange();
+    auto timeRange = dataSource->getTimeRange();
+    
+    yMin = yRange.first;
+    yMax = yRange.second;
+    timeMin = timeRange.first;
+    timeMax = timeRange.second;
+    
+    dataRangesValid = true;
+    
+    qDebug() << "Data ranges updated - Y:" << yMin << "to" << yMax 
+             << "Time:" << timeMin.toString() << "to" << timeMax.toString();
+}
+
+/**
+ * @brief Map data coordinates to screen coordinates.
+ * 
+ * @param yValue 
+ * @param timestamp 
+ * @return QPointF 
+ */
+QPointF waterfallgraph::mapDataToScreen(qreal yValue, const QDateTime& timestamp) const
+{
+    if (!dataRangesValid || drawingArea.isEmpty()) {
+        return QPointF(0, 0);
+    }
+    
+    // Map y-value to x-coordinate (horizontal position)
+    qreal x = drawingArea.left() + ((yValue - yMin) / (yMax - yMin)) * drawingArea.width();
+    
+    // Map timestamp to y-coordinate (vertical position, top to bottom)
+    qint64 timeSpan = timeMin.msecsTo(timeMax);
+    qint64 timeOffset = timeMin.msecsTo(timestamp);
+    qreal y = drawingArea.top() + (timeOffset / (qreal)timeSpan) * drawingArea.height();
+    
+    return QPointF(x, y);
+}
+
+/**
+ * @brief Draw the data line from top to bottom.
+ * 
+ */
+void waterfallgraph::drawDataLine()
+{
+    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid) {
+        return;
+    }
+    
+    const auto& yData = dataSource->getYData();
+    const auto& timestamps = dataSource->getTimestamps();
+    
+    if (yData.size() < 2) {
+        // Draw a single point if we only have one data point
+        QPointF screenPoint = mapDataToScreen(yData[0], timestamps[0]);
+        QPen pointPen(Qt::green, 3);
+        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        return;
+    }
+    
+    // Create a path for the line
+    QPainterPath path;
+    QPointF firstPoint = mapDataToScreen(yData[0], timestamps[0]);
+    path.moveTo(firstPoint);
+    
+    // Add lines connecting all data points
+    for (size_t i = 1; i < yData.size(); ++i) {
+        QPointF point = mapDataToScreen(yData[i], timestamps[i]);
+        path.lineTo(point);
+    }
+    
+    // Draw the line
+    QPen linePen(Qt::green, 2);
+    graphicsScene->addPath(path, linePen);
+    
+    // Draw data points
+    QPen pointPen(Qt::yellow, 2);
+    for (size_t i = 0; i < yData.size(); ++i) {
+        QPointF point = mapDataToScreen(yData[i], timestamps[i]);
+        graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+    }
+    
+    qDebug() << "Data line drawn with" << yData.size() << "points";
 }

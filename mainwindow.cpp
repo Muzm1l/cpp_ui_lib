@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include <QDateTime>
+#include <QDebug>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this))
@@ -59,6 +61,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Configure layout selection combobox
     configureLayoutSelection();
+    
+    // Demonstrate data point methods
+    demonstrateDataPointMethods();
 
     // // Configure TimeSelectionVisualizer 
     // configureTimeVisualizer();
@@ -258,5 +263,53 @@ void MainWindow::onLayoutTypeChanged(int index)
 {
     LayoutType layoutType = static_cast<LayoutType>(ui->layoutSelectionComboBox->itemData(index).toInt());
     ui->graphgrid->setLayoutType(layoutType);
+}
+
+void MainWindow::demonstrateDataPointMethods()
+{
+    // Create different data sources for demonstration
+    WaterfallData realTimeData;
+    WaterfallData historicalData;
+    WaterfallData simulationData;
+    
+    // Create sample data for each source
+    std::vector<qreal> yData1 = {10.0, 25.0, 15.0, 35.0, 20.0, 40.0, 30.0, 45.0, 50.0};
+    std::vector<qreal> yData2 = {5.0, 15.0, 25.0, 35.0, 45.0, 55.0, 65.0, 75.0, 85.0};
+    std::vector<qreal> yData3 = {100.0, 90.0, 80.0, 70.0, 60.0, 50.0, 40.0, 30.0, 20.0};
+    
+    // Create timestamps (current time + intervals)
+    QDateTime baseTime = QDateTime::currentDateTime();
+    std::vector<QDateTime> timestamps;
+    for (int i = 0; i < 9; ++i) {
+        timestamps.push_back(baseTime.addMSecs(i * 500)); // 0.5 second intervals
+    }
+    
+    // Set data for each source
+    realTimeData.setData(yData1, timestamps);
+    historicalData.setData(yData2, timestamps);
+    simulationData.setData(yData3, timestamps);
+    
+    // Demonstrate data options system
+    qDebug() << "=== Data Options Demonstration ===";
+    
+    // Add data options to all containers
+    ui->graphgrid->addDataOption("Real-Time Data", realTimeData);
+    ui->graphgrid->addDataOption("Historical Data", historicalData);
+    ui->graphgrid->addDataOption("Simulation Data", simulationData);
+    
+    // Set different data options for different containers
+    ui->graphgrid->setCurrentDataOption(0, "Real-Time Data");
+    ui->graphgrid->setCurrentDataOption(1, "Historical Data");
+    ui->graphgrid->setCurrentDataOption(2, "Simulation Data");
+    
+    // Add some additional data points to demonstrate incremental updates
+    ui->graphgrid->addDataPoint(0, 60.0, baseTime.addMSecs(4500));
+    ui->graphgrid->addDataPoint(1, 95.0, baseTime.addMSecs(4500));
+    ui->graphgrid->addDataPoint(2, 10.0, baseTime.addMSecs(4500));
+    
+    qDebug() << "Data options system demonstrated successfully";
+    qDebug() << "Container 0 current option:" << ui->graphgrid->getCurrentDataOption(0);
+    qDebug() << "Container 1 current option:" << ui->graphgrid->getCurrentDataOption(1);
+    qDebug() << "Container 2 current option:" << ui->graphgrid->getCurrentDataOption(2);
 }
 

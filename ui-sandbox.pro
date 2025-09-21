@@ -25,6 +25,7 @@ SOURCES += \
     timeselectionvisualizer.cpp \
     twoaxisdata.cpp \
     twoaxisgraph.cpp \
+    waterfalldata.cpp \
     waterfallgraph.cpp \
     drawutils.cpp \
     zoompanel.cpp
@@ -38,6 +39,7 @@ HEADERS += \
     timeselectionvisualizer.h \
     twoaxisdata.h \
     twoaxisgraph.h \
+    waterfalldata.h \
     waterfallgraph.h \
     drawutils.h \
     zoompanel.h
