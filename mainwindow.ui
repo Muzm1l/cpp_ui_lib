@@ -44,16 +44,6 @@
      </rect>
     </property>
    </widget>
-   <widget class="GraphLayout" name="graphgrid" native="true">
-    <property name="geometry">
-     <rect>
-      <x>970</x>
-      <y>70</y>
-      <width>611</width>
-      <height>651</height>
-     </rect>
-    </property>
-   </widget>
    <widget class="QComboBox" name="layoutSelectionComboBox">
     <property name="geometry">
      <rect>
