@@ -804,13 +804,24 @@ void waterfallgraph::endSelection()
     if (!selectionRect) return;
     
     // Calculate the time range of the selection
-    QTime startTime = mapScreenToTime(qMax(selectionStartPos.y(), selectionEndPos.y()));
-    QTime endTime = mapScreenToTime(qMin(selectionStartPos.y(), selectionEndPos.y()));
+    // Find min and max Y positions (min Y = later time, max Y = earlier time)
+    qreal minY = qMin(selectionStartPos.y(), selectionEndPos.y());
+    qreal maxY = qMax(selectionStartPos.y(), selectionEndPos.y());
+    
+    // Map to time: minY (bottom) = later time, maxY (top) = earlier time
+    QTime startTime = mapScreenToTime(maxY); // Earlier time (top of selection)
+    QTime endTime = mapScreenToTime(minY); // Later time (bottom of selection)
+    
+    qDebug() << "Selection Y range: minY=" << minY << "maxY=" << maxY;
+    qDebug() << "Time range: start=" << startTime.toString() << "end=" << endTime.toString();
     
     // Only emit signal if selection has meaningful size
     if (startTime != endTime) {
-        emit SelectionCreated(startTime, endTime);
+        TimeSelectionSpan selection(startTime, endTime);
+        emit SelectionCreated(selection);
         qDebug() << "Selection created:" << startTime.toString() << "to" << endTime.toString();
+    } else {
+        qDebug() << "Selection too small, ignoring";
     }
     
     // Clear the visual selection immediately on mouse release

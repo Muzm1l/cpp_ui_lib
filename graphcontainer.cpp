@@ -339,12 +339,10 @@ void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
     emit IntervalChanged(interval);
 }
 
-void GraphContainer::onSelectionCreated(const QTime& startTime, const QTime& endTime)
+void GraphContainer::onSelectionCreated(const TimeSelectionSpan& selection)
 {
-    qDebug() << "GraphContainer: Selection created from" << startTime.toString() << "to" << endTime.toString();
+    qDebug() << "GraphContainer: Selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
     
-    // Create TimeSelectionSpan and add it to the timeline selection view
-    TimeSelectionSpan selection(startTime, endTime);
     if (m_timelineSelectionView) {
         m_timelineSelectionView->addTimeSelection(selection);
         qDebug() << "GraphContainer: Selection added to timeline selection view";

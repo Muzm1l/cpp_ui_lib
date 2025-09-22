@@ -14,6 +14,7 @@
 #include <QPainterPath>
 #include <QTimer>
 #include <QCoreApplication>
+#include <QTime>
 #include <vector>
 #include "drawutils.h"
 #include "waterfalldata.h"
@@ -132,7 +133,7 @@ public:
     void testSelectionRectangle();
 
 signals:
-    void SelectionCreated(const QTime& startTime, const QTime& endTime);
+    void SelectionCreated(const TimeSelectionSpan& selection);
 };
 
 #endif // WATERFALLGRAPH_H

@@ -71,7 +71,7 @@ public:
     
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
-    void onSelectionCreated(const QTime& startTime, const QTime& endTime);
+    void onSelectionCreated(const TimeSelectionSpan& selection);
     
 private:
     void updateTotalContainerSize();
