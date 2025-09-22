@@ -82,6 +82,9 @@ public:
     std::vector<QString> getContainerLabels() const;
     bool hasContainer(const QString& containerLabel) const;
 
+    // Set the current time 
+    void setCurrentTime(const QTime& time);
+
 private:
     LayoutType m_layoutType;
 

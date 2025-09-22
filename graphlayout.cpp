@@ -643,3 +643,12 @@ void GraphLayout::disconnectAllContainerConnections()
         }
     }
 }
+
+void GraphLayout::setCurrentTime(const QTime& time)
+{
+    for (auto* container : m_graphContainers) {
+        if (container) {
+            container->setCurrentTime(time);
+        }
+    }
+}

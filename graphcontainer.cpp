@@ -374,3 +374,15 @@ void GraphContainer::testSelectionRectangle()
         qDebug() << "GraphContainer: Test selection rectangle called";
     }
 }
+
+void GraphContainer::setCurrentTime(const QTime& time)
+{
+    qDebug() << "GraphContainer: Setting current time to" << time.toString();
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->setCurrentTime(time);
+    }
+
+    if (m_timelineView) {
+        m_timelineView->setCurrentTime(time);
+    }
+}

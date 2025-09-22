@@ -65,6 +65,10 @@ public:
     // Mouse selection control
     void setMouseSelectionEnabled(bool enabled);
     bool isMouseSelectionEnabled() const;
+
+    // Set the current time 
+    void setCurrentTime(const QTime& time);
+
     
     // Test method
     void testSelectionRectangle();

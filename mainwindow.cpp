@@ -143,6 +143,10 @@ void MainWindow::updateSimulation()
         this->currentSelectedTrackBearing,
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
+
+
+    // set the current time to the system time
+    graphgrid->setCurrentTime(QTime::currentTime());
 }
 
 // void MainWindow::configureTimeVisualizer()
