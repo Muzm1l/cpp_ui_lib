@@ -100,6 +100,12 @@ void TimeVisualizerWidget::setTimeLineLength(const QTime& length)
     updateVisualization();
 }
 
+void TimeVisualizerWidget::setTimeLineLength(TimeInterval interval)
+{
+    m_timeLineLength = timeIntervalToQTime(interval);
+    updateVisualization();
+}
+
 void TimeVisualizerWidget::setCurrentTime(const QTime& currentTime)
 {
     m_currentTime = currentTime;

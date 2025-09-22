@@ -28,6 +28,7 @@ public:
     
     // Properties
     void setTimeLineLength(const QTime& length);
+    void setTimeLineLength(TimeInterval interval);
     void setCurrentTime(const QTime& currentTime);
     
     QTime getTimeLineLength() const { return m_timeLineLength; }
