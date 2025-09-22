@@ -119,34 +119,38 @@ void TimelineVisualizerWidget::drawSegment(QPainter &painter, int segmentNumber)
     
     // Calculate Y position for this segment
     double y = segmentNumber * segmentHeight;
+    
+    // Only show labels on every third section (0, 3, 6, 9, 12, ...)
+    bool shouldShowLabel = (segmentNumber % 3 == 0);
+    
+    if (shouldShowLabel) {
+        // Calculate timestamp for this segment
+        QString timestamp = getTimeLabel(segmentNumber, m_isAbsoluteTime);
+        if (timestamp.isNull()) {
+            return; // No timestamp to draw, but segment background is already drawn
+        }
         
-    // Calculate timestamp for this segment
-    QString timestamp = getTimeLabel(segmentNumber, m_isAbsoluteTime);
-    if (timestamp.isNull()) {
-        return; // No timestamp to draw, but segment background is already drawn
+        // Set text color to white for visibility on dark background
+        painter.setPen(QPen(QColor(255, 255, 255), 1));
+        
+        // Calculate text metrics
+        QFontMetrics fm(painter.font());
+        int textWidth = fm.horizontalAdvance(timestamp);
+        int textHeight = fm.height();
+        
+        // Calculate center position for the text within the segment
+        int centerX = (widgetWidth - textWidth) / 2;
+        int centerY = static_cast<int>(y + segmentHeight / 2 + textHeight / 2);
+        
+        // Draw the timestamp centered in the segment
+        painter.drawText(QPoint(centerX, centerY), timestamp);
     }
-    
-    // Set text color to white for visibility on dark background
-    painter.setPen(QPen(QColor(255, 255, 255), 1));
-    
-    // Calculate text metrics
-    QFontMetrics fm(painter.font());
-    int textWidth = fm.horizontalAdvance(timestamp);
-    int textHeight = fm.height();
-    
-    // Calculate center position for the text within the segment
-    int centerX = (widgetWidth - textWidth) / 2;
-    int centerY = static_cast<int>(y + segmentHeight / 2 + textHeight / 2);
-    
-    // Draw the timestamp centered in the segment
-    painter.drawText(QPoint(centerX, centerY), timestamp);
-
 
     // Draw two ticks which are 15% of the segment width aligned with the text center and to the left and right edges at centerY
     int tickWidth = static_cast<int>(widgetWidth * 0.15);
 
     // Left tick startpoint at left edge at center
-    int tickY = centerY; //static_cast<int>(y + segmentHeight / 2);
+    int tickY = static_cast<int>(y + segmentHeight / 2);
     QPoint leftTickStart(0, tickY);
     QPoint leftTickEnd(tickWidth, tickY);
     painter.drawLine(leftTickStart, leftTickEnd);
