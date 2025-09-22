@@ -14,18 +14,30 @@
 #include <vector>
 #include "drawutils.h"
 #include "waterfalldata.h"
+#include "timelineutils.h"
 
 class waterfallgraph : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit waterfallgraph(QWidget *parent = nullptr, bool enableGrid = true, int gridDivisions = 10);
+    explicit waterfallgraph(QWidget *parent = nullptr, bool enableGrid = false, int gridDivisions = 10, TimeInterval timeInterval = TimeInterval::FifteenMinutes);
     ~waterfallgraph();
     
     // Data source management
     void setDataSource(WaterfallData& dataSource);
     WaterfallData* getDataSource() const;
+    
+    // Time interval configuration
+    void setTimeInterval(TimeInterval interval);
+    TimeInterval getTimeInterval() const;
+    qint64 getTimeIntervalMs() const;
+    
+    // Grid configuration
+    void setGridEnabled(bool enabled);
+    bool isGridEnabled() const;
+    void setGridDivisions(int divisions);
+    int getGridDivisions() const;
     
     // Data handling (delegates to data source)
     void setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
@@ -83,6 +95,9 @@ private:
     qreal yMin, yMax;
     QDateTime timeMin, timeMax;
     bool dataRangesValid;
+    
+    // Time interval configuration
+    TimeInterval timeInterval;
     
     // Data source reference
     WaterfallData* dataSource;

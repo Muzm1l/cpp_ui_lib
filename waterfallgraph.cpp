@@ -3,11 +3,12 @@
 /**
  * @brief Construct a new waterfallgraph::waterfallgraph object
  * 
- * @param parent 
- * @param enableGrid 
- * @param gridDivisions 
+ * @param parent Parent widget
+ * @param enableGrid Whether to enable grid display
+ * @param gridDivisions Number of grid divisions
+ * @param timeInterval Time interval for the waterfall display
  */
-waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisions)
+waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : QWidget(parent)
     , graphicsView(nullptr)
     , graphicsScene(nullptr)
@@ -17,6 +18,7 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     , timeMin(QDateTime())
     , timeMax(QDateTime())
     , dataRangesValid(false)
+    , timeInterval(timeInterval)
     , dataSource(nullptr)
     , isDragging(false)
 {
@@ -277,6 +279,94 @@ const std::vector<QDateTime>& waterfallgraph::getTimestamps() const
 }
 
 /**
+ * @brief Set the time interval for the waterfall graph.
+ * 
+ * @param interval Time interval enum value
+ */
+void waterfallgraph::setTimeInterval(TimeInterval interval)
+{
+    timeInterval = interval;
+    
+    // Update data ranges and redraw if we have data
+    if (dataSource && !dataSource->isEmpty()) {
+        updateDataRanges();
+        draw();
+    }
+    
+    qDebug() << "Time interval set to:" << timeIntervalToString(interval);
+}
+
+/**
+ * @brief Get the current time interval.
+ * 
+ * @return TimeInterval Current time interval enum value
+ */
+TimeInterval waterfallgraph::getTimeInterval() const
+{
+    return timeInterval;
+}
+
+/**
+ * @brief Get the current time interval in milliseconds.
+ * 
+ * @return qint64 Time interval in milliseconds
+ */
+qint64 waterfallgraph::getTimeIntervalMs() const
+{
+    return static_cast<qint64>(timeInterval) * 60 * 1000; // Convert minutes to milliseconds
+}
+
+/**
+ * @brief Enable or disable the grid display.
+ * 
+ * @param enabled True to enable grid, false to disable
+ */
+void waterfallgraph::setGridEnabled(bool enabled)
+{
+    if (gridEnabled != enabled) {
+        gridEnabled = enabled;
+        draw(); // Redraw to show/hide grid
+        qDebug() << "Grid" << (enabled ? "enabled" : "disabled");
+    }
+}
+
+/**
+ * @brief Check if the grid is currently enabled.
+ * 
+ * @return bool True if grid is enabled, false otherwise
+ */
+bool waterfallgraph::isGridEnabled() const
+{
+    return gridEnabled;
+}
+
+/**
+ * @brief Set the number of grid divisions.
+ * 
+ * @param divisions Number of grid divisions (must be positive)
+ */
+void waterfallgraph::setGridDivisions(int divisions)
+{
+    if (divisions > 0 && gridDivisions != divisions) {
+        gridDivisions = divisions;
+        if (gridEnabled) {
+            draw(); // Redraw to update grid divisions
+        }
+        qDebug() << "Grid divisions set to:" << divisions;
+    }
+}
+
+/**
+ * @brief Get the current number of grid divisions.
+ * 
+ * @return int Number of grid divisions
+ */
+int waterfallgraph::getGridDivisions() const
+{
+    return gridDivisions;
+}
+
+/**
  * @brief Handle mouse click events.
  * 
  * @param scenePos 
@@ -387,6 +477,7 @@ void waterfallgraph::drawGrid()
     }
     
     // Draw horizontal grid lines (for y-axis - time)
+    // These represent time divisions within the fixed interval
     double stepY = drawingArea.height() / gridDivisions;
     for (int i = 0; i <= gridDivisions; ++i) {
         double y = drawingArea.top() + i * stepY;
@@ -512,17 +603,19 @@ void waterfallgraph::updateDataRanges()
     }
     
     auto yRange = dataSource->getYRange();
-    auto timeRange = dataSource->getTimeRange();
     
     yMin = yRange.first;
     yMax = yRange.second;
-    timeMin = timeRange.first;
-    timeMax = timeRange.second;
+    
+    // Set time range based on fixed interval with current time as top (t=0)
+    timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
+    timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
     
     dataRangesValid = true;
     
     qDebug() << "Data ranges updated - Y:" << yMin << "to" << yMax 
-             << "Time:" << timeMin.toString() << "to" << timeMax.toString();
+             << "Time:" << timeMin.toString() << "to" << timeMax.toString()
+             << "Interval:" << timeIntervalToString(timeInterval);
 }
 
 /**
@@ -542,9 +635,9 @@ QPointF waterfallgraph::mapDataToScreen(qreal yValue, const QDateTime& timestamp
     qreal x = drawingArea.left() + ((yValue - yMin) / (yMax - yMin)) * drawingArea.width();
     
     // Map timestamp to y-coordinate (vertical position, top to bottom)
-    qint64 timeSpan = timeMin.msecsTo(timeMax);
-    qint64 timeOffset = timeMin.msecsTo(timestamp);
-    qreal y = drawingArea.top() + (timeOffset / (qreal)timeSpan) * drawingArea.height();
+    // Use fixed time interval instead of data range
+    qint64 timeOffset = timestamp.msecsTo(timeMax); // Time from current time (top) to data point
+    qreal y = drawingArea.top() + (timeOffset / (qreal)getTimeIntervalMs()) * drawingArea.height();
     
     return QPointF(x, y);
 }

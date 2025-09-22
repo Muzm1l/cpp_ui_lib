@@ -275,30 +275,60 @@ void MainWindow::demonstrateDataPointMethods()
 {
     qDebug() << "=== Data Source Demonstration ===";
     
-    // Demonstrate the new data source methods
-    QDateTime baseTime = QDateTime::currentDateTime();
+    // Demonstrate the new data source methods with 15-minute historical data
+    QDateTime currentTime = QDateTime::currentDateTime();
     
-    // Add data points to specific data sources
-    graphgrid->addDataPointToDataSource("LTW", 25.0, baseTime.addMSecs(1000));
-    graphgrid->addDataPointToDataSource("BTW", 35.0, baseTime.addMSecs(1000));
-    graphgrid->addDataPointToDataSource("RTW", 45.0, baseTime.addMSecs(1000));
-    
-    // Add multiple data points to a specific data source
-    std::vector<qreal> additionalYData = {30.0, 40.0, 50.0};
-    std::vector<QDateTime> additionalTimestamps = {
-        baseTime.addMSecs(1500),
-        baseTime.addMSecs(2000),
-        baseTime.addMSecs(2500)
-    };
-    graphgrid->addDataPointsToDataSource("LTW", additionalYData, additionalTimestamps);
-    
-    // Set data for a specific data source
-    std::vector<qreal> newYData = {10.0, 20.0, 30.0, 40.0, 50.0};
-    std::vector<QDateTime> newTimestamps;
-    for (int i = 0; i < 5; ++i) {
-        newTimestamps.push_back(baseTime.addMSecs(i * 1000));
+    // Create realistic mock data spanning the last 15 minutes
+    // LTW (Left Track Window) - Simulates radar contact data
+    std::vector<qreal> ltwYData;
+    std::vector<QDateTime> ltwTimestamps;
+    for (int i = 0; i < 15; ++i) {
+        // Data points every minute going backwards from current time
+        QDateTime timestamp = currentTime.addMSecs(-i * 60 * 1000); // i minutes ago
+        ltwTimestamps.push_back(timestamp);
+        
+        // Simulate realistic radar range values (5-25 nautical miles)
+        qreal baseRange = 15.0 + (i % 3) * 3.0; // Vary between 15-21 nm
+        qreal noise = (std::rand() % 200 - 100) / 100.0; // ±1 nm noise
+        ltwYData.push_back(baseRange + noise);
     }
-    graphgrid->setDataToDataSource("BTW", newYData, newTimestamps);
+    graphgrid->setDataToDataSource("LTW", ltwYData, ltwTimestamps);
+    
+    // BTW (Bottom Track Window) - Simulates sonar contact data
+    std::vector<qreal> btwYData;
+    std::vector<QDateTime> btwTimestamps;
+    for (int i = 0; i < 12; ++i) {
+        // Data points every 1.25 minutes going backwards
+        QDateTime timestamp = currentTime.addMSecs(-i * 75 * 1000); // i * 1.25 minutes ago
+        btwTimestamps.push_back(timestamp);
+        
+        // Simulate realistic sonar depth values (50-200 meters)
+        qreal baseDepth = 120.0 + (i % 4) * 20.0; // Vary between 120-180m
+        qreal noise = (std::rand() % 100 - 50) / 10.0; // ±5m noise
+        btwYData.push_back(baseDepth + noise);
+    }
+    graphgrid->setDataToDataSource("BTW", btwYData, btwTimestamps);
+    
+    // RTW (Right Track Window) - Simulates bearing data
+    std::vector<qreal> rtwYData;
+    std::vector<QDateTime> rtwTimestamps;
+    for (int i = 0; i < 18; ++i) {
+        // Data points every 50 seconds going backwards
+        QDateTime timestamp = currentTime.addMSecs(-i * 50 * 1000); // i * 50 seconds ago
+        rtwTimestamps.push_back(timestamp);
+        
+        // Simulate realistic bearing values (0-360 degrees)
+        qreal baseBearing = 180.0 + (i % 6) * 30.0; // Vary between 180-330 degrees
+        qreal noise = (std::rand() % 20 - 10); // ±10 degree noise
+        qreal bearing = fmod(baseBearing + noise + 360.0, 360.0);
+        rtwYData.push_back(bearing);
+    }
+    graphgrid->setDataToDataSource("RTW", rtwYData, rtwTimestamps);
+    
+    // Add some additional recent data points to simulate real-time updates
+    graphgrid->addDataPointToDataSource("LTW", 18.5, currentTime.addMSecs(-30 * 1000)); // 30 seconds ago
+    graphgrid->addDataPointToDataSource("BTW", 135.2, currentTime.addMSecs(-45 * 1000)); // 45 seconds ago
+    graphgrid->addDataPointToDataSource("RTW", 195.7, currentTime.addMSecs(-20 * 1000)); // 20 seconds ago
     
     // Demonstrate NEW label-based container APIs
     qDebug() << "=== NEW Label-based Container API Demonstration ===";
@@ -307,16 +337,6 @@ void MainWindow::demonstrateDataPointMethods()
     qDebug() << "Available container labels:" << graphgrid->getContainerLabels().size();
     qDebug() << "Has LTW container:" << graphgrid->hasContainer("LTW");
     qDebug() << "Has INVALID container:" << graphgrid->hasContainer("INVALID");
-    
-    // Test label-based data methods on containers
-    std::vector<qreal> containerYData = {15.0, 25.0, 35.0};
-    std::vector<QDateTime> containerTimestamps = {
-        baseTime.addMSecs(3000),
-        baseTime.addMSecs(3500),
-        baseTime.addMSecs(4000)
-    };
-    graphgrid->setData("RTW", containerYData, containerTimestamps);
-    graphgrid->addDataPoint("LTW", 60.0, baseTime.addMSecs(5000));
     
     // Test label-based data option methods
     qDebug() << "Current data option for LTW:" << graphgrid->getCurrentDataOption("LTW");
@@ -327,14 +347,27 @@ void MainWindow::demonstrateDataPointMethods()
     qDebug() << "Has LTW data source:" << graphgrid->hasDataSource("LTW");
     qDebug() << "Has INVALID data source:" << graphgrid->hasDataSource("INVALID");
     
-    // Get a data source and check its data
+    // Get data sources and check their data
     WaterfallData* ltwData = graphgrid->getDataSource("LTW");
     if (ltwData) {
         qDebug() << "LTW data size:" << ltwData->getDataSize();
         qDebug() << "LTW Y range:" << ltwData->getMinY() << "to" << ltwData->getMaxY();
+        qDebug() << "LTW time span:" << ltwData->getTimeSpanMs() / 1000.0 << "seconds";
     }
     
-    qDebug() << "Data source methods demonstrated successfully";
+    WaterfallData* btwData = graphgrid->getDataSource("BTW");
+    if (btwData) {
+        qDebug() << "BTW data size:" << btwData->getDataSize();
+        qDebug() << "BTW Y range:" << btwData->getMinY() << "to" << btwData->getMaxY();
+    }
+    
+    WaterfallData* rtwData = graphgrid->getDataSource("RTW");
+    if (rtwData) {
+        qDebug() << "RTW data size:" << rtwData->getDataSize();
+        qDebug() << "RTW Y range:" << rtwData->getMinY() << "to" << rtwData->getMaxY();
+    }
+    
+    qDebug() << "Data source methods demonstrated successfully with 15-minute historical data";
     qDebug() << "NEW label-based container APIs demonstrated successfully";
 }
 

@@ -4,24 +4,29 @@
 #include <QPen>
 #include <QBrush>
 #include <QDateTime>
+#include "timelineutils.h"
 
 WaterfallGraphExample::WaterfallGraphExample(QWidget *parent)
-    : waterfallgraph(parent)
+    : waterfallgraph(parent, false, 10, TimeInterval::FiveMinutes) // Grid disabled by default
 {
+    // Enable grid for this example
+    setGridEnabled(true);
+    
     // Example: Set some test data with more interesting values
     std::vector<qreal> yData = {10.0, 25.0, 15.0, 35.0, 20.0, 40.0, 30.0, 45.0, 50.0};
     std::vector<QDateTime> timestamps;
     
-    // Create timestamps (current time + intervals)
-    QDateTime baseTime = QDateTime::currentDateTime();
+    // Create timestamps spanning the time interval (current time going backwards)
+    QDateTime currentTime = QDateTime::currentDateTime();
     for (int i = 0; i < 9; ++i) {
-        timestamps.append(baseTime.addMSecs(i * 500)); // 0.5 second intervals
+        // Spread data points across the 5-minute interval
+        timestamps.append(currentTime.addMSecs(-i * 30 * 1000)); // 30-second intervals going backwards
     }
     
     setData(yData, timestamps);
     
-    // Example: Add a single data point incrementally
-    addDataPoint(60.0, baseTime.addMSecs(4500));
+    // Example: Add a single data point incrementally (2 minutes ago)
+    addDataPoint(60.0, currentTime.addMSecs(-2 * 60 * 1000));
 }
 
 void WaterfallGraphExample::onMouseClick(const QPointF& scenePos)
