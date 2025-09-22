@@ -5,6 +5,9 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
     : QWidget(parent)
     , m_currentTime(QTime::currentTime())
     , m_numberOfDivisions(15)
+    , m_lastCurrentTime(QTime::currentTime())
+    , m_pixelSpeed(0.0)
+    , m_accumulatedOffset(0.0)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -16,12 +19,16 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
 void TimelineVisualizerWidget::setTimeLineLength(const QTime& length)
 {
     m_timeLineLength = length;
+    // Reset accumulated offset when timeline length changes
+    m_accumulatedOffset = 0.0;
     updateVisualization();
 }
 
 void TimelineVisualizerWidget::setCurrentTime(const QTime& currentTime)
 {
+    m_lastCurrentTime = m_currentTime;
     m_currentTime = currentTime;
+    updatePixelSpeed();
     updateVisualization();
 }
 
@@ -34,6 +41,40 @@ void TimelineVisualizerWidget::setNumberOfDivisions(int divisions)
 void TimelineVisualizerWidget::updateVisualization()
 {
     update(); // Trigger a repaint
+}
+
+void TimelineVisualizerWidget::updatePixelSpeed()
+{
+    if (m_lastCurrentTime.isNull() || m_currentTime.isNull() || m_timeLineLength.isNull()) {
+        m_pixelSpeed = 0.0;
+        return;
+    }
+    
+    // Calculate time difference in seconds
+    int timeDiffMs = m_lastCurrentTime.msecsTo(m_currentTime);
+    if (timeDiffMs <= 0) {
+        m_pixelSpeed = 0.0;
+        return;
+    }
+    
+    // Calculate total timeline duration in seconds
+    int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    
+    // Calculate pixel speed: pixels per second
+    double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
+    m_pixelSpeed = segmentHeight / (totalSeconds / m_numberOfDivisions);
+    
+    // Update accumulated offset based on time difference
+    double timeDiffSeconds = timeDiffMs / 1000.0;
+    m_accumulatedOffset += m_pixelSpeed * timeDiffSeconds;
+    
+    qDebug() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset;
+}
+
+double TimelineVisualizerWidget::calculateSmoothOffset()
+{
+    // Return the accumulated offset for smooth shifting
+    return m_accumulatedOffset;
 }
 
 TimelineVisualizerWidget::~TimelineVisualizerWidget()
@@ -117,8 +158,11 @@ void TimelineVisualizerWidget::drawSegment(QPainter &painter, int segmentNumber)
     // Calculate segment height
     double segmentHeight = static_cast<double>(widgetHeight) / m_numberOfDivisions;
     
-    // Calculate Y position for this segment
-    double y = segmentNumber * segmentHeight;
+    // Calculate smooth offset based on pixel speed and time difference
+    double smoothOffset = calculateSmoothOffset();
+    
+    // Calculate Y position for this segment with smooth offset (shift down)
+    double y = segmentNumber * segmentHeight + smoothOffset;
     
     // Only show labels on every third section (0, 3, 6, 9, 12, ...)
     bool shouldShowLabel = (segmentNumber % 3 == 0);
@@ -232,9 +276,23 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     // Fill with black background
     painter.fillRect(rect(), QColor(0, 0, 0));
     
-    // Draw segments
-    for (int i = 0; i < m_numberOfDivisions; ++i) {
-        drawSegment(painter, i);
+    // Calculate smooth offset to determine which segments to draw
+    double smoothOffset = calculateSmoothOffset();
+    double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
+    
+    // Draw segments that are visible (including those that might be partially off-screen due to smooth shifting)
+    // Start from a few segments before the normal range to handle shifting
+    int startSegment = -2; // Start 2 segments before 0
+    int endSegment = m_numberOfDivisions + 2; // End 2 segments after normal range
+    
+    for (int i = startSegment; i < endSegment; ++i) {
+        // Calculate Y position for this segment with smooth offset (shift down)
+        double y = i * segmentHeight + smoothOffset;
+        
+        // Only draw if the segment is at least partially visible
+        if (y + segmentHeight >= 0 && y < rect().height()) {
+            drawSegment(painter, i);
+        }
     }
     
     // Draw a chevron at the top of the visualizer

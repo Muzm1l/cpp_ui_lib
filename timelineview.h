@@ -40,11 +40,20 @@ private:
     QTime m_currentTime;
     int m_numberOfDivisions = 15; // Default to 15 segments
     bool m_isAbsoluteTime = true;
+    
+    // Smooth shifting state
+    QTime m_lastCurrentTime;
+    double m_pixelSpeed; // pixels per second
+    double m_accumulatedOffset; // accumulated pixel offset
+    
     void updateVisualization();
     void drawSegment(QPainter &painter, int segmentNumber);
     void drawChevron(QPainter &painter, int yOffset);
     QString getTimeLabel(int segmentNumber, bool isAbsoluteTime);
     void drawChevronLabels(QPainter &painter, int yOffset);
+    double calculateTimeOffset();
+    void updatePixelSpeed();
+    double calculateSmoothOffset();
 
 };
     
