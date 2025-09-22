@@ -55,6 +55,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
 {
     m_layoutType = layoutType;
 
+    // Disconnect all existing connections before changing layout
+    disconnectAllContainerConnections();
 
     // Remove all widgets from both row layouts
     while (QLayoutItem* item = m_graphContainersRow1Layout->takeAt(0)) {
@@ -96,16 +98,21 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
             // Hide timeline view for fourth graph containers
             m_graphContainers[2]->setShowTimelineView(true);
             m_graphContainers[3]->setShowTimelineView(false);
+
+            // Connect the interval change handler of containers 1 to the event of 0 and the 3 to the event of 2
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+            connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
+
             break;
         case LayoutType::GPW2WV:
             // Add 1 graph container to row 1
             m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
             m_graphContainers[0]->setShowTimelineView(true);
             // Add 1 graph container to row 2
-            m_graphContainersRow2Layout->addWidget(m_graphContainers[1]);
-            m_graphContainers[1]->setShowTimelineView(true);
+            m_graphContainersRow2Layout->addWidget(m_graphContainers[2]);
+            m_graphContainers[2]->setShowTimelineView(true);
             // Hide the other containers
-            m_graphContainers[2]->setVisible(false);
+            m_graphContainers[1]->setVisible(false);
             m_graphContainers[3]->setVisible(false);
             break;
         case LayoutType::GPW2WH:
@@ -118,6 +125,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
             // Hide the other containers
             m_graphContainers[2]->setVisible(false);
             m_graphContainers[3]->setVisible(false);
+
+            // Connect the interval change handler of containers 1 to the event of 0
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
             break;
         case LayoutType::GPW4WH:
             // Add 4 graph containers to row 1
@@ -130,6 +140,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
             m_graphContainers[1]->setShowTimelineView(false);
             m_graphContainers[2]->setShowTimelineView(false);
             m_graphContainers[3]->setShowTimelineView(false);
+
+            // Connect the interval change handlers of containers 1,2,3 to the event of 0
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[2], &GraphContainer::onTimeIntervalChanged);
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
             break;
         case LayoutType::HIDDEN:
             // Hide all containers
@@ -612,4 +627,19 @@ int GraphLayout::getContainerIndex(const QString& containerLabel) const
         return std::distance(m_containerLabels.begin(), it);
     }
     return -1; // Not found
+}
+
+void GraphLayout::disconnectAllContainerConnections()
+{
+    qDebug() << "GraphLayout: Disconnecting external container connections";
+    
+    // Disconnect only external connections (IntervalChanged signal) to prevent duplicate connections
+    // while preserving internal connections like TimelineView -> GraphContainer
+    for (auto* container : m_graphContainers) {
+        if (container) {
+            // Disconnect only the IntervalChanged signal to preserve internal functionality
+            container->disconnect(SIGNAL(IntervalChanged(TimeInterval)));
+            qDebug() << "GraphLayout: Disconnected IntervalChanged signal from container";
+        }
+    }
 }

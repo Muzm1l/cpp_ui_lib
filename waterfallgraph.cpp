@@ -287,11 +287,25 @@ void waterfallgraph::setTimeInterval(TimeInterval interval)
 {
     timeInterval = interval;
     
-    // Update data ranges and redraw if we have data
+    // Always update time range based on new interval
+    timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
+    timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
+    
+    // Update data ranges if we have data
     if (dataSource && !dataSource->isEmpty()) {
-        updateDataRanges();
-        draw();
+        auto yRange = dataSource->getYRange();
+        yMin = yRange.first;
+        yMax = yRange.second;
+        dataRangesValid = true;
+    } else {
+        // Set default Y range when no data
+        yMin = 0.0;
+        yMax = 100.0;
+        dataRangesValid = true;
     }
+    
+    // Force redraw regardless of data presence to update grid and layout
+    draw();
     
     qDebug() << "Time interval set to:" << timeIntervalToString(interval);
 }

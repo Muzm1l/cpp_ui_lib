@@ -57,6 +57,7 @@ public:
     void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
     void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
+    void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
 
 private slots:

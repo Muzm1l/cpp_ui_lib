@@ -14,6 +14,7 @@
 #include "timeselectionvisualizer.h"
 #include "timelineview.h"
 #include "zoompanel.h"
+#include "timelineutils.h"
 
 class GraphContainer : public QWidget
 {
@@ -58,6 +59,12 @@ public:
     WaterfallData* getDataOption(const QString& title);
     bool hasDataOption(const QString& title) const;
     
+    // Signal subscription method for external components
+    void subscribeToIntervalChange(QObject* subscriber, const char* slot);
+    
+public slots:
+    void onTimeIntervalChanged(TimeInterval interval);
+    
 private:
     void updateTotalContainerSize();
     void updateComboBoxOptions();
@@ -74,6 +81,7 @@ signals:
     void NewTimeSelectionCreated(qreal startTime, qreal endTime);
     void DeltaTimeSelectionChanged(qreal deltaTime);
     void TimeSelectionsCleared();
+    void IntervalChanged(TimeInterval interval);
 
 private:
     QHBoxLayout *m_mainLayout;

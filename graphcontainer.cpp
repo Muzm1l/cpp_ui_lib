@@ -49,6 +49,10 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
     if (m_showTimelineView) {
         m_timelineView = new TimelineView(this);
         m_mainLayout->addWidget(m_timelineView);
+        
+        // Connect TimelineView intervalChanged signal to our slot
+        connect(m_timelineView, &TimelineView::intervalChanged, 
+                this, &GraphContainer::onTimeIntervalChanged);
     } else {
         m_timelineView = nullptr;
     }
@@ -68,6 +72,10 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     } else {
         m_timelineView = new TimelineView(this);
         m_mainLayout->addWidget(m_timelineView);
+        
+        // Connect TimelineView intervalChanged signal to our slot
+        connect(m_timelineView, &TimelineView::intervalChanged, 
+                this, &GraphContainer::onTimeIntervalChanged);
     }
     
     // Update container size when timeline view visibility changes
@@ -292,4 +300,34 @@ void GraphContainer::onDataOptionChanged(int index)
         QString selectedTitle = m_comboBox->itemText(index);
         setCurrentDataOption(selectedTitle);
     }
+}
+
+void GraphContainer::subscribeToIntervalChange(QObject* subscriber, const char* slot)
+{
+    if (subscriber && slot) {
+        // Use the old Qt syntax for connecting to string-based slots
+        connect(this, SIGNAL(IntervalChanged(TimeInterval)), subscriber, slot);
+        qDebug() << "GraphContainer: External subscriber connected to interval change signal";
+    } else {
+        qWarning() << "GraphContainer: Invalid subscriber or slot provided to subscribeToIntervalChange";
+    }
+}
+
+void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
+{
+    qDebug() << "GraphContainer: Time interval changed to" << timeIntervalToString(interval);
+    
+    // Update the waterfall graph time interval
+    if (m_waterfallGraph) {
+        m_waterfallGraph->setTimeInterval(interval);
+    }
+    
+    // Update the time selection visualizer time interval
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->setTimeLineLength(interval);
+        qDebug() << "TimeSelectionVisualizer updated with interval:" << timeIntervalToString(interval);
+    }
+    
+    // Emit the signal to notify other components
+    emit IntervalChanged(interval);
 }

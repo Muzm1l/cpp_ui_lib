@@ -325,10 +325,10 @@ void MainWindow::demonstrateDataPointMethods()
     }
     graphgrid->setDataToDataSource("RTW", rtwYData, rtwTimestamps);
     
-    // Add some additional recent data points to simulate real-time updates
-    graphgrid->addDataPointToDataSource("LTW", 18.5, currentTime.addMSecs(-30 * 1000)); // 30 seconds ago
-    graphgrid->addDataPointToDataSource("BTW", 135.2, currentTime.addMSecs(-45 * 1000)); // 45 seconds ago
-    graphgrid->addDataPointToDataSource("RTW", 195.7, currentTime.addMSecs(-20 * 1000)); // 20 seconds ago
+    // Add some additional older data points to simulate historical data (not out of order)
+    graphgrid->addDataPointToDataSource("LTW", 18.5, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
+    graphgrid->addDataPointToDataSource("BTW", 135.2, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago  
+    graphgrid->addDataPointToDataSource("RTW", 195.7, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
     
     // Demonstrate NEW label-based container APIs
     qDebug() << "=== NEW Label-based Container API Demonstration ===";

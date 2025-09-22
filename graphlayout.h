@@ -97,6 +97,7 @@ private:
     void attachContainerDataSources();
     void initializeContainers();
     int getContainerIndex(const QString& containerLabel) const;
+    void disconnectAllContainerConnections();
 
 signals:
 };
