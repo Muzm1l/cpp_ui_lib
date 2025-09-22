@@ -51,6 +51,8 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
     // Create TimelineSelectionView
     m_timelineSelectionView = new TimeSelectionVisualizer(this);
     m_mainLayout->addWidget(m_timelineSelectionView);
+    m_timelineSelectionView->setCurrentTime(QTime::currentTime());
+    m_timelineSelectionView->setTimeLineLength(QTime(0, 15, 0));
     
     // Create TimelineView (conditionally based on showTimelineView)
     if (m_showTimelineView) {
