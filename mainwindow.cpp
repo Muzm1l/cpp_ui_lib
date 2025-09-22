@@ -300,6 +300,28 @@ void MainWindow::demonstrateDataPointMethods()
     }
     graphgrid->setDataToDataSource("BTW", newYData, newTimestamps);
     
+    // Demonstrate NEW label-based container APIs
+    qDebug() << "=== NEW Label-based Container API Demonstration ===";
+    
+    // Test container management
+    qDebug() << "Available container labels:" << graphgrid->getContainerLabels().size();
+    qDebug() << "Has LTW container:" << graphgrid->hasContainer("LTW");
+    qDebug() << "Has INVALID container:" << graphgrid->hasContainer("INVALID");
+    
+    // Test label-based data methods on containers
+    std::vector<qreal> containerYData = {15.0, 25.0, 35.0};
+    std::vector<QDateTime> containerTimestamps = {
+        baseTime.addMSecs(3000),
+        baseTime.addMSecs(3500),
+        baseTime.addMSecs(4000)
+    };
+    graphgrid->setData("RTW", containerYData, containerTimestamps);
+    graphgrid->addDataPoint("LTW", 60.0, baseTime.addMSecs(5000));
+    
+    // Test label-based data option methods
+    qDebug() << "Current data option for LTW:" << graphgrid->getCurrentDataOption("LTW");
+    qDebug() << "Available data options for LTW:" << graphgrid->getAvailableDataOptions("LTW").size();
+    
     // Demonstrate data source management
     qDebug() << "Available data sources:" << graphgrid->getDataSourceLabels().size();
     qDebug() << "Has LTW data source:" << graphgrid->hasDataSource("LTW");
@@ -313,5 +335,6 @@ void MainWindow::demonstrateDataPointMethods()
     }
     
     qDebug() << "Data source methods demonstrated successfully";
+    qDebug() << "NEW label-based container APIs demonstrated successfully";
 }
 

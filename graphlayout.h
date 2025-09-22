@@ -43,22 +43,22 @@ public:
     void addDataPoint(qreal yValue, const QDateTime &timestamp);
     void addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
 
-    // Data point methods - operate on specific container by index
-    void setData(int containerIndex, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
-    void setData(int containerIndex, const WaterfallData &data);
-    void clearData(int containerIndex);
-    void addDataPoint(int containerIndex, qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(int containerIndex, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    // Data point methods - operate on specific container by label
+    void setData(const QString &containerLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setData(const QString &containerLabel, const WaterfallData &data);
+    void clearData(const QString &containerLabel);
+    void addDataPoint(const QString &containerLabel, qreal yValue, const QDateTime &timestamp);
+    void addDataPoints(const QString &containerLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
 
-    // Data options management - operate on specific container by index
-    void addDataOption(int containerIndex, const QString &title, WaterfallData &dataSource);
-    void removeDataOption(int containerIndex, const QString &title);
-    void clearDataOptions(int containerIndex);
-    void setCurrentDataOption(int containerIndex, const QString &title);
-    QString getCurrentDataOption(int containerIndex) const;
-    std::vector<QString> getAvailableDataOptions(int containerIndex) const;
-    WaterfallData *getDataOption(int containerIndex, const QString &title);
-    bool hasDataOption(int containerIndex, const QString &title) const;
+    // Data options management - operate on specific container by label
+    void addDataOption(const QString &containerLabel, const QString &title, WaterfallData &dataSource);
+    void removeDataOption(const QString &containerLabel, const QString &title);
+    void clearDataOptions(const QString &containerLabel);
+    void setCurrentDataOption(const QString &containerLabel, const QString &title);
+    QString getCurrentDataOption(const QString &containerLabel) const;
+    std::vector<QString> getAvailableDataOptions(const QString &containerLabel) const;
+    WaterfallData *getDataOption(const QString &containerLabel, const QString &title);
+    bool hasDataOption(const QString &containerLabel, const QString &title) const;
 
     // Data options management - operate on all visible containers
     void addDataOption(const QString &title, WaterfallData &dataSource);
@@ -77,11 +77,16 @@ public:
     WaterfallData* getDataSource(const QString& dataSourceLabel);
     bool hasDataSource(const QString& dataSourceLabel) const;
     std::vector<QString> getDataSourceLabels() const;
+    
+    // Container management
+    std::vector<QString> getContainerLabels() const;
+    bool hasContainer(const QString& containerLabel) const;
 
 private:
     LayoutType m_layoutType;
 
     std::vector<GraphContainer *> m_graphContainers;
+    std::vector<QString> m_containerLabels;
 
     QVBoxLayout *m_mainLayout;
     QHBoxLayout *m_graphContainersRow1Layout;
@@ -91,6 +96,7 @@ private:
 
     void attachContainerDataSources();
     void initializeContainers();
+    int getContainerIndex(const QString& containerLabel) const;
 
 signals:
 };

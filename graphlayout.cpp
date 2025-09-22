@@ -10,6 +10,9 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, const std::vect
         m_dataSources[label] = new WaterfallData(label);
     }
     
+    // Initialize container labels (using data source labels as container labels)
+    m_containerLabels = dataSourceLabels;
+    
     initializeContainers();
 
     // Create main layout with 1px spacing and no margins
@@ -340,101 +343,136 @@ void GraphLayout::addDataPoints(const std::vector<qreal>& yValues, const std::ve
     }
 }
 
-// Methods that operate on specific container by index
-void GraphLayout::setData(int containerIndex, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+// Methods that operate on specific container by label
+void GraphLayout::setData(const QString& containerLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->setData(yData, timestamps);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::setData(int containerIndex, const WaterfallData& data)
+void GraphLayout::setData(const QString& containerLabel, const WaterfallData& data)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->setData(data);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::clearData(int containerIndex)
+void GraphLayout::clearData(const QString& containerLabel)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->clearData();
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::addDataPoint(int containerIndex, qreal yValue, const QDateTime& timestamp)
+void GraphLayout::addDataPoint(const QString& containerLabel, qreal yValue, const QDateTime& timestamp)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->addDataPoint(yValue, timestamp);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::addDataPoints(int containerIndex, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+void GraphLayout::addDataPoints(const QString& containerLabel, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->addDataPoints(yValues, timestamps);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-// Data options management - operate on specific container by index
+// Data options management - operate on specific container by label
 
-void GraphLayout::addDataOption(int containerIndex, const QString& title, WaterfallData& dataSource)
+void GraphLayout::addDataOption(const QString& containerLabel, const QString& title, WaterfallData& dataSource)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->addDataOption(title, dataSource);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::removeDataOption(int containerIndex, const QString& title)
+void GraphLayout::removeDataOption(const QString& containerLabel, const QString& title)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->removeDataOption(title);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::clearDataOptions(int containerIndex)
+void GraphLayout::clearDataOptions(const QString& containerLabel)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->clearDataOptions();
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::setCurrentDataOption(int containerIndex, const QString& title)
+void GraphLayout::setCurrentDataOption(const QString& containerLabel, const QString& title)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         m_graphContainers[containerIndex]->setCurrentDataOption(title);
+    } else {
+        qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-QString GraphLayout::getCurrentDataOption(int containerIndex) const
+QString GraphLayout::getCurrentDataOption(const QString& containerLabel) const
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         return m_graphContainers[containerIndex]->getCurrentDataOption();
     }
+    qDebug() << "Container not found:" << containerLabel;
     return QString();
 }
 
-std::vector<QString> GraphLayout::getAvailableDataOptions(int containerIndex) const
+std::vector<QString> GraphLayout::getAvailableDataOptions(const QString& containerLabel) const
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         return m_graphContainers[containerIndex]->getAvailableDataOptions();
     }
+    qDebug() << "Container not found:" << containerLabel;
     return std::vector<QString>();
 }
 
-WaterfallData* GraphLayout::getDataOption(int containerIndex, const QString& title)
+WaterfallData* GraphLayout::getDataOption(const QString& containerLabel, const QString& title)
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         return m_graphContainers[containerIndex]->getDataOption(title);
     }
+    qDebug() << "Container not found:" << containerLabel;
     return nullptr;
 }
 
-bool GraphLayout::hasDataOption(int containerIndex, const QString& title) const
+bool GraphLayout::hasDataOption(const QString& containerLabel, const QString& title) const
 {
+    int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         return m_graphContainers[containerIndex]->hasDataOption(title);
     }
+    qDebug() << "Container not found:" << containerLabel;
     return false;
 }
 
@@ -553,4 +591,25 @@ std::vector<QString> GraphLayout::getDataSourceLabels() const
         labels.push_back(pair.first);
     }
     return labels;
+}
+
+// Container management
+
+std::vector<QString> GraphLayout::getContainerLabels() const
+{
+    return m_containerLabels;
+}
+
+bool GraphLayout::hasContainer(const QString& containerLabel) const
+{
+    return std::find(m_containerLabels.begin(), m_containerLabels.end(), containerLabel) != m_containerLabels.end();
+}
+
+int GraphLayout::getContainerIndex(const QString& containerLabel) const
+{
+    auto it = std::find(m_containerLabels.begin(), m_containerLabels.end(), containerLabel);
+    if (it != m_containerLabels.end()) {
+        return std::distance(m_containerLabels.begin(), it);
+    }
+    return -1; // Not found
 }
