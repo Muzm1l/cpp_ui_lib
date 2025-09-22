@@ -31,6 +31,13 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
     
     // Set up the data source
     m_waterfallGraph->setDataSource(waterfallData);
+
+    // Enable mouse selection for the waterfall graph 
+    m_waterfallGraph->setMouseSelectionEnabled(true);
+    
+    // Connect waterfall graph selection signal to our handler
+    connect(m_waterfallGraph, &waterfallgraph::SelectionCreated,
+            this, &GraphContainer::onSelectionCreated);
     
     
     // Add ComboBox, ZoomPanel, and WaterfallGraph to left layout
@@ -330,4 +337,42 @@ void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
     
     // Emit the signal to notify other components
     emit IntervalChanged(interval);
+}
+
+void GraphContainer::onSelectionCreated(const QTime& startTime, const QTime& endTime)
+{
+    qDebug() << "GraphContainer: Selection created from" << startTime.toString() << "to" << endTime.toString();
+    
+    // Create TimeSelectionSpan and add it to the timeline selection view
+    TimeSelectionSpan selection(startTime, endTime);
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->addTimeSelection(selection);
+        qDebug() << "GraphContainer: Selection added to timeline selection view";
+    } else {
+        qWarning() << "GraphContainer: Timeline selection view is null";
+    }
+}
+
+void GraphContainer::setMouseSelectionEnabled(bool enabled)
+{
+    if (m_waterfallGraph) {
+        m_waterfallGraph->setMouseSelectionEnabled(enabled);
+        qDebug() << "GraphContainer: Mouse selection" << (enabled ? "enabled" : "disabled");
+    }
+}
+
+bool GraphContainer::isMouseSelectionEnabled() const
+{
+    if (m_waterfallGraph) {
+        return m_waterfallGraph->isMouseSelectionEnabled();
+    }
+    return false;
+}
+
+void GraphContainer::testSelectionRectangle()
+{
+    if (m_waterfallGraph) {
+        m_waterfallGraph->testSelectionRectangle();
+        qDebug() << "GraphContainer: Test selection rectangle called";
+    }
 }

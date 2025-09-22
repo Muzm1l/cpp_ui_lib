@@ -12,6 +12,9 @@ WaterfallGraphExample::WaterfallGraphExample(QWidget *parent)
     // Enable grid for this example
     setGridEnabled(true);
     
+    // Enable mouse selection for this example
+    setMouseSelectionEnabled(true);
+    
     // Example: Set some test data with more interesting values
     std::vector<qreal> yData = {10.0, 25.0, 15.0, 35.0, 20.0, 40.0, 30.0, 45.0, 50.0};
     std::vector<QDateTime> timestamps;

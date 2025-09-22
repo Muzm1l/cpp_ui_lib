@@ -62,8 +62,16 @@ public:
     // Signal subscription method for external components
     void subscribeToIntervalChange(QObject* subscriber, const char* slot);
     
+    // Mouse selection control
+    void setMouseSelectionEnabled(bool enabled);
+    bool isMouseSelectionEnabled() const;
+    
+    // Test method
+    void testSelectionRectangle();
+    
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
+    void onSelectionCreated(const QTime& startTime, const QTime& endTime);
     
 private:
     void updateTotalContainerSize();

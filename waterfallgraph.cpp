@@ -21,6 +21,8 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     , timeInterval(timeInterval)
     , dataSource(nullptr)
     , isDragging(false)
+    , mouseSelectionEnabled(false)
+    , selectionRect(nullptr)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -42,6 +44,8 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     graphicsView = new QGraphicsView(graphicsScene, this);
     graphicsView->setRenderHint(QPainter::Antialiasing);
     graphicsView->setDragMode(QGraphicsView::NoDrag); // We'll handle our own mouse events
+    graphicsView->setMouseTracking(true); // Enable mouse tracking
+    graphicsView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
     
     // Set black background for view
     graphicsView->setBackgroundBrush(QBrush(Qt::black));
@@ -68,6 +72,11 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     
     // Enable mouse tracking
     setMouseTracking(true);
+    
+    // Debug: Print initial state
+    qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
+    qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
+    qDebug() << "WaterfallGraph constructor - graphicsView:" << graphicsView;
     
     // Initial setup will happen in showEvent
     qDebug() << "Constructor - Widget size:" << this->size();
@@ -510,15 +519,29 @@ void waterfallgraph::drawGrid()
  */
 void waterfallgraph::mousePressEvent(QMouseEvent *event)
 {
+    qDebug() << "Mouse press event - button:" << event->button() << "mouseSelectionEnabled:" << mouseSelectionEnabled;
+    
     if (event->button() == Qt::LeftButton) {
         // Convert widget coordinates to scene coordinates
         QPointF scenePos = graphicsView->mapToScene(event->pos());
+        qDebug() << "Scene position:" << scenePos << "drawingArea:" << drawingArea;
         
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos)) {
             isDragging = true;
             lastMousePos = scenePos;
+            
+            // Start selection if mouse selection is enabled
+            if (mouseSelectionEnabled) {
+                qDebug() << "Starting selection...";
+                startSelection(scenePos);
+            } else {
+                qDebug() << "Mouse selection is disabled";
+            }
+            
             onMouseClick(scenePos);
+        } else {
+            qDebug() << "Click outside drawing area";
         }
     }
     
@@ -539,6 +562,11 @@ void waterfallgraph::mouseMoveEvent(QMouseEvent *event)
         
         // Check if the move is within the drawing area
         if (drawingArea.contains(scenePos)) {
+            // Update selection if mouse selection is enabled
+            if (mouseSelectionEnabled) {
+                updateSelection(scenePos);
+            }
+            
             onMouseDrag(scenePos);
             lastMousePos = scenePos;
         }
@@ -556,6 +584,11 @@ void waterfallgraph::mouseMoveEvent(QMouseEvent *event)
 void waterfallgraph::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        // End selection if mouse selection is enabled
+        if (mouseSelectionEnabled) {
+            endSelection();
+        }
+        
         isDragging = false;
     }
     
@@ -700,4 +733,132 @@ void waterfallgraph::drawDataLine()
     }
     
     qDebug() << "Data line drawn with" << yData.size() << "points";
+}
+
+// Mouse selection functionality implementation
+
+void waterfallgraph::setMouseSelectionEnabled(bool enabled)
+{
+    mouseSelectionEnabled = enabled;
+    if (!enabled) {
+        clearSelection();
+    }
+    qDebug() << "Mouse selection" << (enabled ? "enabled" : "disabled");
+}
+
+bool waterfallgraph::isMouseSelectionEnabled() const
+{
+    return mouseSelectionEnabled;
+}
+
+void waterfallgraph::startSelection(const QPointF& scenePos)
+{
+    qDebug() << "startSelection called with scenePos:" << scenePos;
+    qDebug() << "graphicsScene:" << graphicsScene;
+    
+    selectionStartPos = scenePos;
+    selectionEndPos = scenePos;
+    
+    // Create selection rectangle
+    if (selectionRect) {
+        qDebug() << "Removing existing selection rectangle";
+        graphicsScene->removeItem(selectionRect);
+        delete selectionRect;
+    }
+    
+    qDebug() << "Creating new selection rectangle";
+    selectionRect = new QGraphicsRectItem();
+    selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine)); // White dashed line
+    selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
+    selectionRect->setZValue(1000); // Ensure it's drawn on top
+    graphicsScene->addItem(selectionRect);
+    
+    // Initialize with a small rectangle at the start position
+    selectionRect->setRect(scenePos.x() - 1, scenePos.y() - 1, 2, 2);
+    
+    qDebug() << "Selection rectangle created and added to scene. Rect:" << selectionRect->rect();
+    qDebug() << "Selection started at:" << scenePos;
+}
+
+void waterfallgraph::updateSelection(const QPointF& scenePos)
+{
+    if (!selectionRect) return;
+    
+    selectionEndPos = scenePos;
+    
+    // Update rectangle bounds
+    QRectF rect;
+    rect.setLeft(qMin(selectionStartPos.x(), selectionEndPos.x()));
+    rect.setRight(qMax(selectionStartPos.x(), selectionEndPos.x()));
+    rect.setTop(qMin(selectionStartPos.y(), selectionEndPos.y()));
+    rect.setBottom(qMax(selectionStartPos.y(), selectionEndPos.y()));
+    
+    // Clamp to drawing area
+    rect = rect.intersected(drawingArea);
+    
+    selectionRect->setRect(rect);
+}
+
+void waterfallgraph::endSelection()
+{
+    if (!selectionRect) return;
+    
+    // Calculate the time range of the selection
+    QTime startTime = mapScreenToTime(qMax(selectionStartPos.y(), selectionEndPos.y()));
+    QTime endTime = mapScreenToTime(qMin(selectionStartPos.y(), selectionEndPos.y()));
+    
+    // Only emit signal if selection has meaningful size
+    if (startTime != endTime) {
+        emit SelectionCreated(startTime, endTime);
+        qDebug() << "Selection created:" << startTime.toString() << "to" << endTime.toString();
+    }
+    
+    // Clear the visual selection immediately on mouse release
+    clearSelection();
+}
+
+void waterfallgraph::clearSelection()
+{
+    if (selectionRect) {
+        graphicsScene->removeItem(selectionRect);
+        delete selectionRect;
+        selectionRect = nullptr;
+    }
+}
+
+QTime waterfallgraph::mapScreenToTime(qreal yPos) const
+{
+    if (!dataRangesValid || drawingArea.isEmpty()) {
+        return QTime();
+    }
+    
+    // Map y-coordinate to time
+    // yPos is from top (current time) to bottom (past time)
+    qreal normalizedY = (yPos - drawingArea.top()) / drawingArea.height();
+    normalizedY = qMax(0.0, qMin(1.0, normalizedY)); // Clamp to [0,1]
+    
+    // Calculate time offset from current time (top of graph)
+    qint64 timeOffsetMs = static_cast<qint64>(normalizedY * getTimeIntervalMs());
+    
+    // Convert to QTime
+    QDateTime selectionTime = timeMax.addMSecs(-timeOffsetMs);
+    return selectionTime.time();
+}
+
+void waterfallgraph::testSelectionRectangle()
+{
+    qDebug() << "testSelectionRectangle called";
+    if (!graphicsScene) {
+        qDebug() << "Graphics scene is null!";
+        return;
+    }
+    
+    // Create a test rectangle
+    QGraphicsRectItem* testRect = new QGraphicsRectItem(100, 100, 200, 100);
+    testRect->setPen(QPen(Qt::white, 2, Qt::DashLine));
+    testRect->setBrush(QBrush(QColor(255, 255, 255, 50)));
+    testRect->setZValue(1000);
+    graphicsScene->addItem(testRect);
+    
+    qDebug() << "Test selection rectangle added to scene";
 }

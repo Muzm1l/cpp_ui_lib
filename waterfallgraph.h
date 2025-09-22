@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <QGraphicsView>
 #include <QGraphicsScene>
+#include <QGraphicsRectItem>
 #include <QMouseEvent>
 #include <QGraphicsSceneMouseEvent>
 #include <QResizeEvent>
@@ -11,10 +12,13 @@
 #include <QVBoxLayout>
 #include <QPalette>
 #include <QPainterPath>
+#include <QTimer>
+#include <QCoreApplication>
 #include <vector>
 #include "drawutils.h"
 #include "waterfalldata.h"
 #include "timelineutils.h"
+
 
 class waterfallgraph : public QWidget
 {
@@ -105,6 +109,30 @@ private:
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;
+    
+    // Mouse selection functionality
+    bool mouseSelectionEnabled;
+    QPointF selectionStartPos;
+    QPointF selectionEndPos;
+    QGraphicsRectItem* selectionRect;
+    
+    // Selection methods
+    void startSelection(const QPointF& scenePos);
+    void updateSelection(const QPointF& scenePos);
+    void endSelection();
+    void clearSelection();
+    QTime mapScreenToTime(qreal yPos) const;
+    
+public:
+    // Mouse selection control
+    void setMouseSelectionEnabled(bool enabled);
+    bool isMouseSelectionEnabled() const;
+    
+    // Test method to manually create a selection rectangle
+    void testSelectionRectangle();
+
+signals:
+    void SelectionCreated(const QTime& startTime, const QTime& endTime);
 };
 
 #endif // WATERFALLGRAPH_H
