@@ -1,4 +1,5 @@
 #include "zoompanel.h"
+#include <QFontMetrics>
 
 ZoomPanel::ZoomPanel(QWidget *parent)
     : QWidget(parent)
@@ -92,37 +93,86 @@ void ZoomPanel::createTextItems()
 {
     QRect drawArea = this->rect();
     
-    // Create font for text with dynamic size
-    int fontSize = qMax(6, qMin(12, drawArea.height() / 4)); // Scale font with height
+    // Calculate maximum width for each label (20% of total width)
+    int maxLabelWidth = drawArea.width() * 0.20;
+    
+    // Calculate optimal font size to fit within maxLabelWidth
+    int fontSize = calculateOptimalFontSize(maxLabelWidth);
     QFont textFont("Arial", fontSize);
     
     // Calculate vertical center position
     int textY = (drawArea.height() - fontSize) / 2; // Center vertically
     
-    // Calculate horizontal positions dynamically
+    // Calculate horizontal positions with proper spacing
     int leftMargin = qMax(2, drawArea.width() / 20);
     int rightMargin = qMax(2, drawArea.width() / 20);
     
-    // Create left text item
+    // Create left text item - positioned at left margin, constrained to maxLabelWidth
     m_leftText = new QGraphicsTextItem("0.00");
     m_leftText->setFont(textFont);
     m_leftText->setDefaultTextColor(Qt::white);
     m_leftText->setPos(leftMargin, textY);
+    m_leftText->setTextWidth(maxLabelWidth); // Constrain width to 20% of slider width
     m_scene->addItem(m_leftText);
     
-    // Create center text item
+    // Create center text item - centered, constrained to maxLabelWidth
     m_centerText = new QGraphicsTextItem("0.50");
     m_centerText->setFont(textFont);
     m_centerText->setDefaultTextColor(Qt::white);
-    m_centerText->setPos(drawArea.width()/2 - 15, textY); // Center horizontally
+    m_centerText->setPos(drawArea.width()/2 - maxLabelWidth/2, textY); // Center horizontally with width constraint
+    m_centerText->setTextWidth(maxLabelWidth); // Constrain width to 20% of slider width
     m_scene->addItem(m_centerText);
     
-    // Create right text item
+    // Create right text item - positioned at right margin, constrained to maxLabelWidth
     m_rightText = new QGraphicsTextItem("1.00");
     m_rightText->setFont(textFont);
     m_rightText->setDefaultTextColor(Qt::white);
-    m_rightText->setPos(drawArea.width() - rightMargin - 30, textY); // Right aligned
+    m_rightText->setPos(drawArea.width() - rightMargin - maxLabelWidth, textY); // Right aligned with width constraint
+    m_rightText->setTextWidth(maxLabelWidth); // Constrain width to 20% of slider width
     m_scene->addItem(m_rightText);
+}
+
+/**
+ * @brief Calculate the optimal font size to fit text within the given width constraint
+ * 
+ * @param maxWidth Maximum width constraint in pixels
+ * @return int Optimal font size
+ */
+int ZoomPanel::calculateOptimalFontSize(int maxWidth)
+{
+    // Sample text to measure (using the longest expected text format)
+    QString sampleText = "999.99"; // Worst case scenario for numeric labels
+    
+    // Start with a reasonable maximum font size
+    int maxFontSize = 12;
+    int minFontSize = 4;
+    
+    // Binary search for the optimal font size
+    int fontSize = maxFontSize;
+    
+    while (maxFontSize > minFontSize) {
+        fontSize = (maxFontSize + minFontSize) / 2;
+        
+        QFont testFont("Arial", fontSize);
+        QFontMetrics fontMetrics(testFont);
+        
+        int textWidth = fontMetrics.horizontalAdvance(sampleText);
+        
+        if (textWidth <= maxWidth) {
+            // Font size fits, try larger
+            minFontSize = fontSize + 1;
+        } else {
+            // Font size too large, try smaller
+            maxFontSize = fontSize - 1;
+        }
+    }
+    
+    // Ensure we don't go below minimum
+    fontSize = qMax(4, qMin(12, fontSize));
+    
+    qDebug() << "ZoomPanel: Calculated optimal font size:" << fontSize << "for max width:" << maxWidth;
+    
+    return fontSize;
 }
 
 void ZoomPanel::setIndicatorValue(double value)
@@ -234,7 +284,6 @@ void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
 void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
 {
     QRect drawArea = this->rect();
-    int centerX = drawArea.width() / 2;
     
     // Calculate horizontal movement
     int deltaX = currentPos.x() - m_initialMousePos.x();

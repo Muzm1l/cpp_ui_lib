@@ -537,6 +537,14 @@ void GraphLayout::addDataPointToDataSource(const QString& dataSourceLabel, qreal
     if (it != m_dataSources.end()) {
         it->second->addDataPoint(yValue, timestamp);
         qDebug() << "Added data point to" << dataSourceLabel << "y:" << yValue << "time:" << timestamp.toString();
+        
+        // Notify all visible containers that have this data source to update their zoom panels
+        for (auto* container : m_graphContainers) {
+            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+                container->initializeZoomPanelLimits();
+                qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
+            }
+        }
     } else {
         qDebug() << "Data source not found:" << dataSourceLabel;
     }
@@ -548,6 +556,14 @@ void GraphLayout::addDataPointsToDataSource(const QString& dataSourceLabel, cons
     if (it != m_dataSources.end()) {
         it->second->addDataPoints(yValues, timestamps);
         qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel;
+        
+        // Notify all visible containers that have this data source to update their zoom panels
+        for (auto* container : m_graphContainers) {
+            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+                container->initializeZoomPanelLimits();
+                qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
+            }
+        }
     } else {
         qDebug() << "Data source not found:" << dataSourceLabel;
     }
@@ -559,6 +575,14 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const std:
     if (it != m_dataSources.end()) {
         it->second->setData(yData, timestamps);
         qDebug() << "Set data for" << dataSourceLabel << "size:" << yData.size();
+        
+        // Notify all visible containers that have this data source to update their zoom panels
+        for (auto* container : m_graphContainers) {
+            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+                container->initializeZoomPanelLimits();
+                qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
+            }
+        }
     } else {
         qDebug() << "Data source not found:" << dataSourceLabel;
     }
@@ -570,6 +594,14 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const Wate
     if (it != m_dataSources.end()) {
         it->second->setData(data.getYData(), data.getTimestamps());
         qDebug() << "Set data for" << dataSourceLabel << "from WaterfallData object";
+        
+        // Notify all visible containers that have this data source to update their zoom panels
+        for (auto* container : m_graphContainers) {
+            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+                container->initializeZoomPanelLimits();
+                qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
+            }
+        }
     } else {
         qDebug() << "Data source not found:" << dataSourceLabel;
     }

@@ -18,6 +18,8 @@ waterfallgraph::waterfallgraph(QWidget *parent, bool enableGrid, int gridDivisio
     , timeMin(QDateTime())
     , timeMax(QDateTime())
     , dataRangesValid(false)
+    , rangeLimitingEnabled(false)
+    , customYMin(0.0), customYMax(0.0)
     , timeInterval(timeInterval)
     , dataSource(nullptr)
     , isDragging(false)
@@ -650,9 +652,27 @@ void waterfallgraph::updateDataRanges()
     }
     
     auto yRange = dataSource->getYRange();
+    qreal dataYMin = yRange.first;
+    qreal dataYMax = yRange.second;
     
-    yMin = yRange.first;
-    yMax = yRange.second;
+    if (rangeLimitingEnabled) {
+        // Apply range limiting: use the intersection of custom range and data range
+        // Custom range acts as bounds, but we never exceed the actual data range
+        yMin = qMax(customYMin, dataYMin);  // Take the larger of custom min and data min
+        yMax = qMin(customYMax, dataYMax);  // Take the smaller of custom max and data max
+        
+        // Ensure min < max
+        if (yMin >= yMax) {
+            // If custom range is invalid or doesn't overlap with data, use data range
+            yMin = dataYMin;
+            yMax = dataYMax;
+            qDebug() << "Warning: Custom range doesn't overlap with data range, using data range";
+        }
+    } else {
+        // Use data range directly
+        yMin = dataYMin;
+        yMax = dataYMax;
+    }
     
     // Set time range based on fixed interval with current time as top (t=0)
     timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
@@ -662,7 +682,8 @@ void waterfallgraph::updateDataRanges()
     
     qDebug() << "Data ranges updated - Y:" << yMin << "to" << yMax 
              << "Time:" << timeMin.toString() << "to" << timeMax.toString()
-             << "Interval:" << timeIntervalToString(timeInterval);
+             << "Interval:" << timeIntervalToString(timeInterval)
+             << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
 }
 
 /**
@@ -702,22 +723,36 @@ void waterfallgraph::drawDataLine()
     const auto& yData = dataSource->getYData();
     const auto& timestamps = dataSource->getTimestamps();
     
-    if (yData.size() < 2) {
+    // Filter data points to only include those within the current time range
+    std::vector<std::pair<qreal, QDateTime>> visibleData;
+    for (size_t i = 0; i < yData.size(); ++i) {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax) {
+            visibleData.push_back({yData[i], timestamps[i]});
+        }
+    }
+    
+    if (visibleData.empty()) {
+        qDebug() << "No data points within current time range";
+        return;
+    }
+    
+    if (visibleData.size() < 2) {
         // Draw a single point if we only have one data point
-        QPointF screenPoint = mapDataToScreen(yData[0], timestamps[0]);
+        QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
         QPen pointPen(Qt::green, 3);
         graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        qDebug() << "Data line drawn with 1 visible point";
         return;
     }
     
     // Create a path for the line
     QPainterPath path;
-    QPointF firstPoint = mapDataToScreen(yData[0], timestamps[0]);
+    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
     path.moveTo(firstPoint);
     
-    // Add lines connecting all data points
-    for (size_t i = 1; i < yData.size(); ++i) {
-        QPointF point = mapDataToScreen(yData[i], timestamps[i]);
+    // Add lines connecting all visible data points
+    for (size_t i = 1; i < visibleData.size(); ++i) {
+        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         path.lineTo(point);
     }
     
@@ -727,12 +762,12 @@ void waterfallgraph::drawDataLine()
     
     // Draw data points
     QPen pointPen(Qt::yellow, 2);
-    for (size_t i = 0; i < yData.size(); ++i) {
-        QPointF point = mapDataToScreen(yData[i], timestamps[i]);
+    for (size_t i = 0; i < visibleData.size(); ++i) {
+        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
     }
     
-    qDebug() << "Data line drawn with" << yData.size() << "points";
+    qDebug() << "Data line drawn with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
 }
 
 // Mouse selection functionality implementation
@@ -872,4 +907,114 @@ void waterfallgraph::testSelectionRectangle()
     graphicsScene->addItem(testRect);
     
     qDebug() << "Test selection rectangle added to scene";
+}
+
+// Range limiting methods implementation
+
+/**
+ * @brief Enable or disable range limiting functionality.
+ * 
+ * @param enabled True to enable range limiting, false to disable
+ */
+void waterfallgraph::setRangeLimitingEnabled(bool enabled)
+{
+    if (rangeLimitingEnabled != enabled) {
+        rangeLimitingEnabled = enabled;
+        
+        // Update data ranges and redraw if we have data
+        if (dataSource && !dataSource->isEmpty()) {
+            updateDataRanges();
+            draw();
+        }
+        
+        qDebug() << "Range limiting" << (enabled ? "enabled" : "disabled");
+    }
+}
+
+/**
+ * @brief Check if range limiting is currently enabled.
+ * 
+ * @return bool True if range limiting is enabled, false otherwise
+ */
+bool waterfallgraph::isRangeLimitingEnabled() const
+{
+    return rangeLimitingEnabled;
+}
+
+/**
+ * @brief Set custom Y range for limiting the display range.
+ * 
+ * @param yMin Minimum Y value for the custom range
+ * @param yMax Maximum Y value for the custom range
+ */
+void waterfallgraph::setCustomYRange(qreal yMin, qreal yMax)
+{
+    // Validate the range
+    if (yMin >= yMax) {
+        qDebug() << "Error: Invalid custom Y range - min must be less than max";
+        return;
+    }
+    
+    customYMin = yMin;
+    customYMax = yMax;
+    
+    // Update data ranges and redraw if range limiting is enabled and we have data
+    if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty()) {
+        updateDataRanges();
+        draw();
+    }
+    
+    qDebug() << "Custom Y range set to:" << yMin << "to" << yMax;
+}
+
+/**
+ * @brief Get the current custom Y range values.
+ * 
+ * @param yMin Reference to store the minimum Y value
+ * @param yMax Reference to store the maximum Y value
+ */
+void waterfallgraph::getCustomYRange(qreal& yMin, qreal& yMax) const
+{
+    yMin = customYMin;
+    yMax = customYMax;
+}
+
+/**
+ * @brief Update the time range and redraw the graph.
+ * 
+ */
+void waterfallgraph::updateTimeRange()
+{
+    // Update time range based on fixed interval with current time as top (t=0)
+    timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
+    timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
+    
+    // Update data ranges if we have data
+    if (dataSource && !dataSource->isEmpty()) {
+        updateDataRanges();
+    }
+    
+    // Force redraw to show only data within the new time range
+    draw();
+    
+    qDebug() << "Time range updated - Time:" << timeMin.toString() << "to" << timeMax.toString()
+             << "Interval:" << timeIntervalToString(timeInterval);
+}
+
+/**
+ * @brief Unset the custom Y range and revert to using the data's min/max range.
+ * 
+ */
+void waterfallgraph::unsetCustomYRange()
+{
+    customYMin = 0.0;
+    customYMax = 0.0;
+    
+    // Update data ranges and redraw if range limiting is enabled and we have data
+    if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty()) {
+        updateDataRanges();
+        draw();
+    }
+    
+    qDebug() << "Custom Y range unset, reverting to data range";
 }

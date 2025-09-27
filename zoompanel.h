@@ -70,6 +70,9 @@ private:
     void updateIndicator(double value);
     void updateValueFromMousePosition(const QPoint &currentPos);
     void updateAllElements();
+    
+    // Helper method to calculate optimal font size
+    int calculateOptimalFontSize(int maxWidth);
 };
 
 #endif // ZOOMPANEL_H

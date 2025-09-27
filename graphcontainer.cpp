@@ -35,9 +35,16 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
     // Enable mouse selection for the waterfall graph 
     m_waterfallGraph->setMouseSelectionEnabled(true);
     
+    // Enable range limiting for the waterfall graph
+    m_waterfallGraph->setRangeLimitingEnabled(true);
+    
     // Connect waterfall graph selection signal to our handler
     connect(m_waterfallGraph, &waterfallgraph::SelectionCreated,
             this, &GraphContainer::onSelectionCreated);
+    
+    // Connect zoom panel value changed signal to our handler
+    connect(m_zoomPanel, &ZoomPanel::valueChanged,
+            this, &GraphContainer::onZoomValueChanged);
     
     
     // Add ComboBox, ZoomPanel, and WaterfallGraph to left layout
@@ -155,11 +162,13 @@ void GraphContainer::updateTotalContainerSize()
 void GraphContainer::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
 {
     waterfallData.setData(yData, timestamps);
+    initializeZoomPanelLimits();
 }
 
 void GraphContainer::setData(const WaterfallData& data)
 {
     waterfallData = data;
+    initializeZoomPanelLimits();
 }
 
 void GraphContainer::clearData()
@@ -170,11 +179,13 @@ void GraphContainer::clearData()
 void GraphContainer::addDataPoint(qreal yValue, const QDateTime& timestamp)
 {
     waterfallData.addDataPoint(yValue, timestamp);
+    initializeZoomPanelLimits();
 }
 
 void GraphContainer::addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
 {
     waterfallData.addDataPoints(yValues, timestamps);
+    initializeZoomPanelLimits();
 }
 
 WaterfallData GraphContainer::getData() const
@@ -265,6 +276,9 @@ void GraphContainer::setCurrentDataOption(const QString& title)
         if (index >= 0) {
             m_comboBox->setCurrentIndex(index);
         }
+        
+        // Initialize zoom panel limits for the new data source
+        initializeZoomPanelLimits();
         
         qDebug() << "Set current data option to:" << title;
     }
@@ -387,4 +401,61 @@ void GraphContainer::setCurrentTime(const QTime& time)
     if (m_timelineView) {
         m_timelineView->setCurrentTime(time);
     }
+}
+
+void GraphContainer::initializeZoomPanelLimits()
+{
+    if (!m_zoomPanel) {
+        qDebug() << "GraphContainer: Cannot initialize zoom panel limits - no zoom panel";
+        return;
+    }
+    
+    // Get the current data source (either selected option or default waterfallData)
+    WaterfallData* currentDataSource = nullptr;
+    if (!currentDataOption.isEmpty()) {
+        auto it = dataOptions.find(currentDataOption);
+        if (it != dataOptions.end()) {
+            currentDataSource = it->second;
+        }
+    } else {
+        currentDataSource = &waterfallData;
+    }
+    
+    if (!currentDataSource || currentDataSource->isEmpty()) {
+        qDebug() << "GraphContainer: Cannot initialize zoom panel limits - no data available";
+        return;
+    }
+    
+    // Get the Y range from the current data source
+    auto yRange = currentDataSource->getYRange();
+    qreal dataMin = yRange.first;
+    qreal dataMax = yRange.second;
+    
+    // Calculate center value (linear interpolation)
+    qreal centerValue = dataMin + (dataMax - dataMin) * 0.5;
+    
+    // Set the zoom panel label values
+    m_zoomPanel->setLeftLabelValue(dataMin);
+    m_zoomPanel->setCenterLabelValue(centerValue);
+    m_zoomPanel->setRightLabelValue(dataMax);
+        
+    qDebug() << "GraphContainer: Zoom panel limits initialized - Min:" << dataMin 
+             << "Center:" << centerValue << "Max:" << dataMax << "- Zoom reset to 50%";
+}
+
+void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
+{
+    if (!m_waterfallGraph) {
+        qDebug() << "GraphContainer: Cannot update waterfall graph - no waterfall graph";
+        return;
+    }
+    
+    // Set the custom Y range based on zoom bounds
+    m_waterfallGraph->setCustomYRange(bounds.lowerbound, bounds.upperbound);
+    
+    // Update the time range to ensure only relevant data points are rendered
+    m_waterfallGraph->updateTimeRange();
+    
+    qDebug() << "GraphContainer: Zoom value changed - Lower:" << bounds.lowerbound 
+             << "Upper:" << bounds.upperbound << "- Time range updated";
 }

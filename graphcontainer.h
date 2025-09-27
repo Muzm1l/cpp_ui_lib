@@ -73,9 +73,13 @@ public:
     // Test method
     void testSelectionRectangle();
     
+    // Public method for external components to update zoom panel limits
+    void initializeZoomPanelLimits();
+    
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
     void onSelectionCreated(const TimeSelectionSpan& selection);
+    void onZoomValueChanged(ZoomBounds bounds);
     
 private:
     void updateTotalContainerSize();

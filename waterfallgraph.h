@@ -101,6 +101,10 @@ private:
     QDateTime timeMin, timeMax;
     bool dataRangesValid;
     
+    // Range limiting properties
+    bool rangeLimitingEnabled;
+    qreal customYMin, customYMax;
+    
     // Time interval configuration
     TimeInterval timeInterval;
     
@@ -131,6 +135,16 @@ public:
     
     // Test method to manually create a selection rectangle
     void testSelectionRectangle();
+    
+    // Range limiting methods
+    void setRangeLimitingEnabled(bool enabled);
+    bool isRangeLimitingEnabled() const;
+    void setCustomYRange(qreal yMin, qreal yMax);
+    void getCustomYRange(qreal& yMin, qreal& yMax) const;
+    void unsetCustomYRange();
+    
+    // Time range update method
+    void updateTimeRange();
 
 signals:
     void SelectionCreated(const TimeSelectionSpan& selection);
