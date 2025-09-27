@@ -174,6 +174,8 @@ void GraphContainer::setData(const WaterfallData& data)
 void GraphContainer::clearData()
 {
     waterfallData.clearData();
+    // Initialize zoom panel limits after clearing data
+    initializeZoomPanelLimits();
 }
 
 void GraphContainer::addDataPoint(qreal yValue, const QDateTime& timestamp)
@@ -247,6 +249,8 @@ void GraphContainer::removeDataOption(const QString& title)
             } else {
                 currentDataOption.clear();
                 m_waterfallGraph->setDataSource(waterfallData);
+                // Initialize zoom panel limits for the default data source
+                initializeZoomPanelLimits();
             }
         }
         
@@ -260,6 +264,9 @@ void GraphContainer::clearDataOptions()
     currentDataOption.clear();
     updateComboBoxOptions();
     m_waterfallGraph->setDataSource(waterfallData);
+    
+    // Initialize zoom panel limits for the default data source
+    initializeZoomPanelLimits();
     
     qDebug() << "Cleared all data options";
 }

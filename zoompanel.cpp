@@ -66,6 +66,9 @@ void ZoomPanel::setupGraphicsView()
     // Create the visual elements
     createIndicator();
     createTextItems();
+    
+    // Update indicator to current value to ensure proper initial state
+    updateIndicator(m_currentValue);
 }
 
 void ZoomPanel::createIndicator()
@@ -340,6 +343,23 @@ void ZoomPanel::resizeEvent(QResizeEvent *event)
     
     // Update all elements to new size
     updateAllElements();
+}
+
+/**
+ * @brief Handle show events to ensure proper initialization when becoming visible
+ * 
+ * @param event 
+ */
+void ZoomPanel::showEvent(QShowEvent *event)
+{
+    QWidget::showEvent(event);
+    
+    // Ensure the zoom panel is properly initialized when becoming visible
+    if (m_scene && m_indicator) {
+        // Update indicator to current value to ensure proper visual state
+        updateIndicator(m_currentValue);
+        qDebug() << "ZoomPanel: Show event - updated indicator to value:" << m_currentValue;
+    }
 }
 
 void ZoomPanel::updateAllElements()

@@ -14,6 +14,7 @@
 #include <QPoint>
 #include <QFrame>
 #include <QVBoxLayout>
+#include <QShowEvent>
 
 struct ZoomBounds {
     qreal upperbound;
@@ -44,6 +45,7 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
     QGraphicsView *m_graphicsView;
