@@ -590,6 +590,9 @@ void GraphContainer::clearTimeSelections()
     if (m_timelineSelectionView) {
         m_timelineSelectionView->clearTimeSelections();
         qDebug() << "GraphContainer: All time selections cleared from timeline selection view";
+        
+        // Emit signal to notify external components
+        emit TimeSelectionsCleared();
     } else {
         qWarning() << "GraphContainer: Timeline selection view is null - cannot clear selections";
     }
