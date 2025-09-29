@@ -566,6 +566,32 @@ void GraphContainer::setCurrentTime(const QTime& time)
     }
 }
 
+
+
+void GraphContainer::addTimeSelection(const TimeSelectionSpan& selection)
+{
+    qDebug() << "GraphContainer: Adding time selection from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+    
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->addTimeSelection(selection);
+        qDebug() << "GraphContainer: Time selection added to timeline selection view";
+    } else {
+        qWarning() << "GraphContainer: Timeline selection view is null - cannot add selection";
+    }
+}
+
+void GraphContainer::clearTimeSelections()
+{
+    qDebug() << "GraphContainer: Clearing all time selections";
+    
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->clearTimeSelections();
+        qDebug() << "GraphContainer: All time selections cleared from timeline selection view";
+    } else {
+        qWarning() << "GraphContainer: Timeline selection view is null - cannot clear selections";
+    }
+}
+
 void GraphContainer::initializeZoomPanelLimits()
 {
     if (!m_zoomPanel) {

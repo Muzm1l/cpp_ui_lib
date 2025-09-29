@@ -83,6 +83,9 @@ public:
     // Set the current time 
     void setCurrentTime(const QTime& time);
 
+    // Selection management methods
+    void addTimeSelection(const TimeSelectionSpan& selection);
+    void clearTimeSelections();
     
     // Test method
     void testSelectionRectangle();
