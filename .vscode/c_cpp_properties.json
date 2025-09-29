@@ -4,19 +4,45 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "~/Qt/**",
-                "/Users/krishna/Qt/**",
-                "/Users/krishna/Qt/6.9.2/macos/lib/QtWidgets.framework/Headers/",
-                "/Users/krishna/Qt/6.9.2/macos/lib/**",
-                //QObject
-                "/Users/krishna/Qt/6.9.2/macos/lib/QtCore.framework/Headers/"
-
+                "/opt/homebrew/include",
+                "/opt/homebrew/include/QtCore",
+                "/opt/homebrew/include/QtGui",
+                "/opt/homebrew/include/QtWidgets",
+                "/opt/homebrew/include/QtCharts",
+                "/opt/homebrew/include/QtQuickWidgets",
+                "/opt/homebrew/include/QtOpenGL",
+                "/opt/homebrew/include/QtOpenGLWidgets",
+                "/opt/homebrew/include/QtPrintSupport",
+                "/opt/homebrew/include/QtSql",
+                "/opt/homebrew/include/QtTest",
+                "/opt/homebrew/include/QtXml",
+                "/opt/homebrew/include/QtSvg",
+                "/opt/homebrew/include/QtSvgWidgets",
+                "/opt/homebrew/include/QtUiTools",
+                "/opt/homebrew/include/QtConcurrent",
+                "/opt/homebrew/include/QtNetwork",
+                "/opt/homebrew/include/QtMultimedia",
+                "/opt/homebrew/include/QtMultimediaWidgets",
+                "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include",
+                "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/include",
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include"
             ],
-            "defines": [],
-            "compilerPath": "/usr/bin/clang",
+            "defines": [
+                "QT_CORE_LIB",
+                "QT_GUI_LIB",
+                "QT_WIDGETS_LIB",
+                "QT_CHARTS_LIB",
+                "QT_DEPRECATED_WARNINGS",
+                "__APPLE__",
+                "MACOSX_DEPLOYMENT_TARGET=13.0"
+            ],
+            "compilerPath": "/usr/bin/clang++",
             "cStandard": "c17",
-            "cppStandard": "c++14",
-            "intelliSenseMode": "macos-clang-arm64"
+            "cppStandard": "c++17",
+            "intelliSenseMode": "macos-clang-arm64",
+            "browse": {
+                "databaseFilename": "${workspaceFolder}/.vscode/browse.vc.db"
+            }
         }
     ],
     "version": 4

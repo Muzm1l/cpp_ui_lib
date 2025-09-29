@@ -15,6 +15,15 @@
 #include "timelineview.h"
 #include "zoompanel.h"
 #include "timelineutils.h"
+#include "graphtype.h"
+#include "customwaterfallgraph.h"
+#include "fdwgraph.h"
+#include "bdwgraph.h"
+#include "brwgraph.h"
+#include "ltwgraph.h"
+#include "btwgraph.h"
+#include "rtwgraph.h"
+#include "ftwgraph.h"
 
 class GraphContainer : public QWidget
 {
@@ -50,14 +59,14 @@ public:
     std::pair<qreal, qreal> getYRange() const;
     
     // Data options management
-    void addDataOption(const QString& title, WaterfallData& dataSource);
-    void removeDataOption(const QString& title);
+    void addDataOption(const GraphType graphType, WaterfallData& dataSource);
+    void removeDataOption(const GraphType graphType);
     void clearDataOptions();
-    void setCurrentDataOption(const QString& title);
-    QString getCurrentDataOption() const;
-    std::vector<QString> getAvailableDataOptions() const;
-    WaterfallData* getDataOption(const QString& title);
-    bool hasDataOption(const QString& title) const;
+    void setCurrentDataOption(const GraphType graphType);
+    GraphType getCurrentDataOption() const;
+    std::vector<GraphType> getAvailableDataOptions() const;
+    WaterfallData* getDataOption(const GraphType graphType);
+    bool hasDataOption(const GraphType graphType) const;
     
     // Signal subscription method for external components
     void subscribeToIntervalChange(QObject* subscriber, const char* slot);
@@ -84,14 +93,21 @@ public slots:
 private:
     void updateTotalContainerSize();
     void updateComboBoxOptions();
-    void onDataOptionChanged(int index);
+    void onDataOptionChanged(QString title);
+    void setupEventConnections();
+    WaterfallGraph* createWaterfallGraph(GraphType graphType);
     
     // Data source management
     WaterfallData waterfallData;
     
     // Data options management
-    std::map<QString, WaterfallData*> dataOptions;
-    QString currentDataOption;
+    std::map<GraphType, WaterfallData*> dataOptions;
+    GraphType currentDataOption;
+
+
+    // Graph component management
+    std::map<GraphType, WaterfallGraph*> waterfallGraphs;
+    GraphType currentWaterfallGraph;
 
 signals:
     void NewTimeSelectionCreated(qreal startTime, qreal endTime);
@@ -104,7 +120,7 @@ private:
     QVBoxLayout *m_leftLayout;
     QComboBox *m_comboBox;
     ZoomPanel *m_zoomPanel;
-    waterfallgraph *m_waterfallGraph;
+    WaterfallGraph *m_waterfallGraph;
     TimeSelectionVisualizer *m_timelineSelectionView;
     TimelineView *m_timelineView;
     bool m_showTimelineView;

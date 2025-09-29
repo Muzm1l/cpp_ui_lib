@@ -1,10 +1,13 @@
 #include "graphlayout.h"
 #include <QDebug>
 
-GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, const std::vector<QString>& dataSourceLabels)
+GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType)
     : QWidget{parent}
     , m_layoutType(layoutType)
 {
+
+    dataSourceLabels = getAllGraphTypeStrings();
+
     // Initialize data sources based on provided labels
     for (const QString& label : dataSourceLabels) {
         m_dataSources[label] = new WaterfallData(label);
@@ -176,6 +179,7 @@ void GraphLayout::setGraphViewSize(int width, int height)
     updateLayoutSizing();
 }
 
+
 void GraphLayout::initializeContainers()
 {
     // Create 4 graph containers
@@ -194,7 +198,7 @@ void GraphLayout::attachContainerDataSources()
     // data sources using the key as the title and the value as the datasource
     for (auto* container : m_graphContainers) {
         for (auto& dataSource : m_dataSources) {
-            container->addDataOption(dataSource.first, *dataSource.second);
+            container->addDataOption(stringToGraphType(dataSource.first), *dataSource.second);
         }
     }
 }
@@ -411,21 +415,21 @@ void GraphLayout::addDataPoints(const QString& containerLabel, const std::vector
 
 // Data options management - operate on specific container by label
 
-void GraphLayout::addDataOption(const QString& containerLabel, const QString& title, WaterfallData& dataSource)
+void GraphLayout::addDataOption(const QString& containerLabel, const GraphType& graphType, WaterfallData& dataSource)
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
-        m_graphContainers[containerIndex]->addDataOption(title, dataSource);
+        m_graphContainers[containerIndex]->addDataOption(graphType, dataSource);
     } else {
         qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-void GraphLayout::removeDataOption(const QString& containerLabel, const QString& title)
+void GraphLayout::removeDataOption(const QString& containerLabel, const GraphType& graphType)
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
-        m_graphContainers[containerIndex]->removeDataOption(title);
+        m_graphContainers[containerIndex]->removeDataOption(graphType);
     } else {
         qDebug() << "Container not found:" << containerLabel;
     }
@@ -441,51 +445,51 @@ void GraphLayout::clearDataOptions(const QString& containerLabel)
     }
 }
 
-void GraphLayout::setCurrentDataOption(const QString& containerLabel, const QString& title)
+void GraphLayout::setCurrentDataOption(const QString& containerLabel, const GraphType& graphType)
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
-        m_graphContainers[containerIndex]->setCurrentDataOption(title);
+        m_graphContainers[containerIndex]->setCurrentDataOption(graphType);
     } else {
         qDebug() << "Container not found:" << containerLabel;
     }
 }
 
-QString GraphLayout::getCurrentDataOption(const QString& containerLabel) const
+GraphType GraphLayout::getCurrentDataOption(const QString& containerLabel) const
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         return m_graphContainers[containerIndex]->getCurrentDataOption();
     }
     qDebug() << "Container not found:" << containerLabel;
-    return QString();
+    return GraphType::BDW;
 }
 
-std::vector<QString> GraphLayout::getAvailableDataOptions(const QString& containerLabel) const
+std::vector<GraphType> GraphLayout::getAvailableDataOptions(const QString& containerLabel) const
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
         return m_graphContainers[containerIndex]->getAvailableDataOptions();
     }
     qDebug() << "Container not found:" << containerLabel;
-    return std::vector<QString>();
+    return std::vector<GraphType>();
 }
 
-WaterfallData* GraphLayout::getDataOption(const QString& containerLabel, const QString& title)
+WaterfallData* GraphLayout::getDataOption(const QString& containerLabel, const GraphType& graphType)
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
-        return m_graphContainers[containerIndex]->getDataOption(title);
+        return m_graphContainers[containerIndex]->getDataOption(graphType);
     }
     qDebug() << "Container not found:" << containerLabel;
     return nullptr;
 }
 
-bool GraphLayout::hasDataOption(const QString& containerLabel, const QString& title) const
+bool GraphLayout::hasDataOption(const QString& containerLabel, const GraphType& graphType) const
 {
     int containerIndex = getContainerIndex(containerLabel);
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
-        return m_graphContainers[containerIndex]->hasDataOption(title);
+        return m_graphContainers[containerIndex]->hasDataOption(graphType);
     }
     qDebug() << "Container not found:" << containerLabel;
     return false;
@@ -493,20 +497,20 @@ bool GraphLayout::hasDataOption(const QString& containerLabel, const QString& ti
 
 // Data options management - operate on all visible containers
 
-void GraphLayout::addDataOption(const QString& title, WaterfallData& dataSource)
+void GraphLayout::addDataOption(const GraphType& graphType, WaterfallData& dataSource)
 {
     for (auto* container : m_graphContainers) {
         if (container && container->isVisible()) {
-            container->addDataOption(title, dataSource);
+            container->addDataOption(graphType, dataSource);
         }
     }
 }
 
-void GraphLayout::removeDataOption(const QString& title)
+void GraphLayout::removeDataOption(const GraphType& graphType)
 {
     for (auto* container : m_graphContainers) {
         if (container && container->isVisible()) {
-            container->removeDataOption(title);
+            container->removeDataOption(graphType);
         }
     }
 }
@@ -520,11 +524,11 @@ void GraphLayout::clearDataOptions()
     }
 }
 
-void GraphLayout::setCurrentDataOption(const QString& title)
+void GraphLayout::setCurrentDataOption(const GraphType& graphType)
 {
     for (auto* container : m_graphContainers) {
         if (container && container->isVisible()) {
-            container->setCurrentDataOption(title);
+            container->setCurrentDataOption(graphType);
         }
     }
 }
@@ -540,7 +544,7 @@ void GraphLayout::addDataPointToDataSource(const QString& dataSourceLabel, qreal
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -559,7 +563,7 @@ void GraphLayout::addDataPointsToDataSource(const QString& dataSourceLabel, cons
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -578,7 +582,7 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const std:
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -597,7 +601,7 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const Wate
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(dataSourceLabel)) {
+            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }

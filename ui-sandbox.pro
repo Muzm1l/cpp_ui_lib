@@ -18,6 +18,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 SOURCES += \
     graphcontainer.cpp \
     graphlayout.cpp \
+    graphtype.cpp \
     main.cpp \
     mainwindow.cpp \
     tacticalsolutionview.cpp \
@@ -27,12 +28,21 @@ SOURCES += \
     twoaxisgraph.cpp \
     waterfalldata.cpp \
     waterfallgraph.cpp \
+    customwaterfallgraph.cpp \
     drawutils.cpp \
-    zoompanel.cpp
+    zoompanel.cpp \
+    bdwgraph.cpp \
+    brwgraph.cpp \
+    btwgraph.cpp \
+    fdwgraph.cpp \
+    ftwgraph.cpp \
+    ltwgraph.cpp \
+    rtwgraph.cpp 
 
 HEADERS += \
     graphcontainer.h \
     graphlayout.h \
+    graphtype.h \
     mainwindow.h \
     tacticalsolutionview.h \
     timelineview.h \
@@ -41,8 +51,16 @@ HEADERS += \
     twoaxisgraph.h \
     waterfalldata.h \
     waterfallgraph.h \
+    customwaterfallgraph.h \
     drawutils.h \
-    zoompanel.h
+    zoompanel.h\
+    bdwgraph.h \
+    brwgraph.h \
+    btwgraph.h \
+    fdwgraph.h \
+    ftwgraph.h \
+    ltwgraph.h \
+    rtwgraph.h 
 
 FORMS += \
     mainwindow.ui

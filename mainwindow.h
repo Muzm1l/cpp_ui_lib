@@ -9,6 +9,16 @@
 #include "timelineview.h"
 #include "zoompanel.h"
 #include "graphlayout.h"
+#include "waterfallgraph.h"
+#include "waterfalldata.h"
+#include "customwaterfallgraph.h"
+#include "fdwgraph.h"
+#include "bdwgraph.h"
+#include "brwgraph.h"
+#include "ltwgraph.h"
+#include "btwgraph.h"
+#include "rtwgraph.h"
+#include "ftwgraph.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -33,12 +43,23 @@ private:
     
     GraphLayout *graphgrid; ///< Graph layout widget
     
+    // New graph components for the second tab
+    FDWGraph *fdwGraph; ///< FDW Graph component
+    BDWGraph *bdwGraph; ///< BDW Graph component
+    BRWGraph *brwGraph; ///< BRW Graph component
+    LTWGraph *ltwGraph; ///< LTW Graph component
+    BTWGraph *btwGraph; ///< BTW Graph component
+    RTWGraph *rtwGraph; ///< RTW Graph component
+    FTWGraph *ftwGraph; ///< FTW Graph component
+    
     // void configureTimeVisualizer();
     // void configureTimelineView();
     // void configureZoomPanel();
     // void updateTimeline();
     void configureLayoutSelection();
     void demonstrateDataPointMethods();
+    void setupCustomGraphsTab();
+    void setupNewGraphData();
 
     long simTick;
 

@@ -8,9 +8,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    // Create GraphLayout programmatically
-    std::vector<QString> dataSourceLabels = {"LTW", "BTW", "RTW"};
-    graphgrid = new GraphLayout(ui->centralwidget, LayoutType::GPW4W, dataSourceLabels);
+    // Create GraphLayout programmatically with default graph types
+    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(970, 70, 611, 651));
 
@@ -70,6 +69,9 @@ MainWindow::MainWindow(QWidget *parent)
     
     // Demonstrate data point methods
     demonstrateDataPointMethods();
+    
+    // Setup custom graphs tab
+    setupCustomGraphsTab();
 
     // // Configure TimeSelectionVisualizer 
     // configureTimeVisualizer();
@@ -343,7 +345,7 @@ void MainWindow::demonstrateDataPointMethods()
     qDebug() << "Has INVALID container:" << graphgrid->hasContainer("INVALID");
     
     // Test label-based data option methods
-    qDebug() << "Current data option for LTW:" << graphgrid->getCurrentDataOption("LTW");
+    qDebug() << "Current data option for LTW:" << graphTypeToString(graphgrid->getCurrentDataOption("LTW"));
     qDebug() << "Available data options for LTW:" << graphgrid->getAvailableDataOptions("LTW").size();
     
     // Demonstrate data source management
@@ -373,5 +375,162 @@ void MainWindow::demonstrateDataPointMethods()
     
     qDebug() << "Data source methods demonstrated successfully with 15-minute historical data";
     qDebug() << "NEW label-based container APIs demonstrated successfully";
+}
+
+void MainWindow::setupCustomGraphsTab()
+{
+    qDebug() << "=== Setting up New Graph Components Tab ===";
+    
+    // Create a grid layout for the new graph components tab
+    QGridLayout *gridLayout = new QGridLayout(ui->customGraphsTab);
+    gridLayout->setSpacing(10);
+    gridLayout->setContentsMargins(10, 10, 10, 10);
+    
+    // Create all 7 new graph components
+    
+    // FDW Graph - Frequency Domain Waterfall
+    fdwGraph = new FDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    fdwGraph->setObjectName("fdwGraph");
+    fdwGraph->setMouseSelectionEnabled(true);
+    
+    // BDW Graph - Bandwidth Domain Waterfall
+    bdwGraph = new BDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    bdwGraph->setObjectName("bdwGraph");
+    bdwGraph->setMouseSelectionEnabled(true);
+    
+    // BRW Graph - Bit Rate Waterfall
+    brwGraph = new BRWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    brwGraph->setObjectName("brwGraph");
+    brwGraph->setMouseSelectionEnabled(true);
+    
+    // LTW Graph - Latency Time Waterfall
+    ltwGraph = new LTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    ltwGraph->setObjectName("ltwGraph");
+    ltwGraph->setMouseSelectionEnabled(true);
+    
+    // BTW Graph - Bit Time Waterfall
+    btwGraph = new BTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    btwGraph->setObjectName("btwGraph");
+    btwGraph->setMouseSelectionEnabled(true);
+    
+    // RTW Graph - Rate Time Waterfall
+    rtwGraph = new RTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    rtwGraph->setObjectName("rtwGraph");
+    rtwGraph->setMouseSelectionEnabled(true);
+    
+    // FTW Graph - Frequency Time Waterfall
+    ftwGraph = new FTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    ftwGraph->setObjectName("ftwGraph");
+    ftwGraph->setMouseSelectionEnabled(true);
+    
+    // Add graphs to grid layout (3x3 with 2 empty spaces)
+    gridLayout->addWidget(fdwGraph, 0, 0);
+    gridLayout->addWidget(bdwGraph, 0, 1);
+    gridLayout->addWidget(brwGraph, 0, 2);
+    gridLayout->addWidget(ltwGraph, 1, 0);
+    gridLayout->addWidget(btwGraph, 1, 1);
+    gridLayout->addWidget(rtwGraph, 1, 2);
+    gridLayout->addWidget(ftwGraph, 2, 0);
+    
+    // Set equal column and row stretches
+    gridLayout->setColumnStretch(0, 1);
+    gridLayout->setColumnStretch(1, 1);
+    gridLayout->setColumnStretch(2, 1);
+    gridLayout->setRowStretch(0, 1);
+    gridLayout->setRowStretch(1, 1);
+    gridLayout->setRowStretch(2, 1);
+    
+    // Create sample data for each graph
+    setupNewGraphData();
+    
+    qDebug() << "New graph components tab setup completed successfully";
+}
+
+void MainWindow::setupNewGraphData()
+{
+    qDebug() << "=== Setting up New Graph Components Data ===";
+    
+    QDateTime now = QDateTime::currentDateTime();
+    
+    // FDW Graph Data: Frequency domain data with wave pattern
+    WaterfallData* fdwData = new WaterfallData("FDW Data");
+    std::vector<qreal> fdwValues = {10.0, 15.0, 20.0, 18.0, 12.0, 8.0, 14.0, 22.0, 16.0, 11.0, 19.0, 13.0};
+    std::vector<QDateTime> fdwTimestamps;
+    for (int i = 0; i < fdwValues.size(); ++i) {
+        fdwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    fdwData->setData(fdwValues, fdwTimestamps);
+    fdwGraph->setDataSource(*fdwData);
+    
+    // BDW Graph Data: Bandwidth domain data with ascending pattern
+    WaterfallData* bdwData = new WaterfallData("BDW Data");
+    std::vector<qreal> bdwValues = {5.0, 8.0, 12.0, 15.0, 18.0, 22.0, 25.0, 28.0, 30.0, 32.0, 35.0, 38.0};
+    std::vector<QDateTime> bdwTimestamps;
+    for (int i = 0; i < bdwValues.size(); ++i) {
+        bdwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    bdwData->setData(bdwValues, bdwTimestamps);
+    bdwGraph->setDataSource(*bdwData);
+    
+    // BRW Graph Data: Bit rate data with random pattern
+    WaterfallData* brwData = new WaterfallData("BRW Data");
+    std::vector<qreal> brwValues = {8.0, 25.0, 12.0, 30.0, 15.0, 22.0, 18.0, 28.0, 20.0, 16.0, 24.0, 14.0};
+    std::vector<QDateTime> brwTimestamps;
+    for (int i = 0; i < brwValues.size(); ++i) {
+        brwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    brwData->setData(brwValues, brwTimestamps);
+    brwGraph->setDataSource(*brwData);
+    
+    // LTW Graph Data: Latency time data with mixed pattern
+    WaterfallData* ltwData = new WaterfallData("LTW Data");
+    std::vector<qreal> ltwValues = {15.0, 20.0, 18.0, 25.0, 22.0, 28.0, 24.0, 30.0, 26.0, 23.0, 27.0, 21.0};
+    std::vector<QDateTime> ltwTimestamps;
+    for (int i = 0; i < ltwValues.size(); ++i) {
+        ltwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    ltwData->setData(ltwValues, ltwTimestamps);
+    ltwGraph->setDataSource(*ltwData);
+    
+    // BTW Graph Data: Bit time data with descending pattern
+    WaterfallData* btwData = new WaterfallData("BTW Data");
+    std::vector<qreal> btwValues = {40.0, 38.0, 35.0, 32.0, 28.0, 25.0, 22.0, 18.0, 15.0, 12.0, 8.0, 5.0};
+    std::vector<QDateTime> btwTimestamps;
+    for (int i = 0; i < btwValues.size(); ++i) {
+        btwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    btwData->setData(btwValues, btwTimestamps);
+    btwGraph->setDataSource(*btwData);
+    
+    // RTW Graph Data: Rate time data with oscillating pattern
+    WaterfallData* rtwData = new WaterfallData("RTW Data");
+    std::vector<qreal> rtwValues = {12.0, 18.0, 25.0, 20.0, 15.0, 22.0, 28.0, 24.0, 19.0, 26.0, 21.0, 17.0};
+    std::vector<QDateTime> rtwTimestamps;
+    for (int i = 0; i < rtwValues.size(); ++i) {
+        rtwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    rtwData->setData(rtwValues, rtwTimestamps);
+    rtwGraph->setDataSource(*rtwData);
+    
+    // FTW Graph Data: Frequency time data with complex pattern
+    WaterfallData* ftwData = new WaterfallData("FTW Data");
+    std::vector<qreal> ftwValues = {20.0, 15.0, 25.0, 18.0, 30.0, 22.0, 16.0, 28.0, 24.0, 19.0, 26.0, 21.0};
+    std::vector<QDateTime> ftwTimestamps;
+    for (int i = 0; i < ftwValues.size(); ++i) {
+        ftwTimestamps.push_back(now.addSecs(-i * 60));
+    }
+    ftwData->setData(ftwValues, ftwTimestamps);
+    ftwGraph->setDataSource(*ftwData);
+    
+    // Add labels to each graph to identify them
+    fdwGraph->drawCharacterLabel("FDW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    bdwGraph->drawCharacterLabel("BDW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    brwGraph->drawCharacterLabel("BRW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    ltwGraph->drawCharacterLabel("LTW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    btwGraph->drawCharacterLabel("BTW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    rtwGraph->drawCharacterLabel("RTW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    ftwGraph->drawCharacterLabel("FTW", QPointF(10, 10), QColor(255, 255, 255), 14);
+    
+    qDebug() << "New graph components data setup completed successfully";
 }
 
