@@ -1,11 +1,26 @@
 #include "graphlayout.h"
 #include <QDebug>
 
-GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType)
+GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer)
     : QWidget{parent}
     , m_layoutType(layoutType)
+    , m_timer(timer)
 {
 
+    // If the timer is not provided, create a default 1-second timer
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        m_timer->setInterval(1000); // 1 second
+            // Connect timer to our tick handler
+        connect(m_timer, &QTimer::timeout, this, &GraphLayout::onTimerTick);
+        
+        // Start the timer
+        m_timer->start();
+
+        qDebug() << "GraphLayout: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
+    }
+    
+    
     dataSourceLabels = getAllGraphTypeStrings();
 
     // Initialize data sources based on provided labels
@@ -182,11 +197,11 @@ void GraphLayout::setGraphViewSize(int width, int height)
 
 void GraphLayout::initializeContainers()
 {
-    // Create 4 graph containers
-    m_graphContainers.push_back(new GraphContainer(this, true));
-    m_graphContainers.push_back(new GraphContainer(this, true));   
-    m_graphContainers.push_back(new GraphContainer(this, true));
-    m_graphContainers.push_back(new GraphContainer(this, true));
+    // Create 4 graph containers with timer
+    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
+    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));   
+    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
+    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
     
     // Attach data sources to containers
     attachContainerDataSources();
@@ -687,4 +702,9 @@ void GraphLayout::setCurrentTime(const QTime& time)
             container->setCurrentTime(time);
         }
     }
+}
+
+void GraphLayout::onTimerTick()
+{
+    setCurrentTime(QTime::currentTime());
 }

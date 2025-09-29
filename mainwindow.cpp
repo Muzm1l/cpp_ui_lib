@@ -8,8 +8,8 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
-    // Create GraphLayout programmatically with default graph types
-    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W);
+    // Create GraphLayout programmatically with default graph types and timer
+    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(970, 70, 611, 651));
 
@@ -22,6 +22,10 @@ MainWindow::MainWindow(QWidget *parent)
     // Set up timer for simulation updates (every 2 seconds)
     connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
     timer->start(2000); // 2000ms = 2 seconds
+    
+    // Set up timer for time updates (every 1 second) - this will be passed to GraphLayout
+    timeUpdateTimer->setInterval(1000); // 1000ms = 1 second
+    timeUpdateTimer->start();
     
 
     // Initialize some sample data for the graph

@@ -6,6 +6,7 @@
 #include <QHBoxLayout>
 #include <QDateTime>
 #include <QString>
+#include <QTimer>
 #include <vector>
 #include <map>
 #include "graphcontainer.h"
@@ -27,7 +28,7 @@ class GraphLayout : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphLayout(QWidget *parent, LayoutType layoutType);
+    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr);
     ~GraphLayout();
 
     void setLayoutType(LayoutType layoutType);
@@ -86,8 +87,12 @@ public:
     // Set the current time 
     void setCurrentTime(const QTime& time);
 
+public slots:
+    void onTimerTick();
+
 private:
     LayoutType m_layoutType;
+    QTimer *m_timer;
 
     std::vector<GraphContainer *> m_graphContainers;
     std::vector<QString> m_containerLabels;
