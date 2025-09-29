@@ -19,9 +19,9 @@ MainWindow::MainWindow(QWidget *parent)
     std::srand(std::time(nullptr));
 
     this->simTick = 0;
-    // Set up timer for simulation updates (every 2 seconds)
+    // Set up timer for simulation updates (every 1 second)
     connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
-    timer->start(2000); // 2000ms = 2 seconds
+    timer->start(1000); // 1000ms = 1 second
     
     // Set up timer for time updates (every 1 second) - this will be passed to GraphLayout
     timeUpdateTimer->setInterval(1000); // 1000ms = 1 second
@@ -54,6 +54,15 @@ MainWindow::MainWindow(QWidget *parent)
     this->currentAdoptedTrackRange = 10;
     this->currentAdoptedTrackBearing = 300;
     this->currentAdoptedTrackCourse = 270;
+
+    // Initialize current values for each graph type (starting at middle of ranges)
+    this->currentFDWValue = 19.0;  // Middle of 8.0-30.0 range
+    this->currentBDWValue = 21.5;  // Middle of 5.0-38.0 range
+    this->currentBRWValue = 19.0;  // Middle of 8.0-30.0 range
+    this->currentLTWValue = 22.5;  // Middle of 15.0-30.0 range
+    this->currentBTWValue = 22.5;  // Middle of 5.0-40.0 range
+    this->currentRTWValue = 20.0;  // Middle of 12.0-28.0 range
+    this->currentFTWValue = 22.5;  // Middle of 15.0-30.0 range
 
     ui->widget_2->setData(
         this->currentShipSpeed,
@@ -150,6 +159,52 @@ void MainWindow::updateSimulation()
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
 
+    // Update graph values with random generation (oldValue + random(-1,1) * delta)
+    QDateTime currentTime = QDateTime::currentDateTime();
+    
+    // Define delta values for each graph type (10% of range)
+    const qreal fdwDelta = 2.2;   // 10% of 22.0 range
+    const qreal bdwDelta = 3.3;   // 10% of 33.0 range
+    const qreal brwDelta = 2.2;   // 10% of 22.0 range
+    const qreal ltwDelta = 1.5;   // 10% of 15.0 range
+    const qreal btwDelta = 3.5;   // 10% of 35.0 range
+    const qreal rtwDelta = 1.6;   // 10% of 16.0 range
+    const qreal ftwDelta = 1.5;   // 10% of 15.0 range
+
+    // Generate new values using oldValue + random(-1,1) * delta pattern
+    this->currentFDWValue = generateRandomValue(this->currentFDWValue, fdwDelta);
+    this->currentBDWValue = generateRandomValue(this->currentBDWValue, bdwDelta);
+    this->currentBRWValue = generateRandomValue(this->currentBRWValue, brwDelta);
+    this->currentLTWValue = generateRandomValue(this->currentLTWValue, ltwDelta);
+    this->currentBTWValue = generateRandomValue(this->currentBTWValue, btwDelta);
+    this->currentRTWValue = generateRandomValue(this->currentRTWValue, rtwDelta);
+    this->currentFTWValue = generateRandomValue(this->currentFTWValue, ftwDelta);
+
+    // Clamp values to their respective ranges
+    this->currentFDWValue = qBound(8.0, this->currentFDWValue, 30.0);
+    this->currentBDWValue = qBound(5.0, this->currentBDWValue, 38.0);
+    this->currentBRWValue = qBound(8.0, this->currentBRWValue, 30.0);
+    this->currentLTWValue = qBound(15.0, this->currentLTWValue, 30.0);
+    this->currentBTWValue = qBound(5.0, this->currentBTWValue, 40.0);
+    this->currentRTWValue = qBound(12.0, this->currentRTWValue, 28.0);
+    this->currentFTWValue = qBound(15.0, this->currentFTWValue, 30.0);
+
+    // Add new data points to each graph data source
+    graphgrid->addDataPointToDataSource(GraphType::FDW, this->currentFDWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::BDW, this->currentBDWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::BRW, this->currentBRWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::LTW, this->currentLTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::BTW, this->currentBTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::RTW, this->currentRTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::FTW, this->currentFTWValue, currentTime);
+
+    qDebug() << "Added data points - FDW:" << this->currentFDWValue 
+             << "BDW:" << this->currentBDWValue 
+             << "BRW:" << this->currentBRWValue 
+             << "LTW:" << this->currentLTWValue 
+             << "BTW:" << this->currentBTWValue 
+             << "RTW:" << this->currentRTWValue 
+             << "FTW:" << this->currentFTWValue;
 
     // set the current time to the system time
     graphgrid->setCurrentTime(QTime::currentTime());
@@ -281,6 +336,13 @@ void MainWindow::onLayoutTypeChanged(int index)
     graphgrid->setLayoutType(layoutType);
 }
 
+qreal MainWindow::generateRandomValue(qreal oldValue, qreal deltaValue)
+{
+    // Generate random value between -1 and 1
+    qreal randomFactor = (static_cast<qreal>(std::rand()) / RAND_MAX) * 2.0 - 1.0;
+    return oldValue + randomFactor * deltaValue;
+}
+
 void MainWindow::demonstrateDataPointMethods()
 {
     qDebug() << "=== Data Source Demonstration ===";
@@ -302,7 +364,7 @@ void MainWindow::demonstrateDataPointMethods()
         qreal noise = (std::rand() % 200 - 100) / 100.0; // ±1 nm noise
         ltwYData.push_back(baseRange + noise);
     }
-    graphgrid->setDataToDataSource("LTW", ltwYData, ltwTimestamps);
+    graphgrid->setDataToDataSource(GraphType::LTW, ltwYData, ltwTimestamps);
     
     // BTW (Bottom Track Window) - Simulates sonar contact data
     std::vector<qreal> btwYData;
@@ -317,7 +379,7 @@ void MainWindow::demonstrateDataPointMethods()
         qreal noise = (std::rand() % 100 - 50) / 10.0; // ±5m noise
         btwYData.push_back(baseDepth + noise);
     }
-    graphgrid->setDataToDataSource("BTW", btwYData, btwTimestamps);
+    graphgrid->setDataToDataSource(GraphType::BTW, btwYData, btwTimestamps);
     
     // RTW (Right Track Window) - Simulates bearing data
     std::vector<qreal> rtwYData;
@@ -333,12 +395,12 @@ void MainWindow::demonstrateDataPointMethods()
         qreal bearing = fmod(baseBearing + noise + 360.0, 360.0);
         rtwYData.push_back(bearing);
     }
-    graphgrid->setDataToDataSource("RTW", rtwYData, rtwTimestamps);
+    graphgrid->setDataToDataSource(GraphType::RTW, rtwYData, rtwTimestamps);
     
     // Add some additional older data points to simulate historical data (not out of order)
-    graphgrid->addDataPointToDataSource("LTW", 18.5, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
-    graphgrid->addDataPointToDataSource("BTW", 135.2, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago  
-    graphgrid->addDataPointToDataSource("RTW", 195.7, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
+    graphgrid->addDataPointToDataSource(GraphType::LTW, 18.5, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
+    graphgrid->addDataPointToDataSource(GraphType::BTW, 135.2, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago  
+    graphgrid->addDataPointToDataSource(GraphType::RTW, 195.7, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
     
     // Demonstrate NEW label-based container APIs
     qDebug() << "=== NEW Label-based Container API Demonstration ===";

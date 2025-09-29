@@ -60,6 +60,7 @@ private:
     void demonstrateDataPointMethods();
     void setupCustomGraphsTab();
     void setupNewGraphData();
+    qreal generateRandomValue(qreal oldValue, qreal deltaValue);
 
     long simTick;
 
@@ -94,6 +95,15 @@ private:
     qreal prevAdoptedTrackBearing;
     qreal prevAdoptedTrackSpeed;
     qreal prevAdoptedTrackCourse;
+
+    // Current values for each graph type (for simulation)
+    qreal currentFDWValue;  // Frequency Domain Window: 8.0-30.0 (range: 22.0)
+    qreal currentBDWValue;  // Bandwidth Domain Window: 5.0-38.0 (range: 33.0)
+    qreal currentBRWValue;  // Bit Rate Window: 8.0-30.0 (range: 22.0)
+    qreal currentLTWValue;  // Left Track Window: 15.0-30.0 (range: 15.0)
+    qreal currentBTWValue;  // Bottom Track Window: 5.0-40.0 (range: 35.0)
+    qreal currentRTWValue;  // Right Track Window: 12.0-28.0 (range: 16.0)
+    qreal currentFTWValue;  // Frequency Time Window: 15.0-30.0 (range: 15.0)
 
 private slots:
     /**

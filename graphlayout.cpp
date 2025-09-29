@@ -550,8 +550,9 @@ void GraphLayout::setCurrentDataOption(const GraphType& graphType)
 
 // Data point methods for specific data sources
 
-void GraphLayout::addDataPointToDataSource(const QString& dataSourceLabel, qreal yValue, const QDateTime& timestamp)
+void GraphLayout::addDataPointToDataSource(const GraphType& graphType, qreal yValue, const QDateTime& timestamp)
 {
+    QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(dataSourceLabel);
     if (it != m_dataSources.end()) {
         it->second->addDataPoint(yValue, timestamp);
@@ -559,7 +560,7 @@ void GraphLayout::addDataPointToDataSource(const QString& dataSourceLabel, qreal
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
+            if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -569,8 +570,9 @@ void GraphLayout::addDataPointToDataSource(const QString& dataSourceLabel, qreal
     }
 }
 
-void GraphLayout::addDataPointsToDataSource(const QString& dataSourceLabel, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+void GraphLayout::addDataPointsToDataSource(const GraphType& graphType, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
 {
+    QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(dataSourceLabel);
     if (it != m_dataSources.end()) {
         it->second->addDataPoints(yValues, timestamps);
@@ -578,7 +580,7 @@ void GraphLayout::addDataPointsToDataSource(const QString& dataSourceLabel, cons
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
+            if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -588,8 +590,9 @@ void GraphLayout::addDataPointsToDataSource(const QString& dataSourceLabel, cons
     }
 }
 
-void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void GraphLayout::setDataToDataSource(const GraphType& graphType, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
 {
+    QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(dataSourceLabel);
     if (it != m_dataSources.end()) {
         it->second->setData(yData, timestamps);
@@ -597,7 +600,7 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const std:
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
+            if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -607,8 +610,9 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const std:
     }
 }
 
-void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const WaterfallData& data)
+void GraphLayout::setDataToDataSource(const GraphType& graphType, const WaterfallData& data)
 {
+    QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(dataSourceLabel);
     if (it != m_dataSources.end()) {
         it->second->setData(data.getYData(), data.getTimestamps());
@@ -616,7 +620,7 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const Wate
         
         // Notify all visible containers that have this data source to update their zoom panels
         for (auto* container : m_graphContainers) {
-            if (container && container->isVisible() && container->hasDataOption(stringToGraphType(dataSourceLabel))) {
+            if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
@@ -626,8 +630,9 @@ void GraphLayout::setDataToDataSource(const QString& dataSourceLabel, const Wate
     }
 }
 
-void GraphLayout::clearDataSource(const QString& dataSourceLabel)
+void GraphLayout::clearDataSource(const GraphType& graphType)
 {
+    QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(dataSourceLabel);
     if (it != m_dataSources.end()) {
         it->second->clearData();
