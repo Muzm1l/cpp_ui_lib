@@ -22,23 +22,14 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
     m_zoomPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
     m_zoomPanel->setMaximumHeight(50); // Limit zoom panel height
     
-    // Create WaterfallGraph
-    m_waterfallGraph = new WaterfallGraph(this);
-    
-    // Set up the data source
-    m_waterfallGraph->setDataSource(waterfallData);
-
-    // Enable mouse selection for the waterfall graph 
-    m_waterfallGraph->setMouseSelectionEnabled(true);
-    
-    // Enable range limiting for the waterfall graph
-    m_waterfallGraph->setRangeLimitingEnabled(true);
+    // Initialize the waterfall graph
+    initializeWaterfallGraph(currentDataOption);
     
     
     // Add ComboBox, ZoomPanel, and WaterfallGraph to left layout
     m_leftLayout->addWidget(m_comboBox);
     m_leftLayout->addWidget(m_zoomPanel);
-    m_leftLayout->addWidget(m_waterfallGraph); // No stretch factor - let it use preferred size
+    m_leftLayout->addWidget(m_waterfallGraph, 1); // Add stretch factor of 1 to make it expand
     
     // Add left layout to main layout with stretch factor
     m_mainLayout->addLayout(m_leftLayout, 1); // Give stretch factor of 1 to left layout
@@ -99,10 +90,10 @@ void GraphContainer::setGraphViewSize(int width, int height)
 {
     m_graphViewSize = QSize(width, height);
     
-    // Set the waterfall graph size
+    // Set the waterfall graph minimum size but allow expansion
     if (m_waterfallGraph) {
         m_waterfallGraph->setMinimumSize(m_graphViewSize);
-        m_waterfallGraph->setMaximumSize(m_graphViewSize);
+        m_waterfallGraph->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraph->updateGeometry();
     }
     
@@ -234,7 +225,8 @@ void GraphContainer::removeDataOption(const GraphType graphType)
                 setCurrentDataOption(dataOptions.begin()->first);
             } else {
                 currentDataOption = GraphType::BDW;
-                m_waterfallGraph->setDataSource(waterfallData);
+                // Initialize waterfall graph with the default type
+                initializeWaterfallGraph(currentDataOption);
                 // Initialize zoom panel limits for the default data source
                 initializeZoomPanelLimits();
             }
@@ -249,11 +241,13 @@ void GraphContainer::clearDataOptions()
     dataOptions.clear();
     currentDataOption = GraphType::BDW;
     updateComboBoxOptions();
-    m_waterfallGraph->setDataSource(waterfallData);
-    
+
+    // Initialize waterfall graph with the default type
+    initializeWaterfallGraph(currentDataOption);
+
     // Initialize zoom panel limits for the default data source
     initializeZoomPanelLimits();
-    
+
     qDebug() << "Cleared all data options";
 }
 
@@ -263,17 +257,19 @@ void GraphContainer::setCurrentDataOption(const GraphType graphType)
     auto it = dataOptions.find(graphType);
     if (it != dataOptions.end()) {
         currentDataOption = graphType;
-        m_waterfallGraph->setDataSource(*it->second);
-        
+
+        // Initialize waterfall graph with the new type
+        initializeWaterfallGraph(graphType);
+
         // Update combobox selection
         int index = m_comboBox->findText(graphTypeToString(graphType));
         if (index >= 0) {
             m_comboBox->setCurrentIndex(index);
         }
-        
+
         // Initialize zoom panel limits for the new data source
         initializeZoomPanelLimits();
-        
+
         qDebug() << "Set current data option to:" << title;
     }
 }
@@ -342,6 +338,20 @@ void GraphContainer::setupEventConnections()
     qDebug() << "GraphContainer: All event connections established";
 }
 
+void GraphContainer::setupEventConnectionsForWaterfallGraph()
+{
+    if (!m_waterfallGraph) {
+        qWarning() << "GraphContainer: Cannot setup event connections - no waterfall graph";
+        return;
+    }
+
+    // Connect WaterfallGraph selection events
+    connect(m_waterfallGraph, &WaterfallGraph::SelectionCreated,
+            this, &GraphContainer::onSelectionCreated);
+
+    qDebug() << "GraphContainer: Event connections established for waterfall graph";
+}
+
 WaterfallGraph* GraphContainer::createWaterfallGraph(GraphType graphType)
 {
     switch (graphType) {
@@ -363,6 +373,52 @@ WaterfallGraph* GraphContainer::createWaterfallGraph(GraphType graphType)
             qWarning() << "Unknown graph type, defaulting to BDWGraph";
             return new BDWGraph(this);
     }
+}
+
+void GraphContainer::initializeWaterfallGraph(GraphType graphType)
+{
+    // Clean up existing waterfall graph if it exists
+    if (m_waterfallGraph) {
+        m_leftLayout->removeWidget(m_waterfallGraph);
+        disconnect(m_waterfallGraph, nullptr, this, nullptr);  // Disconnect all connections
+        delete m_waterfallGraph;
+        m_waterfallGraph = nullptr;
+    }
+
+    // Create new waterfall graph instance based on graph type
+    m_waterfallGraph = createWaterfallGraph(graphType);
+
+    // Set up the data source
+    WaterfallData* dataSource = nullptr;
+    auto it = dataOptions.find(graphType);
+    if (it != dataOptions.end()) {
+        dataSource = it->second;
+    } else {
+        dataSource = &waterfallData;
+    }
+
+    if (dataSource) {
+        m_waterfallGraph->setDataSource(*dataSource);
+    }
+
+    // Enable mouse selection for the waterfall graph
+    m_waterfallGraph->setMouseSelectionEnabled(true);
+
+    // Enable range limiting for the waterfall graph
+    m_waterfallGraph->setRangeLimitingEnabled(true);
+
+    // Set the waterfall graph size policy to expand
+    m_waterfallGraph->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    // Set minimum size but allow expansion
+    m_waterfallGraph->setMinimumSize(m_graphViewSize);
+    m_waterfallGraph->updateGeometry();
+
+    // Add the waterfall graph to the layout with stretch factor
+    m_leftLayout->addWidget(m_waterfallGraph, 1);
+
+    // Setup event connections for the new graph
+    setupEventConnectionsForWaterfallGraph();
 }
 
 void GraphContainer::subscribeToIntervalChange(QObject* subscriber, const char* slot)

@@ -95,7 +95,9 @@ private:
     void updateComboBoxOptions();
     void onDataOptionChanged(QString title);
     void setupEventConnections();
+    void setupEventConnectionsForWaterfallGraph();
     WaterfallGraph* createWaterfallGraph(GraphType graphType);
+    void initializeWaterfallGraph(GraphType graphType);
     
     // Data source management
     WaterfallData waterfallData;
@@ -103,11 +105,6 @@ private:
     // Data options management
     std::map<GraphType, WaterfallData*> dataOptions;
     GraphType currentDataOption;
-
-
-    // Graph component management
-    std::map<GraphType, WaterfallGraph*> waterfallGraphs;
-    GraphType currentWaterfallGraph;
 
 signals:
     void NewTimeSelectionCreated(qreal startTime, qreal endTime);
