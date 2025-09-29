@@ -60,6 +60,9 @@ public:
     qreal getMaxY() const;
     std::pair<qreal, qreal> getYRange() const;
     
+    // Graph redraw method
+    void redrawWaterfallGraph();
+    
     // Data options management
     void addDataOption(const GraphType graphType, WaterfallData& dataSource);
     void removeDataOption(const GraphType graphType);

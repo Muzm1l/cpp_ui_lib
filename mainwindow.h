@@ -105,6 +105,23 @@ private:
     qreal currentRTWValue;  // Right Track Window: 12.0-28.0 (range: 16.0)
     qreal currentFTWValue;  // Frequency Time Window: 15.0-30.0 (range: 15.0)
 
+    // Graph bounds and configuration
+    struct GraphConfig {
+        qreal minValue;
+        qreal maxValue;
+        qreal startValue;
+        qreal deltaValue;  // 10% of range for random variation
+    };
+    
+    // Configuration for each graph type
+    GraphConfig fdwConfig;  // Frequency Domain Window
+    GraphConfig bdwConfig;  // Bandwidth Domain Window
+    GraphConfig brwConfig;  // Bit Rate Window
+    GraphConfig ltwConfig;  // Left Track Window
+    GraphConfig btwConfig;  // Bottom Track Window
+    GraphConfig rtwConfig;  // Right Track Window
+    GraphConfig ftwConfig;  // Frequency Time Window
+
 private slots:
     /**
      * @brief Updates simulation state every timer interval

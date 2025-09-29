@@ -446,3 +446,38 @@ std::pair<QDateTime, QDateTime> WaterfallData::getCombinedTimeRange() const
     
     return std::make_pair(globalMin, globalMax);
 }
+
+// Selection time span methods implementation
+
+QDateTime WaterfallData::getSelectionEarliestTime() const
+{
+    // For selection purposes, we want the earliest time available in the data
+    // This is the oldest timestamp (furthest in the past)
+    return getEarliestTime();
+}
+
+QDateTime WaterfallData::getSelectionLatestTime() const
+{
+    // For selection purposes, we want the latest time available in the data
+    // This is the newest timestamp (closest to current time)
+    return getLatestTime();
+}
+
+qint64 WaterfallData::getSelectionTimeSpanMs() const
+{
+    // Return the total time span available for selection
+    return getTimeSpanMs();
+}
+
+bool WaterfallData::isValidSelectionTime(const QDateTime& time) const
+{
+    if (timestamps.empty()) {
+        return false;
+    }
+    
+    QDateTime earliest = getSelectionEarliestTime();
+    QDateTime latest = getSelectionLatestTime();
+    
+    // Check if the time is within the available data range
+    return (time >= earliest && time <= latest);
+}

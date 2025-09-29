@@ -47,6 +47,12 @@ public:
     qint64 getTimeSpanMs() const;
     QDateTime getEarliestTime() const;
     QDateTime getLatestTime() const;
+    
+    // Selection time span methods
+    QDateTime getSelectionEarliestTime() const;
+    QDateTime getSelectionLatestTime() const;
+    qint64 getSelectionTimeSpanMs() const;
+    bool isValidSelectionTime(const QDateTime& time) const;
 
     // Data title methods
     void setDataTitle(const QString &title) { dataTitle = title; }

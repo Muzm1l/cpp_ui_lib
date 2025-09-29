@@ -93,7 +93,6 @@ protected:
     QRectF drawingArea;
     bool gridEnabled;
     int gridDivisions;
-    virtual void draw();
     void setupDrawingArea();
     virtual void drawGrid();
     void updateGraphicsDimensions();
@@ -152,6 +151,9 @@ public:
     
     // Time range update method
     void updateTimeRange();
+    
+    // Public draw method for external redraw triggers
+    virtual void draw();
     
     // Drawing methods for custom elements
     void drawPoint(const QPointF& position, const QColor& color = Qt::white, qreal size = 2.0);

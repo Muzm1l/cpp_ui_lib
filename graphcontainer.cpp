@@ -256,6 +256,14 @@ std::pair<qreal, qreal> GraphContainer::getYRange() const
     return waterfallData.getYRange();
 }
 
+void GraphContainer::redrawWaterfallGraph()
+{
+    if (m_waterfallGraph) {
+        m_waterfallGraph->draw();
+        qDebug() << "GraphContainer: Triggered waterfall graph redraw";
+    }
+}
+
 // Data options management implementation
 
 void GraphContainer::addDataOption(const GraphType graphType, WaterfallData& dataSource)

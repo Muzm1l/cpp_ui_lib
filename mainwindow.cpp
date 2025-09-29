@@ -64,6 +64,15 @@ MainWindow::MainWindow(QWidget *parent)
     this->currentRTWValue = 20.0;  // Middle of 12.0-28.0 range
     this->currentFTWValue = 22.5;  // Middle of 15.0-30.0 range
 
+    // Initialize graph configurations with bounds, start values, and delta values
+    this->fdwConfig = {8.0, 30.0, 19.0, 2.2};   // Frequency Domain Window: 10% of 22.0 range
+    this->bdwConfig = {5.0, 38.0, 21.5, 3.3};  // Bandwidth Domain Window: 10% of 33.0 range
+    this->brwConfig = {8.0, 30.0, 19.0, 2.2};   // Bit Rate Window: 10% of 22.0 range
+    this->ltwConfig = {15.0, 30.0, 22.5, 1.5};  // Left Track Window: 10% of 15.0 range
+    this->btwConfig = {5.0, 40.0, 22.5, 3.5};   // Bottom Track Window: 10% of 35.0 range
+    this->rtwConfig = {12.0, 28.0, 20.0, 1.6};  // Right Track Window: 10% of 16.0 range
+    this->ftwConfig = {15.0, 30.0, 22.5, 1.5};  // Frequency Time Window: 10% of 15.0 range
+
     ui->widget_2->setData(
         this->currentShipSpeed,
         this->currentOwnShipBearing,
@@ -79,9 +88,6 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Configure layout selection combobox
     configureLayoutSelection();
-    
-    // Demonstrate data point methods
-    demonstrateDataPointMethods();
     
     // Setup custom graphs tab
     setupCustomGraphsTab();
@@ -162,34 +168,25 @@ void MainWindow::updateSimulation()
     // Update graph values with random generation (oldValue + random(-1,1) * delta)
     QDateTime currentTime = QDateTime::currentDateTime();
     
-    // Define delta values for each graph type (10% of range)
-    const qreal fdwDelta = 2.2;   // 10% of 22.0 range
-    const qreal bdwDelta = 3.3;   // 10% of 33.0 range
-    const qreal brwDelta = 2.2;   // 10% of 22.0 range
-    const qreal ltwDelta = 1.5;   // 10% of 15.0 range
-    const qreal btwDelta = 3.5;   // 10% of 35.0 range
-    const qreal rtwDelta = 1.6;   // 10% of 16.0 range
-    const qreal ftwDelta = 1.5;   // 10% of 15.0 range
-
     // Generate new values using oldValue + random(-1,1) * delta pattern
-    this->currentFDWValue = generateRandomValue(this->currentFDWValue, fdwDelta);
-    this->currentBDWValue = generateRandomValue(this->currentBDWValue, bdwDelta);
-    this->currentBRWValue = generateRandomValue(this->currentBRWValue, brwDelta);
-    this->currentLTWValue = generateRandomValue(this->currentLTWValue, ltwDelta);
-    this->currentBTWValue = generateRandomValue(this->currentBTWValue, btwDelta);
-    this->currentRTWValue = generateRandomValue(this->currentRTWValue, rtwDelta);
-    this->currentFTWValue = generateRandomValue(this->currentFTWValue, ftwDelta);
+    this->currentFDWValue = generateRandomValue(this->currentFDWValue, this->fdwConfig.deltaValue);
+    this->currentBDWValue = generateRandomValue(this->currentBDWValue, this->bdwConfig.deltaValue);
+    this->currentBRWValue = generateRandomValue(this->currentBRWValue, this->brwConfig.deltaValue);
+    this->currentLTWValue = generateRandomValue(this->currentLTWValue, this->ltwConfig.deltaValue);
+    this->currentBTWValue = generateRandomValue(this->currentBTWValue, this->btwConfig.deltaValue);
+    this->currentRTWValue = generateRandomValue(this->currentRTWValue, this->rtwConfig.deltaValue);
+    this->currentFTWValue = generateRandomValue(this->currentFTWValue, this->ftwConfig.deltaValue);
 
-    // Clamp values to their respective ranges
-    this->currentFDWValue = qBound(8.0, this->currentFDWValue, 30.0);
-    this->currentBDWValue = qBound(5.0, this->currentBDWValue, 38.0);
-    this->currentBRWValue = qBound(8.0, this->currentBRWValue, 30.0);
-    this->currentLTWValue = qBound(15.0, this->currentLTWValue, 30.0);
-    this->currentBTWValue = qBound(5.0, this->currentBTWValue, 40.0);
-    this->currentRTWValue = qBound(12.0, this->currentRTWValue, 28.0);
-    this->currentFTWValue = qBound(15.0, this->currentFTWValue, 30.0);
+    // Clamp values to their respective ranges using configuration bounds
+    this->currentFDWValue = qBound(this->fdwConfig.minValue, this->currentFDWValue, this->fdwConfig.maxValue);
+    this->currentBDWValue = qBound(this->bdwConfig.minValue, this->currentBDWValue, this->bdwConfig.maxValue);
+    this->currentBRWValue = qBound(this->brwConfig.minValue, this->currentBRWValue, this->brwConfig.maxValue);
+    this->currentLTWValue = qBound(this->ltwConfig.minValue, this->currentLTWValue, this->ltwConfig.maxValue);
+    this->currentBTWValue = qBound(this->btwConfig.minValue, this->currentBTWValue, this->btwConfig.maxValue);
+    this->currentRTWValue = qBound(this->rtwConfig.minValue, this->currentRTWValue, this->rtwConfig.maxValue);
+    this->currentFTWValue = qBound(this->ftwConfig.minValue, this->currentFTWValue, this->ftwConfig.maxValue);
 
-    // Add new data points to each graph data source
+    // Add new data points to each graph data source with precise timestamping
     graphgrid->addDataPointToDataSource(GraphType::FDW, this->currentFDWValue, currentTime);
     graphgrid->addDataPointToDataSource(GraphType::BDW, this->currentBDWValue, currentTime);
     graphgrid->addDataPointToDataSource(GraphType::BRW, this->currentBRWValue, currentTime);
@@ -343,106 +340,6 @@ qreal MainWindow::generateRandomValue(qreal oldValue, qreal deltaValue)
     return oldValue + randomFactor * deltaValue;
 }
 
-void MainWindow::demonstrateDataPointMethods()
-{
-    qDebug() << "=== Data Source Demonstration ===";
-    
-    // Demonstrate the new data source methods with 15-minute historical data
-    QDateTime currentTime = QDateTime::currentDateTime();
-    
-    // Create realistic mock data spanning the last 15 minutes
-    // LTW (Left Track Window) - Simulates radar contact data
-    std::vector<qreal> ltwYData;
-    std::vector<QDateTime> ltwTimestamps;
-    for (int i = 0; i < 15; ++i) {
-        // Data points every minute going backwards from current time
-        QDateTime timestamp = currentTime.addMSecs(-i * 60 * 1000); // i minutes ago
-        ltwTimestamps.push_back(timestamp);
-        
-        // Simulate realistic radar range values (5-25 nautical miles)
-        qreal baseRange = 15.0 + (i % 3) * 3.0; // Vary between 15-21 nm
-        qreal noise = (std::rand() % 200 - 100) / 100.0; // ±1 nm noise
-        ltwYData.push_back(baseRange + noise);
-    }
-    graphgrid->setDataToDataSource(GraphType::LTW, ltwYData, ltwTimestamps);
-    
-    // BTW (Bottom Track Window) - Simulates sonar contact data
-    std::vector<qreal> btwYData;
-    std::vector<QDateTime> btwTimestamps;
-    for (int i = 0; i < 12; ++i) {
-        // Data points every 1.25 minutes going backwards
-        QDateTime timestamp = currentTime.addMSecs(-i * 75 * 1000); // i * 1.25 minutes ago
-        btwTimestamps.push_back(timestamp);
-        
-        // Simulate realistic sonar depth values (50-200 meters)
-        qreal baseDepth = 120.0 + (i % 4) * 20.0; // Vary between 120-180m
-        qreal noise = (std::rand() % 100 - 50) / 10.0; // ±5m noise
-        btwYData.push_back(baseDepth + noise);
-    }
-    graphgrid->setDataToDataSource(GraphType::BTW, btwYData, btwTimestamps);
-    
-    // RTW (Right Track Window) - Simulates bearing data
-    std::vector<qreal> rtwYData;
-    std::vector<QDateTime> rtwTimestamps;
-    for (int i = 0; i < 18; ++i) {
-        // Data points every 50 seconds going backwards
-        QDateTime timestamp = currentTime.addMSecs(-i * 50 * 1000); // i * 50 seconds ago
-        rtwTimestamps.push_back(timestamp);
-        
-        // Simulate realistic bearing values (0-360 degrees)
-        qreal baseBearing = 180.0 + (i % 6) * 30.0; // Vary between 180-330 degrees
-        qreal noise = (std::rand() % 20 - 10); // ±10 degree noise
-        qreal bearing = fmod(baseBearing + noise + 360.0, 360.0);
-        rtwYData.push_back(bearing);
-    }
-    graphgrid->setDataToDataSource(GraphType::RTW, rtwYData, rtwTimestamps);
-    
-    // Add some additional older data points to simulate historical data (not out of order)
-    graphgrid->addDataPointToDataSource(GraphType::LTW, 18.5, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
-    graphgrid->addDataPointToDataSource(GraphType::BTW, 135.2, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago  
-    graphgrid->addDataPointToDataSource(GraphType::RTW, 195.7, currentTime.addMSecs(-16 * 60 * 1000)); // 16 minutes ago
-    
-    // Demonstrate NEW label-based container APIs
-    qDebug() << "=== NEW Label-based Container API Demonstration ===";
-    
-    // Test container management
-    qDebug() << "Available container labels:" << graphgrid->getContainerLabels().size();
-    qDebug() << "Has LTW container:" << graphgrid->hasContainer("LTW");
-    qDebug() << "Has INVALID container:" << graphgrid->hasContainer("INVALID");
-    
-    // Test label-based data option methods
-    qDebug() << "Current data option for LTW:" << graphTypeToString(graphgrid->getCurrentDataOption("LTW"));
-    qDebug() << "Available data options for LTW:" << graphgrid->getAvailableDataOptions("LTW").size();
-    
-    // Demonstrate data source management
-    qDebug() << "Available data sources:" << graphgrid->getDataSourceLabels().size();
-    qDebug() << "Has LTW data source:" << graphgrid->hasDataSource("LTW");
-    qDebug() << "Has INVALID data source:" << graphgrid->hasDataSource("INVALID");
-    
-    // Get data sources and check their data
-    WaterfallData* ltwData = graphgrid->getDataSource("LTW");
-    if (ltwData) {
-        qDebug() << "LTW data size:" << ltwData->getDataSize();
-        qDebug() << "LTW Y range:" << ltwData->getMinY() << "to" << ltwData->getMaxY();
-        qDebug() << "LTW time span:" << ltwData->getTimeSpanMs() / 1000.0 << "seconds";
-    }
-    
-    WaterfallData* btwData = graphgrid->getDataSource("BTW");
-    if (btwData) {
-        qDebug() << "BTW data size:" << btwData->getDataSize();
-        qDebug() << "BTW Y range:" << btwData->getMinY() << "to" << btwData->getMaxY();
-    }
-    
-    WaterfallData* rtwData = graphgrid->getDataSource("RTW");
-    if (rtwData) {
-        qDebug() << "RTW data size:" << rtwData->getDataSize();
-        qDebug() << "RTW Y range:" << rtwData->getMinY() << "to" << rtwData->getMaxY();
-    }
-    
-    qDebug() << "Data source methods demonstrated successfully with 15-minute historical data";
-    qDebug() << "NEW label-based container APIs demonstrated successfully";
-}
-
 void MainWindow::setupCustomGraphsTab()
 {
     qDebug() << "=== Setting up New Graph Components Tab ===";
@@ -506,97 +403,12 @@ void MainWindow::setupCustomGraphsTab()
     gridLayout->setRowStretch(1, 1);
     gridLayout->setRowStretch(2, 1);
     
-    // Create sample data for each graph
-    setupNewGraphData();
-    
     qDebug() << "New graph components tab setup completed successfully";
 }
 
 void MainWindow::setupNewGraphData()
 {
-    qDebug() << "=== Setting up New Graph Components Data ===";
-    
-    QDateTime now = QDateTime::currentDateTime();
-    
-    // FDW Graph Data: Frequency domain data with wave pattern
-    WaterfallData* fdwData = new WaterfallData("FDW Data");
-    std::vector<qreal> fdwValues = {10.0, 15.0, 20.0, 18.0, 12.0, 8.0, 14.0, 22.0, 16.0, 11.0, 19.0, 13.0};
-    std::vector<QDateTime> fdwTimestamps;
-    for (int i = 0; i < fdwValues.size(); ++i) {
-        fdwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    fdwData->setData(fdwValues, fdwTimestamps);
-    fdwGraph->setDataSource(*fdwData);
-    
-    // BDW Graph Data: Bandwidth domain data with ascending pattern
-    WaterfallData* bdwData = new WaterfallData("BDW Data");
-    std::vector<qreal> bdwValues = {5.0, 8.0, 12.0, 15.0, 18.0, 22.0, 25.0, 28.0, 30.0, 32.0, 35.0, 38.0};
-    std::vector<QDateTime> bdwTimestamps;
-    for (int i = 0; i < bdwValues.size(); ++i) {
-        bdwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    bdwData->setData(bdwValues, bdwTimestamps);
-    bdwGraph->setDataSource(*bdwData);
-    
-    // BRW Graph Data: Bit rate data with random pattern
-    WaterfallData* brwData = new WaterfallData("BRW Data");
-    std::vector<qreal> brwValues = {8.0, 25.0, 12.0, 30.0, 15.0, 22.0, 18.0, 28.0, 20.0, 16.0, 24.0, 14.0};
-    std::vector<QDateTime> brwTimestamps;
-    for (int i = 0; i < brwValues.size(); ++i) {
-        brwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    brwData->setData(brwValues, brwTimestamps);
-    brwGraph->setDataSource(*brwData);
-    
-    // LTW Graph Data: Latency time data with mixed pattern
-    WaterfallData* ltwData = new WaterfallData("LTW Data");
-    std::vector<qreal> ltwValues = {15.0, 20.0, 18.0, 25.0, 22.0, 28.0, 24.0, 30.0, 26.0, 23.0, 27.0, 21.0};
-    std::vector<QDateTime> ltwTimestamps;
-    for (int i = 0; i < ltwValues.size(); ++i) {
-        ltwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    ltwData->setData(ltwValues, ltwTimestamps);
-    ltwGraph->setDataSource(*ltwData);
-    
-    // BTW Graph Data: Bit time data with descending pattern
-    WaterfallData* btwData = new WaterfallData("BTW Data");
-    std::vector<qreal> btwValues = {40.0, 38.0, 35.0, 32.0, 28.0, 25.0, 22.0, 18.0, 15.0, 12.0, 8.0, 5.0};
-    std::vector<QDateTime> btwTimestamps;
-    for (int i = 0; i < btwValues.size(); ++i) {
-        btwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    btwData->setData(btwValues, btwTimestamps);
-    btwGraph->setDataSource(*btwData);
-    
-    // RTW Graph Data: Rate time data with oscillating pattern
-    WaterfallData* rtwData = new WaterfallData("RTW Data");
-    std::vector<qreal> rtwValues = {12.0, 18.0, 25.0, 20.0, 15.0, 22.0, 28.0, 24.0, 19.0, 26.0, 21.0, 17.0};
-    std::vector<QDateTime> rtwTimestamps;
-    for (int i = 0; i < rtwValues.size(); ++i) {
-        rtwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    rtwData->setData(rtwValues, rtwTimestamps);
-    rtwGraph->setDataSource(*rtwData);
-    
-    // FTW Graph Data: Frequency time data with complex pattern
-    WaterfallData* ftwData = new WaterfallData("FTW Data");
-    std::vector<qreal> ftwValues = {20.0, 15.0, 25.0, 18.0, 30.0, 22.0, 16.0, 28.0, 24.0, 19.0, 26.0, 21.0};
-    std::vector<QDateTime> ftwTimestamps;
-    for (int i = 0; i < ftwValues.size(); ++i) {
-        ftwTimestamps.push_back(now.addSecs(-i * 60));
-    }
-    ftwData->setData(ftwValues, ftwTimestamps);
-    ftwGraph->setDataSource(*ftwData);
-    
-    // Add labels to each graph to identify them
-    fdwGraph->drawCharacterLabel("FDW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    bdwGraph->drawCharacterLabel("BDW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    brwGraph->drawCharacterLabel("BRW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    ltwGraph->drawCharacterLabel("LTW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    btwGraph->drawCharacterLabel("BTW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    rtwGraph->drawCharacterLabel("RTW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    ftwGraph->drawCharacterLabel("FTW", QPointF(10, 10), QColor(255, 255, 255), 14);
-    
-    qDebug() << "New graph components data setup completed successfully";
+    // No initial data setup - graphs will be populated by simulation
+    qDebug() << "Graph data will be populated by simulation";
 }
 

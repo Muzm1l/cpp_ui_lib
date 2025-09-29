@@ -558,10 +558,16 @@ void GraphLayout::addDataPointToDataSource(const GraphType& graphType, qreal yVa
         it->second->addDataPoint(yValue, timestamp);
         qDebug() << "Added data point to" << dataSourceLabel << "y:" << yValue << "time:" << timestamp.toString();
         
-        // Notify all visible containers that have this data source to update their zoom panels
+        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
         for (auto* container : m_graphContainers) {
             if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
+                
+                // Force redraw of the waterfall graph if it's using this data source
+                if (container->getCurrentDataOption() == graphType) {
+                    container->redrawWaterfallGraph();
+                }
+                
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
         }
@@ -578,10 +584,16 @@ void GraphLayout::addDataPointsToDataSource(const GraphType& graphType, const st
         it->second->addDataPoints(yValues, timestamps);
         qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel;
         
-        // Notify all visible containers that have this data source to update their zoom panels
+        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
         for (auto* container : m_graphContainers) {
             if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
+                
+                // Force redraw of the waterfall graph if it's using this data source
+                if (container->getCurrentDataOption() == graphType) {
+                    container->redrawWaterfallGraph();
+                }
+                
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
         }
@@ -598,10 +610,16 @@ void GraphLayout::setDataToDataSource(const GraphType& graphType, const std::vec
         it->second->setData(yData, timestamps);
         qDebug() << "Set data for" << dataSourceLabel << "size:" << yData.size();
         
-        // Notify all visible containers that have this data source to update their zoom panels
+        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
         for (auto* container : m_graphContainers) {
             if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
+                
+                // Force redraw of the waterfall graph if it's using this data source
+                if (container->getCurrentDataOption() == graphType) {
+                    container->redrawWaterfallGraph();
+                }
+                
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
         }
@@ -618,10 +636,16 @@ void GraphLayout::setDataToDataSource(const GraphType& graphType, const Waterfal
         it->second->setData(data.getYData(), data.getTimestamps());
         qDebug() << "Set data for" << dataSourceLabel << "from WaterfallData object";
         
-        // Notify all visible containers that have this data source to update their zoom panels
+        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
         for (auto* container : m_graphContainers) {
             if (container && container->isVisible() && container->hasDataOption(graphType)) {
                 container->initializeZoomPanelLimits();
+                
+                // Force redraw of the waterfall graph if it's using this data source
+                if (container->getCurrentDataOption() == graphType) {
+                    container->redrawWaterfallGraph();
+                }
+                
                 qDebug() << "Updated zoom panel limits for container with data source:" << dataSourceLabel;
             }
         }

@@ -739,7 +739,7 @@ void WaterfallGraph::drawDataLine()
     if (visibleData.size() < 2) {
         // Draw a single point if we only have one data point
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-        QPen pointPen(Qt::green, 3);
+        QPen pointPen(Qt::green, 0); // No stroke (width 0)
         graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
         qDebug() << "Data line drawn with 1 visible point";
         return;
@@ -761,7 +761,7 @@ void WaterfallGraph::drawDataLine()
     graphicsScene->addPath(path, linePen);
     
     // Draw data points
-    QPen pointPen(Qt::yellow, 2);
+    QPen pointPen(Qt::yellow, 0); // No stroke (width 0)
     for (size_t i = 0; i < visibleData.size(); ++i) {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
@@ -817,7 +817,7 @@ void WaterfallGraph::startSelection(const QPointF& scenePos)
 
 void WaterfallGraph::updateSelection(const QPointF& scenePos)
 {
-    if (!selectionRect) return;
+    if (!selectionRect || !dataSource || dataSource->isEmpty()) return;
     
     selectionEndPos = scenePos;
     
@@ -831,12 +831,30 @@ void WaterfallGraph::updateSelection(const QPointF& scenePos)
     // Clamp to drawing area
     rect = rect.intersected(drawingArea);
     
+    // Additional validation: ensure selection is within valid time range
+    if (dataSource && !dataSource->isEmpty()) {
+        // Convert Y coordinates to times to validate
+        QTime topTime = mapScreenToTime(rect.top());
+        QTime bottomTime = mapScreenToTime(rect.bottom());
+        
+        // If either time is invalid, clamp the rectangle to valid bounds
+        if (!topTime.isValid() || !bottomTime.isValid()) {
+            // Clamp to the drawing area bounds
+            rect.setTop(qMax(rect.top(), drawingArea.top()));
+            rect.setBottom(qMin(rect.bottom(), drawingArea.bottom()));
+        }
+    }
+    
     selectionRect->setRect(rect);
 }
 
 void WaterfallGraph::endSelection()
 {
-    if (!selectionRect) return;
+    if (!selectionRect || !dataSource || dataSource->isEmpty()) {
+        qDebug() << "endSelection: No valid selection or data source";
+        clearSelection();
+        return;
+    }
     
     // Calculate the time range of the selection
     // Find min and max Y positions (min Y = later time, max Y = earlier time)
@@ -850,13 +868,21 @@ void WaterfallGraph::endSelection()
     qDebug() << "Selection Y range: minY=" << minY << "maxY=" << maxY;
     qDebug() << "Time range: start=" << startTime.toString() << "end=" << endTime.toString();
     
-    // Only emit signal if selection has meaningful size
-    if (startTime != endTime) {
+    // Validate that both times are valid
+    if (startTime.isValid() && endTime.isValid() && startTime != endTime) {
+        // Ensure start time is before end time
+        if (startTime > endTime) {
+            QTime temp = startTime;
+            startTime = endTime;
+            endTime = temp;
+        }
+        
         TimeSelectionSpan selection(startTime, endTime);
         emit SelectionCreated(selection);
         qDebug() << "Selection created:" << startTime.toString() << "to" << endTime.toString();
     } else {
-        qDebug() << "Selection too small, ignoring";
+        qDebug() << "Invalid selection times - start:" << startTime.toString() 
+                 << "end:" << endTime.toString() << "or times are equal";
     }
     
     // Clear the visual selection immediately on mouse release
@@ -874,7 +900,11 @@ void WaterfallGraph::clearSelection()
 
 QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
 {
-    if (!dataRangesValid || drawingArea.isEmpty()) {
+    if (!dataRangesValid || drawingArea.isEmpty() || !dataSource || dataSource->isEmpty()) {
+        qDebug() << "mapScreenToTime: Invalid conditions - dataRangesValid:" << dataRangesValid 
+                 << "drawingArea.isEmpty:" << drawingArea.isEmpty() 
+                 << "dataSource:" << (dataSource ? "exists" : "null") 
+                 << "dataSource->isEmpty:" << (dataSource ? dataSource->isEmpty() : true);
         return QTime();
     }
     
@@ -886,8 +916,16 @@ QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
     // Calculate time offset from current time (top of graph)
     qint64 timeOffsetMs = static_cast<qint64>(normalizedY * getTimeIntervalMs());
     
-    // Convert to QTime
+    // Convert to QTime using the data source's time range
     QDateTime selectionTime = timeMax.addMSecs(-timeOffsetMs);
+    
+    // Validate that the selection time is within the available data range
+    if (dataSource && !dataSource->isValidSelectionTime(selectionTime)) {
+        qDebug() << "mapScreenToTime: Selection time" << selectionTime.toString() 
+                 << "is outside valid data range";
+        return QTime();
+    }
+    
     return selectionTime.time();
 }
 
@@ -1033,7 +1071,7 @@ void WaterfallGraph::drawPoint(const QPointF& position, const QColor& color, qre
     // Create a small circle for the point
     QGraphicsEllipseItem* point = new QGraphicsEllipseItem();
     point->setRect(position.x() - size/2, position.y() - size/2, size, size);
-    point->setPen(QPen(color, 1));
+    point->setPen(QPen(color, 0)); // No stroke (width 0)
     point->setBrush(QBrush(color));
     point->setZValue(100); // Draw on top of grid but below selection
     
@@ -1169,7 +1207,7 @@ void WaterfallGraph::drawScatterplot(const QString& seriesLabel, const QColor& p
         // Create a circle for the scatterplot point
         QGraphicsEllipseItem* point = new QGraphicsEllipseItem();
         point->setRect(screenPoint.x() - pointSize/2, screenPoint.y() - pointSize/2, pointSize, pointSize);
-        point->setPen(QPen(outlineColor, 1));
+        point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
         point->setBrush(QBrush(pointColor));
         point->setZValue(120); // Draw above data lines but below markers
         
@@ -1224,7 +1262,7 @@ void WaterfallGraph::drawScatterplot(const QColor& pointColor, qreal pointSize, 
         // Create a circle for the scatterplot point
         QGraphicsEllipseItem* point = new QGraphicsEllipseItem();
         point->setRect(screenPoint.x() - pointSize/2, screenPoint.y() - pointSize/2, pointSize, pointSize);
-        point->setPen(QPen(outlineColor, 1));
+        point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
         point->setBrush(QBrush(pointColor));
         point->setZValue(120); // Draw above data lines but below markers
         
