@@ -89,6 +89,10 @@ protected:
     QGraphicsView *graphicsView;
     QGraphicsScene *graphicsScene;
     
+    // Overlay scene for interactive elements
+    QGraphicsView *overlayView;
+    QGraphicsScene *overlayScene;
+    
     // Drawing area and grid
     QRectF drawingArea;
     bool gridEnabled;

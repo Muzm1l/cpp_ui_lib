@@ -10,7 +10,7 @@ ZoomPanel::ZoomPanel(QWidget *parent)
     , m_centerText(nullptr)
     , m_rightText(nullptr)
     , m_isDragging(false)
-    , m_currentValue(0.5)
+    , m_currentValue(1.0)
     , m_startedFromRightHalf(false)
 {
     // Set black background

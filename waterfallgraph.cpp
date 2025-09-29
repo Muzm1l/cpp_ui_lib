@@ -12,6 +12,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     : QWidget(parent)
     , graphicsView(nullptr)
     , graphicsScene(nullptr)
+    , overlayView(nullptr)
+    , overlayScene(nullptr)
     , gridEnabled(enableGrid)
     , gridDivisions(gridDivisions)
     , yMin(0.0), yMax(0.0)
@@ -63,17 +65,57 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     // Set size policy for graphics view to fill the widget
     graphicsView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
-    // Set up layout to make the graphics view fill the widget with no margins
+    // Initialize overlay scene for interactive elements
+    overlayScene = new QGraphicsScene(this);
+    overlayScene->setBackgroundBrush(QBrush(Qt::transparent)); // Transparent background
+    
+    // Create overlay graphics view
+    overlayView = new QGraphicsView(overlayScene, this);
+    overlayView->setRenderHint(QPainter::Antialiasing);
+    overlayView->setDragMode(QGraphicsView::NoDrag); // We'll handle our own mouse events
+    overlayView->setMouseTracking(true); // Enable mouse tracking
+    overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
+    
+    // Set transparent background for overlay view
+    overlayView->setBackgroundBrush(QBrush(Qt::transparent));
+    overlayView->setStyleSheet("background: transparent;"); // Additional transparency
+    
+    // Disable scrollbars for overlay
+    overlayView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    overlayView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    
+    // Ensure the overlay view fits the scene exactly
+    overlayView->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    overlayView->setFrameStyle(QFrame::NoFrame);
+    
+    // Set size policy for overlay view to fill the widget
+    overlayView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    // Make the overlay view completely transparent
+    overlayView->setAttribute(Qt::WA_TranslucentBackground, true);
+    
+    // Set up layout to make the main graphics view fill the widget with no margins
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(graphicsView);
     setLayout(layout);
     
+    // Position overlay view on top of the main view using absolute positioning
+    overlayView->setParent(this);
+    overlayView->setGeometry(QRect(0, 0, 100, 100)); // Initial size, will be resized in resizeEvent
+    overlayView->raise();
+    
     // Size policy will be set by parent container
     
     // Enable mouse tracking
     setMouseTracking(true);
+
+    selectionRect = new QGraphicsRectItem();
+    selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine)); // White dashed line
+    selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
+    selectionRect->setZValue(1000); // Ensure it's drawn on top
+    overlayScene->addItem(selectionRect); // Add to overlay scene
     
     // Debug: Print initial state
     qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
@@ -441,7 +483,7 @@ void WaterfallGraph::draw()
  */
 void WaterfallGraph::updateGraphicsDimensions()
 {
-    if (!graphicsView || !graphicsScene) return;
+    if (!graphicsView || !graphicsScene || !overlayView || !overlayScene) return;
     
     // Get the current size of the widget
     QSize widgetSize = this->size();
@@ -453,11 +495,17 @@ void WaterfallGraph::updateGraphicsDimensions()
         // Set scene rect to match widget size exactly
         QRectF newSceneRect(0, 0, widgetSize.width(), widgetSize.height());
         graphicsScene->setSceneRect(newSceneRect);
+        overlayScene->setSceneRect(newSceneRect); // Also update overlay scene
         
         // Ensure the graphics view fits the scene exactly (no scrollbars)
         graphicsView->fitInView(newSceneRect, Qt::KeepAspectRatio);
         graphicsView->resetTransform(); // Reset any scaling
         graphicsView->setTransform(QTransform()); // Ensure 1:1 mapping
+        
+        // Ensure the overlay view also fits the scene exactly
+        overlayView->fitInView(newSceneRect, Qt::KeepAspectRatio);
+        overlayView->resetTransform(); // Reset any scaling
+        overlayView->setTransform(QTransform()); // Ensure 1:1 mapping
         
         // Update the drawing area
         setupDrawingArea();
@@ -610,6 +658,12 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
     // Ensure graphics view fits the widget exactly
     if (graphicsView) {
         graphicsView->resize(event->size());
+    }
+    
+    // Ensure overlay view also fits the widget exactly and is positioned on top
+    if (overlayView) {
+        overlayView->setGeometry(QRect(0, 0, event->size().width(), event->size().height()));
+        overlayView->raise();
     }
     
     // Update graphics dimensions when the widget is resized
@@ -794,19 +848,10 @@ void WaterfallGraph::startSelection(const QPointF& scenePos)
     selectionStartPos = scenePos;
     selectionEndPos = scenePos;
     
-    // Create selection rectangle
-    if (selectionRect) {
-        qDebug() << "Removing existing selection rectangle";
-        graphicsScene->removeItem(selectionRect);
-        delete selectionRect;
-    }
     
     qDebug() << "Creating new selection rectangle";
-    selectionRect = new QGraphicsRectItem();
-    selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine)); // White dashed line
-    selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
-    selectionRect->setZValue(1000); // Ensure it's drawn on top
-    graphicsScene->addItem(selectionRect);
+
+    overlayScene->addItem(selectionRect);
     
     // Initialize with a small rectangle at the start position
     selectionRect->setRect(scenePos.x() - 1, scenePos.y() - 1, 2, 2);
@@ -892,9 +937,7 @@ void WaterfallGraph::endSelection()
 void WaterfallGraph::clearSelection()
 {
     if (selectionRect) {
-        graphicsScene->removeItem(selectionRect);
-        delete selectionRect;
-        selectionRect = nullptr;
+        overlayScene->removeItem(selectionRect);
     }
 }
 
