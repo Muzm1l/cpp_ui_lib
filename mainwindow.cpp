@@ -98,8 +98,8 @@ MainWindow::MainWindow(QWidget *parent)
     // // Configure TimelineView
     // configureTimelineView();
     
-    // // Configure Zoom Panel test functionality
-    // configureZoomPanel();
+    // Configure Zoom Panel test functionality
+    configureZoomPanel();
 
     // // Set up timer for current time updates (every second)
     // connect(timeUpdateTimer, &QTimer::timeout, this, &MainWindow::updateCurrentTime);
@@ -273,41 +273,41 @@ void MainWindow::updateSimulation()
 //     ui->timelineView->setCurrentTime(QTime::currentTime());
 // }
 
-// void MainWindow::configureZoomPanel()
-// {
-//     // Connect test buttons to zoom panel indicator
-//     connect(ui->testButton0, &QPushButton::clicked, [this]() {
-//         ui->zoomPanel->setIndicatorValue(0.0);
-//     });
+void MainWindow::configureZoomPanel()
+{
+    // Connect test buttons to zoom panel indicator
+    connect(ui->testButton0, &QPushButton::clicked, [this]() {
+        ui->zoomPanel->setCenterLabelValue(0.0);
+    });
     
-//     connect(ui->testButton50, &QPushButton::clicked, [this]() {
-//         ui->zoomPanel->setIndicatorValue(0.5);
-//     });
+    connect(ui->testButton50, &QPushButton::clicked, [this]() {
+        ui->zoomPanel->setCenterLabelValue(0.5);
+    });
     
-//     connect(ui->testButton100, &QPushButton::clicked, [this]() {
-//         ui->zoomPanel->setIndicatorValue(1.0);
-//     });
+    connect(ui->testButton100, &QPushButton::clicked, [this]() {
+        ui->zoomPanel->setCenterLabelValue(1.0);
+    });
         
-//     // Initialize zoom panel with a default value
-//     ui->zoomPanel->setIndicatorValue(0.3);
+    // Initialize zoom panel with a default value
+    ui->zoomPanel->setCenterLabelValue(0.3);
     
-//     // Initialize label values
-//     ui->zoomPanel->setLeftLabelValue(0.0);  // Left reference value
-//     ui->zoomPanel->setCenterLabelValue(0.5); // Center value
-//     ui->zoomPanel->setRightLabelValue(1.0);  // Range for upper bound
+    // Initialize label values
+    ui->zoomPanel->setLeftLabelValue(0.0);  // Left reference value
+    ui->zoomPanel->setCenterLabelValue(0.5); // Center value
+    ui->zoomPanel->setRightLabelValue(1.0);  // Range for upper bound
     
-//     // Initialize the indicator value label
-//     ui->indicatorValueLabel->setText("Bounds: [0.35, 0.80]");
+    // Initialize the indicator value label
+    ui->indicatorValueLabel->setText("Bounds: [0.35, 0.80]");
     
-//     // Connect to zoom panel value changed signal
-//     connect(ui->zoomPanel, &ZoomPanel::valueChanged, [this](ZoomBounds bounds) {
-//         // Update the indicator value label on main window with bounds
-//         ui->indicatorValueLabel->setText(QString("Bounds: [%1, %2]").arg(bounds.lowerbound, 0, 'f', 2).arg(bounds.upperbound, 0, 'f', 2));
+    // Connect to zoom panel value changed signal
+    connect(ui->zoomPanel, &ZoomPanel::valueChanged, [this](ZoomBounds bounds) {
+        // Update the indicator value label on main window with bounds
+        ui->indicatorValueLabel->setText(QString("Bounds: [%1, %2]").arg(bounds.lowerbound, 0, 'f', 2).arg(bounds.upperbound, 0, 'f', 2));
         
-//         // You can add additional logic here to respond to value changes
-//         // For example, update other UI elements or trigger other actions
-//     });
-// }
+        // You can add additional logic here to respond to value changes
+        // For example, update other UI elements or trigger other actions
+    });
+}
 
 void MainWindow::configureLayoutSelection()
 {

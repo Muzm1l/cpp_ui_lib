@@ -79,6 +79,71 @@
          </rect>
         </property>
        </widget>
+       <widget class="ZoomPanel" name="zoomPanel" native="true">
+        <property name="geometry">
+         <rect>
+          <x>970</x>
+          <y>730</y>
+          <width>300</width>
+          <height>50</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QLabel" name="indicatorValueLabel">
+        <property name="geometry">
+         <rect>
+          <x>1280</x>
+          <y>730</y>
+          <width>200</width>
+          <height>25</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Bounds: [0.00, 1.00]</string>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">color: white; background-color: black; font-weight: bold;</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="testButton0">
+        <property name="geometry">
+         <rect>
+          <x>1280</x>
+          <y>760</y>
+          <width>60</width>
+          <height>25</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Min</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="testButton50">
+        <property name="geometry">
+         <rect>
+          <x>1350</x>
+          <y>760</y>
+          <width>60</width>
+          <height>25</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Mid</string>
+        </property>
+       </widget>
+       <widget class="QPushButton" name="testButton100">
+        <property name="geometry">
+         <rect>
+          <x>1420</x>
+          <y>760</y>
+          <width>60</width>
+          <height>25</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>Max</string>
+        </property>
+       </widget>
       </widget>
       <widget class="QWidget" name="customGraphsTab">
        <attribute name="title">
@@ -136,6 +201,12 @@
    <class>CustomWaterfallGraph</class>
    <extends>QWidget</extends>
    <header>customwaterfallgraph.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ZoomPanel</class>
+   <extends>QWidget</extends>
+   <header>zoompanel.h</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

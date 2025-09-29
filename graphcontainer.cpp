@@ -609,12 +609,25 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
         return;
     }
     
-    // Set the custom Y range based on zoom bounds
-    m_waterfallGraph->setCustomYRange(bounds.lowerbound, bounds.upperbound);
+    qDebug() << "GraphContainer: Received zoom value changed signal - Lower:" << bounds.lowerbound 
+             << "Upper:" << bounds.upperbound;
+
+    // Convert normalized bounds to actual data values using zoom panel label values
+    qreal leftLabel = m_zoomPanel->getLeftLabelValue();
+    qreal rightLabel = m_zoomPanel->getRightLabelValue();
+    
+    // Convert normalized values (0.0 to 1.0) to actual data values
+    qreal actualLowerBound = leftLabel + bounds.lowerbound * (rightLabel - leftLabel);
+    qreal actualUpperBound = leftLabel + bounds.upperbound * (rightLabel - leftLabel);
+    
+    qDebug() << "GraphContainer: Converted to actual data values - Lower:" << actualLowerBound 
+             << "Upper:" << actualUpperBound;
+
+    // Set the custom Y range based on actual data bounds
+    m_waterfallGraph->setCustomYRange(actualLowerBound, actualUpperBound);
     
     // Update the time range to ensure only relevant data points are rendered
     m_waterfallGraph->updateTimeRange();
     
-    qDebug() << "GraphContainer: Zoom value changed - Lower:" << bounds.lowerbound 
-             << "Upper:" << bounds.upperbound << "- Time range updated";
+    qDebug() << "GraphContainer: Custom Y range set and time range updated";
 }

@@ -54,7 +54,7 @@ private:
     
     // void configureTimeVisualizer();
     // void configureTimelineView();
-    // void configureZoomPanel();
+    void configureZoomPanel();
     // void updateTimeline();
     void configureLayoutSelection();
     void demonstrateDataPointMethods();

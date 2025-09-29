@@ -20,7 +20,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     , timeMin(QDateTime())
     , timeMax(QDateTime())
     , dataRangesValid(false)
-    , rangeLimitingEnabled(false)
+    , rangeLimitingEnabled(true)
     , customYMin(0.0), customYMax(0.0)
     , timeInterval(timeInterval)
     , dataSource(nullptr)
@@ -1039,9 +1039,16 @@ void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
     customYMin = yMin;
     customYMax = yMax;
     
-    // Update data ranges and redraw if range limiting is enabled and we have data
-    if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty()) {
-        updateDataRanges();
+    // Update data ranges and redraw if range limiting is enabled
+    if (rangeLimitingEnabled) {
+        if (dataSource && !dataSource->isEmpty()) {
+            updateDataRanges();
+        } else {
+            // Even without data, set the Y range to the custom range for immediate feedback
+            this->yMin = customYMin;
+            this->yMax = customYMax;
+            dataRangesValid = true;
+        }
         draw();
     }
     
