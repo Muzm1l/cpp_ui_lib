@@ -110,7 +110,7 @@ private:
     void onTimerTick();
     
 signals:
-    void NewTimeSelectionCreated(qreal startTime, qreal endTime);
+    void TimeSelectionCreated(const TimeSelectionSpan& selection);
     void DeltaTimeSelectionChanged(qreal deltaTime);
     void TimeSelectionsCleared();
     void IntervalChanged(TimeInterval interval);

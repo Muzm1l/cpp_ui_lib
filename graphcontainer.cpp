@@ -528,6 +528,9 @@ void GraphContainer::onSelectionCreated(const TimeSelectionSpan& selection)
     } else {
         qWarning() << "GraphContainer: Timeline selection view is null";
     }
+    
+    // Emit the new signal for external components
+    emit TimeSelectionCreated(selection);
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)

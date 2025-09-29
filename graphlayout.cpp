@@ -177,6 +177,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
     
     // Update sizing after layout changes
     updateLayoutSizing();
+    
+    // Link horizontal containers for selection events
+    linkHorizontalContainers();
 }
 
 LayoutType GraphLayout::getLayoutType() const
@@ -713,13 +716,14 @@ void GraphLayout::disconnectAllContainerConnections()
 {
     qDebug() << "GraphLayout: Disconnecting external container connections";
     
-    // Disconnect only external connections (IntervalChanged signal) to prevent duplicate connections
+    // Disconnect external connections to prevent duplicate connections
     // while preserving internal connections like TimelineView -> GraphContainer
     for (auto* container : m_graphContainers) {
         if (container) {
-            // Disconnect only the IntervalChanged signal to preserve internal functionality
+            // Disconnect IntervalChanged and TimeSelectionCreated signals to preserve internal functionality
             container->disconnect(SIGNAL(IntervalChanged(TimeInterval)));
-            qDebug() << "GraphLayout: Disconnected IntervalChanged signal from container";
+            container->disconnect(SIGNAL(TimeSelectionCreated(TimeSelectionSpan)));
+            qDebug() << "GraphLayout: Disconnected external signals from container";
         }
     }
 }
@@ -730,6 +734,55 @@ void GraphLayout::setCurrentTime(const QTime& time)
         if (container) {
             container->setCurrentTime(time);
         }
+    }
+}
+
+void GraphLayout::linkHorizontalContainers()
+{
+    qDebug() << "GraphLayout: Linking horizontal containers for layout type:" << static_cast<int>(m_layoutType);
+    
+    // Disconnect all existing connections first to avoid duplicates
+    disconnectAllContainerConnections();
+    
+    switch (m_layoutType) {
+        case LayoutType::GPW4W:
+            // Link row 1: container 0 -> container 1
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
+                    m_graphContainers[1], &GraphContainer::addTimeSelection);
+            // Link row 2: container 2 -> container 3
+            connect(m_graphContainers[2], &GraphContainer::TimeSelectionCreated,
+                    m_graphContainers[3], &GraphContainer::addTimeSelection);
+            qDebug() << "GraphLayout: Linked containers for GPW4W layout";
+            break;
+            
+        case LayoutType::GPW2WH:
+            // Link horizontal: container 0 -> container 1
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
+                    m_graphContainers[1], &GraphContainer::addTimeSelection);
+            qDebug() << "GraphLayout: Linked containers for GPW2WH layout";
+            break;
+            
+        case LayoutType::GPW4WH:
+            // Link horizontal: container 0 -> containers 1, 2, 3
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
+                    m_graphContainers[1], &GraphContainer::addTimeSelection);
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
+                    m_graphContainers[2], &GraphContainer::addTimeSelection);
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
+                    m_graphContainers[3], &GraphContainer::addTimeSelection);
+            qDebug() << "GraphLayout: Linked containers for GPW4WH layout";
+            break;
+            
+        case LayoutType::GPW1W:
+        case LayoutType::GPW2WV:
+        case LayoutType::HIDDEN:
+            // No horizontal linking needed for these layouts
+            qDebug() << "GraphLayout: No horizontal linking needed for layout type:" << static_cast<int>(m_layoutType);
+            break;
+            
+        default:
+            qWarning() << "GraphLayout: Unknown layout type for horizontal linking:" << static_cast<int>(m_layoutType);
+            break;
     }
 }
 

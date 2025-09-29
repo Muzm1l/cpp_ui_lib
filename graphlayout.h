@@ -87,6 +87,9 @@ public:
     // Set the current time 
     void setCurrentTime(const QTime& time);
 
+    // Selection linking methods
+    void linkHorizontalContainers();
+
 public slots:
     void onTimerTick();
 
