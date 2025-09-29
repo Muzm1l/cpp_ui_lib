@@ -720,9 +720,10 @@ void GraphLayout::disconnectAllContainerConnections()
     // while preserving internal connections like TimelineView -> GraphContainer
     for (auto* container : m_graphContainers) {
         if (container) {
-            // Disconnect IntervalChanged and TimeSelectionCreated signals to preserve internal functionality
+            // Disconnect IntervalChanged, TimeSelectionCreated, and TimeSelectionsCleared signals to preserve internal functionality
             container->disconnect(SIGNAL(IntervalChanged(TimeInterval)));
             container->disconnect(SIGNAL(TimeSelectionCreated(TimeSelectionSpan)));
+            container->disconnect(SIGNAL(TimeSelectionsCleared()));
             qDebug() << "GraphLayout: Disconnected external signals from container";
         }
     }
@@ -746,12 +747,34 @@ void GraphLayout::linkHorizontalContainers()
     
     switch (m_layoutType) {
         case LayoutType::GPW4W:
+
+            // Row 1
             // Link row 1: container 0 -> container 1
             connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
                     m_graphContainers[1], &GraphContainer::addTimeSelection);
+
+            // Link row 1: container 0 (clear selection) -> container 1 (clear selection)
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[1], &GraphContainer::clearTimeSelectionsSilent);
+
+            // Cross link row 1: container 1 -> container 0 (clear selection)
+            connect(m_graphContainers[1], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
+
+
+            // Row 2
             // Link row 2: container 2 -> container 3
             connect(m_graphContainers[2], &GraphContainer::TimeSelectionCreated,
                     m_graphContainers[3], &GraphContainer::addTimeSelection);
+            
+            // Link row 2: container 2 (clear selection) -> container 3 (clear selection)
+            connect(m_graphContainers[2], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[3], &GraphContainer::clearTimeSelectionsSilent);
+
+            // Cross link row 2: container 3 -> container 2 (clear selection)
+            connect(m_graphContainers[3], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[2], &GraphContainer::clearTimeSelectionsSilent);
+                    
             qDebug() << "GraphLayout: Linked containers for GPW4W layout";
             break;
             
@@ -759,17 +782,59 @@ void GraphLayout::linkHorizontalContainers()
             // Link horizontal: container 0 -> container 1
             connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
                     m_graphContainers[1], &GraphContainer::addTimeSelection);
+            
+            // Link horizontal: container 0 (clear selection) -> container 1 (clear selection)
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[1], &GraphContainer::clearTimeSelectionsSilent);
+
+            // Cross link horizontal: container 1 -> container 0 (clear selection)
+            connect(m_graphContainers[1], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
             qDebug() << "GraphLayout: Linked containers for GPW2WH layout";
             break;
             
         case LayoutType::GPW4WH:
-            // Link horizontal: container 0 -> containers 1, 2, 3
+            // Link horizontal: container 0 -> containers 1, 2, 3 (selection creation)
             connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
                     m_graphContainers[1], &GraphContainer::addTimeSelection);
             connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
                     m_graphContainers[2], &GraphContainer::addTimeSelection);
             connect(m_graphContainers[0], &GraphContainer::TimeSelectionCreated,
                     m_graphContainers[3], &GraphContainer::addTimeSelection);
+
+            // Cross-link horizontal: clear button events (all containers <-> all containers)
+            // Container 0 -> containers 1, 2, 3
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[1], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[2], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[0], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[3], &GraphContainer::clearTimeSelectionsSilent);
+            
+            // Container 1 -> containers 0, 2, 3
+            connect(m_graphContainers[1], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[1], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[2], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[1], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[3], &GraphContainer::clearTimeSelectionsSilent);
+            
+            // Container 2 -> containers 0, 1, 3
+            connect(m_graphContainers[2], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[2], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[1], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[2], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[3], &GraphContainer::clearTimeSelectionsSilent);
+            
+            // Container 3 -> containers 0, 1, 2
+            connect(m_graphContainers[3], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[3], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[1], &GraphContainer::clearTimeSelectionsSilent);
+            connect(m_graphContainers[3], &GraphContainer::TimeSelectionsCleared,
+                    m_graphContainers[2], &GraphContainer::clearTimeSelectionsSilent);
+
             qDebug() << "GraphLayout: Linked containers for GPW4WH layout";
             break;
             

@@ -86,6 +86,7 @@ public:
     // Selection management methods
     void addTimeSelection(const TimeSelectionSpan& selection);
     void clearTimeSelections();
+    void clearTimeSelectionsSilent(); // Clears without emitting signal
     
     // Test method
     void testSelectionRectangle();

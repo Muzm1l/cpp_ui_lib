@@ -604,6 +604,20 @@ void GraphContainer::clearTimeSelections()
     }
 }
 
+void GraphContainer::clearTimeSelectionsSilent()
+{
+    qDebug() << "GraphContainer: Silently clearing all time selections (no signal emission)";
+    
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->clearTimeSelections();
+        qDebug() << "GraphContainer: All time selections cleared from timeline selection view (silent)";
+        
+        // Do NOT emit signal to prevent cyclic dependencies
+    } else {
+        qWarning() << "GraphContainer: Timeline selection view is null - cannot clear selections";
+    }
+}
+
 void GraphContainer::initializeZoomPanelLimits()
 {
     if (!m_zoomPanel) {
