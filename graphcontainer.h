@@ -108,6 +108,7 @@ private:
     void initializeWaterfallGraph(GraphType graphType);
     void setupTimer();
     void onTimerTick();
+    void onClearTimeSelectionsButtonClicked();
     
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan& selection);

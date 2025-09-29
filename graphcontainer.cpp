@@ -402,6 +402,12 @@ void GraphContainer::setupEventConnections()
                 this, &GraphContainer::onTimeIntervalChanged);
     }
     
+    // Connect TimeSelectionVisualizer clear button events
+    if (m_timelineSelectionView) {
+        connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionsCleared,
+                this, &GraphContainer::onClearTimeSelectionsButtonClicked);
+    }
+    
     qDebug() << "GraphContainer: All event connections established";
 }
 
@@ -662,4 +668,10 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
     m_waterfallGraph->updateTimeRange();
     
     qDebug() << "GraphContainer: Custom Y range set and time range updated";
+}
+
+void GraphContainer::onClearTimeSelectionsButtonClicked()
+{
+    qDebug() << "GraphContainer: Clear time selections button clicked";
+    clearTimeSelections();
 }

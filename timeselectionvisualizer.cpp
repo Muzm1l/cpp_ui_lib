@@ -214,5 +214,6 @@ void TimeSelectionVisualizer::onTimerTick()
 void TimeSelectionVisualizer::onButtonClicked()
 {
     clearTimeSelections();
-    qDebug() << "Time selections cleared!";
+    emit timeSelectionsCleared();
+    qDebug() << "Time selections cleared and signal emitted!";
 }

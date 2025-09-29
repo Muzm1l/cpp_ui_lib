@@ -62,6 +62,9 @@ public:
     void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
 
+signals:
+    void timeSelectionsCleared();
+
 private slots:
     void onButtonClicked();
     void onTimerTick();
