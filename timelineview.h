@@ -9,6 +9,7 @@
 #include <QTime>
 #include <QList>
 #include <QObject>
+#include <QTimer>
 #include "timelineutils.h"
 
 // Compile-time parameters
@@ -63,7 +64,7 @@ class TimelineView : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineView(QWidget *parent = nullptr);
+    explicit TimelineView(QWidget *parent = nullptr, QTimer *timer = nullptr);
     ~TimelineView();
     
            // No time selection methods needed for TimelineView
@@ -86,12 +87,18 @@ private:
     int intervalIndex = 0;
     bool m_isAbsoluteTime = true;
     
+    // Timer management
+    QTimer *m_timer;
+    bool m_ownsTimer;
+    
     void updateButtonText(TimeInterval interval);
     void updateTimeModeButtonText(bool isAbsoluteTime);
+    void setupTimer();
 
 private slots:
     void onIntervalButtonClicked();
     void onTimeModeButtonClicked();
+    void onTimerTick();
 
 };
 

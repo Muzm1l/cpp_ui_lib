@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QTime>
+#include <QTimer>
 #include <QList>
 #include "timelineutils.h"
 
@@ -51,7 +52,7 @@ class TimeSelectionVisualizer : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimeSelectionVisualizer(QWidget *parent = nullptr);
+    explicit TimeSelectionVisualizer(QWidget *parent = nullptr, QTimer *timer = nullptr);
     ~TimeSelectionVisualizer();
     
     // Delegate methods to the visualizer widget
@@ -63,11 +64,18 @@ public:
 
 private slots:
     void onButtonClicked();
+    void onTimerTick();
 
 private:
     QPushButton *m_button;
     TimeVisualizerWidget *m_visualizerWidget;
     QVBoxLayout *m_layout;
+    
+    // Timer management
+    QTimer *m_timer;
+    bool m_ownsTimer;
+    
+    void setupTimer();
 };
 
 #endif // TIMESELECTIONVISUALIZER_H

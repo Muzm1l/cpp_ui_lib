@@ -306,13 +306,18 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
 
 
 
-TimelineView::TimelineView(QWidget *parent)
+TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     : QWidget(parent)
     , m_intervalChangeButton(nullptr)
     , m_timeModeChangeButton(nullptr)
     , m_visualizerWidget(nullptr)
     , m_layout(nullptr)
+    , m_timer(timer)
+    , m_ownsTimer(false)
 {
+    // Setup timer (create default if none provided)
+    setupTimer();
+    
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
 
@@ -393,7 +398,41 @@ TimelineView::TimelineView(QWidget *parent)
 
 TimelineView::~TimelineView()
 {
-    // No UI to delete anymore
+    // Stop the timer if we own it
+    if (m_timer && m_ownsTimer) {
+        m_timer->stop();
+        // Timer will be automatically deleted by Qt's parent-child system
+    }
+}
+
+void TimelineView::setupTimer()
+{
+    // If no timer provided, create a default 1-second timer
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        m_ownsTimer = true;
+        m_timer->setInterval(1000); // 1 second
+    }
+    
+    // Connect timer to our tick handler
+    connect(m_timer, &QTimer::timeout, this, &TimelineView::onTimerTick);
+    
+    // Start the timer
+    m_timer->start();
+    
+    qDebug() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
+}
+
+void TimelineView::onTimerTick()
+{
+    // Update current time to the visualizer widget
+    QTime currentTime = QTime::currentTime();
+    
+    if (m_visualizerWidget) {
+        m_visualizerWidget->setCurrentTime(currentTime);
+    }
+    
+    qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
 
 void TimelineView::updateButtonText(TimeInterval interval)

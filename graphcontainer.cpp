@@ -50,15 +50,15 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, QTimer *t
     // Add left layout to main layout with stretch factor
     m_mainLayout->addLayout(m_leftLayout, 1); // Give stretch factor of 1 to left layout
     
-    // Create TimelineSelectionView
-    m_timelineSelectionView = new TimeSelectionVisualizer(this);
+    // Create TimelineSelectionView with timer
+    m_timelineSelectionView = new TimeSelectionVisualizer(this, m_timer);
     m_mainLayout->addWidget(m_timelineSelectionView);
     m_timelineSelectionView->setCurrentTime(QTime::currentTime());
     m_timelineSelectionView->setTimeLineLength(TimeInterval::FifteenMinutes);
     
-    // Create TimelineView (conditionally based on showTimelineView)
+    // Create TimelineView (conditionally based on showTimelineView) with timer
     if (m_showTimelineView) {
-        m_timelineView = new TimelineView(this);
+        m_timelineView = new TimelineView(this, m_timer);
         m_mainLayout->addWidget(m_timelineView);
     } else {
         m_timelineView = nullptr;
@@ -123,7 +123,7 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     if (m_timelineView) {
         m_timelineView->setVisible(showTimelineView);
     } else {
-        m_timelineView = new TimelineView(this);
+        m_timelineView = new TimelineView(this, m_timer);
         m_mainLayout->addWidget(m_timelineView);
         
         // Re-establish event connections to include the new TimelineView

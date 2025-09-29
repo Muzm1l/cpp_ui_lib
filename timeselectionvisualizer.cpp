@@ -1,4 +1,5 @@
 #include "timeselectionvisualizer.h"
+#include <QDebug>
 
 TimeVisualizerWidget::TimeVisualizerWidget(QWidget *parent)
     : QWidget(parent)
@@ -117,12 +118,17 @@ void TimeVisualizerWidget::updateVisualization()
     update(); // Trigger a repaint
 }
 
-TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget *parent)
+TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget *parent, QTimer *timer)
     : QWidget(parent)
     , m_button(nullptr)
     , m_visualizerWidget(nullptr)
     , m_layout(nullptr)
+    , m_timer(timer)
+    , m_ownsTimer(false)
 {
+    // Setup timer (create default if none provided)
+    setupTimer();
+    
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
     
@@ -168,7 +174,41 @@ TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget *parent)
 
 TimeSelectionVisualizer::~TimeSelectionVisualizer()
 {
-    // No UI to delete anymore
+    // Stop the timer if we own it
+    if (m_timer && m_ownsTimer) {
+        m_timer->stop();
+        // Timer will be automatically deleted by Qt's parent-child system
+    }
+}
+
+void TimeSelectionVisualizer::setupTimer()
+{
+    // If no timer provided, create a default 1-second timer
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        m_ownsTimer = true;
+        m_timer->setInterval(1000); // 1 second
+    }
+    
+    // Connect timer to our tick handler
+    connect(m_timer, &QTimer::timeout, this, &TimeSelectionVisualizer::onTimerTick);
+    
+    // Start the timer
+    m_timer->start();
+    
+    qDebug() << "TimeSelectionVisualizer: Timer setup completed - interval:" << m_timer->interval() << "ms";
+}
+
+void TimeSelectionVisualizer::onTimerTick()
+{
+    // Update current time to the visualizer widget
+    QTime currentTime = QTime::currentTime();
+    
+    if (m_visualizerWidget) {
+        m_visualizerWidget->setCurrentTime(currentTime);
+    }
+    
+    qDebug() << "TimeSelectionVisualizer: Timer tick - updated current time to" << currentTime.toString();
 }
 
 void TimeSelectionVisualizer::onButtonClicked()
