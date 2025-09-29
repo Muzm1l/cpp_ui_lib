@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QComboBox>
 #include <QDateTime>
+#include <QTimer>
 #include <vector>
 #include <map>
 #include <QString>
@@ -29,7 +30,8 @@ class GraphContainer : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true);
+    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, QTimer *timer = nullptr);
+    ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
     
@@ -98,14 +100,9 @@ private:
     void setupEventConnectionsForWaterfallGraph();
     WaterfallGraph* createWaterfallGraph(GraphType graphType);
     void initializeWaterfallGraph(GraphType graphType);
+    void setupTimer();
+    void onTimerTick();
     
-    // Data source management
-    WaterfallData waterfallData;
-    
-    // Data options management
-    std::map<GraphType, WaterfallData*> dataOptions;
-    GraphType currentDataOption;
-
 signals:
     void NewTimeSelectionCreated(qreal startTime, qreal endTime);
     void DeltaTimeSelectionChanged(qreal deltaTime);
@@ -122,9 +119,20 @@ private:
     TimelineView *m_timelineView;
     bool m_showTimelineView;
     
+    // Timer management
+    QTimer *m_timer;
+    bool m_ownsTimer;
+    
     // Sizing properties
     int m_timelineWidth;
     QSize m_graphViewSize;
+    
+    // Data source management
+    WaterfallData waterfallData;
+    
+    // Data options management
+    std::map<GraphType, WaterfallData*> dataOptions;
+    GraphType currentDataOption;
 };
 
 #endif // GRAPHCONTAINER_H

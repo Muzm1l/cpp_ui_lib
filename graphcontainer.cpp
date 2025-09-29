@@ -1,9 +1,25 @@
 #include "graphcontainer.h"
 #include <QDebug>
 
-GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
-    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timelineWidth(150), m_graphViewSize(80, 300), currentDataOption(GraphType::BDW)
+GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, QTimer *timer)
+    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(150), m_graphViewSize(80, 300), currentDataOption(GraphType::BDW)
 {
+
+    // If the timer is not provided, create a default 1-second timer
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        m_timer->setInterval(1000); // 1 second
+
+        // Connect timer to our tick handler
+        connect(m_timer, &QTimer::timeout, this, &GraphContainer::onTimerTick);
+        
+        // Start the timer
+        m_timer->start();
+        
+        qDebug() << "GraphContainer: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
+    }
+    
+    
     // Create main horizontal layout with 1px spacing and no margins
     m_mainLayout = new QHBoxLayout(this);
     m_mainLayout->setSpacing(1);
@@ -56,6 +72,49 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView)
     
     // Initialize container size
     updateTotalContainerSize();
+}
+
+void GraphContainer::setupTimer()
+{
+    // If no timer provided, create a default 1-second timer
+    if (!m_timer) {
+        m_timer = new QTimer(this);
+        m_ownsTimer = true;
+        m_timer->setInterval(1000); // 1 second
+    }
+    
+    // Connect timer to our tick handler
+    connect(m_timer, &QTimer::timeout, this, &GraphContainer::onTimerTick);
+    
+    // Start the timer
+    m_timer->start();
+    
+    qDebug() << "GraphContainer: Timer setup completed - interval:" << m_timer->interval() << "ms";
+}
+
+void GraphContainer::onTimerTick()
+{
+    // Update current time to all objects in the container
+    QTime currentTime = QTime::currentTime();
+    
+    if (m_timelineSelectionView) {
+        m_timelineSelectionView->setCurrentTime(currentTime);
+    }
+    
+    if (m_timelineView) {
+        m_timelineView->setCurrentTime(currentTime);
+    }
+    
+    qDebug() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
+}
+
+GraphContainer::~GraphContainer()
+{
+    // Stop the timer if we own it
+    if (m_timer && m_ownsTimer) {
+        m_timer->stop();
+        // Timer will be automatically deleted by Qt's parent-child system
+    }
 }
 
 void GraphContainer::setShowTimelineView(bool showTimelineView)
