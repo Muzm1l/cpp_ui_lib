@@ -10,7 +10,11 @@
 #include <QList>
 #include <QObject>
 #include <QTimer>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <vector>
 #include "timelineutils.h"
+#include "timelinedrawingobjects.h"
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
@@ -32,6 +36,9 @@ public:
     QTime getTimeLineLength() const { return m_timeLineLength; }
     QTime getCurrentTime() const { return m_currentTime; }
     int getNumberOfDivisions() const { return m_numberOfDivisions; }
+    
+    // Update and draw loop method
+    void updateAndDraw();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -47,14 +54,22 @@ private:
     double m_pixelSpeed; // pixels per second
     double m_accumulatedOffset; // accumulated pixel offset
     
+    // Drawing objects (only segments and chevron)
+    TimelineChevronDrawer* m_chevronDrawer;
+    std::vector<TimelineSegmentDrawer*> m_segmentDrawers;
+    
     void updateVisualization();
-    void drawSegment(QPainter &painter, int segmentNumber);
-    void drawChevron(QPainter &painter, int yOffset);
-    QString getTimeLabel(int segmentNumber, bool isAbsoluteTime);
-    void drawChevronLabels(QPainter &painter, int yOffset);
     double calculateTimeOffset();
     void updatePixelSpeed();
     double calculateSmoothOffset();
+    
+    // Drawing object management
+    void createDrawingObjects();
+    void clearDrawingObjects();
+    
+    // Helper methods for drawing with QPainter
+    void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
+    void drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer);
 
 };
     
@@ -74,6 +89,9 @@ public:
     }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
     void setNumberOfDivisions(int divisions) { m_visualizerWidget->setNumberOfDivisions(divisions); }
+    
+    // Update and draw loop method
+    void updateAndDraw() { if (m_visualizerWidget) m_visualizerWidget->updateAndDraw(); }
 
 
     signals:
