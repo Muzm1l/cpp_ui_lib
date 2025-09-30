@@ -39,6 +39,10 @@ public:
     
     // Update and draw loop method
     void updateAndDraw();
+    
+    // Label mode control
+    void setShowRelativeLabels(bool showRelative);
+    bool getShowRelativeLabels() const { return m_showRelativeLabels; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -57,6 +61,9 @@ private:
     // Drawing objects (only segments and chevron)
     TimelineChevronDrawer* m_chevronDrawer;
     std::vector<TimelineSegmentDrawer*> m_segmentDrawers;
+    
+    // Label mode control
+    bool m_showRelativeLabels = false;
     
     void updateVisualization();
     double calculateTimeOffset();

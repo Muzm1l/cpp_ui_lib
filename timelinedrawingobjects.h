@@ -66,8 +66,19 @@ public:
     QString getTimeLabel(int segmentNumber, bool isAbsoluteTime);
     
     // Get fixed label (set once, never changes)
-    QString getFixedLabel() const { return m_fixedLabel; }
+    QString getFixedLabel() const { return getDisplayLabel(); }
     bool isLabelSet() const { return m_labelSet; }
+    
+    // Mutable label mode control
+    mutable bool m_showRelativeLabel = false;
+    void setShowRelativeLabel(bool showRelative) const { m_showRelativeLabel = showRelative; }
+    bool getShowRelativeLabel() const { return m_showRelativeLabel; }
+    
+    // Get the display label (absolute or relative based on mode)
+    QString getDisplayLabel() const;
+    
+    // Get the stored segment time
+    QTime getSegmentTime() const { return m_segmentTime; }
 
 private:
     int m_segmentNumber;
@@ -78,8 +89,8 @@ private:
     QRect m_drawArea;
     double m_smoothOffset;
     
-    // Fixed label value - set once and never updated
-    QString m_fixedLabel;
+    // Fixed label values - set once and never updated
+    QTime m_segmentTime;  // Store the actual time for this segment
     bool m_labelSet;
 
     void drawSegment(QPainter& painter);

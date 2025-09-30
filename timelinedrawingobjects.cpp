@@ -20,12 +20,34 @@ TimelineSegmentDrawer::TimelineSegmentDrawer(int segmentNumber,
     , m_isAbsoluteTime(isAbsoluteTime)
     , m_drawArea(drawArea)
     , m_smoothOffset(0.0)
-    , m_fixedLabel("")
+    , m_segmentTime()
     , m_labelSet(false)
 {
-    // Set the fixed label once during construction
+    // Calculate and store the segment time once during construction
     if (segmentNumber % 3 == 0) { // Only every 3rd segment gets a label
-        m_fixedLabel = getTimeLabel(segmentNumber, isAbsoluteTime);
+        // Calculate the time interval per segment
+        int totalSeconds = m_timelineLength.hour() * 3600 + m_timelineLength.minute() * 60 + m_timelineLength.second();
+        int segmentIntervalSeconds = totalSeconds / m_numberOfDivisions;
+        
+        // Calculate the segment time by subtracting segmentNumber * segmentInterval from currentTime
+        m_segmentTime = m_currentTime.addSecs(-segmentNumber * segmentIntervalSeconds);
+        
+        // Handle case where time goes into previous day - wrap around
+        if (m_segmentTime.isNull()) {
+            // If addSecs resulted in invalid time, try adding to start of day
+            int currentSeconds = m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second();
+            int targetSeconds = currentSeconds - (segmentNumber * segmentIntervalSeconds);
+            
+            // Wrap around if negative
+            if (targetSeconds < 0) {
+                targetSeconds += 24 * 3600; // Add 24 hours
+            }
+            
+            int hours = targetSeconds / 3600;
+            int minutes = (targetSeconds % 3600) / 60;
+            m_segmentTime = QTime(hours, minutes, 0);
+        }
+        
         m_labelSet = true;
     }
 }
@@ -164,6 +186,37 @@ QString TimelineSegmentDrawer::getTimeLabel(int segmentNumber, bool isAbsoluteTi
                         .arg(diffMinutes, 2, 10, QChar('0'));
     }
     return timestamp;
+}
+
+QString TimelineSegmentDrawer::getDisplayLabel() const
+{
+    if (!m_labelSet) {
+        return QString();
+    }
+    
+    if (m_showRelativeLabel) {
+        // Calculate relative label based on current time difference
+        int currentSeconds = m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second();
+        int segmentSeconds = m_segmentTime.hour() * 3600 + m_segmentTime.minute() * 60 + m_segmentTime.second();
+        
+        int diffSeconds = segmentSeconds - currentSeconds;
+        int diffHours = diffSeconds / 3600;
+        int diffMinutes = (diffSeconds % 3600) / 60;
+        
+        // Format as "-HH:MM" or "+HH:MM"
+        if (diffSeconds >= 0) {
+            return QString("+%1:%2")
+                        .arg(diffHours, 2, 10, QChar('0'))
+                        .arg(diffMinutes, 2, 10, QChar('0'));
+        } else {
+            return QString("-%1:%2")
+                        .arg(-diffHours, 2, 10, QChar('0'))
+                        .arg(-diffMinutes, 2, 10, QChar('0'));
+        }
+    } else {
+        // Return absolute time
+        return m_segmentTime.toString("HH:mm");
+    }
 }
 
 // TimelineChevronDrawer Implementation

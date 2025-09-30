@@ -134,6 +134,7 @@ void TimelineVisualizerWidget::createDrawingObjects()
     for (int i = startSegment; i < endSegment; ++i) {
         TimelineSegmentDrawer* segmentDrawer = new TimelineSegmentDrawer(
             i, m_timeLineLength, m_currentTime, m_numberOfDivisions, m_isAbsoluteTime, drawArea);
+        segmentDrawer->setShowRelativeLabel(m_showRelativeLabels);
         m_segmentDrawers.push_back(segmentDrawer);
     }
 }
@@ -149,6 +150,18 @@ void TimelineVisualizerWidget::clearDrawingObjects()
     // Clear chevron drawer
     delete m_chevronDrawer;
     m_chevronDrawer = nullptr;
+}
+
+void TimelineVisualizerWidget::setShowRelativeLabels(bool showRelative)
+{
+    m_showRelativeLabels = showRelative;
+    
+    // Update all existing segment drawers
+    for (auto* segmentDrawer : m_segmentDrawers) {
+        if (segmentDrawer) {
+            segmentDrawer->setShowRelativeLabel(showRelative);
+        }
+    }
 }
 
 void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
@@ -191,6 +204,7 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
             --minSegmentNumber;
             TimelineSegmentDrawer* segmentDrawer = new TimelineSegmentDrawer(
                 minSegmentNumber, m_timeLineLength, m_currentTime, m_numberOfDivisions, m_isAbsoluteTime, rect());
+            segmentDrawer->setShowRelativeLabel(m_showRelativeLabels);
             m_segmentDrawers.push_back(segmentDrawer);
         }
     }
@@ -487,7 +501,7 @@ void TimelineView::onIntervalButtonClicked()
 void TimelineView::onTimeModeButtonClicked()
 {
     m_isAbsoluteTime = !m_isAbsoluteTime;
-    m_visualizerWidget->setIsAbsoluteTime(m_isAbsoluteTime);
+    m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
     updateTimeModeButtonText(m_isAbsoluteTime);
 }   
 
