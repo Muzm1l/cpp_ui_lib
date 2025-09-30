@@ -23,6 +23,7 @@
 #include <QFont>
 #include <QPolygonF>
 #include <vector>
+#include <map>
 #include "drawutils.h"
 #include "waterfalldata.h"
 #include "timelineutils.h"
@@ -103,6 +104,8 @@ protected:
     
     // Data plotting methods
     virtual void drawDataLine();
+    virtual void drawAllDataSeries();
+    virtual void drawDataSeries(const QString& seriesLabel);
     QPointF mapDataToScreen(qreal yValue, const QDateTime& timestamp) const;
     void updateDataRanges();
     
@@ -120,6 +123,10 @@ protected:
     
     // Data source reference
     WaterfallData* dataSource;
+    
+    // Multi-series support
+    std::map<QString, QColor> seriesColors;
+    std::map<QString, bool> seriesVisibility;
     
     // Mouse tracking
     bool isDragging;
@@ -166,6 +173,13 @@ public:
     void drawTriangleMarker(const QPointF& position, const QColor& fillColor = Qt::red, const QColor& outlineColor = Qt::black, qreal size = 8.0);
     void drawScatterplot(const QString& seriesLabel, const QColor& pointColor = Qt::white, qreal pointSize = 3.0, const QColor& outlineColor = Qt::black);
     void drawScatterplot(const QColor& pointColor = Qt::white, qreal pointSize = 3.0, const QColor& outlineColor = Qt::black);
+    
+    // Multi-series support methods
+    void setSeriesColor(const QString& seriesLabel, const QColor& color);
+    QColor getSeriesColor(const QString& seriesLabel) const;
+    void setSeriesVisible(const QString& seriesLabel, bool visible);
+    bool isSeriesVisible(const QString& seriesLabel) const;
+    std::vector<QString> getVisibleSeries() const;
 
 signals:
     void SelectionCreated(const TimeSelectionSpan& selection);

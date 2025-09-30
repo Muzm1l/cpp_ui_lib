@@ -346,7 +346,8 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     
     // Update data ranges if we have data
     if (dataSource && !dataSource->isEmpty()) {
-        auto yRange = dataSource->getYRange();
+        // Use combined range from all series
+        auto yRange = dataSource->getCombinedYRange();
         yMin = yRange.first;
         yMax = yRange.second;
         dataRangesValid = true;
@@ -470,10 +471,10 @@ void WaterfallGraph::draw()
         drawGrid();
     }
 
-    // Draw the actual data line if we have data
+    // Draw the actual data if we have data
     if (dataSource && !dataSource->isEmpty()) {
         updateDataRanges();
-        drawDataLine();
+        drawAllDataSeries();
     }
 }
 
@@ -705,7 +706,7 @@ void WaterfallGraph::updateDataRanges()
         return;
     }
     
-    auto yRange = dataSource->getYRange();
+    auto yRange = dataSource->getCombinedYRange();
     qreal dataYMin = yRange.first;
     qreal dataYMax = yRange.second;
     
@@ -1320,4 +1321,189 @@ void WaterfallGraph::drawScatterplot(const QColor& pointColor, qreal pointSize, 
     }
     
     qDebug() << "Default scatterplot drawn with" << visibleData.size() << "points";
+}
+
+/**
+ * @brief Draw all data series in the waterfall graph.
+ * 
+ */
+void WaterfallGraph::drawAllDataSeries()
+{
+    if (!graphicsScene || !dataSource || !dataRangesValid) {
+        return;
+    }
+    
+    // Get all available data series labels
+    std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+    
+    // If no multi-series data, fall back to legacy single series
+    if (seriesLabels.empty()) {
+        drawDataLine();
+        return;
+    }
+    
+    // Draw each visible series
+    for (const QString& seriesLabel : seriesLabels) {
+        if (isSeriesVisible(seriesLabel)) {
+            drawDataSeries(seriesLabel);
+        }
+    }
+}
+
+/**
+ * @brief Draw a specific data series.
+ * 
+ * @param seriesLabel The label of the series to draw
+ */
+void WaterfallGraph::drawDataSeries(const QString& seriesLabel)
+{
+    if (!graphicsScene || !dataSource || !dataRangesValid) {
+        return;
+    }
+    
+    const auto& yData = dataSource->getYDataSeries(seriesLabel);
+    const auto& timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    
+    if (yData.empty() || timestamps.empty()) {
+        qDebug() << "No data available for series:" << seriesLabel;
+        return;
+    }
+    
+    // Filter data points to only include those within the current time range
+    std::vector<std::pair<qreal, QDateTime>> visibleData;
+    for (size_t i = 0; i < yData.size(); ++i) {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax) {
+            visibleData.push_back({yData[i], timestamps[i]});
+        }
+    }
+    
+    if (visibleData.empty()) {
+        qDebug() << "No data points within current time range for series:" << seriesLabel;
+        return;
+    }
+    
+    // Get series color
+    QColor seriesColor = getSeriesColor(seriesLabel);
+    
+    if (visibleData.size() < 2) {
+        // Draw a single point if we only have one data point
+        QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+        QPen pointPen(seriesColor, 0); // No stroke (width 0)
+        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        qDebug() << "Data series" << seriesLabel << "drawn with 1 visible point";
+        return;
+    }
+    
+    // Create a path for the line
+    QPainterPath path;
+    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+    path.moveTo(firstPoint);
+    
+    // Add lines connecting all visible data points
+    for (size_t i = 1; i < visibleData.size(); ++i) {
+        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+        path.lineTo(point);
+    }
+    
+    // Draw the line
+    QPen linePen(seriesColor, 2);
+    graphicsScene->addPath(path, linePen);
+    
+    // Draw data points
+    QPen pointPen(seriesColor, 0); // No stroke (width 0)
+    for (size_t i = 0; i < visibleData.size(); ++i) {
+        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+        graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+    }
+    
+    qDebug() << "Data series" << seriesLabel << "drawn with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
+}
+
+// Multi-series support methods implementation
+
+/**
+ * @brief Set the color for a specific data series.
+ * 
+ * @param seriesLabel The label of the series
+ * @param color The color to use for the series
+ */
+void WaterfallGraph::setSeriesColor(const QString& seriesLabel, const QColor& color)
+{
+    seriesColors[seriesLabel] = color;
+    qDebug() << "Series color set for" << seriesLabel << "to" << color.name();
+}
+
+/**
+ * @brief Get the color for a specific data series.
+ * 
+ * @param seriesLabel The label of the series
+ * @return QColor The color of the series, or a default color if not set
+ */
+QColor WaterfallGraph::getSeriesColor(const QString& seriesLabel) const
+{
+    auto it = seriesColors.find(seriesLabel);
+    if (it != seriesColors.end()) {
+        return it->second;
+    }
+    
+    // Return a default color based on series index
+    static const QColor defaultColors[] = {
+        Qt::green, Qt::red, Qt::blue, Qt::yellow, Qt::cyan, Qt::magenta, Qt::white
+    };
+    
+    // Generate a consistent color based on the series label hash
+    uint hash = qHash(seriesLabel);
+    return defaultColors[hash % (sizeof(defaultColors) / sizeof(defaultColors[0]))];
+}
+
+/**
+ * @brief Set the visibility for a specific data series.
+ * 
+ * @param seriesLabel The label of the series
+ * @param visible True to make the series visible, false to hide it
+ */
+void WaterfallGraph::setSeriesVisible(const QString& seriesLabel, bool visible)
+{
+    seriesVisibility[seriesLabel] = visible;
+    qDebug() << "Series visibility set for" << seriesLabel << "to" << (visible ? "visible" : "hidden");
+}
+
+/**
+ * @brief Check if a specific data series is visible.
+ * 
+ * @param seriesLabel The label of the series
+ * @return bool True if the series is visible, false otherwise
+ */
+bool WaterfallGraph::isSeriesVisible(const QString& seriesLabel) const
+{
+    auto it = seriesVisibility.find(seriesLabel);
+    if (it != seriesVisibility.end()) {
+        return it->second;
+    }
+    
+    // Default to visible if not explicitly set
+    return true;
+}
+
+/**
+ * @brief Get all visible series labels.
+ * 
+ * @return std::vector<QString> Vector of visible series labels
+ */
+std::vector<QString> WaterfallGraph::getVisibleSeries() const
+{
+    std::vector<QString> visibleSeries;
+    
+    if (!dataSource) {
+        return visibleSeries;
+    }
+    
+    std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
+    for (const QString& seriesLabel : allSeries) {
+        if (isSeriesVisible(seriesLabel)) {
+            visibleSeries.push_back(seriesLabel);
+        }
+    }
+    
+    return visibleSeries;
 }

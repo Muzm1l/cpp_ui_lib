@@ -299,7 +299,6 @@ void ZoomPanel::mousePressEvent(QMouseEvent *event)
         }
     }
     
-    QWidget::mousePressEvent(event);
 }
 
 void ZoomPanel::mouseMoveEvent(QMouseEvent *event)
@@ -324,7 +323,6 @@ void ZoomPanel::mouseMoveEvent(QMouseEvent *event)
         }
     }
     
-    QWidget::mouseMoveEvent(event);
 }
 
 void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
@@ -344,7 +342,6 @@ void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
         }
     }
     
-    QWidget::mouseReleaseEvent(event);
 }
 
 void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
