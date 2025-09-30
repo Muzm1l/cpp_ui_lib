@@ -53,6 +53,14 @@ public:
     // Label mode control
     void setShowRelativeLabels(bool showRelative);
     bool getShowRelativeLabels() const { return m_showRelativeLabels; }
+    
+    // Chevron label control
+    void setChevronLabel1(const QString& label);
+    void setChevronLabel2(const QString& label);
+    void setChevronLabel3(const QString& label);
+    QString getChevronLabel1() const { return m_chevronLabel1; }
+    QString getChevronLabel2() const { return m_chevronLabel2; }
+    QString getChevronLabel3() const { return m_chevronLabel3; }
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -76,6 +84,11 @@ private:
     
     // Label mode control
     bool m_showRelativeLabels = false;
+    
+    // Chevron label storage
+    QString m_chevronLabel1 = "1";
+    QString m_chevronLabel2 = "2";
+    QString m_chevronLabel3 = "3";
     
     void updateVisualization();
     double calculateTimeOffset();

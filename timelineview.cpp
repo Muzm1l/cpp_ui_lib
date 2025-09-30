@@ -200,11 +200,11 @@ void TimelineVisualizerWidget::createDrawingObjects()
              << "Calculated segment height:" << segmentHeight
              << "Time interval:" << timeIntervalToString(m_timeInterval);
     
-    // Create chevron drawer
-    m_chevronDrawer = new TimelineChevronDrawer(drawArea, 50);
-    
     // Create segment drawers for animation range (including off-screen segments)
     clearDrawingObjects(); // Clear existing ones first
+    
+    // Create chevron drawer - position it at the top of the timeline
+    m_chevronDrawer = new TimelineChevronDrawer(drawArea, 30);
     
     // Create segments with fixed count but variable time gaps
     // We need enough segments to cover the entire visible area plus some buffer
@@ -249,6 +249,24 @@ void TimelineVisualizerWidget::setShowRelativeLabels(bool showRelative)
             segmentDrawer->setShowRelativeLabel(showRelative);
         }
     }
+}
+
+void TimelineVisualizerWidget::setChevronLabel1(const QString& label)
+{
+    m_chevronLabel1 = label;
+    updateVisualization();
+}
+
+void TimelineVisualizerWidget::setChevronLabel2(const QString& label)
+{
+    m_chevronLabel2 = label;
+    updateVisualization();
+}
+
+void TimelineVisualizerWidget::setChevronLabel3(const QString& label)
+{
+    m_chevronLabel3 = label;
+    updateVisualization();
 }
 
 void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
@@ -365,9 +383,10 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
                  << "Smooth offset:" << smoothOffset;
     }
     
-    // Draw chevron using drawing object
+    // Draw chevron using drawing object - position it at the top of the timeline
     if (m_chevronDrawer) {
         m_chevronDrawer->setDrawArea(rect());
+        m_chevronDrawer->setYOffset(30); // Position at the top with enough space for the chevron box
         m_chevronDrawer->update();
         drawChevronWithPainter(painter, m_chevronDrawer);
     }
@@ -440,7 +459,10 @@ void TimelineVisualizerWidget::drawSegmentWithPainter(QPainter& painter, Timelin
 
 void TimelineVisualizerWidget::drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer)
 {
-    if (!chevronDrawer) return;
+    if (!chevronDrawer) {
+        qDebug() << "Chevron drawer is null!";
+        return;
+    }
     
     QRect drawArea = chevronDrawer->getDrawArea();
     int yOffset = chevronDrawer->getYOffset();
@@ -450,8 +472,9 @@ void TimelineVisualizerWidget::drawChevronWithPainter(QPainter& painter, Timelin
     
     int widgetWidth = drawArea.width();
     
+    
     // Set pen for blue chevron outline
-    painter.setPen(QPen(QColor(0, 100, 255), 2)); // Blue color, 2px width
+    painter.setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width for better visibility
     
     // Define chevron size (width and height)
     int chevronWidth = static_cast<int>(widgetWidth * chevronWidthPercent);
@@ -479,11 +502,17 @@ void TimelineVisualizerWidget::drawChevronWithPainter(QPainter& painter, Timelin
     // Draw the chevron outline
     painter.drawPolygon(chevronPoints, 8);
 
-    // Draw the 3 labels inside the chevron with a numeric value
-    painter.setPen(QPen(QColor(255, 255, 255), 1)); // White text
-    painter.drawText(QPoint(chevronX, chevronY), "1");
-    painter.drawText(QPoint(chevronX + chevronWidth / 2, chevronY), "2");
-    painter.drawText(QPoint(chevronX + chevronWidth, chevronY), "3");
+    // Draw the 3 labels - 1 and 3 below the V, 2 at the top
+    painter.setPen(QPen(QColor(0, 100, 255), 2)); // Blue text, thicker
+    
+    // Label 1: below the chevron, left of the V
+    painter.drawText(QPoint(chevronX, tipY + 15), m_chevronLabel1);
+    
+    // Label 2: at the top center (unchanged position)
+    painter.drawText(QPoint(chevronX + chevronWidth / 2, chevronY), m_chevronLabel2);
+    
+    // Label 3: below the chevron, right of the V
+    painter.drawText(QPoint(chevronX + chevronWidth, tipY + 15), m_chevronLabel3);
 }
 
 TimelineView::TimelineView(QWidget *parent, QTimer *timer)
@@ -574,6 +603,11 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     
     // Initialize button text with default interval
     updateButtonText(TimeInterval::FifteenMinutes);
+    
+    // Set custom chevron labels to demonstrate functionality
+    m_visualizerWidget->setChevronLabel1("A");
+    m_visualizerWidget->setChevronLabel2("B");
+    m_visualizerWidget->setChevronLabel3("C");
 }
 
 TimelineView::~TimelineView()
