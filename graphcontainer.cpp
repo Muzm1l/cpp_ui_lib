@@ -507,7 +507,18 @@ void GraphContainer::subscribeToIntervalChange(QObject* subscriber, const char* 
 
 void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Time interval changed to" << timeIntervalToString(interval);
+    qDebug() << "GraphContainer: Handling emitted signal - Time interval changed to" << timeIntervalToString(interval);
+    
+    // Update the time interval for the waterfall graph and time selection visualizer
+    updateTimeInterval(interval);
+    
+    // Emit the signal to notify other components
+    emit IntervalChanged(interval);
+}
+
+void GraphContainer::updateTimeInterval(TimeInterval interval)
+{
+    qDebug() << "GraphContainer: Updating time interval to" << timeIntervalToString(interval);
     
     // Update the waterfall graph time interval
     if (m_waterfallGraph) {
@@ -519,9 +530,12 @@ void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
         m_timelineSelectionView->setTimeLineLength(interval);
         qDebug() << "TimeSelectionVisualizer updated with interval:" << timeIntervalToString(interval);
     }
-    
-    // Emit the signal to notify other components
-    emit IntervalChanged(interval);
+
+    // Update the timeline view time interval
+    if (m_timelineView) {
+        m_timelineView->setTimeLineLength(interval);
+        qDebug() << "TimelineView updated with interval:" << timeIntervalToString(interval);
+    }
 }
 
 void GraphContainer::onSelectionCreated(const TimeSelectionSpan& selection)

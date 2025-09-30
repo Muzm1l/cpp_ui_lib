@@ -93,6 +93,9 @@ public:
     
     // Public method for external components to update zoom panel limits
     void initializeZoomPanelLimits();
+
+    // Public method for external components to update time interval
+    void updateTimeInterval(TimeInterval interval);
     
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);

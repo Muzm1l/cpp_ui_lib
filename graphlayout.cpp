@@ -762,6 +762,10 @@ void GraphLayout::linkHorizontalContainers()
                     m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
 
 
+            // Link row 1: container 0 -> container 1 (interval change)
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+                    m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+
             // Row 2
             // Link row 2: container 2 -> container 3
             connect(m_graphContainers[2], &GraphContainer::TimeSelectionCreated,
@@ -774,6 +778,10 @@ void GraphLayout::linkHorizontalContainers()
             // Cross link row 2: container 3 -> container 2 (clear selection)
             connect(m_graphContainers[3], &GraphContainer::TimeSelectionsCleared,
                     m_graphContainers[2], &GraphContainer::clearTimeSelectionsSilent);
+
+            // Link row 2: container 2 -> container 3 (interval change)
+            connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
+                    m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
                     
             qDebug() << "GraphLayout: Linked containers for GPW4W layout";
             break;
@@ -790,6 +798,11 @@ void GraphLayout::linkHorizontalContainers()
             // Cross link horizontal: container 1 -> container 0 (clear selection)
             connect(m_graphContainers[1], &GraphContainer::TimeSelectionsCleared,
                     m_graphContainers[0], &GraphContainer::clearTimeSelectionsSilent);
+
+            // Link horizontal: container 0 -> container 1 (interval change)
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+                    m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+
             qDebug() << "GraphLayout: Linked containers for GPW2WH layout";
             break;
             
@@ -834,6 +847,14 @@ void GraphLayout::linkHorizontalContainers()
                     m_graphContainers[1], &GraphContainer::clearTimeSelectionsSilent);
             connect(m_graphContainers[3], &GraphContainer::TimeSelectionsCleared,
                     m_graphContainers[2], &GraphContainer::clearTimeSelectionsSilent);
+
+            // Link horizontal: container 0 -> containers 1, 2, 3 (interval change)
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+                    m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+                    m_graphContainers[2], &GraphContainer::onTimeIntervalChanged);
+            connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+                    m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
 
             qDebug() << "GraphLayout: Linked containers for GPW4WH layout";
             break;
