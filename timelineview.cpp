@@ -566,14 +566,32 @@ void TimelineVisualizerWidget::drawChevronWithPainter(QPainter& painter, Timelin
     // Draw the 3 labels - 1 and 3 below the V, 2 at the top
     painter.setPen(QPen(QColor(0, 100, 255), 2)); // Blue text, thicker
     
-    // Label 1: below the chevron, left of the V
-    painter.drawText(QPoint(chevronX, tipY + 15), m_chevronLabel1);
+    // Calculate text metrics for centering
+    QFontMetrics fontMetrics(painter.font());
     
-    // Label 2: at the top center (unchanged position)
-    painter.drawText(QPoint(chevronX + chevronWidth / 2, chevronY), m_chevronLabel2);
+    // Label 1: below the chevron, left of the V (centered at chevronX)
+    if (!m_chevronLabel1.isEmpty()) {
+        int label1Width = fontMetrics.horizontalAdvance(m_chevronLabel1);
+        int label1X = chevronX - label1Width / 2; // Center at chevronX
+        int label1Y = tipY + 15;
+        painter.drawText(QPoint(label1X, label1Y), m_chevronLabel1);
+    }
     
-    // Label 3: below the chevron, right of the V
-    painter.drawText(QPoint(chevronX + chevronWidth, tipY + 15), m_chevronLabel3);
+    // Label 2: at the top center (centered at tipX)
+    if (!m_chevronLabel2.isEmpty()) {
+        int label2Width = fontMetrics.horizontalAdvance(m_chevronLabel2);
+        int label2X = tipX - label2Width / 2; // Center at tipX
+        int label2Y = chevronY;
+        painter.drawText(QPoint(label2X, label2Y), m_chevronLabel2);
+    }
+    
+    // Label 3: below the chevron, right of the V (centered at chevronX + chevronWidth)
+    if (!m_chevronLabel3.isEmpty()) {
+        int label3Width = fontMetrics.horizontalAdvance(m_chevronLabel3);
+        int label3X = (chevronX + chevronWidth) - label3Width / 2; // Center at right edge
+        int label3Y = tipY + 15;
+        painter.drawText(QPoint(label3X, label3Y), m_chevronLabel3);
+    }
 }
 
 TimelineView::TimelineView(QWidget *parent, QTimer *timer)
