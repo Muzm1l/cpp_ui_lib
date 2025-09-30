@@ -32,6 +32,27 @@ void TimelineVisualizerWidget::setTimeLineLength(const QTime& length)
     updateVisualization();
 }
 
+void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
+{
+    m_timeInterval = interval;
+    
+    // Convert TimeInterval to QTime and set timeline length
+    QTime newLength = timeIntervalToQTime(interval);
+    setTimeLineLength(newLength);
+    
+    // Reset accumulated offset when interval changes
+    m_accumulatedOffset = 0.0;
+    
+    // Recreate all drawing objects with new parameters
+    // This will automatically calculate optimal divisions based on current area
+    createDrawingObjects();
+    
+    qDebug() << "Time interval set to:" << timeIntervalToString(interval) 
+             << "Divisions:" << m_numberOfDivisions 
+             << "Segment duration:" << calculateSegmentDurationSeconds() << "seconds"
+             << "Min segment height:" << getMinimumSegmentHeight();
+}
+
 void TimelineVisualizerWidget::setCurrentTime(const QTime& currentTime)
 {
     m_lastCurrentTime = m_currentTime;
@@ -73,24 +94,81 @@ void TimelineVisualizerWidget::updatePixelSpeed()
         return;
     }
     
-    // Calculate total timeline duration in seconds
-    int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    // Calculate segment duration in seconds
+    double segmentDurationSeconds = calculateSegmentDurationSeconds();
     
     // Calculate pixel speed: pixels per second
+    // This should be based on how fast we want segments to move
     double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
-    m_pixelSpeed = segmentHeight / (totalSeconds / m_numberOfDivisions);
+    
+    // Pixel speed should be segmentHeight / segmentDurationSeconds
+    // This means one segment height per segment duration
+    m_pixelSpeed = segmentHeight / segmentDurationSeconds;
     
     // Update accumulated offset based on time difference
     double timeDiffSeconds = timeDiffMs / 1000.0;
     m_accumulatedOffset += m_pixelSpeed * timeDiffSeconds;
     
-    qDebug() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset;
+    qDebug() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset
+             << "Segment duration:" << segmentDurationSeconds << "seconds";
 }
 
 double TimelineVisualizerWidget::calculateSmoothOffset()
 {
     // Return the accumulated offset for smooth shifting
     return m_accumulatedOffset;
+}
+
+int TimelineVisualizerWidget::calculateOptimalDivisions() const
+{
+    // Use the current widget height to calculate optimal divisions
+    int widgetHeight = height();
+    if (widgetHeight <= 0) {
+        widgetHeight = 300; // Default height
+    }
+    return calculateOptimalDivisionsForArea(widgetHeight);
+}
+
+int TimelineVisualizerWidget::calculateOptimalDivisionsForArea(int areaHeight) const
+{
+    // Calculate how many segments can fit based on minimum segment height
+    double minSegmentHeight = getMinimumSegmentHeight();
+    int maxDivisions = static_cast<int>(areaHeight / minSegmentHeight);
+    
+    // Ensure we have at least 1 division and at most a reasonable maximum
+    maxDivisions = qMax(1, qMin(maxDivisions, 100));
+    
+    qDebug() << "Calculating divisions for area height:" << areaHeight 
+             << "Min segment height:" << minSegmentHeight 
+             << "Max divisions:" << maxDivisions;
+    
+    return maxDivisions;
+}
+
+double TimelineVisualizerWidget::getMinimumSegmentHeight() const
+{
+    // Define minimum segment height based on time interval
+    // Longer intervals can have smaller segments since they represent more time
+    int intervalMinutes = static_cast<int>(m_timeInterval);
+    
+    if (intervalMinutes <= 15) {
+        return 20.0; // 20px minimum for short intervals
+    } else if (intervalMinutes <= 60) {
+        return 15.0; // 15px minimum for medium intervals
+    } else if (intervalMinutes <= 180) {
+        return 12.0; // 12px minimum for longer intervals
+    } else if (intervalMinutes <= 360) {
+        return 10.0; // 10px minimum for very long intervals
+    } else {
+        return 8.0; // 8px minimum for extremely long intervals
+    }
+}
+
+double TimelineVisualizerWidget::calculateSegmentDurationSeconds() const
+{
+    // Calculate how many seconds each segment represents
+    int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    return static_cast<double>(totalSeconds) / m_numberOfDivisions;
 }
 
 TimelineVisualizerWidget::~TimelineVisualizerWidget()
@@ -118,7 +196,25 @@ void TimelineVisualizerWidget::setIsAbsoluteTime(bool isAbsoluteTime)
 
 void TimelineVisualizerWidget::createDrawingObjects()
 {
-    QRect drawArea(0, 0, TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, height());
+    // Use a minimum height if widget height is not set yet
+    int widgetHeight = height();
+    if (widgetHeight <= 0) {
+        widgetHeight = 300; // Default height for timeline view
+        qDebug() << "Widget height is 0, using default height:" << widgetHeight;
+    }
+    
+    // Calculate optimal divisions based on available area
+    int optimalDivisions = calculateOptimalDivisionsForArea(widgetHeight);
+    m_numberOfDivisions = optimalDivisions;
+    
+    QRect drawArea(0, 0, TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, widgetHeight);
+    
+    qDebug() << "Creating drawing objects - Widget height:" << height() 
+             << "Using height:" << widgetHeight
+             << "Draw area:" << drawArea 
+             << "Divisions:" << m_numberOfDivisions
+             << "Segment height:" << static_cast<double>(drawArea.height()) / m_numberOfDivisions
+             << "Min segment height:" << getMinimumSegmentHeight();
     
     // Create chevron drawer
     m_chevronDrawer = new TimelineChevronDrawer(drawArea, 50);
@@ -126,10 +222,22 @@ void TimelineVisualizerWidget::createDrawingObjects()
     // Create segment drawers for animation range (including off-screen segments)
     clearDrawingObjects(); // Clear existing ones first
     
-    // Create segments starting from the top, going down
-    // Start from segment 0 (current time) and go up and down
-    int startSegment = -10; // Start well above current time
-    int endSegment = 20; // End well below current time
+    // Create segments that fill the entire drawing area
+    // Calculate how many segments we need to fill the area
+    double segmentHeight = static_cast<double>(widgetHeight) / m_numberOfDivisions;
+    
+    // Create segments starting from segment 0 (current time) and going up and down
+    // We need enough segments to cover the entire visible area plus some buffer
+    // Calculate how many segments we need to fill the widget height plus buffer
+    int segmentsNeeded = static_cast<int>(widgetHeight / segmentHeight) + 10; // Add buffer for smooth animation
+    int startSegment = -(segmentsNeeded / 2);
+    int endSegment = segmentsNeeded / 2;
+    
+    qDebug() << "Creating segments to fill area - Height:" << widgetHeight 
+             << "Divisions:" << m_numberOfDivisions 
+             << "Segment height:" << segmentHeight
+             << "Segments needed:" << segmentsNeeded
+             << "Segments range:" << startSegment << "to" << endSegment;
     
     for (int i = startSegment; i < endSegment; ++i) {
         TimelineSegmentDrawer* segmentDrawer = new TimelineSegmentDrawer(
@@ -175,6 +283,15 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     // Calculate smooth offset to determine which segments to draw
     double smoothOffset = calculateSmoothOffset();
     double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
+    
+    // Debug output for segment height calculation
+    static int debugCounter = 0;
+    if (debugCounter++ % 60 == 0) { // Print every 60 frames to avoid spam
+        qDebug() << "PaintEvent - Widget rect:" << rect() 
+                 << "Divisions:" << m_numberOfDivisions
+                 << "Segment height:" << segmentHeight
+                 << "Time interval:" << timeIntervalToString(m_timeInterval);
+    }
     
     // Remove segments that have gone completely out of view (below the bottom)
     auto it = m_segmentDrawers.begin();
@@ -233,6 +350,16 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
         }
     }
     
+    // Debug: Check if we're covering the entire area
+    static int debugCounter2 = 0;
+    if (debugCounter2++ % 60 == 0) {
+        qDebug() << "Segment coverage check - Widget height:" << rect().height()
+                 << "Total segments:" << m_segmentDrawers.size()
+                 << "Divisions:" << m_numberOfDivisions
+                 << "Segment height:" << segmentHeight
+                 << "Total coverage:" << (m_numberOfDivisions * segmentHeight);
+    }
+    
     // Draw chevron using drawing object
     if (m_chevronDrawer) {
         m_chevronDrawer->setDrawArea(rect());
@@ -243,6 +370,15 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     // Draw a border to make it more visible
     painter.setPen(QPen(QColor(150, 150, 150), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
+}
+
+void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    
+    // Recreate drawing objects with new dimensions
+    qDebug() << "Widget resized to:" << size();
+    createDrawingObjects();
 }
 
 // Helper methods to draw using QPainter instead of QGraphicsScene
@@ -429,7 +565,7 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
 
     // Set the default time interval to be 15 minutes
-    this->setTimeLineLength(TimeInterval::FifteenMinutes);
+    m_visualizerWidget->setTimeInterval(TimeInterval::FifteenMinutes);
     
     // Initialize button text with default interval
     updateButtonText(TimeInterval::FifteenMinutes);
@@ -491,7 +627,7 @@ void TimelineView::onIntervalButtonClicked()
     // Advance to next interval
     intervalIndex = (intervalIndex + 1) % intervals.size();
     TimeInterval nextInterval = intervals[intervalIndex];
-    this->setTimeLineLength(nextInterval);
+    m_visualizerWidget->setTimeInterval(nextInterval);
     updateButtonText(nextInterval);
 
     // Trigger the intervalChanged signal

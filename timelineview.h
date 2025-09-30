@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QResizeEvent>
 #include <QTime>
 #include <QList>
 #include <QObject>
@@ -37,6 +38,14 @@ public:
     QTime getCurrentTime() const { return m_currentTime; }
     int getNumberOfDivisions() const { return m_numberOfDivisions; }
     
+    // Time interval specific methods
+    void setTimeInterval(TimeInterval interval);
+    TimeInterval getTimeInterval() const { return m_timeInterval; }
+    int calculateOptimalDivisions() const;
+    int calculateOptimalDivisionsForArea(int areaHeight) const;
+    double calculateSegmentDurationSeconds() const;
+    double getMinimumSegmentHeight() const;
+    
     // Update and draw loop method
     void updateAndDraw();
     
@@ -46,12 +55,14 @@ public:
 
 protected:
     void paintEvent(QPaintEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes
     QTime m_currentTime;
     int m_numberOfDivisions = 15; // Default to 15 segments
     bool m_isAbsoluteTime = true;
+    TimeInterval m_timeInterval = TimeInterval::FifteenMinutes; // Default time interval
     
     // Smooth shifting state
     QTime m_lastCurrentTime;
@@ -91,7 +102,7 @@ public:
     
            // No time selection methods needed for TimelineView
     void setTimeLineLength(TimeInterval interval) { 
-        m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); 
+        m_visualizerWidget->setTimeInterval(interval); 
         updateButtonText(interval);
     }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
