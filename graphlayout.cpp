@@ -876,3 +876,137 @@ void GraphLayout::onTimerTick()
 {
     setCurrentTime(QTime::currentTime());
 }
+
+// Chevron label control methods implementation - operate on all visible containers
+void GraphLayout::setChevronLabel1(const QString& label)
+{
+    for (auto* container : m_graphContainers) {
+        if (container && container->isVisible()) {
+            container->setChevronLabel1(label);
+        }
+    }
+    qDebug() << "GraphLayout: Set chevron label 1 to:" << label << "for all visible containers";
+}
+
+void GraphLayout::setChevronLabel2(const QString& label)
+{
+    for (auto* container : m_graphContainers) {
+        if (container && container->isVisible()) {
+            container->setChevronLabel2(label);
+        }
+    }
+    qDebug() << "GraphLayout: Set chevron label 2 to:" << label << "for all visible containers";
+}
+
+void GraphLayout::setChevronLabel3(const QString& label)
+{
+    for (auto* container : m_graphContainers) {
+        if (container && container->isVisible()) {
+            container->setChevronLabel3(label);
+        }
+    }
+    qDebug() << "GraphLayout: Set chevron label 3 to:" << label << "for all visible containers";
+}
+
+QString GraphLayout::getChevronLabel1() const
+{
+    // Return the label from the first visible container
+    for (auto* container : m_graphContainers) {
+        if (container && container->isVisible()) {
+            return container->getChevronLabel1();
+        }
+    }
+    qWarning() << "GraphLayout: No visible containers found to get chevron label";
+    return QString();
+}
+
+QString GraphLayout::getChevronLabel2() const
+{
+    // Return the label from the first visible container
+    for (auto* container : m_graphContainers) {
+        if (container && container->isVisible()) {
+            return container->getChevronLabel2();
+        }
+    }
+    qWarning() << "GraphLayout: No visible containers found to get chevron label";
+    return QString();
+}
+
+QString GraphLayout::getChevronLabel3() const
+{
+    // Return the label from the first visible container
+    for (auto* container : m_graphContainers) {
+        if (container && container->isVisible()) {
+            return container->getChevronLabel3();
+        }
+    }
+    qWarning() << "GraphLayout: No visible containers found to get chevron label";
+    return QString();
+}
+
+// Chevron label control methods implementation - operate on specific container by label
+void GraphLayout::setChevronLabel1(const QString& containerLabel, const QString& label)
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
+        m_graphContainers[containerIndex]->setChevronLabel1(label);
+        qDebug() << "GraphLayout: Set chevron label 1 to:" << label << "for container:" << containerLabel;
+    } else {
+        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+    }
+}
+
+void GraphLayout::setChevronLabel2(const QString& containerLabel, const QString& label)
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
+        m_graphContainers[containerIndex]->setChevronLabel2(label);
+        qDebug() << "GraphLayout: Set chevron label 2 to:" << label << "for container:" << containerLabel;
+    } else {
+        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+    }
+}
+
+void GraphLayout::setChevronLabel3(const QString& containerLabel, const QString& label)
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
+        m_graphContainers[containerIndex]->setChevronLabel3(label);
+        qDebug() << "GraphLayout: Set chevron label 3 to:" << label << "for container:" << containerLabel;
+    } else {
+        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+    }
+}
+
+QString GraphLayout::getChevronLabel1(const QString& containerLabel) const
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
+        return m_graphContainers[containerIndex]->getChevronLabel1();
+    } else {
+        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        return QString();
+    }
+}
+
+QString GraphLayout::getChevronLabel2(const QString& containerLabel) const
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
+        return m_graphContainers[containerIndex]->getChevronLabel2();
+    } else {
+        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        return QString();
+    }
+}
+
+QString GraphLayout::getChevronLabel3(const QString& containerLabel) const
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size())) {
+        return m_graphContainers[containerIndex]->getChevronLabel3();
+    } else {
+        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        return QString();
+    }
+}

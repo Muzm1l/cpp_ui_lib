@@ -205,6 +205,11 @@ void MainWindow::updateSimulation()
 
     // set the current time to the system time
     graphgrid->setCurrentTime(QTime::currentTime());
+    
+    // Set chevron labels to demonstrate functionality
+    graphgrid->setChevronLabel1("Start");
+    graphgrid->setChevronLabel2("Now");
+    graphgrid->setChevronLabel3("End");
 }
 
 // void MainWindow::configureTimeVisualizer()

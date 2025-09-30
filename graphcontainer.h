@@ -97,6 +97,14 @@ public:
     // Public method for external components to update time interval
     void updateTimeInterval(TimeInterval interval);
     
+    // Chevron label control methods
+    void setChevronLabel1(const QString& label);
+    void setChevronLabel2(const QString& label);
+    void setChevronLabel3(const QString& label);
+    QString getChevronLabel1() const;
+    QString getChevronLabel2() const;
+    QString getChevronLabel3() const;
+    
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
     void onSelectionCreated(const TimeSelectionSpan& selection);

@@ -703,3 +703,64 @@ void GraphContainer::onClearTimeSelectionsButtonClicked()
     qDebug() << "GraphContainer: Clear time selections button clicked";
     clearTimeSelections();
 }
+
+// Chevron label control methods implementation
+void GraphContainer::setChevronLabel1(const QString& label)
+{
+    if (m_timelineView) {
+        m_timelineView->setChevronLabel1(label);
+        qDebug() << "GraphContainer: Set chevron label 1 to:" << label;
+    } else {
+        qWarning() << "GraphContainer: Cannot set chevron label - timeline view is null";
+    }
+}
+
+void GraphContainer::setChevronLabel2(const QString& label)
+{
+    if (m_timelineView) {
+        m_timelineView->setChevronLabel2(label);
+        qDebug() << "GraphContainer: Set chevron label 2 to:" << label;
+    } else {
+        qWarning() << "GraphContainer: Cannot set chevron label - timeline view is null";
+    }
+}
+
+void GraphContainer::setChevronLabel3(const QString& label)
+{
+    if (m_timelineView) {
+        m_timelineView->setChevronLabel3(label);
+        qDebug() << "GraphContainer: Set chevron label 3 to:" << label;
+    } else {
+        qWarning() << "GraphContainer: Cannot set chevron label - timeline view is null";
+    }
+}
+
+QString GraphContainer::getChevronLabel1() const
+{
+    if (m_timelineView) {
+        return m_timelineView->getChevronLabel1();
+    } else {
+        qWarning() << "GraphContainer: Cannot get chevron label - timeline view is null";
+        return QString();
+    }
+}
+
+QString GraphContainer::getChevronLabel2() const
+{
+    if (m_timelineView) {
+        return m_timelineView->getChevronLabel2();
+    } else {
+        qWarning() << "GraphContainer: Cannot get chevron label - timeline view is null";
+        return QString();
+    }
+}
+
+QString GraphContainer::getChevronLabel3() const
+{
+    if (m_timelineView) {
+        return m_timelineView->getChevronLabel3();
+    } else {
+        qWarning() << "GraphContainer: Cannot get chevron label - timeline view is null";
+        return QString();
+    }
+}

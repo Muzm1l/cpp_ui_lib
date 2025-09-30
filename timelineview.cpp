@@ -269,6 +269,67 @@ void TimelineVisualizerWidget::setChevronLabel3(const QString& label)
     updateVisualization();
 }
 
+QString TimelineVisualizerWidget::getChevronLabel1() const
+{
+    return m_chevronLabel1;
+}
+
+QString TimelineVisualizerWidget::getChevronLabel2() const
+{
+    return m_chevronLabel2;
+}
+
+QString TimelineVisualizerWidget::getChevronLabel3() const
+{
+    return m_chevronLabel3;
+}
+
+// TimelineView chevron label control methods
+void TimelineView::setChevronLabel1(const QString& label)
+{
+    if (m_visualizerWidget) {
+        m_visualizerWidget->setChevronLabel1(label);
+    }
+}
+
+void TimelineView::setChevronLabel2(const QString& label)
+{
+    if (m_visualizerWidget) {
+        m_visualizerWidget->setChevronLabel2(label);
+    }
+}
+
+void TimelineView::setChevronLabel3(const QString& label)
+{
+    if (m_visualizerWidget) {
+        m_visualizerWidget->setChevronLabel3(label);
+    }
+}
+
+QString TimelineView::getChevronLabel1() const
+{
+    if (m_visualizerWidget) {
+        return m_visualizerWidget->getChevronLabel1();
+    }
+    return QString();
+}
+
+QString TimelineView::getChevronLabel2() const
+{
+    if (m_visualizerWidget) {
+        return m_visualizerWidget->getChevronLabel2();
+    }
+    return QString();
+}
+
+QString TimelineView::getChevronLabel3() const
+{
+    if (m_visualizerWidget) {
+        return m_visualizerWidget->getChevronLabel3();
+    }
+    return QString();
+}
+
 void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
 {
     QPainter painter(this);
@@ -604,10 +665,6 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     // Initialize button text with default interval
     updateButtonText(TimeInterval::FifteenMinutes);
     
-    // Set custom chevron labels to demonstrate functionality
-    m_visualizerWidget->setChevronLabel1("A");
-    m_visualizerWidget->setChevronLabel2("B");
-    m_visualizerWidget->setChevronLabel3("C");
 }
 
 TimelineView::~TimelineView()

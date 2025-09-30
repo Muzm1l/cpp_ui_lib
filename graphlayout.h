@@ -89,6 +89,22 @@ public:
 
     // Selection linking methods
     void linkHorizontalContainers();
+    
+    // Chevron label control methods - operate on all visible containers
+    void setChevronLabel1(const QString& label);
+    void setChevronLabel2(const QString& label);
+    void setChevronLabel3(const QString& label);
+    QString getChevronLabel1() const;
+    QString getChevronLabel2() const;
+    QString getChevronLabel3() const;
+    
+    // Chevron label control methods - operate on specific container by label
+    void setChevronLabel1(const QString& containerLabel, const QString& label);
+    void setChevronLabel2(const QString& containerLabel, const QString& label);
+    void setChevronLabel3(const QString& containerLabel, const QString& label);
+    QString getChevronLabel1(const QString& containerLabel) const;
+    QString getChevronLabel2(const QString& containerLabel) const;
+    QString getChevronLabel3(const QString& containerLabel) const;
 
 public slots:
     void onTimerTick();

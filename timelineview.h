@@ -58,9 +58,9 @@ public:
     void setChevronLabel1(const QString& label);
     void setChevronLabel2(const QString& label);
     void setChevronLabel3(const QString& label);
-    QString getChevronLabel1() const { return m_chevronLabel1; }
-    QString getChevronLabel2() const { return m_chevronLabel2; }
-    QString getChevronLabel3() const { return m_chevronLabel3; }
+    QString getChevronLabel1() const;
+    QString getChevronLabel2() const;
+    QString getChevronLabel3() const;
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -124,7 +124,14 @@ public:
     
     // Update and draw loop method
     void updateAndDraw() { if (m_visualizerWidget) m_visualizerWidget->updateAndDraw(); }
-
+    
+    // Chevron label control
+    void setChevronLabel1(const QString& label);
+    void setChevronLabel2(const QString& label);
+    void setChevronLabel3(const QString& label);
+    QString getChevronLabel1() const;
+    QString getChevronLabel2() const;
+    QString getChevronLabel3() const;
 
     signals:
         void TimeIntervalChanged(TimeInterval currentInterval);
