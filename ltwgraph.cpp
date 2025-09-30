@@ -3,7 +3,7 @@
 
 /**
  * @brief Construct a new LTWGraph::LTWGraph object
- * 
+ *
  * @param parent Parent widget
  * @param enableGrid Whether to enable grid display
  * @param gridDivisions Number of grid divisions
@@ -17,7 +17,7 @@ LTWGraph::LTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
 
 /**
  * @brief Destroy the LTWGraph::LTWGraph object
- * 
+ *
  */
 LTWGraph::~LTWGraph()
 {
@@ -26,7 +26,7 @@ LTWGraph::~LTWGraph()
 
 /**
  * @brief Override draw method to create scatterplots by default
- * 
+ *
  */
 void LTWGraph::draw()
 {
@@ -36,11 +36,13 @@ void LTWGraph::draw()
     graphicsScene->clear();
     setupDrawingArea();
 
-    if (gridEnabled) {
+    if (gridEnabled)
+    {
         drawGrid();
     }
 
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         updateDataRanges();
         drawScatterplot(Qt::green, 3.0, Qt::white); // Default scatterplot for LTW
     }
@@ -48,10 +50,10 @@ void LTWGraph::draw()
 
 /**
  * @brief Handle mouse click events specific to LTW graph
- * 
+ *
  * @param scenePos Scene position of the click
  */
-void LTWGraph::onMouseClick(const QPointF& scenePos)
+void LTWGraph::onMouseClick(const QPointF &scenePos)
 {
     qDebug() << "LTWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
@@ -60,10 +62,10 @@ void LTWGraph::onMouseClick(const QPointF& scenePos)
 
 /**
  * @brief Handle mouse drag events specific to LTW graph
- * 
+ *
  * @param scenePos Scene position of the drag
  */
-void LTWGraph::onMouseDrag(const QPointF& scenePos)
+void LTWGraph::onMouseDrag(const QPointF &scenePos)
 {
     qDebug() << "LTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
@@ -72,12 +74,12 @@ void LTWGraph::onMouseDrag(const QPointF& scenePos)
 
 /**
  * @brief Draw LTW-specific scatterplot
- * 
+ *
  */
 void LTWGraph::drawLTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(Qt::green, 4.0, Qt::white);
-    
+
     qDebug() << "LTW scatterplot drawn";
 }

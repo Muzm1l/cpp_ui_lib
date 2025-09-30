@@ -1,30 +1,30 @@
 #ifndef GRAPHCONTAINER_H
 #define GRAPHCONTAINER_H
 
-#include <QWidget>
-#include <QHBoxLayout>
-#include <QVBoxLayout>
-#include <QComboBox>
-#include <QDateTime>
-#include <QTimer>
-#include <vector>
-#include <map>
-#include <QString>
-#include "waterfallgraph.h"
-#include "waterfalldata.h"
-#include "timeselectionvisualizer.h"
-#include "timelineview.h"
-#include "zoompanel.h"
-#include "timelineutils.h"
-#include "graphtype.h"
-#include "customwaterfallgraph.h"
-#include "fdwgraph.h"
 #include "bdwgraph.h"
 #include "brwgraph.h"
-#include "ltwgraph.h"
 #include "btwgraph.h"
-#include "rtwgraph.h"
+#include "customwaterfallgraph.h"
+#include "fdwgraph.h"
 #include "ftwgraph.h"
+#include "graphtype.h"
+#include "ltwgraph.h"
+#include "rtwgraph.h"
+#include "timelineutils.h"
+#include "timelineview.h"
+#include "timeselectionvisualizer.h"
+#include "waterfalldata.h"
+#include "waterfallgraph.h"
+#include "zoompanel.h"
+#include <QComboBox>
+#include <QDateTime>
+#include <QHBoxLayout>
+#include <QString>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QWidget>
+#include <map>
+#include <vector>
 
 class GraphContainer : public QWidget
 {
@@ -34,100 +34,100 @@ public:
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
-    
+
     // Sizing methods
     int getTimelineWidth() const;
-    
+
     // Graph view sizing methods
     void setGraphViewSize(int width, int height);
     QSize getGraphViewSize() const;
     QSize getTotalContainerSize() const;
-    
+
     // Data point methods
-    void setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
-    void setData(const WaterfallData& data);
+    void setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setData(const WaterfallData &data);
     void clearData();
-    void addDataPoint(qreal yValue, const QDateTime& timestamp);
-    void addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
-    
+    void addDataPoint(qreal yValue, const QDateTime &timestamp);
+    void addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+
     // Data access methods
     WaterfallData getData() const;
     std::vector<std::pair<qreal, QDateTime>> getDataWithinYExtents(qreal yMin, qreal yMax) const;
-    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
-    
+    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const;
+
     // Min/max data methods
     qreal getMinY() const;
     qreal getMaxY() const;
     std::pair<qreal, qreal> getYRange() const;
-    
+
     // Graph redraw method
     void redrawWaterfallGraph();
-    
+
     // Data options management
-    void addDataOption(const GraphType graphType, WaterfallData& dataSource);
+    void addDataOption(const GraphType graphType, WaterfallData &dataSource);
     void removeDataOption(const GraphType graphType);
     void clearDataOptions();
     void setCurrentDataOption(const GraphType graphType);
     GraphType getCurrentDataOption() const;
     std::vector<GraphType> getAvailableDataOptions() const;
-    WaterfallData* getDataOption(const GraphType graphType);
+    WaterfallData *getDataOption(const GraphType graphType);
     bool hasDataOption(const GraphType graphType) const;
-    
+
     // Signal subscription method for external components
-    void subscribeToIntervalChange(QObject* subscriber, const char* slot);
-    
+    void subscribeToIntervalChange(QObject *subscriber, const char *slot);
+
     // Mouse selection control
     void setMouseSelectionEnabled(bool enabled);
     bool isMouseSelectionEnabled() const;
 
-    // Set the current time 
-    void setCurrentTime(const QTime& time);
+    // Set the current time
+    void setCurrentTime(const QTime &time);
 
     // Selection management methods
-    void addTimeSelection(const TimeSelectionSpan& selection);
+    void addTimeSelection(const TimeSelectionSpan &selection);
     void clearTimeSelections();
     void clearTimeSelectionsSilent(); // Clears without emitting signal
-    
+
     // Test method
     void testSelectionRectangle();
-    
+
     // Public method for external components to update zoom panel limits
     void initializeZoomPanelLimits();
 
     // Public method for external components to update time interval
     void updateTimeInterval(TimeInterval interval);
-    
+
     // Chevron label control methods
-    void setChevronLabel1(const QString& label);
-    void setChevronLabel2(const QString& label);
-    void setChevronLabel3(const QString& label);
+    void setChevronLabel1(const QString &label);
+    void setChevronLabel2(const QString &label);
+    void setChevronLabel3(const QString &label);
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
-    
+
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
-    void onSelectionCreated(const TimeSelectionSpan& selection);
+    void onSelectionCreated(const TimeSelectionSpan &selection);
     void onZoomValueChanged(ZoomBounds bounds);
-    
+
 private:
     void updateTotalContainerSize();
     void updateComboBoxOptions();
     void onDataOptionChanged(QString title);
     void setupEventConnections();
     void setupEventConnectionsForWaterfallGraph();
-    WaterfallGraph* createWaterfallGraph(GraphType graphType);
+    WaterfallGraph *createWaterfallGraph(GraphType graphType);
     void initializeWaterfallGraph(GraphType graphType);
     void setupTimer();
     void onTimerTick();
     void onClearTimeSelectionsButtonClicked();
-    
+
 signals:
-    void TimeSelectionCreated(const TimeSelectionSpan& selection);
+    void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void DeltaTimeSelectionChanged(qreal deltaTime);
     void TimeSelectionsCleared();
     void IntervalChanged(TimeInterval interval);
-    void TimeScopeChanged(const TimeSelectionSpan& selection);
+    void TimeScopeChanged(const TimeSelectionSpan &selection);
 
 private:
     QHBoxLayout *m_mainLayout;
@@ -138,20 +138,20 @@ private:
     TimeSelectionVisualizer *m_timelineSelectionView;
     TimelineView *m_timelineView;
     bool m_showTimelineView;
-    
+
     // Timer management
     QTimer *m_timer;
     bool m_ownsTimer;
-    
+
     // Sizing properties
     int m_timelineWidth;
     QSize m_graphViewSize;
-    
+
     // Data source management
     WaterfallData waterfallData;
-    
+
     // Data options management
-    std::map<GraphType, WaterfallData*> dataOptions;
+    std::map<GraphType, WaterfallData *> dataOptions;
     GraphType currentDataOption;
 };
 

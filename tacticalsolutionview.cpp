@@ -27,7 +27,7 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
     scene = new QGraphicsScene(this);
     scene->setSceneRect(0, 0, width(), height());
     setScene(scene);
-    
+
     // Optimize QGraphicsView performance
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
@@ -39,7 +39,7 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
 
     // Enable mouse tracking
     // setMouseTracking(true);
-    
+
     // Initial draw
     draw();
 }
@@ -88,8 +88,6 @@ void TacticalSolutionView::drawCustomBackground()
 
     // Draw the background - currently empty as we use widget background
 }
-
-
 
 /// @brief Draws the various vectors
 /// @param ownShipPosition
@@ -520,8 +518,7 @@ void TacticalSolutionView::setData(
     const qreal &selectedTrackSpeed,
     const qreal &selectedTrackBearing,
     const qreal &adoptedTrackCourse,
-    const qreal &selectedTrackCourse
-)
+    const qreal &selectedTrackCourse)
 {
     // Store bearings as-is (angles don’t scale)
     this->ownShipBearing = DrawUtils::capPolarAngle(ownShipBearing);
@@ -583,15 +580,14 @@ void TacticalSolutionView::setData(
     this->draw();
 }
 
-
 void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &pointStore)
 {
     // Draw own ship vector (cyan)
     drawCourseVectorFromEndpoints(pointStore.ownShipPoints.first, pointStore.ownShipPoints.second, Qt::cyan);
-    
+
     // Draw selected track vector (yellow)
     drawCourseVectorFromEndpoints(pointStore.selectedTrackPoints.first, pointStore.selectedTrackPoints.second, Qt::yellow);
-    
+
     // Draw adopted track vector (red)
     drawCourseVectorFromEndpoints(pointStore.adoptedTrackPoints.first, pointStore.adoptedTrackPoints.second, Qt::red);
 }
@@ -600,32 +596,32 @@ void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoi
 {
     if (!scene)
         return;
-        
+
     qreal headLen = 5;
     qreal headAngleDeg = 30;
     int radius = 5;
-    
+
     QPen pen(color);
     QBrush brush(color);
-    
+
     // Draw filled circle at start point
     scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius, radius * 2, radius * 2, pen, brush);
-    
+
     // Draw line from start to end point
     pen.setWidth(2);
     scene->addLine(QLineF(startPoint, endPoint), pen);
-    
+
     // Calculate arrow head points
     qreal angle = qAtan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
     qreal a1 = angle + qDegreesToRadians(180.0 - headAngleDeg);
     qreal a2 = angle - qDegreesToRadians(180.0 - headAngleDeg);
-    
+
     QPointF h1(endPoint.x() + headLen * qCos(a1), endPoint.y() + headLen * qSin(a1));
     QPointF h2(endPoint.x() + headLen * qCos(a2), endPoint.y() + headLen * qSin(a2));
-    
+
     // Draw arrow head as filled polygon
     QPolygonF head;
     head << endPoint << h1 << h2;
-    
+
     scene->addPolygon(head, pen, brush);
 }

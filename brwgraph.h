@@ -5,7 +5,7 @@
 
 /**
  * @brief BRW Graph component that inherits from waterfallgraph
- * 
+ *
  * This component creates scatterplots by default and can be extended
  * for specific BRW (Bit Rate Waterfall) functionality.
  */
@@ -20,10 +20,10 @@ public:
 protected:
     // Override the draw method to create scatterplots by default
     void draw() override;
-    
+
     // Override mouse event handlers if needed
-    void onMouseClick(const QPointF& scenePos) override;
-    void onMouseDrag(const QPointF& scenePos) override;
+    void onMouseClick(const QPointF &scenePos) override;
+    void onMouseDrag(const QPointF &scenePos) override;
 
 private:
     // BRW-specific properties and methods can be added here

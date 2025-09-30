@@ -1,11 +1,11 @@
 #ifndef TACTICALSOLUTIONVIEW_H
 #define TACTICALSOLUTIONVIEW_H
 
-#include <QGraphicsView>
-#include <QPainter>
+#include "drawutils.h"
 #include <QDebug>
 #include <QGraphicsScene>
-#include "drawutils.h"
+#include <QGraphicsView>
+#include <QPainter>
 
 class TacticalSolutionView : public QGraphicsView
 {
@@ -33,8 +33,7 @@ public:
         const qreal &selectedTrackSpeed,
         const qreal &selectedTrackBearing,
         const qreal &adoptedTrackCourse,
-        const qreal &selectedTrackCourse
-    );
+        const qreal &selectedTrackCourse);
 
 protected:
     // void resizeEvent(QResizeEvent *event) override;
@@ -70,7 +69,6 @@ private:
         VectorPointPairs *pointStore);
 
     QRectF getZoomBoxFromGuideBox(const QRectF guidebox);
-    
 
 private:
     QGraphicsScene *scene;

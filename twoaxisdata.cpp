@@ -1,6 +1,6 @@
 #include "twoaxisdata.h"
 
-bool TwoAxisData::setData(const std::vector<double> &x, const std::vector<double> &y1, const std::vector<double> &y2)
+bool TwoAxisData::setData(const std::vector<double>& x, const std::vector<double>& y1, const std::vector<double>& y2)
 {
     if (x.size() != y1.size() || x.size() != y2.size())
     {
@@ -47,19 +47,19 @@ void TwoAxisData::updateRanges()
     y2_range.max = *y2MaxIt;
 
     // Add padding (5%)
-    auto addPadding = [](Range &r)
-    {
-        double pad = (r.max - r.min) * 0.05;
-        r.min -= pad;
-        r.max += pad;
-    };
+    auto addPadding = [](Range& r)
+        {
+            double pad = (r.max - r.min) * 0.05;
+            r.min -= pad;
+            r.max += pad;
+        };
 
     addPadding(x_range);
     addPadding(y1_range);
     addPadding(y2_range);
 }
 
-double TwoAxisData::interpolate(double x, const std::vector<double> &x_data, const std::vector<double> &y_data)
+double TwoAxisData::interpolate(double x, const std::vector<double>& x_data, const std::vector<double>& y_data)
 {
     if (x_data.empty() || y_data.empty() || x_data.size() != y_data.size())
     {

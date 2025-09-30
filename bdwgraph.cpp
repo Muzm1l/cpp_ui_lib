@@ -3,7 +3,7 @@
 
 /**
  * @brief Construct a new BDWGraph::BDWGraph object
- * 
+ *
  * @param parent Parent widget
  * @param enableGrid Whether to enable grid display
  * @param gridDivisions Number of grid divisions
@@ -17,7 +17,7 @@ BDWGraph::BDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
 
 /**
  * @brief Destroy the BDWGraph::BDWGraph object
- * 
+ *
  */
 BDWGraph::~BDWGraph()
 {
@@ -26,7 +26,7 @@ BDWGraph::~BDWGraph()
 
 /**
  * @brief Override draw method to create scatterplots by default
- * 
+ *
  */
 void BDWGraph::draw()
 {
@@ -36,11 +36,13 @@ void BDWGraph::draw()
     graphicsScene->clear();
     setupDrawingArea();
 
-    if (gridEnabled) {
+    if (gridEnabled)
+    {
         drawGrid();
     }
 
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         updateDataRanges();
         drawScatterplot(Qt::magenta, 3.0, Qt::white); // Default scatterplot for BDW
     }
@@ -48,10 +50,10 @@ void BDWGraph::draw()
 
 /**
  * @brief Handle mouse click events specific to BDW graph
- * 
+ *
  * @param scenePos Scene position of the click
  */
-void BDWGraph::onMouseClick(const QPointF& scenePos)
+void BDWGraph::onMouseClick(const QPointF &scenePos)
 {
     qDebug() << "BDWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
@@ -60,10 +62,10 @@ void BDWGraph::onMouseClick(const QPointF& scenePos)
 
 /**
  * @brief Handle mouse drag events specific to BDW graph
- * 
+ *
  * @param scenePos Scene position of the drag
  */
-void BDWGraph::onMouseDrag(const QPointF& scenePos)
+void BDWGraph::onMouseDrag(const QPointF &scenePos)
 {
     qDebug() << "BDWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
@@ -72,12 +74,12 @@ void BDWGraph::onMouseDrag(const QPointF& scenePos)
 
 /**
  * @brief Draw BDW-specific scatterplot
- * 
+ *
  */
 void BDWGraph::drawBDWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(Qt::magenta, 4.0, Qt::white);
-    
+
     qDebug() << "BDW scatterplot drawn";
 }

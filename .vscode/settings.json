@@ -71,5 +71,9 @@
         "--header-insertion-modifications",
         "-I/Users/krishna/Qt/6.9.2/macos/lib/QtCore.framework/Headers",
         "-I/Users/krishna/Qt/6.9.2/macos/lib/QtWidgets.framework/Headers"
-    ]
+    ],
+    "editor.rulers": [
+        80,
+        120
+    ] // Example: Rulers at 80 and 120 characters
 }

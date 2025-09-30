@@ -124,9 +124,9 @@ void DrawUtils::addTestPattern(QGraphicsScene *scene, QRectF rectToDraw)
 
 /**
  * @brief Adds a test line to the scene
- * 
- * @param scene 
- * @param lineToDraw 
+ *
+ * @param scene
+ * @param lineToDraw
  */
 void DrawUtils::addTestLine(QGraphicsScene *scene, QLineF lineToDraw)
 {
@@ -145,8 +145,8 @@ void DrawUtils::addTestLine(QGraphicsScene *scene, QLineF lineToDraw)
 
 /**
  * @brief Draws the default test pattern
- * 
- * @param scene 
+ *
+ * @param scene
  */
 void DrawUtils::drawDefaultTestPattern(QGraphicsScene *scene)
 {
@@ -175,7 +175,7 @@ void DrawUtils::drawDefaultTestPattern(QGraphicsScene *scene)
  */
 QTransform DrawUtils::computeTransformationMatrix(const QRectF &sourceRect, const QRectF &targetRect)
 {
-// Handle degenerate cases
+    // Handle degenerate cases
     if (sourceRect.isEmpty() || targetRect.isEmpty())
     {
         return QTransform(); // Return identity transform
@@ -206,7 +206,8 @@ QTransform DrawUtils::computeTransformationMatrix(const QRectF &sourceRect, cons
     // Step 3: move to target center
     transform.translate(targetCenter.x(), targetCenter.y());
 
-    return transform;}
+    return transform;
+}
 
 /**
  * @brief Alternative version that returns the transformed rectangle for verification
@@ -253,11 +254,11 @@ void DrawUtils::transformAllSceneItems(QGraphicsScene *scene, const QTransform &
 
 /**
  * @brief Creates a line from a point and an angle
- * 
- * @param startPoint 
- * @param angleInDegrees 
- * @param length 
- * @return QGraphicsLineItem* 
+ *
+ * @param startPoint
+ * @param angleInDegrees
+ * @param length
+ * @return QGraphicsLineItem*
  */
 QGraphicsLineItem *DrawUtils::createLineFromPointAndAngle(const QPointF &startPoint,
                                                           qreal angleInDegrees,
@@ -274,10 +275,10 @@ QGraphicsLineItem *DrawUtils::createLineFromPointAndAngle(const QPointF &startPo
 
 /**
  * @brief Computes the cartesian distance between two points
- * 
- * @param source 
- * @param target 
- * @return qreal 
+ *
+ * @param source
+ * @param target
+ * @return qreal
  */
 qreal DrawUtils::computeCartesianDistance(QPointF source, QPointF target)
 {
@@ -286,9 +287,9 @@ qreal DrawUtils::computeCartesianDistance(QPointF source, QPointF target)
 
 /**
  * @brief Flips the bearing
- * 
- * @param bearing 
- * @return qreal 
+ *
+ * @param bearing
+ * @return qreal
  */
 qreal DrawUtils::flipBearing(qreal bearing)
 {
@@ -304,11 +305,11 @@ qreal DrawUtils::flipBearing(qreal bearing)
 
 /**
  * @brief Calculates the perpendicular distance from a point to a line
- * 
- * @param point 
- * @param linePoint1 
- * @param linePoint2 
- * @return qreal 
+ *
+ * @param point
+ * @param linePoint1
+ * @param linePoint2
+ * @return qreal
  */
 qreal DrawUtils::calculatePerpendicularDistance(const QPointF &point, const QPointF &linePoint1, const QPointF &linePoint2)
 {
@@ -469,13 +470,13 @@ bool DrawUtils::splitRectWithLine(const QLineF &line, const QRectF &rect,
 
 /**
  * @brief Draws a shaded polygon
- * 
- * @param scene 
- * @param poly 
- * @param pen 
- * @param brush 
+ *
+ * @param scene
+ * @param poly
+ * @param pen
+ * @param brush
  */
-void DrawUtils::drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen& pen, const QBrush& brush)
+void DrawUtils::drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen &pen, const QBrush &brush)
 {
     if (!scene || poly.size() < 3) // must be at least a triangle
     {
@@ -490,16 +491,18 @@ void DrawUtils::drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly,
 
 /**
  * @brief Cap the polar angle
- * 
- * @param angle 
- * @return qreal 
+ *
+ * @param angle
+ * @return qreal
  */
 qreal DrawUtils::capPolarAngle(qreal angle)
 {
-    if (angle < 0) {
+    if (angle < 0)
+    {
         angle += 360.0;
     }
-    while (angle >= 360.0) {
+    while (angle >= 360.0)
+    {
         angle -= 360.0;
     }
     return angle;

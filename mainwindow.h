@@ -1,24 +1,24 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "bdwgraph.h"
+#include "brwgraph.h"
+#include "btwgraph.h"
+#include "customwaterfallgraph.h"
+#include "fdwgraph.h"
+#include "ftwgraph.h"
+#include "graphlayout.h"
+#include "ltwgraph.h"
+#include "rtwgraph.h"
+#include "timelineview.h"
+#include "timeselectionvisualizer.h"
+#include "waterfalldata.h"
+#include "waterfallgraph.h"
+#include "zoompanel.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <cstdlib>
 #include <ctime>
-#include "timeselectionvisualizer.h"
-#include "timelineview.h"
-#include "zoompanel.h"
-#include "graphlayout.h"
-#include "waterfallgraph.h"
-#include "waterfalldata.h"
-#include "customwaterfallgraph.h"
-#include "fdwgraph.h"
-#include "bdwgraph.h"
-#include "brwgraph.h"
-#include "ltwgraph.h"
-#include "btwgraph.h"
-#include "rtwgraph.h"
-#include "ftwgraph.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui
@@ -32,26 +32,26 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit MainWindow(QWidget *parent = nullptr);
+    explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
 private:
-    Ui::MainWindow *ui;
+    Ui::MainWindow* ui;
 
-    QTimer *timer; ///< Timer for simulation updates
-    QTimer *timeUpdateTimer; ///< Timer for updating current time
-    
-    GraphLayout *graphgrid; ///< Graph layout widget
-    
+    QTimer* timer;           ///< Timer for simulation updates
+    QTimer* timeUpdateTimer; ///< Timer for updating current time
+
+    GraphLayout* graphgrid; ///< Graph layout widget
+
     // New graph components for the second tab
-    FDWGraph *fdwGraph; ///< FDW Graph component
-    BDWGraph *bdwGraph; ///< BDW Graph component
-    BRWGraph *brwGraph; ///< BRW Graph component
-    LTWGraph *ltwGraph; ///< LTW Graph component
-    BTWGraph *btwGraph; ///< BTW Graph component
-    RTWGraph *rtwGraph; ///< RTW Graph component
-    FTWGraph *ftwGraph; ///< FTW Graph component
-    
+    FDWGraph* fdwGraph; ///< FDW Graph component
+    BDWGraph* bdwGraph; ///< BDW Graph component
+    BRWGraph* brwGraph; ///< BRW Graph component
+    LTWGraph* ltwGraph; ///< LTW Graph component
+    BTWGraph* btwGraph; ///< BTW Graph component
+    RTWGraph* rtwGraph; ///< RTW Graph component
+    FTWGraph* ftwGraph; ///< FTW Graph component
+
     // void configureTimeVisualizer();
     // void configureTimelineView();
     void configureZoomPanel();
@@ -97,30 +97,31 @@ private:
     qreal prevAdoptedTrackCourse;
 
     // Current values for each graph type (for simulation)
-    qreal currentFDWValue;  // Frequency Domain Window: 8.0-30.0 (range: 22.0)
-    qreal currentBDWValue;  // Bandwidth Domain Window: 5.0-38.0 (range: 33.0)
-    qreal currentBRWValue;  // Bit Rate Window: 8.0-30.0 (range: 22.0)
-    qreal currentLTWValue;  // Left Track Window: 15.0-30.0 (range: 15.0)
-    qreal currentBTWValue;  // Bottom Track Window: 5.0-40.0 (range: 35.0)
-    qreal currentRTWValue;  // Right Track Window: 12.0-28.0 (range: 16.0)
-    qreal currentFTWValue;  // Frequency Time Window: 15.0-30.0 (range: 15.0)
+    qreal currentFDWValue; // Frequency Domain Window: 8.0-30.0 (range: 22.0)
+    qreal currentBDWValue; // Bandwidth Domain Window: 5.0-38.0 (range: 33.0)
+    qreal currentBRWValue; // Bit Rate Window: 8.0-30.0 (range: 22.0)
+    qreal currentLTWValue; // Left Track Window: 15.0-30.0 (range: 15.0)
+    qreal currentBTWValue; // Bottom Track Window: 5.0-40.0 (range: 35.0)
+    qreal currentRTWValue; // Right Track Window: 12.0-28.0 (range: 16.0)
+    qreal currentFTWValue; // Frequency Time Window: 15.0-30.0 (range: 15.0)
 
     // Graph bounds and configuration
-    struct GraphConfig {
+    struct GraphConfig
+    {
         qreal minValue;
         qreal maxValue;
         qreal startValue;
-        qreal deltaValue;  // 10% of range for random variation
+        qreal deltaValue; // 10% of range for random variation
     };
-    
+
     // Configuration for each graph type
-    GraphConfig fdwConfig;  // Frequency Domain Window
-    GraphConfig bdwConfig;  // Bandwidth Domain Window
-    GraphConfig brwConfig;  // Bit Rate Window
-    GraphConfig ltwConfig;  // Left Track Window
-    GraphConfig btwConfig;  // Bottom Track Window
-    GraphConfig rtwConfig;  // Right Track Window
-    GraphConfig ftwConfig;  // Frequency Time Window
+    GraphConfig fdwConfig; // Frequency Domain Window
+    GraphConfig bdwConfig; // Bandwidth Domain Window
+    GraphConfig brwConfig; // Bit Rate Window
+    GraphConfig ltwConfig; // Left Track Window
+    GraphConfig btwConfig; // Bottom Track Window
+    GraphConfig rtwConfig; // Right Track Window
+    GraphConfig ftwConfig; // Frequency Time Window
 
 private slots:
     /**
@@ -130,21 +131,20 @@ private slots:
      * and bearing rate calculations. Triggers widget repaint.
      */
     void updateSimulation();
-    
+
     /**
      * @brief Handles layout type changes from the combobox
      *
      * Called when user selects a different layout type from the combobox.
      */
     void onLayoutTypeChanged(int index);
-    
+
     // /**
     //  * @brief Updates the current time in the time visualizer
     //  *
     //  * Called every second to update the current time to system time.
     //  */
     // void updateCurrentTime();
-    
 };
 
 #endif // MAINWINDOW_H

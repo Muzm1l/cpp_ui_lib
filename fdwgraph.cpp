@@ -3,7 +3,7 @@
 
 /**
  * @brief Construct a new FDWGraph::FDWGraph object
- * 
+ *
  * @param parent Parent widget
  * @param enableGrid Whether to enable grid display
  * @param gridDivisions Number of grid divisions
@@ -17,7 +17,7 @@ FDWGraph::FDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
 
 /**
  * @brief Destroy the FDWGraph::FDWGraph object
- * 
+ *
  */
 FDWGraph::~FDWGraph()
 {
@@ -26,7 +26,7 @@ FDWGraph::~FDWGraph()
 
 /**
  * @brief Override draw method to create scatterplots by default
- * 
+ *
  */
 void FDWGraph::draw()
 {
@@ -36,11 +36,13 @@ void FDWGraph::draw()
     graphicsScene->clear();
     setupDrawingArea();
 
-    if (gridEnabled) {
+    if (gridEnabled)
+    {
         drawGrid();
     }
 
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         updateDataRanges();
         drawScatterplot(Qt::cyan, 3.0, Qt::white); // Default scatterplot for FDW
     }
@@ -48,10 +50,10 @@ void FDWGraph::draw()
 
 /**
  * @brief Handle mouse click events specific to FDW graph
- * 
+ *
  * @param scenePos Scene position of the click
  */
-void FDWGraph::onMouseClick(const QPointF& scenePos)
+void FDWGraph::onMouseClick(const QPointF &scenePos)
 {
     qDebug() << "FDWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
@@ -60,10 +62,10 @@ void FDWGraph::onMouseClick(const QPointF& scenePos)
 
 /**
  * @brief Handle mouse drag events specific to FDW graph
- * 
+ *
  * @param scenePos Scene position of the drag
  */
-void FDWGraph::onMouseDrag(const QPointF& scenePos)
+void FDWGraph::onMouseDrag(const QPointF &scenePos)
 {
     qDebug() << "FDWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
@@ -72,12 +74,12 @@ void FDWGraph::onMouseDrag(const QPointF& scenePos)
 
 /**
  * @brief Draw FDW-specific scatterplot
- * 
+ *
  */
 void FDWGraph::drawFDWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(Qt::cyan, 4.0, Qt::white);
-    
+
     qDebug() << "FDW scatterplot drawn";
 }

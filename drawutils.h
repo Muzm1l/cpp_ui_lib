@@ -3,12 +3,12 @@
 
 #include <QGraphicsItem>
 #include <QGraphicsScene>
-#include <QTransform>
-#include <QRectF>
 #include <QPointF>
+#include <QRectF>
+#include <QTransform>
+#include <QtMath>
 #include <algorithm>
 #include <cmath>
-#include <QtMath>
 
 using namespace std;
 
@@ -38,7 +38,7 @@ public:
     static QVector<QPointF> getLineRectIntersections(const QLineF &line, const QRectF &rect);
     static bool splitRectWithLine(const QLineF &line, const QRectF &rect,
                                   QVector<QPointF> &poly1, QVector<QPointF> &poly2);
-    static void drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen& pen, const QBrush& brush);
+    static void drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen &pen, const QBrush &brush);
 
     static qreal capPolarAngle(qreal angle);
 };

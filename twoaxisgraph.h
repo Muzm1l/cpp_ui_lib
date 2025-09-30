@@ -12,7 +12,7 @@ class TwoAxisGraph : public QWidget
     Q_OBJECT
 
 public:
-    explicit TwoAxisGraph(QWidget *parent = nullptr);
+    explicit TwoAxisGraph(QWidget* parent = nullptr);
     ~TwoAxisGraph();
 
     // Set the percentage of events to drop (0-100)
@@ -21,18 +21,18 @@ public:
     }
 
     // Data handling
-    bool setData(const std::vector<double>& x, 
-                const std::vector<double>& y1, 
-                const std::vector<double>& y2);
+    bool setData(const std::vector<double>& x,
+        const std::vector<double>& y1,
+        const std::vector<double>& y2);
 
-    void setAxesLabels(const QString& xLabel, 
-                       const QString& y1Label, 
-                       const QString& y2Label);
+    void setAxesLabels(const QString& xLabel,
+        const QString& y1Label,
+        const QString& y2Label);
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
-    void resizeEvent(QResizeEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
+    void paintEvent(QPaintEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
 
 private:
     // Drawing functions
@@ -47,7 +47,7 @@ private:
     void drawData();
 
 private:
-    QGraphicsScene *scene;
+    QGraphicsScene* scene;
     QPoint currentMousePos;  // Store current mouse position
     TwoAxisData data;       // Store the plotting data
 
@@ -59,12 +59,12 @@ private:
     // Utility functions
     QRectF getGraphDrawArea() const;
     qreal getSceneCoordinates(const QPoint& widgetPos) const;
-    
+
     // Text rendering
-    QGraphicsTextItem* createAxisLabel(const QString& text, 
-                                     const QColor& textColor,
-                                     const QColor& borderColor,
-                                     const QColor& backgroundColor);
+    QGraphicsTextItem* createAxisLabel(const QString& text,
+        const QColor& textColor,
+        const QColor& borderColor,
+        const QColor& backgroundColor);
 
     // Axis labels
     QString leftAxisLabelText;

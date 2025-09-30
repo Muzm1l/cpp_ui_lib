@@ -9,7 +9,7 @@ class WaterfallGraphExample : public waterfallgraph
     Q_OBJECT
 
 public:
-    explicit WaterfallGraphExample(QWidget *parent = nullptr);
+    explicit WaterfallGraphExample(QWidget* parent = nullptr);
 
 protected:
     // Override the virtual mouse event handlers

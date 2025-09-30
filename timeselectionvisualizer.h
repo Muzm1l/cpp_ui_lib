@@ -21,30 +21,30 @@ class TimeVisualizerWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimeVisualizerWidget(QWidget *parent = nullptr);
-    
+    explicit TimeVisualizerWidget(QWidget* parent = nullptr);
+
     // Time selection management
     void addTimeSelection(TimeSelectionSpan span);
     void clearTimeSelections();
-    
+
     // Properties
     void setTimeLineLength(const QTime& length);
     void setTimeLineLength(TimeInterval interval);
     void setCurrentTime(const QTime& currentTime);
-    
+
     QTime getTimeLineLength() const { return m_timeLineLength; }
     QTime getCurrentTime() const { return m_currentTime; }
 
 protected:
-    void paintEvent(QPaintEvent *event) override;
+    void paintEvent(QPaintEvent* event) override;
 
 private:
     QList<TimeSelectionSpan> m_timeSelections;
     QTime m_timeLineLength;
     QTime m_currentTime;
-    
+
     void updateVisualization();
-    void drawSelection(QPainter &painter, const TimeSelectionSpan &span);
+    void drawSelection(QPainter& painter, const TimeSelectionSpan& span);
 };
 
 class TimeSelectionVisualizer : public QWidget
@@ -52,9 +52,9 @@ class TimeSelectionVisualizer : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimeSelectionVisualizer(QWidget *parent = nullptr, QTimer *timer = nullptr);
+    explicit TimeSelectionVisualizer(QWidget* parent = nullptr, QTimer* timer = nullptr);
     ~TimeSelectionVisualizer();
-    
+
     // Delegate methods to the visualizer widget
     void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
@@ -70,14 +70,14 @@ private slots:
     void onTimerTick();
 
 private:
-    QPushButton *m_button;
-    TimeVisualizerWidget *m_visualizerWidget;
-    QVBoxLayout *m_layout;
-    
+    QPushButton* m_button;
+    TimeVisualizerWidget* m_visualizerWidget;
+    QVBoxLayout* m_layout;
+
     // Timer management
-    QTimer *m_timer;
+    QTimer* m_timer;
     bool m_ownsTimer;
-    
+
     void setupTimer();
 };
 

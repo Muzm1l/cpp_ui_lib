@@ -1,17 +1,17 @@
 #ifndef GRAPHLAYOUT_H
 #define GRAPHLAYOUT_H
 
-#include <QWidget>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
+#include "graphcontainer.h"
+#include "graphtype.h"
+#include "waterfalldata.h"
 #include <QDateTime>
+#include <QHBoxLayout>
 #include <QString>
 #include <QTimer>
-#include <vector>
+#include <QVBoxLayout>
+#include <QWidget>
 #include <map>
-#include "graphcontainer.h"
-#include "waterfalldata.h"
-#include "graphtype.h"
+#include <vector>
 
 enum class LayoutType
 {
@@ -67,44 +67,44 @@ public:
     void removeDataOption(const GraphType &graphType);
     void clearDataOptions();
     void setCurrentDataOption(const GraphType &graphType);
-    
+
     // Data point methods for specific data sources
-    void addDataPointToDataSource(const GraphType& graphType, qreal yValue, const QDateTime& timestamp);
-    void addDataPointsToDataSource(const GraphType& graphType, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
-    void setDataToDataSource(const GraphType& graphType, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
-    void setDataToDataSource(const GraphType& graphType, const WaterfallData& data);
-    void clearDataSource(const GraphType& graphType);
-    
+    void addDataPointToDataSource(const GraphType &graphType, qreal yValue, const QDateTime &timestamp);
+    void addDataPointsToDataSource(const GraphType &graphType, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    void setDataToDataSource(const GraphType &graphType, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataToDataSource(const GraphType &graphType, const WaterfallData &data);
+    void clearDataSource(const GraphType &graphType);
+
     // Data source management
-    WaterfallData* getDataSource(const QString& dataSourceLabel);
-    bool hasDataSource(const QString& dataSourceLabel) const;
+    WaterfallData *getDataSource(const QString &dataSourceLabel);
+    bool hasDataSource(const QString &dataSourceLabel) const;
     std::vector<QString> getDataSourceLabels() const;
-    
+
     // Container management
     std::vector<QString> getContainerLabels() const;
-    bool hasContainer(const QString& containerLabel) const;
+    bool hasContainer(const QString &containerLabel) const;
 
-    // Set the current time 
-    void setCurrentTime(const QTime& time);
+    // Set the current time
+    void setCurrentTime(const QTime &time);
 
     // Selection linking methods
     void linkHorizontalContainers();
-    
+
     // Chevron label control methods - operate on all visible containers
-    void setChevronLabel1(const QString& label);
-    void setChevronLabel2(const QString& label);
-    void setChevronLabel3(const QString& label);
+    void setChevronLabel1(const QString &label);
+    void setChevronLabel2(const QString &label);
+    void setChevronLabel3(const QString &label);
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
-    
+
     // Chevron label control methods - operate on specific container by label
-    void setChevronLabel1(const QString& containerLabel, const QString& label);
-    void setChevronLabel2(const QString& containerLabel, const QString& label);
-    void setChevronLabel3(const QString& containerLabel, const QString& label);
-    QString getChevronLabel1(const QString& containerLabel) const;
-    QString getChevronLabel2(const QString& containerLabel) const;
-    QString getChevronLabel3(const QString& containerLabel) const;
+    void setChevronLabel1(const QString &containerLabel, const QString &label);
+    void setChevronLabel2(const QString &containerLabel, const QString &label);
+    void setChevronLabel3(const QString &containerLabel, const QString &label);
+    QString getChevronLabel1(const QString &containerLabel) const;
+    QString getChevronLabel2(const QString &containerLabel) const;
+    QString getChevronLabel3(const QString &containerLabel) const;
 
 public slots:
     void onTimerTick();
@@ -126,7 +126,7 @@ private:
 
     void attachContainerDataSources();
     void initializeContainers();
-    int getContainerIndex(const QString& containerLabel) const;
+    int getContainerIndex(const QString &containerLabel) const;
     void disconnectAllContainerConnections();
 
 signals:
