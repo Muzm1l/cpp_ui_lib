@@ -456,7 +456,7 @@ void TimelineView::onIntervalButtonClicked()
     updateButtonText(nextInterval);
 
     // Trigger the intervalChanged signal
-    emit intervalChanged(nextInterval);
+    emit TimeIntervalChanged(nextInterval);
 }
 
 void TimelineView::onTimeModeButtonClicked()

@@ -77,7 +77,8 @@ public:
 
 
     signals:
-        void intervalChanged(TimeInterval currentInterval);
+        void TimeIntervalChanged(TimeInterval currentInterval);
+        void TimeScopeChanged(const TimeSelectionSpan& selection);
 
 private:
     QPushButton *m_intervalChangeButton;

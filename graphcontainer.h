@@ -116,6 +116,7 @@ signals:
     void DeltaTimeSelectionChanged(qreal deltaTime);
     void TimeSelectionsCleared();
     void IntervalChanged(TimeInterval interval);
+    void TimeScopeChanged(const TimeSelectionSpan& selection);
 
 private:
     QHBoxLayout *m_mainLayout;

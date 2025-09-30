@@ -398,7 +398,7 @@ void GraphContainer::setupEventConnections()
     
     // Connect TimelineView interval changes (if timeline view exists)
     if (m_timelineView) {
-        connect(m_timelineView, &TimelineView::intervalChanged, 
+        connect(m_timelineView, &TimelineView::TimeIntervalChanged, 
                 this, &GraphContainer::onTimeIntervalChanged);
     }
     
