@@ -121,47 +121,29 @@ double TimelineVisualizerWidget::calculateSmoothOffset()
 
 int TimelineVisualizerWidget::calculateOptimalDivisions() const
 {
-    // Use the current widget height to calculate optimal divisions
-    int widgetHeight = height();
-    if (widgetHeight <= 0) {
-        widgetHeight = 300; // Default height
-    }
-    return calculateOptimalDivisionsForArea(widgetHeight);
+    // Always use a fixed number of segments regardless of time interval
+    return getFixedNumberOfSegments();
 }
 
 int TimelineVisualizerWidget::calculateOptimalDivisionsForArea(int areaHeight) const
 {
-    // Calculate how many segments can fit based on minimum segment height
-    double minSegmentHeight = getMinimumSegmentHeight();
-    int maxDivisions = static_cast<int>(areaHeight / minSegmentHeight);
-    
-    // Ensure we have at least 1 division and at most a reasonable maximum
-    maxDivisions = qMax(1, qMin(maxDivisions, 100));
-    
-    qDebug() << "Calculating divisions for area height:" << areaHeight 
-             << "Min segment height:" << minSegmentHeight 
-             << "Max divisions:" << maxDivisions;
-    
-    return maxDivisions;
+    // Always return the fixed number of segments
+    // The segment height will be calculated to fill the entire area
+    return getFixedNumberOfSegments();
+}
+
+int TimelineVisualizerWidget::getFixedNumberOfSegments() const
+{
+    // Use a fixed number of segments for all time intervals
+    // This ensures consistent drawing logic across all intervals
+    return 20; // Fixed number of segments
 }
 
 double TimelineVisualizerWidget::getMinimumSegmentHeight() const
 {
-    // Define minimum segment height based on time interval
-    // Longer intervals can have smaller segments since they represent more time
-    int intervalMinutes = static_cast<int>(m_timeInterval);
-    
-    if (intervalMinutes <= 15) {
-        return 20.0; // 20px minimum for short intervals
-    } else if (intervalMinutes <= 60) {
-        return 15.0; // 15px minimum for medium intervals
-    } else if (intervalMinutes <= 180) {
-        return 12.0; // 12px minimum for longer intervals
-    } else if (intervalMinutes <= 360) {
-        return 10.0; // 10px minimum for very long intervals
-    } else {
-        return 8.0; // 8px minimum for extremely long intervals
-    }
+    // This method is no longer used in the fixed segment approach
+    // Segment height is calculated dynamically based on widget height
+    return 10.0; // Default value, not used
 }
 
 double TimelineVisualizerWidget::calculateSegmentDurationSeconds() const
@@ -203,18 +185,20 @@ void TimelineVisualizerWidget::createDrawingObjects()
         qDebug() << "Widget height is 0, using default height:" << widgetHeight;
     }
     
-    // Calculate optimal divisions based on available area
-    int optimalDivisions = calculateOptimalDivisionsForArea(widgetHeight);
-    m_numberOfDivisions = optimalDivisions;
+    // Use fixed number of segments for all time intervals
+    m_numberOfDivisions = getFixedNumberOfSegments();
     
     QRect drawArea(0, 0, TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, widgetHeight);
+    
+    // Calculate segment height to fill the entire drawing area
+    double segmentHeight = static_cast<double>(widgetHeight) / m_numberOfDivisions;
     
     qDebug() << "Creating drawing objects - Widget height:" << height() 
              << "Using height:" << widgetHeight
              << "Draw area:" << drawArea 
-             << "Divisions:" << m_numberOfDivisions
-             << "Segment height:" << static_cast<double>(drawArea.height()) / m_numberOfDivisions
-             << "Min segment height:" << getMinimumSegmentHeight();
+             << "Fixed divisions:" << m_numberOfDivisions
+             << "Calculated segment height:" << segmentHeight
+             << "Time interval:" << timeIntervalToString(m_timeInterval);
     
     // Create chevron drawer
     m_chevronDrawer = new TimelineChevronDrawer(drawArea, 50);
@@ -222,19 +206,14 @@ void TimelineVisualizerWidget::createDrawingObjects()
     // Create segment drawers for animation range (including off-screen segments)
     clearDrawingObjects(); // Clear existing ones first
     
-    // Create segments that fill the entire drawing area
-    // Calculate how many segments we need to fill the area
-    double segmentHeight = static_cast<double>(widgetHeight) / m_numberOfDivisions;
-    
-    // Create segments starting from segment 0 (current time) and going up and down
+    // Create segments with fixed count but variable time gaps
     // We need enough segments to cover the entire visible area plus some buffer
-    // Calculate how many segments we need to fill the widget height plus buffer
-    int segmentsNeeded = static_cast<int>(widgetHeight / segmentHeight) + 10; // Add buffer for smooth animation
+    int segmentsNeeded = m_numberOfDivisions + 10; // Add buffer for smooth animation
     int startSegment = -(segmentsNeeded / 2);
     int endSegment = segmentsNeeded / 2;
     
-    qDebug() << "Creating segments to fill area - Height:" << widgetHeight 
-             << "Divisions:" << m_numberOfDivisions 
+    qDebug() << "Creating fixed segments - Height:" << widgetHeight 
+             << "Fixed divisions:" << m_numberOfDivisions 
              << "Segment height:" << segmentHeight
              << "Segments needed:" << segmentsNeeded
              << "Segments range:" << startSegment << "to" << endSegment;
@@ -309,22 +288,45 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
         ++it;
     }
     
-    // Create new segments at the top if needed
+    // Create new segments as needed to ensure we have enough coverage
     if (!m_segmentDrawers.empty()) {
         int minSegmentNumber = (*std::min_element(m_segmentDrawers.begin(), m_segmentDrawers.end(),
             [](TimelineSegmentDrawer* a, TimelineSegmentDrawer* b) {
                 return a->getSegmentNumber() < b->getSegmentNumber();
             }))->getSegmentNumber();
         
+        int maxSegmentNumber = (*std::max_element(m_segmentDrawers.begin(), m_segmentDrawers.end(),
+            [](TimelineSegmentDrawer* a, TimelineSegmentDrawer* b) {
+                return a->getSegmentNumber() < b->getSegmentNumber();
+            }))->getSegmentNumber();
+        
+        // Calculate which segments should be visible to fill the entire area
+        int firstVisibleSegment = static_cast<int>(-smoothOffset / segmentHeight);
+        int lastVisibleSegment = firstVisibleSegment + m_numberOfDivisions;
+        
         // Add segments above the current range if needed
-        while (minSegmentNumber > -5) { // Keep some buffer above
+        while (minSegmentNumber > firstVisibleSegment - 2) { // Keep some buffer above
             --minSegmentNumber;
             TimelineSegmentDrawer* segmentDrawer = new TimelineSegmentDrawer(
                 minSegmentNumber, m_timeLineLength, m_currentTime, m_numberOfDivisions, m_isAbsoluteTime, rect());
             segmentDrawer->setShowRelativeLabel(m_showRelativeLabels);
             m_segmentDrawers.push_back(segmentDrawer);
         }
+        
+        // Add segments below the current range if needed
+        while (maxSegmentNumber < lastVisibleSegment + 2) { // Keep some buffer below
+            ++maxSegmentNumber;
+            TimelineSegmentDrawer* segmentDrawer = new TimelineSegmentDrawer(
+                maxSegmentNumber, m_timeLineLength, m_currentTime, m_numberOfDivisions, m_isAbsoluteTime, rect());
+            segmentDrawer->setShowRelativeLabel(m_showRelativeLabels);
+            m_segmentDrawers.push_back(segmentDrawer);
+        }
     }
+    
+    // Calculate which segments should be visible to fill the entire area
+    // We need to ensure we have exactly m_numberOfDivisions segments covering the full height
+    int firstVisibleSegment = static_cast<int>(-smoothOffset / segmentHeight);
+    int lastVisibleSegment = firstVisibleSegment + m_numberOfDivisions;
     
     // Draw segments that are visible (including those that might be partially off-screen due to smooth shifting)
     for (auto* segmentDrawer : m_segmentDrawers) {
@@ -333,8 +335,8 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
             // Calculate Y position for this segment with smooth offset (shift down)
             double y = segmentNumber * segmentHeight + smoothOffset;
             
-            // Only draw if the segment is at least partially visible
-            if (y + segmentHeight >= 0 && y < rect().height()) {
+            // Only draw if the segment is within the visible range
+            if (segmentNumber >= firstVisibleSegment && segmentNumber < lastVisibleSegment) {
                 // Update the segment drawer with current state
                 segmentDrawer->setDrawArea(rect());
                 segmentDrawer->setTimelineLength(m_timeLineLength);
@@ -357,7 +359,10 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
                  << "Total segments:" << m_segmentDrawers.size()
                  << "Divisions:" << m_numberOfDivisions
                  << "Segment height:" << segmentHeight
-                 << "Total coverage:" << (m_numberOfDivisions * segmentHeight);
+                 << "Total coverage:" << (m_numberOfDivisions * segmentHeight)
+                 << "First visible:" << firstVisibleSegment
+                 << "Last visible:" << lastVisibleSegment
+                 << "Smooth offset:" << smoothOffset;
     }
     
     // Draw chevron using drawing object
@@ -404,20 +409,20 @@ void TimelineVisualizerWidget::drawSegmentWithPainter(QPainter& painter, Timelin
         // Use the fixed label that was set during construction
         QString timestamp = segmentDrawer->getFixedLabel();
         if (!timestamp.isEmpty()) {
-            // Set text color to white for visibility on dark background
-            painter.setPen(QPen(QColor(255, 255, 255), 1));
-            
-            // Calculate text metrics
-            QFontMetrics fm(painter.font());
-            int textWidth = fm.horizontalAdvance(timestamp);
-            int textHeight = fm.height();
-            
-            // Calculate center position for the text within the segment
+        // Set text color to white for visibility on dark background
+        painter.setPen(QPen(QColor(255, 255, 255), 1));
+        
+        // Calculate text metrics
+        QFontMetrics fm(painter.font());
+        int textWidth = fm.horizontalAdvance(timestamp);
+        int textHeight = fm.height();
+        
+        // Calculate center position for the text within the segment
             int centerX = (drawArea.width() - textWidth) / 2;
-            int centerY = static_cast<int>(y + segmentHeight / 2 + textHeight / 2);
-            
-            // Draw the timestamp centered in the segment
-            painter.drawText(QPoint(centerX, centerY), timestamp);
+        int centerY = static_cast<int>(y + segmentHeight / 2 + textHeight / 2);
+        
+        // Draw the timestamp centered in the segment
+        painter.drawText(QPoint(centerX, centerY), timestamp);
         }
     }
 

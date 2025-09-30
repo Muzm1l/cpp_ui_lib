@@ -45,6 +45,7 @@ public:
     int calculateOptimalDivisionsForArea(int areaHeight) const;
     double calculateSegmentDurationSeconds() const;
     double getMinimumSegmentHeight() const;
+    int getFixedNumberOfSegments() const;
     
     // Update and draw loop method
     void updateAndDraw();

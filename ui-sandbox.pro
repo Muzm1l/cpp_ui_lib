@@ -22,6 +22,7 @@ SOURCES += \
     main.cpp \
     mainwindow.cpp \
     tacticalsolutionview.cpp \
+    timelinedrawingobjects.cpp \
     timelineview.cpp \
     timeselectionvisualizer.cpp \
     twoaxisdata.cpp \
@@ -45,6 +46,7 @@ HEADERS += \
     graphtype.h \
     mainwindow.h \
     tacticalsolutionview.h \
+    timelinedrawingobjects.h \
     timelineview.h \
     timeselectionvisualizer.h \
     twoaxisdata.h \
