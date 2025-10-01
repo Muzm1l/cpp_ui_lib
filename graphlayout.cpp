@@ -1153,3 +1153,53 @@ QString GraphLayout::getChevronLabel3(const QString &containerLabel) const
         return QString();
     }
 }
+
+void GraphLayout::setRangeLimits(const QString &containerLabel, qreal yMin, qreal yMax)
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
+    {
+        m_graphContainers[containerIndex]->setGraphRangeLimits(yMin, yMax);
+    }
+}
+
+void GraphLayout::removeRangeLimits(const QString &containerLabel)
+{
+    int containerIndex = getContainerIndex(containerLabel);
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
+    {
+        m_graphContainers[containerIndex]->removeGraphRangeLimits();
+    }
+}
+
+void GraphLayout::clearAllRangeLimits()
+{
+    for (auto *container : m_graphContainers)
+    {
+        container->clearAllGraphRangeLimits();
+    }
+}
+
+bool GraphLayout::hasRangeLimits(const GraphType graphType) const
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible())
+        {
+            return container->hasGraphRangeLimits(graphType);
+        }
+    }
+    return false;
+}
+
+std::pair<qreal, qreal> GraphLayout::getRangeLimits(const GraphType graphType) const
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible())
+        {
+            return container->getGraphRangeLimits(graphType);
+        }
+    }
+    return std::make_pair(0.0, 0.0);
+}
