@@ -52,14 +52,14 @@ MainWindow::MainWindow(QWidget *parent)
     this->currentAdoptedTrackBearing = 300;
     this->currentAdoptedTrackCourse = 270;
 
-    // Initialize current values for each graph type (starting at middle of new 3x ranges)
-    this->currentFDWValue = 57.0; // Middle of 24.0-90.0 range
-    this->currentBDWValue = 64.5; // Middle of 15.0-114.0 range
-    this->currentBRWValue = 57.0; // Middle of 24.0-90.0 range
-    this->currentLTWValue = 67.5; // Middle of 45.0-90.0 range
-    this->currentBTWValue = 67.5; // Middle of 15.0-120.0 range
-    this->currentRTWValue = 60.0; // Middle of 36.0-84.0 range
-    this->currentFTWValue = 67.5; // Middle of 45.0-90.0 range
+    // Initialize current values for each graph type (starting at middle of ranges)
+    this->currentFDWValue = 19.0; // Middle of 8.0-30.0 range
+    this->currentBDWValue = 21.5; // Middle of 5.0-38.0 range
+    this->currentBRWValue = 19.0; // Middle of 8.0-30.0 range
+    this->currentLTWValue = 22.5; // Middle of 15.0-30.0 range
+    this->currentBTWValue = 22.5; // Middle of 5.0-40.0 range
+    this->currentRTWValue = 20.0; // Middle of 12.0-28.0 range
+    this->currentFTWValue = 22.5; // Middle of 15.0-30.0 range
 
     // Initialize graph configurations with bounds, start values, and delta values
     this->fdwConfig = {8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
