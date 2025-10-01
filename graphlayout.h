@@ -76,13 +76,13 @@ public:
     void clearDataSource(const GraphType &graphType);
 
     // Data source management
-    WaterfallData *getDataSource(const QString &dataSourceLabel);
-    bool hasDataSource(const QString &dataSourceLabel) const;
-    std::vector<QString> getDataSourceLabels() const;
+    WaterfallData *getDataSource(const GraphType &graphType);
+    bool hasDataSource(const GraphType &graphType) const;
+    std::vector<GraphType> getDataSourceLabels() const;
 
     // Container management
     std::vector<QString> getContainerLabels() const;
-    bool hasContainer(const QString &containerLabel) const;
+    bool hasContainer(const GraphType &graphType) const;
 
     // Set the current time
     void setCurrentTime(const QTime &time);
@@ -127,9 +127,7 @@ private:
     QHBoxLayout *m_graphContainersRow1Layout;
     QHBoxLayout *m_graphContainersRow2Layout;
 
-    std::map<QString, WaterfallData *> m_dataSources;
-
-    std::vector<QString> dataSourceLabels;
+    std::map<GraphType, WaterfallData *> m_dataSources;
 
     void attachContainerDataSources();
     void initializeContainers();

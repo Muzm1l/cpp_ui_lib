@@ -19,16 +19,16 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer)
         qDebug() << "GraphLayout: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
     }
 
-    dataSourceLabels = getAllGraphTypeStrings();
+    auto dataSourceLabels = getAllGraphTypes();
 
     // Initialize data sources based on provided labels
-    for (const QString &label : dataSourceLabels)
+    for (const GraphType &label : dataSourceLabels)
     {
-        m_dataSources[label] = new WaterfallData(label);
+        m_dataSources[label] = new WaterfallData(graphTypeToString(label));
     }
 
     // Initialize container labels (using data source labels as container labels)
-    m_containerLabels = dataSourceLabels;
+    m_containerLabels = getAllGraphTypeStrings();
 
     initializeContainers();
 
@@ -224,7 +224,7 @@ void GraphLayout::attachContainerDataSources()
     {
         for (auto &dataSource : m_dataSources)
         {
-            container->addDataOption(stringToGraphType(dataSource.first), *dataSource.second);
+            container->addDataOption(dataSource.first, *dataSource.second);
         }
     }
 }
@@ -636,7 +636,7 @@ void GraphLayout::setCurrentDataOption(const GraphType &graphType)
 void GraphLayout::addDataPointToDataSource(const GraphType &graphType, qreal yValue, const QDateTime &timestamp)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(dataSourceLabel);
+    auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
         it->second->addDataPoint(yValue, timestamp);
@@ -668,7 +668,7 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, qreal yVa
 void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(dataSourceLabel);
+    auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
         it->second->addDataPoints(yValues, timestamps);
@@ -700,7 +700,7 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const st
 void GraphLayout::setDataToDataSource(const GraphType &graphType, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(dataSourceLabel);
+    auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
         it->second->setData(yData, timestamps);
@@ -732,7 +732,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const std::vec
 void GraphLayout::setDataToDataSource(const GraphType &graphType, const WaterfallData &data)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(dataSourceLabel);
+    auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
         it->second->setData(data.getYData(), data.getTimestamps());
@@ -764,7 +764,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const Waterfal
 void GraphLayout::clearDataSource(const GraphType &graphType)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(dataSourceLabel);
+    auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
         it->second->clearData();
@@ -778,20 +778,20 @@ void GraphLayout::clearDataSource(const GraphType &graphType)
 
 // Data source management
 
-WaterfallData *GraphLayout::getDataSource(const QString &dataSourceLabel)
+WaterfallData *GraphLayout::getDataSource(const GraphType &graphType)
 {
-    auto it = m_dataSources.find(dataSourceLabel);
+    auto it = m_dataSources.find(graphType);
     return (it != m_dataSources.end()) ? it->second : nullptr;
 }
 
-bool GraphLayout::hasDataSource(const QString &dataSourceLabel) const
+bool GraphLayout::hasDataSource(const GraphType &graphType) const
 {
-    return m_dataSources.find(dataSourceLabel) != m_dataSources.end();
+    return m_dataSources.find(graphType) != m_dataSources.end();
 }
 
-std::vector<QString> GraphLayout::getDataSourceLabels() const
+std::vector<GraphType> GraphLayout::getDataSourceLabels() const
 {
-    std::vector<QString> labels;
+    std::vector<GraphType> labels;
     for (const auto &pair : m_dataSources)
     {
         labels.push_back(pair.first);
@@ -806,9 +806,9 @@ std::vector<QString> GraphLayout::getContainerLabels() const
     return m_containerLabels;
 }
 
-bool GraphLayout::hasContainer(const QString &containerLabel) const
+bool GraphLayout::hasContainer(const GraphType &graphType) const
 {
-    return std::find(m_containerLabels.begin(), m_containerLabels.end(), containerLabel) != m_containerLabels.end();
+    return std::find(m_containerLabels.begin(), m_containerLabels.end(), graphTypeToString(graphType)) != m_containerLabels.end();
 }
 
 int GraphLayout::getContainerIndex(const QString &containerLabel) const
