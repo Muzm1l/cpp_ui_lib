@@ -1,8 +1,8 @@
 #include "graphcontainer.h"
 #include <QDebug>
 
-GraphContainer::GraphContainer(QWidget* parent, bool showTimelineView, QTimer* timer)
-    : QWidget{ parent }, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(150), m_graphViewSize(80, 300), currentDataOption(GraphType::BDW)
+GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, QTimer *timer)
+    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(150), m_graphViewSize(80, 300), currentDataOption(GraphType::BDW)
 {
 
     // If the timer is not provided, create a default 1-second timer
@@ -204,13 +204,13 @@ void GraphContainer::updateTotalContainerSize()
 
 // Data point methods implementation
 
-void GraphContainer::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void GraphContainer::setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
 {
     waterfallData.setData(yData, timestamps);
     initializeZoomPanelLimits();
 }
 
-void GraphContainer::setData(const WaterfallData& data)
+void GraphContainer::setData(const WaterfallData &data)
 {
     waterfallData = data;
     initializeZoomPanelLimits();
@@ -223,13 +223,13 @@ void GraphContainer::clearData()
     initializeZoomPanelLimits();
 }
 
-void GraphContainer::addDataPoint(qreal yValue, const QDateTime& timestamp)
+void GraphContainer::addDataPoint(qreal yValue, const QDateTime &timestamp)
 {
     waterfallData.addDataPoint(yValue, timestamp);
     initializeZoomPanelLimits();
 }
 
-void GraphContainer::addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+void GraphContainer::addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
 {
     waterfallData.addDataPoints(yValues, timestamps);
     initializeZoomPanelLimits();
@@ -245,7 +245,7 @@ std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinYExtents(q
     return waterfallData.getDataWithinYExtents(yMin, yMax);
 }
 
-std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
+std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const
 {
     return waterfallData.getDataWithinTimeRange(startTime, endTime);
 }
@@ -276,7 +276,7 @@ void GraphContainer::redrawWaterfallGraph()
 
 // Data options management implementation
 
-void GraphContainer::addDataOption(const GraphType graphType, WaterfallData& dataSource)
+void GraphContainer::addDataOption(const GraphType graphType, WaterfallData &dataSource)
 {
     QString title = graphTypeToString(graphType);
     dataOptions[graphType] = &dataSource;
@@ -366,14 +366,14 @@ GraphType GraphContainer::getCurrentDataOption() const
 std::vector<GraphType> GraphContainer::getAvailableDataOptions() const
 {
     std::vector<GraphType> options;
-    for (const auto& pair : dataOptions)
+    for (const auto &pair : dataOptions)
     {
         options.push_back(pair.first);
     }
     return options;
 }
 
-WaterfallData* GraphContainer::getDataOption(const GraphType graphType)
+WaterfallData *GraphContainer::getDataOption(const GraphType graphType)
 {
     auto it = dataOptions.find(graphType);
     return (it != dataOptions.end()) ? it->second : nullptr;
@@ -387,7 +387,7 @@ bool GraphContainer::hasDataOption(const GraphType graphType) const
 void GraphContainer::updateComboBoxOptions()
 {
     m_comboBox->clear();
-    for (const auto& pair : dataOptions)
+    for (const auto &pair : dataOptions)
     {
         m_comboBox->addItem(graphTypeToString(pair.first));
     }
@@ -406,28 +406,28 @@ void GraphContainer::setupEventConnections()
 {
     // Connect ComboBox data source selection
     connect(m_comboBox, &QComboBox::currentTextChanged,
-        this, &GraphContainer::onDataOptionChanged);
+            this, &GraphContainer::onDataOptionChanged);
 
     // Connect WaterfallGraph selection events
     connect(m_waterfallGraph, &WaterfallGraph::SelectionCreated,
-        this, &GraphContainer::onSelectionCreated);
+            this, &GraphContainer::onSelectionCreated);
 
     // Connect ZoomPanel value changes
     connect(m_zoomPanel, &ZoomPanel::valueChanged,
-        this, &GraphContainer::onZoomValueChanged);
+            this, &GraphContainer::onZoomValueChanged);
 
     // Connect TimelineView interval changes (if timeline view exists)
     if (m_timelineView)
     {
         connect(m_timelineView, &TimelineView::TimeIntervalChanged,
-            this, &GraphContainer::onTimeIntervalChanged);
+                this, &GraphContainer::onTimeIntervalChanged);
     }
 
     // Connect TimeSelectionVisualizer clear button events
     if (m_timelineSelectionView)
     {
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionsCleared,
-            this, &GraphContainer::onClearTimeSelectionsButtonClicked);
+                this, &GraphContainer::onClearTimeSelectionsButtonClicked);
     }
 
     qDebug() << "GraphContainer: All event connections established";
@@ -443,12 +443,12 @@ void GraphContainer::setupEventConnectionsForWaterfallGraph()
 
     // Connect WaterfallGraph selection events
     connect(m_waterfallGraph, &WaterfallGraph::SelectionCreated,
-        this, &GraphContainer::onSelectionCreated);
+            this, &GraphContainer::onSelectionCreated);
 
     qDebug() << "GraphContainer: Event connections established for waterfall graph";
 }
 
-WaterfallGraph* GraphContainer::createWaterfallGraph(GraphType graphType)
+WaterfallGraph *GraphContainer::createWaterfallGraph(GraphType graphType)
 {
     switch (graphType)
     {
@@ -487,7 +487,7 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
     m_waterfallGraph = createWaterfallGraph(graphType);
 
     // Set up the data source
-    WaterfallData* dataSource = nullptr;
+    WaterfallData *dataSource = nullptr;
     auto it = dataOptions.find(graphType);
     if (it != dataOptions.end())
     {
@@ -523,7 +523,7 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
     setupEventConnectionsForWaterfallGraph();
 }
 
-void GraphContainer::subscribeToIntervalChange(QObject* subscriber, const char* slot)
+void GraphContainer::subscribeToIntervalChange(QObject *subscriber, const char *slot)
 {
     if (subscriber && slot)
     {
@@ -573,7 +573,7 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
     }
 }
 
-void GraphContainer::onSelectionCreated(const TimeSelectionSpan& selection)
+void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
 {
     qDebug() << "GraphContainer: Selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
@@ -618,7 +618,7 @@ void GraphContainer::testSelectionRectangle()
     }
 }
 
-void GraphContainer::setCurrentTime(const QTime& time)
+void GraphContainer::setCurrentTime(const QTime &time)
 {
     qDebug() << "GraphContainer: Setting current time to" << time.toString();
     if (m_timelineSelectionView)
@@ -632,7 +632,7 @@ void GraphContainer::setCurrentTime(const QTime& time)
     }
 }
 
-void GraphContainer::addTimeSelection(const TimeSelectionSpan& selection)
+void GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
 {
     qDebug() << "GraphContainer: Adding time selection from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
@@ -691,7 +691,7 @@ void GraphContainer::initializeZoomPanelLimits()
     }
 
     // Get the current data source (either selected option or default waterfallData)
-    WaterfallData* currentDataSource = nullptr;
+    WaterfallData *currentDataSource = nullptr;
     auto it = dataOptions.find(currentDataOption);
     if (it != dataOptions.end())
     {
@@ -718,7 +718,7 @@ void GraphContainer::initializeZoomPanelLimits()
     m_zoomPanel->setRightLabelValue(dataMax);
 
     qDebug() << "GraphContainer: Zoom panel limits initialized - Min:" << dataMin
-        << "Center:" << centerValue << "Max:" << dataMax << "- Zoom reset to 50%";
+             << "Center:" << centerValue << "Max:" << dataMax << "- Zoom reset to 50%";
 }
 
 void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
@@ -752,7 +752,7 @@ void GraphContainer::onClearTimeSelectionsButtonClicked()
 }
 
 // Chevron label control methods implementation
-void GraphContainer::setChevronLabel1(const QString& label)
+void GraphContainer::setChevronLabel1(const QString &label)
 {
     if (m_timelineView)
     {
@@ -765,7 +765,7 @@ void GraphContainer::setChevronLabel1(const QString& label)
     }
 }
 
-void GraphContainer::setChevronLabel2(const QString& label)
+void GraphContainer::setChevronLabel2(const QString &label)
 {
     if (m_timelineView)
     {
@@ -778,7 +778,7 @@ void GraphContainer::setChevronLabel2(const QString& label)
     }
 }
 
-void GraphContainer::setChevronLabel3(const QString& label)
+void GraphContainer::setChevronLabel3(const QString &label)
 {
     if (m_timelineView)
     {
@@ -828,4 +828,54 @@ QString GraphContainer::getChevronLabel3() const
         qWarning() << "GraphContainer: Cannot get chevron label - timeline view is null";
         return QString();
     }
+}
+
+// Range limits management methods implementation
+void GraphContainer::setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax)
+{
+    graphRangeLimits[graphType] = std::make_pair(yMin, yMax);
+
+    // Check if the current graph type has stored range limits
+    if (graphType == currentDataOption)
+    {
+        // Disable auto-update Y range and set the stored limits
+        m_waterfallGraph->setAutoUpdateYRange(false);
+        m_waterfallGraph->setCustomYRange(yMin, yMax);
+
+        qDebug() << "GraphContainer: Applied stored range limits for" << graphTypeToString(graphType)
+                 << "- Min:" << yMin << "Max:" << yMax << "- Auto-update disabled";
+    }
+}
+
+void GraphContainer::removeGraphRangeLimits(const GraphType graphType)
+{
+    graphRangeLimits.erase(graphType);
+
+    // Check if the current graph type has stored range limits
+    if (graphType == currentDataOption)
+    {
+        // Enable auto-update Y range for graphs without stored limits
+        m_waterfallGraph->setAutoUpdateYRange(true);
+        qDebug() << "GraphContainer: No stored range limits for" << graphTypeToString(graphType)
+                 << "- Auto-update enabled";
+    }
+}
+
+void GraphContainer::clearAllGraphRangeLimits()
+{
+    graphRangeLimits.clear();
+
+    m_waterfallGraph->setAutoUpdateYRange(true);
+    qDebug() << "GraphContainer: Cleared all range limits - Auto-update enabled";
+}
+
+bool GraphContainer::hasGraphRangeLimits(const GraphType graphType) const
+{
+    return graphRangeLimits.find(graphType) != graphRangeLimits.end();
+}
+
+std::pair<qreal, qreal> GraphContainer::getGraphRangeLimits(const GraphType graphType) const
+{
+    auto it = graphRangeLimits.find(graphType);
+    return (it != graphRangeLimits.end()) ? it->second : std::make_pair(0.0, 0.0);
 }

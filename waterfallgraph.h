@@ -1,45 +1,44 @@
 #ifndef WATERFALLGRAPH_H
 #define WATERFALLGRAPH_H
 
-#include <QWidget>
-#include <QGraphicsView>
-#include <QGraphicsScene>
-#include <QGraphicsRectItem>
-#include <QGraphicsTextItem>
+#include "drawutils.h"
+#include "timelineutils.h"
+#include "waterfalldata.h"
+#include <QColor>
+#include <QCoreApplication>
+#include <QFont>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
 #include <QGraphicsPolygonItem>
-#include <QMouseEvent>
+#include <QGraphicsRectItem>
+#include <QGraphicsScene>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsTextItem>
+#include <QGraphicsView>
+#include <QMouseEvent>
+#include <QPainterPath>
+#include <QPalette>
+#include <QPolygonF>
 #include <QResizeEvent>
 #include <QShowEvent>
-#include <QVBoxLayout>
-#include <QPalette>
-#include <QPainterPath>
-#include <QTimer>
-#include <QCoreApplication>
 #include <QTime>
-#include <QColor>
-#include <QFont>
-#include <QPolygonF>
-#include <vector>
+#include <QTimer>
+#include <QVBoxLayout>
+#include <QWidget>
 #include <map>
-#include "drawutils.h"
-#include "waterfalldata.h"
-#include "timelineutils.h"
-
+#include <vector>
 
 class WaterfallGraph : public QWidget
 {
     Q_OBJECT
 
 public:
-    explicit WaterfallGraph(QWidget* parent = nullptr, bool enableGrid = false, int gridDivisions = 10, TimeInterval timeInterval = TimeInterval::FifteenMinutes);
+    explicit WaterfallGraph(QWidget *parent = nullptr, bool enableGrid = false, int gridDivisions = 10, TimeInterval timeInterval = TimeInterval::FifteenMinutes);
     ~WaterfallGraph();
 
     // Data source management
-    void setDataSource(WaterfallData& dataSource);
-    WaterfallData* getDataSource() const;
+    void setDataSource(WaterfallData &dataSource);
+    WaterfallData *getDataSource() const;
 
     // Time interval configuration
     void setTimeInterval(TimeInterval interval);
@@ -53,46 +52,53 @@ public:
     int getGridDivisions() const;
 
     // Data handling (delegates to data source)
-    void setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
-    void setData(const WaterfallData& data);
+    void setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setData(const WaterfallData &data);
     void clearData();
 
     // Incremental data addition methods (delegates to data source)
-    void addDataPoint(qreal yValue, const QDateTime& timestamp);
-    void addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
+    void addDataPoint(qreal yValue, const QDateTime &timestamp);
+    void addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
 
     // Data access methods (delegates to data source)
     WaterfallData getData() const;
     std::vector<std::pair<qreal, QDateTime>> getDataWithinYExtents(qreal yMin, qreal yMax) const;
-    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
+    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const;
 
     // Direct access to data vectors (delegates to data source)
-    const std::vector<qreal>& getYData() const;
-    const std::vector<QDateTime>& getTimestamps() const;
+    const std::vector<qreal> &getYData() const;
+    const std::vector<QDateTime> &getTimestamps() const;
 
     // Mouse event handlers (virtual so they can be overridden in derived classes)
-    virtual void onMouseClick(const QPointF& scenePos);
-    virtual void onMouseDrag(const QPointF& scenePos);
+    virtual void onMouseClick(const QPointF &scenePos);
+    virtual void onMouseDrag(const QPointF &scenePos);
+
+    // Auto-update Y range methods
+    void setAutoUpdateYRange(bool enabled);
+    bool getAutoUpdateYRange() const;
 
 protected:
     // Override mouse events
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
 
     // Override resize event
-    void resizeEvent(QResizeEvent* event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
     // Override show event
-    void showEvent(QShowEvent* event) override;
+    void showEvent(QShowEvent *event) override;
+
+    // Auto-update Y range flag
+    bool autoUpdateYRange = true;
 
 protected:
-    QGraphicsView* graphicsView;
-    QGraphicsScene* graphicsScene;
+    QGraphicsView *graphicsView;
+    QGraphicsScene *graphicsScene;
 
     // Overlay scene for interactive elements
-    QGraphicsView* overlayView;
-    QGraphicsScene* overlayScene;
+    QGraphicsView *overlayView;
+    QGraphicsScene *overlayScene;
 
     // Drawing area and grid
     QRectF drawingArea;
@@ -105,8 +111,8 @@ protected:
     // Data plotting methods
     virtual void drawDataLine();
     virtual void drawAllDataSeries();
-    virtual void drawDataSeries(const QString& seriesLabel);
-    QPointF mapDataToScreen(qreal yValue, const QDateTime& timestamp) const;
+    virtual void drawDataSeries(const QString &seriesLabel);
+    QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
     void updateDataRanges();
 
     // Data range tracking
@@ -122,7 +128,7 @@ protected:
     TimeInterval timeInterval;
 
     // Data source reference
-    WaterfallData* dataSource;
+    WaterfallData *dataSource;
 
     // Multi-series support
     std::map<QString, QColor> seriesColors;
@@ -136,11 +142,11 @@ protected:
     bool mouseSelectionEnabled;
     QPointF selectionStartPos;
     QPointF selectionEndPos;
-    QGraphicsRectItem* selectionRect;
+    QGraphicsRectItem *selectionRect;
 
     // Selection methods
-    void startSelection(const QPointF& scenePos);
-    void updateSelection(const QPointF& scenePos);
+    void startSelection(const QPointF &scenePos);
+    void updateSelection(const QPointF &scenePos);
     void endSelection();
     void clearSelection();
     QTime mapScreenToTime(qreal yPos) const;
@@ -157,7 +163,7 @@ public:
     void setRangeLimitingEnabled(bool enabled);
     bool isRangeLimitingEnabled() const;
     void setCustomYRange(qreal yMin, qreal yMax);
-    void getCustomYRange(qreal& yMin, qreal& yMax) const;
+    void getCustomYRange(qreal &yMin, qreal &yMax) const;
     void unsetCustomYRange();
 
     // Time range update method
@@ -167,22 +173,22 @@ public:
     virtual void draw();
 
     // Drawing methods for custom elements
-    void drawPoint(const QPointF& position, const QColor& color = Qt::white, qreal size = 2.0);
-    void drawAxisLine(const QPointF& startPos, const QPointF& endPos, const QColor& color = QColor(255, 255, 255, 128));
-    void drawCharacterLabel(const QString& text, const QPointF& position, const QColor& color = Qt::white, int fontSize = 12);
-    void drawTriangleMarker(const QPointF& position, const QColor& fillColor = Qt::red, const QColor& outlineColor = Qt::black, qreal size = 8.0);
-    void drawScatterplot(const QString& seriesLabel, const QColor& pointColor = Qt::white, qreal pointSize = 3.0, const QColor& outlineColor = Qt::black);
-    void drawScatterplot(const QColor& pointColor = Qt::white, qreal pointSize = 3.0, const QColor& outlineColor = Qt::black);
+    void drawPoint(const QPointF &position, const QColor &color = Qt::white, qreal size = 2.0);
+    void drawAxisLine(const QPointF &startPos, const QPointF &endPos, const QColor &color = QColor(255, 255, 255, 128));
+    void drawCharacterLabel(const QString &text, const QPointF &position, const QColor &color = Qt::white, int fontSize = 12);
+    void drawTriangleMarker(const QPointF &position, const QColor &fillColor = Qt::red, const QColor &outlineColor = Qt::black, qreal size = 8.0);
+    void drawScatterplot(const QString &seriesLabel, const QColor &pointColor = Qt::white, qreal pointSize = 3.0, const QColor &outlineColor = Qt::black);
+    void drawScatterplot(const QColor &pointColor = Qt::white, qreal pointSize = 3.0, const QColor &outlineColor = Qt::black);
 
     // Multi-series support methods
-    void setSeriesColor(const QString& seriesLabel, const QColor& color);
-    QColor getSeriesColor(const QString& seriesLabel) const;
-    void setSeriesVisible(const QString& seriesLabel, bool visible);
-    bool isSeriesVisible(const QString& seriesLabel) const;
+    void setSeriesColor(const QString &seriesLabel, const QColor &color);
+    QColor getSeriesColor(const QString &seriesLabel) const;
+    void setSeriesVisible(const QString &seriesLabel, bool visible);
+    bool isSeriesVisible(const QString &seriesLabel) const;
     std::vector<QString> getVisibleSeries() const;
 
 signals:
-    void SelectionCreated(const TimeSelectionSpan& selection);
+    void SelectionCreated(const TimeSelectionSpan &selection);
 };
 
 #endif // WATERFALLGRAPH_H

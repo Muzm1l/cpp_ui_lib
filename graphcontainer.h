@@ -105,6 +105,13 @@ public:
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
 
+    // Range limits management methods
+    void setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
+    void removeGraphRangeLimits(const GraphType graphType);
+    void clearAllGraphRangeLimits();
+    bool hasGraphRangeLimits(const GraphType graphType) const;
+    std::pair<qreal, qreal> getGraphRangeLimits(const GraphType graphType) const;
+
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
     void onSelectionCreated(const TimeSelectionSpan &selection);
@@ -153,6 +160,9 @@ private:
     // Data options management
     std::map<GraphType, WaterfallData *> dataOptions;
     GraphType currentDataOption;
+
+    // Range limits management
+    std::map<GraphType, std::pair<qreal, qreal>> graphRangeLimits;
 };
 
 #endif // GRAPHCONTAINER_H

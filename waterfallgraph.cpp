@@ -8,25 +8,8 @@
  * @param gridDivisions Number of grid divisions
  * @param timeInterval Time interval for the waterfall display
  */
-WaterfallGraph::WaterfallGraph(QWidget* parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : QWidget(parent)
-    , graphicsView(nullptr)
-    , graphicsScene(nullptr)
-    , overlayView(nullptr)
-    , overlayScene(nullptr)
-    , gridEnabled(enableGrid)
-    , gridDivisions(gridDivisions)
-    , yMin(0.0), yMax(0.0)
-    , timeMin(QDateTime())
-    , timeMax(QDateTime())
-    , dataRangesValid(false)
-    , rangeLimitingEnabled(true)
-    , customYMin(0.0), customYMax(0.0)
-    , timeInterval(timeInterval)
-    , dataSource(nullptr)
-    , isDragging(false)
-    , mouseSelectionEnabled(false)
-    , selectionRect(nullptr)
+WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
+    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), mouseSelectionEnabled(false), selectionRect(nullptr)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -47,8 +30,8 @@ WaterfallGraph::WaterfallGraph(QWidget* parent, bool enableGrid, int gridDivisio
     // Create graphics view
     graphicsView = new QGraphicsView(graphicsScene, this);
     graphicsView->setRenderHint(QPainter::Antialiasing);
-    graphicsView->setDragMode(QGraphicsView::NoDrag); // We'll handle our own mouse events
-    graphicsView->setMouseTracking(true); // Enable mouse tracking
+    graphicsView->setDragMode(QGraphicsView::NoDrag);                   // We'll handle our own mouse events
+    graphicsView->setMouseTracking(true);                               // Enable mouse tracking
     graphicsView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
 
     // Set black background for view
@@ -72,8 +55,8 @@ WaterfallGraph::WaterfallGraph(QWidget* parent, bool enableGrid, int gridDivisio
     // Create overlay graphics view
     overlayView = new QGraphicsView(overlayScene, this);
     overlayView->setRenderHint(QPainter::Antialiasing);
-    overlayView->setDragMode(QGraphicsView::NoDrag); // We'll handle our own mouse events
-    overlayView->setMouseTracking(true); // Enable mouse tracking
+    overlayView->setDragMode(QGraphicsView::NoDrag);                   // We'll handle our own mouse events
+    overlayView->setMouseTracking(true);                               // Enable mouse tracking
     overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
 
     // Set transparent background for overlay view
@@ -95,7 +78,7 @@ WaterfallGraph::WaterfallGraph(QWidget* parent, bool enableGrid, int gridDivisio
     overlayView->setAttribute(Qt::WA_TranslucentBackground, true);
 
     // Set up layout to make the main graphics view fill the widget with no margins
-    QVBoxLayout* layout = new QVBoxLayout(this);
+    QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(graphicsView);
@@ -112,10 +95,10 @@ WaterfallGraph::WaterfallGraph(QWidget* parent, bool enableGrid, int gridDivisio
     setMouseTracking(true);
 
     selectionRect = new QGraphicsRectItem();
-    selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine)); // White dashed line
+    selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine));    // White dashed line
     selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
-    selectionRect->setZValue(1000); // Ensure it's drawn on top
-    overlayScene->addItem(selectionRect); // Add to overlay scene
+    selectionRect->setZValue(1000);                             // Ensure it's drawn on top
+    overlayScene->addItem(selectionRect);                       // Add to overlay scene
 
     // Debug: Print initial state
     qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
@@ -140,7 +123,7 @@ WaterfallGraph::~WaterfallGraph()
  *
  * @param dataSource Reference to the WaterfallData object to use
  */
-void WaterfallGraph::setDataSource(WaterfallData& dataSource)
+void WaterfallGraph::setDataSource(WaterfallData &dataSource)
 {
     this->dataSource = &dataSource;
     draw(); // Trigger redraw with new data source
@@ -152,7 +135,7 @@ void WaterfallGraph::setDataSource(WaterfallData& dataSource)
  *
  * @return WaterfallData* Pointer to the current data source, or nullptr if not set
  */
-WaterfallData* WaterfallGraph::getDataSource() const
+WaterfallData *WaterfallGraph::getDataSource() const
 {
     return dataSource;
 }
@@ -163,9 +146,10 @@ WaterfallData* WaterfallGraph::getDataSource() const
  * @param yData
  * @param timestamps
  */
-void WaterfallGraph::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void WaterfallGraph::setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         qDebug() << "Error: No data source set";
         return;
     }
@@ -184,9 +168,10 @@ void WaterfallGraph::setData(const std::vector<qreal>& yData, const std::vector<
  *
  * @param data
  */
-void WaterfallGraph::setData(const WaterfallData& data)
+void WaterfallGraph::setData(const WaterfallData &data)
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         qDebug() << "Error: No data source set";
         return;
     }
@@ -205,7 +190,8 @@ void WaterfallGraph::setData(const WaterfallData& data)
  */
 void WaterfallGraph::clearData()
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         qDebug() << "Error: No data source set";
         return;
     }
@@ -224,9 +210,10 @@ void WaterfallGraph::clearData()
  * @param yValue
  * @param timestamp
  */
-void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime& timestamp)
+void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime &timestamp)
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         qDebug() << "Error: No data source set";
         return;
     }
@@ -245,9 +232,10 @@ void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime& timestamp)
  * @param yValues
  * @param timestamps
  */
-void WaterfallGraph::addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+void WaterfallGraph::addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         qDebug() << "Error: No data source set";
         return;
     }
@@ -267,7 +255,8 @@ void WaterfallGraph::addDataPoints(const std::vector<qreal>& yValues, const std:
  */
 WaterfallData WaterfallGraph::getData() const
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         return WaterfallData();
     }
     return *dataSource;
@@ -282,7 +271,8 @@ WaterfallData WaterfallGraph::getData() const
  */
 std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinYExtents(qreal yMin, qreal yMax) const
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         return std::vector<std::pair<qreal, QDateTime>>();
     }
     return dataSource->getDataWithinYExtents(yMin, yMax);
@@ -295,9 +285,10 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinYExtents(q
  * @param endTime
  * @return std::vector<std::pair<qreal, QDateTime>>
  */
-std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
+std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const
 {
-    if (!dataSource) {
+    if (!dataSource)
+    {
         return std::vector<std::pair<qreal, QDateTime>>();
     }
     return dataSource->getDataWithinTimeRange(startTime, endTime);
@@ -308,10 +299,11 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(
  *
  * @return const std::vector<qreal>&
  */
-const std::vector<qreal>& WaterfallGraph::getYData() const
+const std::vector<qreal> &WaterfallGraph::getYData() const
 {
     static const std::vector<qreal> emptyVector;
-    if (!dataSource) {
+    if (!dataSource)
+    {
         return emptyVector;
     }
     return dataSource->getYData();
@@ -322,10 +314,11 @@ const std::vector<qreal>& WaterfallGraph::getYData() const
  *
  * @return const std::vector<QDateTime>&
  */
-const std::vector<QDateTime>& WaterfallGraph::getTimestamps() const
+const std::vector<QDateTime> &WaterfallGraph::getTimestamps() const
 {
     static const std::vector<QDateTime> emptyVector;
-    if (!dataSource) {
+    if (!dataSource)
+    {
         return emptyVector;
     }
     return dataSource->getTimestamps();
@@ -341,18 +334,20 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     timeInterval = interval;
 
     // Always update time range based on new interval
-    timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
+    timeMax = QDateTime::currentDateTime();           // Current time (top of graph)
     timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
 
     // Update data ranges if we have data
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         // Use combined range from all series
         auto yRange = dataSource->getCombinedYRange();
         yMin = yRange.first;
         yMax = yRange.second;
         dataRangesValid = true;
     }
-    else {
+    else
+    {
         // Set default Y range when no data
         yMin = 0.0;
         yMax = 100.0;
@@ -392,7 +387,8 @@ qint64 WaterfallGraph::getTimeIntervalMs() const
  */
 void WaterfallGraph::setGridEnabled(bool enabled)
 {
-    if (gridEnabled != enabled) {
+    if (gridEnabled != enabled)
+    {
         gridEnabled = enabled;
         draw(); // Redraw to show/hide grid
         qDebug() << "Grid" << (enabled ? "enabled" : "disabled");
@@ -416,9 +412,11 @@ bool WaterfallGraph::isGridEnabled() const
  */
 void WaterfallGraph::setGridDivisions(int divisions)
 {
-    if (divisions > 0 && gridDivisions != divisions) {
+    if (divisions > 0 && gridDivisions != divisions)
+    {
         gridDivisions = divisions;
-        if (gridEnabled) {
+        if (gridEnabled)
+        {
             draw(); // Redraw to update grid divisions
         }
         qDebug() << "Grid divisions set to:" << divisions;
@@ -440,13 +438,13 @@ int WaterfallGraph::getGridDivisions() const
  *
  * @param scenePos
  */
-void WaterfallGraph::onMouseClick(const QPointF& scenePos)
+void WaterfallGraph::onMouseClick(const QPointF &scenePos)
 {
     qDebug() << "Mouse clicked at scene position:" << scenePos;
     // This is a virtual function that can be overridden in derived classes
 }
 
-void WaterfallGraph::onMouseDrag(const QPointF& scenePos)
+void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
 {
     qDebug() << "Mouse dragged to scene position:" << scenePos;
     // This is a virtual function that can be overridden in derived classes
@@ -468,12 +466,14 @@ void WaterfallGraph::draw()
     setupDrawingArea();
 
     // Draw grid if enabled
-    if (gridEnabled) {
+    if (gridEnabled)
+    {
         drawGrid();
     }
 
     // Draw the actual data if we have data
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         updateDataRanges();
         drawAllDataSeries();
     }
@@ -485,7 +485,8 @@ void WaterfallGraph::draw()
  */
 void WaterfallGraph::updateGraphicsDimensions()
 {
-    if (!graphicsView || !graphicsScene || !overlayView || !overlayScene) return;
+    if (!graphicsView || !graphicsScene || !overlayView || !overlayScene)
+        return;
 
     // Get the current size of the widget
     QSize widgetSize = this->size();
@@ -493,7 +494,8 @@ void WaterfallGraph::updateGraphicsDimensions()
     qDebug() << "updateGraphicsDimensions - Widget size:" << widgetSize;
 
     // Only update if we have valid dimensions
-    if (widgetSize.width() > 0 && widgetSize.height() > 0) {
+    if (widgetSize.width() > 0 && widgetSize.height() > 0)
+    {
         // Set scene rect to match widget size exactly
         QRectF newSceneRect(0, 0, widgetSize.width(), widgetSize.height());
         graphicsScene->setSceneRect(newSceneRect);
@@ -501,12 +503,12 @@ void WaterfallGraph::updateGraphicsDimensions()
 
         // Ensure the graphics view fits the scene exactly (no scrollbars)
         graphicsView->fitInView(newSceneRect, Qt::KeepAspectRatio);
-        graphicsView->resetTransform(); // Reset any scaling
+        graphicsView->resetTransform();           // Reset any scaling
         graphicsView->setTransform(QTransform()); // Ensure 1:1 mapping
 
         // Ensure the overlay view also fits the scene exactly
         overlayView->fitInView(newSceneRect, Qt::KeepAspectRatio);
-        overlayView->resetTransform(); // Reset any scaling
+        overlayView->resetTransform();           // Reset any scaling
         overlayView->setTransform(QTransform()); // Ensure 1:1 mapping
 
         // Update the drawing area
@@ -518,7 +520,8 @@ void WaterfallGraph::updateGraphicsDimensions()
         qDebug() << "Graphics dimensions updated successfully to:" << widgetSize;
         qDebug() << "Scene rect is now:" << graphicsScene->sceneRect();
     }
-    else {
+    else
+    {
         qDebug() << "Widget size is invalid, skipping update";
     }
 }
@@ -534,20 +537,21 @@ void WaterfallGraph::setupDrawingArea()
     qDebug() << "Drawing area set to:" << drawingArea;
 }
 
-
 /**
  * @brief Draw the grid.
  *
  */
 void WaterfallGraph::drawGrid()
 {
-    if (!graphicsScene || !gridEnabled || drawingArea.isEmpty() || gridDivisions <= 0) return;
+    if (!graphicsScene || !gridEnabled || drawingArea.isEmpty() || gridDivisions <= 0)
+        return;
 
     QPen gridPen(Qt::white, 1, Qt::DashLine); // White grid lines for black background
 
     // Draw vertical grid lines (for x-axis - variable)
     double stepX = drawingArea.width() / gridDivisions;
-    for (int i = 0; i <= gridDivisions; ++i) {
+    for (int i = 0; i <= gridDivisions; ++i)
+    {
         double x = drawingArea.left() + i * stepX;
         graphicsScene->addLine(x, drawingArea.top(), x, drawingArea.bottom(), gridPen);
     }
@@ -555,7 +559,8 @@ void WaterfallGraph::drawGrid()
     // Draw horizontal grid lines (for y-axis - time)
     // These represent time divisions within the fixed interval
     double stepY = drawingArea.height() / gridDivisions;
-    for (int i = 0; i <= gridDivisions; ++i) {
+    for (int i = 0; i <= gridDivisions; ++i)
+    {
         double y = drawingArea.top() + i * stepY;
         graphicsScene->addLine(drawingArea.left(), y, drawingArea.right(), y, gridPen);
     }
@@ -570,32 +575,37 @@ void WaterfallGraph::drawGrid()
  *
  * @param event
  */
-void WaterfallGraph::mousePressEvent(QMouseEvent* event)
+void WaterfallGraph::mousePressEvent(QMouseEvent *event)
 {
     qDebug() << "Mouse press event - button:" << event->button() << "mouseSelectionEnabled:" << mouseSelectionEnabled;
 
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton)
+    {
         // Convert widget coordinates to scene coordinates
         QPointF scenePos = graphicsView->mapToScene(event->pos());
         qDebug() << "Scene position:" << scenePos << "drawingArea:" << drawingArea;
 
         // Check if the click is within the drawing area
-        if (drawingArea.contains(scenePos)) {
+        if (drawingArea.contains(scenePos))
+        {
             isDragging = true;
             lastMousePos = scenePos;
 
             // Start selection if mouse selection is enabled
-            if (mouseSelectionEnabled) {
+            if (mouseSelectionEnabled)
+            {
                 qDebug() << "Starting selection...";
                 startSelection(scenePos);
             }
-            else {
+            else
+            {
                 qDebug() << "Mouse selection is disabled";
             }
 
             onMouseClick(scenePos);
         }
-        else {
+        else
+        {
             qDebug() << "Click outside drawing area";
         }
     }
@@ -609,16 +619,19 @@ void WaterfallGraph::mousePressEvent(QMouseEvent* event)
  *
  * @param event
  */
-void WaterfallGraph::mouseMoveEvent(QMouseEvent* event)
+void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
 {
-    if (isDragging && (event->buttons() & Qt::LeftButton)) {
+    if (isDragging && (event->buttons() & Qt::LeftButton))
+    {
         // Convert widget coordinates to scene coordinates
         QPointF scenePos = graphicsView->mapToScene(event->pos());
 
         // Check if the move is within the drawing area
-        if (drawingArea.contains(scenePos)) {
+        if (drawingArea.contains(scenePos))
+        {
             // Update selection if mouse selection is enabled
-            if (mouseSelectionEnabled) {
+            if (mouseSelectionEnabled)
+            {
                 updateSelection(scenePos);
             }
 
@@ -636,11 +649,13 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent* event)
  *
  * @param event
  */
-void WaterfallGraph::mouseReleaseEvent(QMouseEvent* event)
+void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (event->button() == Qt::LeftButton) {
+    if (event->button() == Qt::LeftButton)
+    {
         // End selection if mouse selection is enabled
-        if (mouseSelectionEnabled) {
+        if (mouseSelectionEnabled)
+        {
             endSelection();
         }
 
@@ -656,17 +671,19 @@ void WaterfallGraph::mouseReleaseEvent(QMouseEvent* event)
  *
  * @param event
  */
-void WaterfallGraph::resizeEvent(QResizeEvent* event)
+void WaterfallGraph::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
 
     // Ensure graphics view fits the widget exactly
-    if (graphicsView) {
+    if (graphicsView)
+    {
         graphicsView->resize(event->size());
     }
 
     // Ensure overlay view also fits the widget exactly and is positioned on top
-    if (overlayView) {
+    if (overlayView)
+    {
         overlayView->setGeometry(QRect(0, 0, event->size().width(), event->size().height()));
         overlayView->raise();
     }
@@ -682,7 +699,7 @@ void WaterfallGraph::resizeEvent(QResizeEvent* event)
  *
  * @param event
  */
-void WaterfallGraph::showEvent(QShowEvent* event)
+void WaterfallGraph::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
 
@@ -691,7 +708,8 @@ void WaterfallGraph::showEvent(QShowEvent* event)
     qDebug() << "showEvent - Graphics view size:" << graphicsView->size();
 
     // Ensure graphics view fits the widget exactly
-    if (graphicsView) {
+    if (graphicsView)
+    {
         graphicsView->resize(this->size());
     }
 
@@ -705,7 +723,8 @@ void WaterfallGraph::showEvent(QShowEvent* event)
  */
 void WaterfallGraph::updateDataRanges()
 {
-    if (!dataSource || dataSource->isEmpty()) {
+    if (!dataSource || dataSource->isEmpty())
+    {
         dataRangesValid = false;
         return;
     }
@@ -714,36 +733,39 @@ void WaterfallGraph::updateDataRanges()
     qreal dataYMin = yRange.first;
     qreal dataYMax = yRange.second;
 
-    if (rangeLimitingEnabled) {
+    if (rangeLimitingEnabled)
+    {
         // Apply range limiting: use the intersection of custom range and data range
         // Custom range acts as bounds, but we never exceed the actual data range
-        yMin = qMax(customYMin, dataYMin);  // Take the larger of custom min and data min
-        yMax = qMin(customYMax, dataYMax);  // Take the smaller of custom max and data max
+        yMin = qMax(customYMin, dataYMin); // Take the larger of custom min and data min
+        yMax = qMin(customYMax, dataYMax); // Take the smaller of custom max and data max
 
         // Ensure min < max
-        if (yMin >= yMax) {
+        if (yMin >= yMax)
+        {
             // If custom range is invalid or doesn't overlap with data, use data range
             yMin = dataYMin;
             yMax = dataYMax;
             qDebug() << "Warning: Custom range doesn't overlap with data range, using data range";
         }
     }
-    else {
+    else
+    {
         // Use data range directly
         yMin = dataYMin;
         yMax = dataYMax;
     }
 
     // Set time range based on fixed interval with current time as top (t=0)
-    timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
+    timeMax = QDateTime::currentDateTime();           // Current time (top of graph)
     timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
 
     dataRangesValid = true;
 
     qDebug() << "Data ranges updated - Y:" << yMin << "to" << yMax
-        << "Time:" << timeMin.toString() << "to" << timeMax.toString()
-        << "Interval:" << timeIntervalToString(timeInterval)
-        << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
+             << "Time:" << timeMin.toString() << "to" << timeMax.toString()
+             << "Interval:" << timeIntervalToString(timeInterval)
+             << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
 }
 
 /**
@@ -753,9 +775,10 @@ void WaterfallGraph::updateDataRanges()
  * @param timestamp
  * @return QPointF
  */
-QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime& timestamp) const
+QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp) const
 {
-    if (!dataRangesValid || drawingArea.isEmpty()) {
+    if (!dataRangesValid || drawingArea.isEmpty())
+    {
         return QPointF(0, 0);
     }
 
@@ -776,27 +799,32 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime& timestamp
  */
 void WaterfallGraph::drawDataLine()
 {
-    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid) {
+    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
+    {
         return;
     }
 
-    const auto& yData = dataSource->getYData();
-    const auto& timestamps = dataSource->getTimestamps();
+    const auto &yData = dataSource->getYData();
+    const auto &timestamps = dataSource->getTimestamps();
 
     // Filter data points to only include those within the current time range
     std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i) {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax) {
-            visibleData.push_back({ yData[i], timestamps[i] });
+    for (size_t i = 0; i < yData.size(); ++i)
+    {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
+        {
+            visibleData.push_back({yData[i], timestamps[i]});
         }
     }
 
-    if (visibleData.empty()) {
+    if (visibleData.empty())
+    {
         qDebug() << "No data points within current time range";
         return;
     }
 
-    if (visibleData.size() < 2) {
+    if (visibleData.size() < 2)
+    {
         // Draw a single point if we only have one data point
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
         QPen pointPen(Qt::green, 0); // No stroke (width 0)
@@ -811,7 +839,8 @@ void WaterfallGraph::drawDataLine()
     path.moveTo(firstPoint);
 
     // Add lines connecting all visible data points
-    for (size_t i = 1; i < visibleData.size(); ++i) {
+    for (size_t i = 1; i < visibleData.size(); ++i)
+    {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         path.lineTo(point);
     }
@@ -822,7 +851,8 @@ void WaterfallGraph::drawDataLine()
 
     // Draw data points
     QPen pointPen(Qt::yellow, 0); // No stroke (width 0)
-    for (size_t i = 0; i < visibleData.size(); ++i) {
+    for (size_t i = 0; i < visibleData.size(); ++i)
+    {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
     }
@@ -835,7 +865,8 @@ void WaterfallGraph::drawDataLine()
 void WaterfallGraph::setMouseSelectionEnabled(bool enabled)
 {
     mouseSelectionEnabled = enabled;
-    if (!enabled) {
+    if (!enabled)
+    {
         clearSelection();
     }
     qDebug() << "Mouse selection" << (enabled ? "enabled" : "disabled");
@@ -846,14 +877,13 @@ bool WaterfallGraph::isMouseSelectionEnabled() const
     return mouseSelectionEnabled;
 }
 
-void WaterfallGraph::startSelection(const QPointF& scenePos)
+void WaterfallGraph::startSelection(const QPointF &scenePos)
 {
     qDebug() << "startSelection called with scenePos:" << scenePos;
     qDebug() << "graphicsScene:" << graphicsScene;
 
     selectionStartPos = scenePos;
     selectionEndPos = scenePos;
-
 
     qDebug() << "Creating new selection rectangle";
 
@@ -866,9 +896,10 @@ void WaterfallGraph::startSelection(const QPointF& scenePos)
     qDebug() << "Selection started at:" << scenePos;
 }
 
-void WaterfallGraph::updateSelection(const QPointF& scenePos)
+void WaterfallGraph::updateSelection(const QPointF &scenePos)
 {
-    if (!selectionRect || !dataSource || dataSource->isEmpty()) return;
+    if (!selectionRect || !dataSource || dataSource->isEmpty())
+        return;
 
     selectionEndPos = scenePos;
 
@@ -883,13 +914,15 @@ void WaterfallGraph::updateSelection(const QPointF& scenePos)
     rect = rect.intersected(drawingArea);
 
     // Additional validation: ensure selection is within valid time range
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         // Convert Y coordinates to times to validate
         QTime topTime = mapScreenToTime(rect.top());
         QTime bottomTime = mapScreenToTime(rect.bottom());
 
         // If either time is invalid, clamp the rectangle to valid bounds
-        if (!topTime.isValid() || !bottomTime.isValid()) {
+        if (!topTime.isValid() || !bottomTime.isValid())
+        {
             // Clamp to the drawing area bounds
             rect.setTop(qMax(rect.top(), drawingArea.top()));
             rect.setBottom(qMin(rect.bottom(), drawingArea.bottom()));
@@ -901,7 +934,8 @@ void WaterfallGraph::updateSelection(const QPointF& scenePos)
 
 void WaterfallGraph::endSelection()
 {
-    if (!selectionRect || !dataSource || dataSource->isEmpty()) {
+    if (!selectionRect || !dataSource || dataSource->isEmpty())
+    {
         qDebug() << "endSelection: No valid selection or data source";
         clearSelection();
         return;
@@ -914,15 +948,17 @@ void WaterfallGraph::endSelection()
 
     // Map to time: minY (bottom) = later time, maxY (top) = earlier time
     QTime startTime = mapScreenToTime(maxY); // Earlier time (top of selection)
-    QTime endTime = mapScreenToTime(minY); // Later time (bottom of selection)
+    QTime endTime = mapScreenToTime(minY);   // Later time (bottom of selection)
 
     qDebug() << "Selection Y range: minY=" << minY << "maxY=" << maxY;
     qDebug() << "Time range: start=" << startTime.toString() << "end=" << endTime.toString();
 
     // Validate that both times are valid
-    if (startTime.isValid() && endTime.isValid() && startTime != endTime) {
+    if (startTime.isValid() && endTime.isValid() && startTime != endTime)
+    {
         // Ensure start time is before end time
-        if (startTime > endTime) {
+        if (startTime > endTime)
+        {
             QTime temp = startTime;
             startTime = endTime;
             endTime = temp;
@@ -932,9 +968,10 @@ void WaterfallGraph::endSelection()
         emit SelectionCreated(selection);
         qDebug() << "Selection created:" << startTime.toString() << "to" << endTime.toString();
     }
-    else {
+    else
+    {
         qDebug() << "Invalid selection times - start:" << startTime.toString()
-            << "end:" << endTime.toString() << "or times are equal";
+                 << "end:" << endTime.toString() << "or times are equal";
     }
 
     // Clear the visual selection immediately on mouse release
@@ -943,18 +980,20 @@ void WaterfallGraph::endSelection()
 
 void WaterfallGraph::clearSelection()
 {
-    if (selectionRect) {
+    if (selectionRect)
+    {
         overlayScene->removeItem(selectionRect);
     }
 }
 
 QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
 {
-    if (!dataRangesValid || drawingArea.isEmpty() || !dataSource || dataSource->isEmpty()) {
+    if (!dataRangesValid || drawingArea.isEmpty() || !dataSource || dataSource->isEmpty())
+    {
         qDebug() << "mapScreenToTime: Invalid conditions - dataRangesValid:" << dataRangesValid
-            << "drawingArea.isEmpty:" << drawingArea.isEmpty()
-            << "dataSource:" << (dataSource ? "exists" : "null")
-            << "dataSource->isEmpty:" << (dataSource ? dataSource->isEmpty() : true);
+                 << "drawingArea.isEmpty:" << drawingArea.isEmpty()
+                 << "dataSource:" << (dataSource ? "exists" : "null")
+                 << "dataSource->isEmpty:" << (dataSource ? dataSource->isEmpty() : true);
         return QTime();
     }
 
@@ -970,9 +1009,10 @@ QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
     QDateTime selectionTime = timeMax.addMSecs(-timeOffsetMs);
 
     // Validate that the selection time is within the available data range
-    if (dataSource && !dataSource->isValidSelectionTime(selectionTime)) {
+    if (dataSource && !dataSource->isValidSelectionTime(selectionTime))
+    {
         qDebug() << "mapScreenToTime: Selection time" << selectionTime.toString()
-            << "is outside valid data range";
+                 << "is outside valid data range";
         return QTime();
     }
 
@@ -982,13 +1022,14 @@ QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
 void WaterfallGraph::testSelectionRectangle()
 {
     qDebug() << "testSelectionRectangle called";
-    if (!graphicsScene) {
+    if (!graphicsScene)
+    {
         qDebug() << "Graphics scene is null!";
         return;
     }
 
     // Create a test rectangle
-    QGraphicsRectItem* testRect = new QGraphicsRectItem(100, 100, 200, 100);
+    QGraphicsRectItem *testRect = new QGraphicsRectItem(100, 100, 200, 100);
     testRect->setPen(QPen(Qt::white, 2, Qt::DashLine));
     testRect->setBrush(QBrush(QColor(255, 255, 255, 50)));
     testRect->setZValue(1000);
@@ -1006,11 +1047,13 @@ void WaterfallGraph::testSelectionRectangle()
  */
 void WaterfallGraph::setRangeLimitingEnabled(bool enabled)
 {
-    if (rangeLimitingEnabled != enabled) {
+    if (rangeLimitingEnabled != enabled)
+    {
         rangeLimitingEnabled = enabled;
 
         // Update data ranges and redraw if we have data
-        if (dataSource && !dataSource->isEmpty()) {
+        if (dataSource && !dataSource->isEmpty())
+        {
             updateDataRanges();
             draw();
         }
@@ -1038,7 +1081,8 @@ bool WaterfallGraph::isRangeLimitingEnabled() const
 void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
 {
     // Validate the range
-    if (yMin >= yMax) {
+    if (yMin >= yMax)
+    {
         qDebug() << "Error: Invalid custom Y range - min must be less than max";
         return;
     }
@@ -1047,11 +1091,14 @@ void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
     customYMax = yMax;
 
     // Update data ranges and redraw if range limiting is enabled
-    if (rangeLimitingEnabled) {
-        if (dataSource && !dataSource->isEmpty()) {
+    if (rangeLimitingEnabled)
+    {
+        if (dataSource && !dataSource->isEmpty())
+        {
             updateDataRanges();
         }
-        else {
+        else
+        {
             // Even without data, set the Y range to the custom range for immediate feedback
             this->yMin = customYMin;
             this->yMax = customYMax;
@@ -1069,7 +1116,7 @@ void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
  * @param yMin Reference to store the minimum Y value
  * @param yMax Reference to store the maximum Y value
  */
-void WaterfallGraph::getCustomYRange(qreal& yMin, qreal& yMax) const
+void WaterfallGraph::getCustomYRange(qreal &yMin, qreal &yMax) const
 {
     yMin = customYMin;
     yMax = customYMax;
@@ -1082,11 +1129,12 @@ void WaterfallGraph::getCustomYRange(qreal& yMin, qreal& yMax) const
 void WaterfallGraph::updateTimeRange()
 {
     // Update time range based on fixed interval with current time as top (t=0)
-    timeMax = QDateTime::currentDateTime(); // Current time (top of graph)
+    timeMax = QDateTime::currentDateTime();           // Current time (top of graph)
     timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
 
     // Update data ranges if we have data
-    if (dataSource && !dataSource->isEmpty()) {
+    if (dataSource && !dataSource->isEmpty())
+    {
         updateDataRanges();
     }
 
@@ -1094,7 +1142,7 @@ void WaterfallGraph::updateTimeRange()
     draw();
 
     qDebug() << "Time range updated - Time:" << timeMin.toString() << "to" << timeMax.toString()
-        << "Interval:" << timeIntervalToString(timeInterval);
+             << "Interval:" << timeIntervalToString(timeInterval);
 }
 
 /**
@@ -1107,7 +1155,8 @@ void WaterfallGraph::unsetCustomYRange()
     customYMax = 0.0;
 
     // Update data ranges and redraw if range limiting is enabled and we have data
-    if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty()) {
+    if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty())
+    {
         updateDataRanges();
         draw();
     }
@@ -1122,12 +1171,13 @@ void WaterfallGraph::unsetCustomYRange()
  * @param color The color of the point (default: white)
  * @param size The size of the point (default: 2.0)
  */
-void WaterfallGraph::drawPoint(const QPointF& position, const QColor& color, qreal size)
+void WaterfallGraph::drawPoint(const QPointF &position, const QColor &color, qreal size)
 {
-    if (!graphicsScene) return;
+    if (!graphicsScene)
+        return;
 
     // Create a small circle for the point
-    QGraphicsEllipseItem* point = new QGraphicsEllipseItem();
+    QGraphicsEllipseItem *point = new QGraphicsEllipseItem();
     point->setRect(position.x() - size / 2, position.y() - size / 2, size, size);
     point->setPen(QPen(color, 0)); // No stroke (width 0)
     point->setBrush(QBrush(color));
@@ -1143,12 +1193,13 @@ void WaterfallGraph::drawPoint(const QPointF& position, const QColor& color, qre
  * @param endPos The ending position of the line
  * @param color The color of the line (default: white translucent)
  */
-void WaterfallGraph::drawAxisLine(const QPointF& startPos, const QPointF& endPos, const QColor& color)
+void WaterfallGraph::drawAxisLine(const QPointF &startPos, const QPointF &endPos, const QColor &color)
 {
-    if (!graphicsScene) return;
+    if (!graphicsScene)
+        return;
 
     // Create a dashed line
-    QGraphicsLineItem* line = new QGraphicsLineItem();
+    QGraphicsLineItem *line = new QGraphicsLineItem();
     line->setLine(startPos.x(), startPos.y(), endPos.x(), endPos.y());
     line->setPen(QPen(color, 1, Qt::DashLine));
     line->setZValue(50); // Draw above grid but below data points
@@ -1164,12 +1215,13 @@ void WaterfallGraph::drawAxisLine(const QPointF& startPos, const QPointF& endPos
  * @param color The color of the text (default: white)
  * @param fontSize The font size (default: 12)
  */
-void WaterfallGraph::drawCharacterLabel(const QString& text, const QPointF& position, const QColor& color, int fontSize)
+void WaterfallGraph::drawCharacterLabel(const QString &text, const QPointF &position, const QColor &color, int fontSize)
 {
-    if (!graphicsScene) return;
+    if (!graphicsScene)
+        return;
 
     // Create a text item
-    QGraphicsTextItem* textItem = new QGraphicsTextItem();
+    QGraphicsTextItem *textItem = new QGraphicsTextItem();
     textItem->setPlainText(text);
     textItem->setPos(position);
 
@@ -1191,18 +1243,19 @@ void WaterfallGraph::drawCharacterLabel(const QString& text, const QPointF& posi
  * @param outlineColor The outline color (default: black)
  * @param size The size of the marker (default: 8.0)
  */
-void WaterfallGraph::drawTriangleMarker(const QPointF& position, const QColor& fillColor, const QColor& outlineColor, qreal size)
+void WaterfallGraph::drawTriangleMarker(const QPointF &position, const QColor &fillColor, const QColor &outlineColor, qreal size)
 {
-    if (!graphicsScene) return;
+    if (!graphicsScene)
+        return;
 
     // Create triangle polygon (pointing up)
     QPolygonF triangle;
-    triangle << QPointF(position.x(), position.y() - size / 2)           // Top point
-        << QPointF(position.x() - size / 2, position.y() + size / 2)   // Bottom left
-        << QPointF(position.x() + size / 2, position.y() + size / 2);  // Bottom right
+    triangle << QPointF(position.x(), position.y() - size / 2)             // Top point
+             << QPointF(position.x() - size / 2, position.y() + size / 2)  // Bottom left
+             << QPointF(position.x() + size / 2, position.y() + size / 2); // Bottom right
 
     // Create the triangle polygon item
-    QGraphicsPolygonItem* triangleItem = new QGraphicsPolygonItem(triangle);
+    QGraphicsPolygonItem *triangleItem = new QGraphicsPolygonItem(triangle);
     triangleItem->setPen(QPen(outlineColor, 2));
     triangleItem->setBrush(QBrush(fillColor));
     triangleItem->setZValue(150); // Draw above data points but below text
@@ -1210,7 +1263,7 @@ void WaterfallGraph::drawTriangleMarker(const QPointF& position, const QColor& f
     graphicsScene->addItem(triangleItem);
 
     // Create square outline around the triangle
-    QGraphicsRectItem* squareOutline = new QGraphicsRectItem();
+    QGraphicsRectItem *squareOutline = new QGraphicsRectItem();
     squareOutline->setRect(position.x() - size / 2, position.y() - size / 2, size, size);
     squareOutline->setPen(QPen(outlineColor, 2));
     squareOutline->setBrush(QBrush(Qt::transparent));
@@ -1227,43 +1280,50 @@ void WaterfallGraph::drawTriangleMarker(const QPointF& position, const QColor& f
  * @param pointSize The size of the scatterplot points (default: 3.0)
  * @param outlineColor The outline color of the scatterplot points (default: black)
  */
-void WaterfallGraph::drawScatterplot(const QString& seriesLabel, const QColor& pointColor, qreal pointSize, const QColor& outlineColor)
+void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &pointColor, qreal pointSize, const QColor &outlineColor)
 {
-    if (!graphicsScene || !dataSource) return;
+    if (!graphicsScene || !dataSource)
+        return;
 
     // Get the data series
-    const std::vector<qreal>& yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<QDateTime>& timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
+    const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
-    if (yData.empty() || timestamps.empty()) {
+    if (yData.empty() || timestamps.empty())
+    {
         qDebug() << "No data available for scatterplot series:" << seriesLabel;
         return;
     }
 
-    if (yData.size() != timestamps.size()) {
+    if (yData.size() != timestamps.size())
+    {
         qDebug() << "Data size mismatch for scatterplot series:" << seriesLabel;
         return;
     }
 
     // Filter data points to only include those within the current time range
     std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i) {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax) {
-            visibleData.push_back({ yData[i], timestamps[i] });
+    for (size_t i = 0; i < yData.size(); ++i)
+    {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
+        {
+            visibleData.push_back({yData[i], timestamps[i]});
         }
     }
 
-    if (visibleData.empty()) {
+    if (visibleData.empty())
+    {
         qDebug() << "No data points within current time range for scatterplot series:" << seriesLabel;
         return;
     }
 
     // Draw scatterplot points
-    for (const auto& dataPoint : visibleData) {
+    for (const auto &dataPoint : visibleData)
+    {
         QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
 
         // Create a circle for the scatterplot point
-        QGraphicsEllipseItem* point = new QGraphicsEllipseItem();
+        QGraphicsEllipseItem *point = new QGraphicsEllipseItem();
         point->setRect(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2, pointSize, pointSize);
         point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
         point->setBrush(QBrush(pointColor));
@@ -1282,43 +1342,50 @@ void WaterfallGraph::drawScatterplot(const QString& seriesLabel, const QColor& p
  * @param pointSize The size of the scatterplot points (default: 3.0)
  * @param outlineColor The outline color of the scatterplot points (default: black)
  */
-void WaterfallGraph::drawScatterplot(const QColor& pointColor, qreal pointSize, const QColor& outlineColor)
+void WaterfallGraph::drawScatterplot(const QColor &pointColor, qreal pointSize, const QColor &outlineColor)
 {
-    if (!graphicsScene || !dataSource) return;
+    if (!graphicsScene || !dataSource)
+        return;
 
     // Get the default data series
-    const std::vector<qreal>& yData = dataSource->getYData();
-    const std::vector<QDateTime>& timestamps = dataSource->getTimestamps();
+    const std::vector<qreal> &yData = dataSource->getYData();
+    const std::vector<QDateTime> &timestamps = dataSource->getTimestamps();
 
-    if (yData.empty() || timestamps.empty()) {
+    if (yData.empty() || timestamps.empty())
+    {
         qDebug() << "No data available for default scatterplot";
         return;
     }
 
-    if (yData.size() != timestamps.size()) {
+    if (yData.size() != timestamps.size())
+    {
         qDebug() << "Data size mismatch for default scatterplot";
         return;
     }
 
     // Filter data points to only include those within the current time range
     std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i) {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax) {
-            visibleData.push_back({ yData[i], timestamps[i] });
+    for (size_t i = 0; i < yData.size(); ++i)
+    {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
+        {
+            visibleData.push_back({yData[i], timestamps[i]});
         }
     }
 
-    if (visibleData.empty()) {
+    if (visibleData.empty())
+    {
         qDebug() << "No data points within current time range for default scatterplot";
         return;
     }
 
     // Draw scatterplot points
-    for (const auto& dataPoint : visibleData) {
+    for (const auto &dataPoint : visibleData)
+    {
         QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
 
         // Create a circle for the scatterplot point
-        QGraphicsEllipseItem* point = new QGraphicsEllipseItem();
+        QGraphicsEllipseItem *point = new QGraphicsEllipseItem();
         point->setRect(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2, pointSize, pointSize);
         point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
         point->setBrush(QBrush(pointColor));
@@ -1336,7 +1403,8 @@ void WaterfallGraph::drawScatterplot(const QColor& pointColor, qreal pointSize, 
  */
 void WaterfallGraph::drawAllDataSeries()
 {
-    if (!graphicsScene || !dataSource || !dataRangesValid) {
+    if (!graphicsScene || !dataSource || !dataRangesValid)
+    {
         return;
     }
 
@@ -1344,14 +1412,17 @@ void WaterfallGraph::drawAllDataSeries()
     std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
 
     // If no multi-series data, fall back to legacy single series
-    if (seriesLabels.empty()) {
+    if (seriesLabels.empty())
+    {
         drawDataLine();
         return;
     }
 
     // Draw each visible series
-    for (const QString& seriesLabel : seriesLabels) {
-        if (isSeriesVisible(seriesLabel)) {
+    for (const QString &seriesLabel : seriesLabels)
+    {
+        if (isSeriesVisible(seriesLabel))
+        {
             drawDataSeries(seriesLabel);
         }
     }
@@ -1362,29 +1433,34 @@ void WaterfallGraph::drawAllDataSeries()
  *
  * @param seriesLabel The label of the series to draw
  */
-void WaterfallGraph::drawDataSeries(const QString& seriesLabel)
+void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 {
-    if (!graphicsScene || !dataSource || !dataRangesValid) {
+    if (!graphicsScene || !dataSource || !dataRangesValid)
+    {
         return;
     }
 
-    const auto& yData = dataSource->getYDataSeries(seriesLabel);
-    const auto& timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    const auto &yData = dataSource->getYDataSeries(seriesLabel);
+    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
-    if (yData.empty() || timestamps.empty()) {
+    if (yData.empty() || timestamps.empty())
+    {
         qDebug() << "No data available for series:" << seriesLabel;
         return;
     }
 
     // Filter data points to only include those within the current time range
     std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i) {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax) {
-            visibleData.push_back({ yData[i], timestamps[i] });
+    for (size_t i = 0; i < yData.size(); ++i)
+    {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
+        {
+            visibleData.push_back({yData[i], timestamps[i]});
         }
     }
 
-    if (visibleData.empty()) {
+    if (visibleData.empty())
+    {
         qDebug() << "No data points within current time range for series:" << seriesLabel;
         return;
     }
@@ -1392,7 +1468,8 @@ void WaterfallGraph::drawDataSeries(const QString& seriesLabel)
     // Get series color
     QColor seriesColor = getSeriesColor(seriesLabel);
 
-    if (visibleData.size() < 2) {
+    if (visibleData.size() < 2)
+    {
         // Draw a single point if we only have one data point
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
@@ -1407,7 +1484,8 @@ void WaterfallGraph::drawDataSeries(const QString& seriesLabel)
     path.moveTo(firstPoint);
 
     // Add lines connecting all visible data points
-    for (size_t i = 1; i < visibleData.size(); ++i) {
+    for (size_t i = 1; i < visibleData.size(); ++i)
+    {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         path.lineTo(point);
     }
@@ -1418,7 +1496,8 @@ void WaterfallGraph::drawDataSeries(const QString& seriesLabel)
 
     // Draw data points
     QPen pointPen(seriesColor, 0); // No stroke (width 0)
-    for (size_t i = 0; i < visibleData.size(); ++i) {
+    for (size_t i = 0; i < visibleData.size(); ++i)
+    {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
     }
@@ -1434,7 +1513,7 @@ void WaterfallGraph::drawDataSeries(const QString& seriesLabel)
  * @param seriesLabel The label of the series
  * @param color The color to use for the series
  */
-void WaterfallGraph::setSeriesColor(const QString& seriesLabel, const QColor& color)
+void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &color)
 {
     seriesColors[seriesLabel] = color;
     qDebug() << "Series color set for" << seriesLabel << "to" << color.name();
@@ -1446,17 +1525,17 @@ void WaterfallGraph::setSeriesColor(const QString& seriesLabel, const QColor& co
  * @param seriesLabel The label of the series
  * @return QColor The color of the series, or a default color if not set
  */
-QColor WaterfallGraph::getSeriesColor(const QString& seriesLabel) const
+QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 {
     auto it = seriesColors.find(seriesLabel);
-    if (it != seriesColors.end()) {
+    if (it != seriesColors.end())
+    {
         return it->second;
     }
 
     // Return a default color based on series index
     static const QColor defaultColors[] = {
-        Qt::green, Qt::red, Qt::blue, Qt::yellow, Qt::cyan, Qt::magenta, Qt::white
-    };
+        Qt::green, Qt::red, Qt::blue, Qt::yellow, Qt::cyan, Qt::magenta, Qt::white};
 
     // Generate a consistent color based on the series label hash
     uint hash = qHash(seriesLabel);
@@ -1469,7 +1548,7 @@ QColor WaterfallGraph::getSeriesColor(const QString& seriesLabel) const
  * @param seriesLabel The label of the series
  * @param visible True to make the series visible, false to hide it
  */
-void WaterfallGraph::setSeriesVisible(const QString& seriesLabel, bool visible)
+void WaterfallGraph::setSeriesVisible(const QString &seriesLabel, bool visible)
 {
     seriesVisibility[seriesLabel] = visible;
     qDebug() << "Series visibility set for" << seriesLabel << "to" << (visible ? "visible" : "hidden");
@@ -1481,10 +1560,11 @@ void WaterfallGraph::setSeriesVisible(const QString& seriesLabel, bool visible)
  * @param seriesLabel The label of the series
  * @return bool True if the series is visible, false otherwise
  */
-bool WaterfallGraph::isSeriesVisible(const QString& seriesLabel) const
+bool WaterfallGraph::isSeriesVisible(const QString &seriesLabel) const
 {
     auto it = seriesVisibility.find(seriesLabel);
-    if (it != seriesVisibility.end()) {
+    if (it != seriesVisibility.end())
+    {
         return it->second;
     }
 
@@ -1501,16 +1581,30 @@ std::vector<QString> WaterfallGraph::getVisibleSeries() const
 {
     std::vector<QString> visibleSeries;
 
-    if (!dataSource) {
+    if (!dataSource)
+    {
         return visibleSeries;
     }
 
     std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-    for (const QString& seriesLabel : allSeries) {
-        if (isSeriesVisible(seriesLabel)) {
+    for (const QString &seriesLabel : allSeries)
+    {
+        if (isSeriesVisible(seriesLabel))
+        {
             visibleSeries.push_back(seriesLabel);
         }
     }
 
     return visibleSeries;
+}
+
+void WaterfallGraph::setAutoUpdateYRange(bool enabled)
+{
+    autoUpdateYRange = enabled;
+    qDebug() << "Auto-update Y range" << (enabled ? "enabled" : "disabled");
+}
+
+bool WaterfallGraph::getAutoUpdateYRange() const
+{
+    return autoUpdateYRange;
 }
