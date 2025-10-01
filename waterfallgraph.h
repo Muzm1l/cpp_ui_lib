@@ -90,7 +90,7 @@ protected:
     void showEvent(QShowEvent *event) override;
 
     // Auto-update Y range flag
-    bool autoUpdateYRange = true;
+    bool autoUpdateYRange;
 
 protected:
     QGraphicsView *graphicsView;

@@ -9,7 +9,7 @@
  * @param timeInterval Time interval for the waterfall display
  */
 WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), mouseSelectionEnabled(false), selectionRect(nullptr)
+    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), mouseSelectionEnabled(false), selectionRect(nullptr), autoUpdateYRange(true)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
