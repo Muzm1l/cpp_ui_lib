@@ -2,7 +2,7 @@
 #include <QFontMetrics>
 
 ZoomPanel::ZoomPanel(QWidget *parent)
-    : QWidget(parent), m_graphicsView(nullptr), m_scene(nullptr), m_indicator(nullptr), m_leftText(nullptr), m_centerText(nullptr), m_rightText(nullptr), m_isDragging(false), m_isExtending(false), m_currentValue(1.0), m_extendMode(None), m_userModifiedBounds(false), m_actualLowerBound(0.0), m_actualUpperBound(1.0)
+    : QWidget(parent), m_graphicsView(nullptr), m_scene(nullptr), m_indicator(nullptr), m_leftText(nullptr), m_centerText(nullptr), m_rightText(nullptr), m_isDragging(false), m_isExtending(false), m_currentValue(1.0), m_extendMode(None), m_userModifiedBounds(false), m_indicatorLowerBoundValue(0.0), m_indicatorUpperBoundValue(1.0)
 {
     // Set black background
     this->setStyleSheet("background-color: black;");
@@ -393,7 +393,7 @@ void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
         qDebug() << "Updating indicator value to:" << newValue;
 
         // Calculate the current range (difference between upper and lower bounds)
-        qreal currentRange = m_actualUpperBound - m_actualLowerBound;
+        qreal currentRange = m_indicatorUpperBoundValue - m_indicatorLowerBoundValue;
 
         // Calculate new bounds based on the drag position while maintaining the same range
         qreal newLowerBound = newValue - (currentRange / 2.0);
@@ -412,17 +412,15 @@ void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
         }
 
         // Update actual bounds
-        m_actualLowerBound = newLowerBound;
-        m_actualUpperBound = newUpperBound;
+        m_indicatorLowerBoundValue = newLowerBound;
+        m_indicatorUpperBoundValue = newUpperBound;
         m_currentValue = newValue;
 
         // Update indicator position to reflect new bounds
         updateIndicatorToBounds();
 
         // Emit current actual bounds
-        ZoomBounds bounds;
-        bounds.upperbound = m_actualUpperBound;
-        bounds.lowerbound = m_actualLowerBound;
+        ZoomBounds bounds = calculateInterpolatedBounds();
         qDebug() << "ZoomPanel: Emitting valueChanged signal (drag) - Lower:" << bounds.lowerbound << "Upper:" << bounds.upperbound;
         emit valueChanged(bounds);
     }
@@ -546,16 +544,16 @@ void ZoomPanel::updateExtentFromMousePosition(const QPoint &currentPos)
     {
         // Extend left edge - modify the actual lower bound
         qreal newLowerBound = mouseValue;
-        newLowerBound = qBound(0.0, newLowerBound, m_actualUpperBound - 0.01); // Don't exceed upper bound
-        m_actualLowerBound = newLowerBound;
+        newLowerBound = qBound(0.0, newLowerBound, m_indicatorUpperBoundValue - 0.01); // Don't exceed upper bound
+        m_indicatorLowerBoundValue = newLowerBound;
         m_userModifiedBounds = true; // Mark as user modified
     }
     else if (m_extendMode == ExtendRight)
     {
         // Extend right edge - modify the actual upper bound
         qreal newUpperBound = mouseValue;
-        newUpperBound = qBound(m_actualLowerBound + 0.01, newUpperBound, 1.0); // Don't go below current lower bound
-        m_actualUpperBound = newUpperBound;
+        newUpperBound = qBound(m_indicatorLowerBoundValue + 0.01, newUpperBound, 1.0); // Don't go below current lower bound
+        m_indicatorUpperBoundValue = newUpperBound;
         m_userModifiedBounds = true; // Mark as user modified
     }
 
@@ -563,9 +561,7 @@ void ZoomPanel::updateExtentFromMousePosition(const QPoint &currentPos)
     updateIndicatorToBounds();
 
     // Update bounds calculation and emit signal
-    ZoomBounds bounds;
-    bounds.upperbound = m_actualUpperBound;
-    bounds.lowerbound = m_actualLowerBound;
+    ZoomBounds bounds = calculateInterpolatedBounds();
     qDebug() << "ZoomPanel: Emitting valueChanged signal (extend) - Lower:" << bounds.lowerbound << "Upper:" << bounds.upperbound;
     emit valueChanged(bounds);
 }
@@ -584,8 +580,8 @@ void ZoomPanel::updateIndicatorToBounds()
     int availableWidth = drawArea.width() - (2 * margin);
 
     // Calculate indicator position and width based on bounds
-    int leftX = margin + static_cast<int>(m_actualLowerBound * availableWidth);
-    int rightX = margin + static_cast<int>(m_actualUpperBound * availableWidth);
+    int leftX = margin + static_cast<int>(m_indicatorLowerBoundValue * availableWidth);
+    int rightX = margin + static_cast<int>(m_indicatorUpperBoundValue * availableWidth);
 
     // Ensure minimum width
     int indicatorWidth = qMax(1, rightX - leftX);
@@ -595,16 +591,16 @@ void ZoomPanel::updateIndicatorToBounds()
     QRectF rect(indicatorX, indicatorY, indicatorWidth, indicatorHeight);
     m_indicator->setRect(rect);
 
-    qDebug() << "Updated indicator bounds - Left:" << m_actualLowerBound << "Right:" << m_actualUpperBound
+    qDebug() << "Updated indicator bounds - Left:" << m_indicatorLowerBoundValue << "Right:" << m_indicatorUpperBoundValue
              << "Width:" << indicatorWidth << "X:" << indicatorX;
 }
 
 ZoomBounds ZoomPanel::calculateInterpolatedBounds() const
 {
     ZoomBounds bounds;
-    // Linear interpolation for lower bound: interpolate between min indicator (0.0) and left label
-    bounds.lowerbound = m_leftLabelValue + (m_interpolationUpperBound - m_interpolationLowerBound) * m_actualLowerBound;
+    // Linear interpolation for lower indicator value: interpolate between min indicator (0.0) and left label
+    bounds.lowerbound = m_leftLabelValue + (m_indicatorLowerBoundValue) * (m_rightLabelValue - m_leftLabelValue);
     // Linear interpolation for upper bound: interpolate between max indicator (1.0) and right label
-    bounds.upperbound = m_rightLabelValue + (m_interpolationUpperBound - m_interpolationLowerBound) * m_actualUpperBound;
+    bounds.upperbound = m_leftLabelValue + (m_indicatorUpperBoundValue) * (m_rightLabelValue - m_leftLabelValue);
     return bounds;
 }

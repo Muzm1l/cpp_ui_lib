@@ -86,9 +86,9 @@ private:
     // User modification tracking
     bool m_userModifiedBounds;
 
-    // Actual bounds (separate from panel range)
-    qreal m_actualLowerBound;
-    qreal m_actualUpperBound;
+    // Indicator bounds (separate from panel range)
+    qreal m_indicatorLowerBoundValue;
+    qreal m_indicatorUpperBoundValue;
 
     void setupGraphicsView();
     void createIndicator();
