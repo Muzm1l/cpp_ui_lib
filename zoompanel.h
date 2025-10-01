@@ -1,22 +1,23 @@
 #ifndef ZOOMPANEL_H
 #define ZOOMPANEL_H
 
-#include <QWidget>
-#include <QGraphicsView>
-#include <QGraphicsScene>
-#include <QGraphicsRectItem>
-#include <QGraphicsTextItem>
-#include <QPen>
 #include <QBrush>
 #include <QFont>
-#include <QThread>
-#include <QMouseEvent>
-#include <QPoint>
 #include <QFrame>
-#include <QVBoxLayout>
+#include <QGraphicsRectItem>
+#include <QGraphicsScene>
+#include <QGraphicsTextItem>
+#include <QGraphicsView>
+#include <QMouseEvent>
+#include <QPen>
+#include <QPoint>
 #include <QShowEvent>
+#include <QThread>
+#include <QVBoxLayout>
+#include <QWidget>
 
-struct ZoomBounds {
+struct ZoomBounds
+{
     qreal upperbound;
     qreal lowerbound;
 };
@@ -29,41 +30,40 @@ signals:
     void valueChanged(ZoomBounds bounds);
 
 public:
-    explicit ZoomPanel(QWidget* parent = nullptr);
+    explicit ZoomPanel(QWidget *parent = nullptr);
     ~ZoomPanel();
 
-
     // Label value setters
-    void setLeftLabelValue(qreal value);
-    void setCenterLabelValue(qreal value);
-    void setRightLabelValue(qreal value);
+    void setLeftLabelValue(const qreal value);
+    void setCenterLabelValue(const qreal value);
+    void setRightLabelValue(const qreal value);
 
     // Getter methods for label values
-    qreal getLeftLabelValue() const;
-    qreal getCenterLabelValue() const;
-    qreal getRightLabelValue() const;
+    const qreal getLeftLabelValue() const;
+    const qreal getCenterLabelValue() const;
+    const qreal getRightLabelValue() const;
 
     // User modification tracking
     bool hasUserModifiedBounds() const;
     void resetUserModifiedFlag();
 
 protected:
-    void mousePressEvent(QMouseEvent* event) override;
-    void mouseMoveEvent(QMouseEvent* event) override;
-    void mouseReleaseEvent(QMouseEvent* event) override;
-    void resizeEvent(QResizeEvent* event) override;
-    void showEvent(QShowEvent* event) override;
+    void mousePressEvent(QMouseEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
+    void showEvent(QShowEvent *event) override;
 
 private:
-    QGraphicsView* m_graphicsView;
-    QGraphicsScene* m_scene;
-    QGraphicsRectItem* m_indicator;
-    QGraphicsTextItem* m_leftText;
-    QGraphicsTextItem* m_centerText;
-    QGraphicsTextItem* m_rightText;
+    QGraphicsView *m_graphicsView;
+    QGraphicsScene *m_scene;
+    QGraphicsRectItem *m_indicator;
+    QGraphicsTextItem *m_leftText;
+    QGraphicsTextItem *m_centerText;
+    QGraphicsTextItem *m_rightText;
 
     // Label values
-    qreal leftLabelValue = 0.0;  // Left reference value
+    qreal leftLabelValue = 0.0;   // Left reference value
     qreal centerLabelValue = 0.5; // Center value
     qreal rightLabelValue = 1.0;  // Range for upper bound
 
@@ -75,7 +75,8 @@ private:
     qreal m_currentValue;
 
     // Extend mode state
-    enum ExtendMode {
+    enum ExtendMode
+    {
         None,
         ExtendLeft,
         ExtendRight
@@ -93,12 +94,12 @@ private:
     void createIndicator();
     void createTextItems();
     void updateIndicator(double value);
-    void updateValueFromMousePosition(const QPoint& currentPos);
+    void updateValueFromMousePosition(const QPoint &currentPos);
     void updateAllElements();
 
     // Extend mode methods
-    ExtendMode detectExtendMode(const QPoint& mousePos);
-    void updateExtentFromMousePosition(const QPoint& currentPos);
+    ExtendMode detectExtendMode(const QPoint &mousePos);
+    void updateExtentFromMousePosition(const QPoint &currentPos);
     void updateIndicatorToBounds();
     void updateVisualFeedback();
 
