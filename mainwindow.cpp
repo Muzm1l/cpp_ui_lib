@@ -2,6 +2,8 @@
 #include "ui_mainwindow.h"
 #include <QDateTime>
 #include <QDebug>
+#include <cmath>
+#include <algorithm>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this))
@@ -17,9 +19,12 @@ MainWindow::MainWindow(QWidget *parent)
     std::srand(std::time(nullptr));
 
     this->simTick = 0;
-    // Set up timer for simulation updates (every 1 second)
-    connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
-    timer->start(1000); // 1000ms = 1 second
+    // Simulation disabled - using static bulk data instead
+    // connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
+    // timer->start(1000); // 1000ms = 1 second
+
+    // Set bulk data for all graphs (simulation disabled)
+    setBulkDataForAllGraphs();
 
     // Set up timer for time updates (every 1 second) - this will be passed to GraphLayout
     timeUpdateTimer->setInterval(1000); // 1000ms = 1 second
@@ -106,6 +111,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Configure Zoom Panel test functionality
     configureZoomPanel();
+
 
     // // Set up timer for current time updates (every second)
     // connect(timeUpdateTimer, &QTimer::timeout, this, &MainWindow::updateCurrentTime);
@@ -403,4 +409,70 @@ void MainWindow::setupNewGraphData()
 {
     // No initial data setup - graphs will be populated by simulation
     qDebug() << "Graph data will be populated by simulation";
+}
+
+void MainWindow::setBulkDataForAllGraphs()
+{
+    qDebug() << "Setting bulk data for all graphs (simulation disabled)";
+    
+    // Generate timestamps for the last 15 minutes (900 seconds)
+    QDateTime currentTime = QDateTime::currentDateTime();
+    std::vector<QDateTime> timestamps;
+    std::vector<qreal> fdwData, bdwData, brwData, ltwData, btwData, rtwData, ftwData;
+    
+    // Generate data points every 10 seconds for the last 15 minutes (90 data points)
+    for (int i = 0; i < 90; ++i) {
+        QDateTime timestamp = currentTime.addSecs(-(90 - i) * 10); // Every 10 seconds
+        timestamps.push_back(timestamp);
+        
+        // Generate realistic data patterns for each graph type
+        qreal timeFactor = static_cast<qreal>(i) / 90.0; // 0.0 to 1.0
+        
+        // FDW: Frequency Domain Window - sine wave pattern
+        fdwData.push_back(19.0 + 5.0 * sin(timeFactor * 4 * M_PI) + (std::rand() % 100 - 50) / 100.0);
+        
+        // BDW: Bandwidth Domain Window - linear increase with noise
+        bdwData.push_back(21.5 + 8.0 * timeFactor + (std::rand() % 100 - 50) / 100.0);
+        
+        // BRW: Bit Rate Window - exponential decay pattern
+        brwData.push_back(19.0 + 6.0 * exp(-timeFactor * 2) + (std::rand() % 100 - 50) / 100.0);
+        
+        // LTW: Latency Time Window - sawtooth pattern
+        ltwData.push_back(22.5 + 3.0 * (timeFactor * 3 - floor(timeFactor * 3)) + (std::rand() % 100 - 50) / 100.0);
+        
+        // BTW: Bit Time Window - cosine wave pattern
+        btwData.push_back(22.5 + 7.0 * cos(timeFactor * 3 * M_PI) + (std::rand() % 100 - 50) / 100.0);
+        
+        // RTW: Rate Time Window - step function pattern
+        rtwData.push_back(20.0 + 4.0 * (timeFactor > 0.5 ? 1.0 : -1.0) + (std::rand() % 100 - 50) / 100.0);
+        
+        // FTW: Frequency Time Window - quadratic pattern
+        ftwData.push_back(22.5 + 2.0 * (timeFactor - 0.5) * (timeFactor - 0.5) * 8 + (std::rand() % 100 - 50) / 100.0);
+    }
+    
+    // Add bulk data to each graph data source
+    graphgrid->addDataPointsToDataSource(GraphType::FDW, fdwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::BDW, bdwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::BRW, brwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::LTW, ltwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::BTW, btwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::RTW, rtwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::FTW, ftwData, timestamps);
+    
+    // Set current time to system time
+    graphgrid->setCurrentTime(QTime::currentTime());
+    
+    // Set chevron labels
+    graphgrid->setChevronLabel1("Start");
+    graphgrid->setChevronLabel2("Now");
+    graphgrid->setChevronLabel3("End");
+    
+    qDebug() << "Bulk data set for all graphs - 90 data points per graph over 15 minutes";
+    qDebug() << "FDW range:" << *std::min_element(fdwData.begin(), fdwData.end()) << "to" << *std::max_element(fdwData.begin(), fdwData.end());
+    qDebug() << "BDW range:" << *std::min_element(bdwData.begin(), bdwData.end()) << "to" << *std::max_element(bdwData.begin(), bdwData.end());
+    qDebug() << "BRW range:" << *std::min_element(brwData.begin(), brwData.end()) << "to" << *std::max_element(brwData.begin(), brwData.end());
+    qDebug() << "LTW range:" << *std::min_element(ltwData.begin(), ltwData.end()) << "to" << *std::max_element(ltwData.begin(), ltwData.end());
+    qDebug() << "BTW range:" << *std::min_element(btwData.begin(), btwData.end()) << "to" << *std::max_element(btwData.begin(), btwData.end());
+    qDebug() << "RTW range:" << *std::min_element(rtwData.begin(), rtwData.end()) << "to" << *std::max_element(rtwData.begin(), rtwData.end());
+    qDebug() << "FTW range:" << *std::min_element(ftwData.begin(), ftwData.end()) << "to" << *std::max_element(ftwData.begin(), ftwData.end());
 }

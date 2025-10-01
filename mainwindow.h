@@ -60,6 +60,8 @@ private:
     void demonstrateDataPointMethods();
     void setupCustomGraphsTab();
     void setupNewGraphData();
+    void setBulkDataForAllGraphs();
+    void initializeAllZoomPanelLimits();
     qreal generateRandomValue(qreal oldValue, qreal deltaValue);
 
     long simTick;
