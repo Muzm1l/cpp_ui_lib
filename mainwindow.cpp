@@ -3,7 +3,7 @@
 #include <QDateTime>
 #include <QDebug>
 
-MainWindow::MainWindow(QWidget* parent)
+MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this))
 {
     ui->setupUi(this);
@@ -26,9 +26,9 @@ MainWindow::MainWindow(QWidget* parent)
     timeUpdateTimer->start();
 
     // Initialize some sample data for the graph
-    std::vector<double> x_data = { 0.0, 1.0, 2.0, 3.0, 4.0 };
-    std::vector<double> y1_data = { 0.0, 2.0, 4.0, 6.0, 8.0 };  // Linear growth
-    std::vector<double> y2_data = { 0.0, 1.0, 4.0, 9.0, 16.0 }; // Quadratic growth
+    std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
+    std::vector<double> y1_data = {0.0, 2.0, 4.0, 6.0, 8.0};  // Linear growth
+    std::vector<double> y2_data = {0.0, 1.0, 4.0, 9.0, 16.0}; // Quadratic growth
 
     // Set the data to the graph widget
     ui->widget->setData(x_data, y1_data, y2_data);
@@ -62,13 +62,13 @@ MainWindow::MainWindow(QWidget* parent)
     this->currentFTWValue = 22.5; // Middle of 15.0-30.0 range
 
     // Initialize graph configurations with bounds, start values, and delta values
-    this->fdwConfig = { 8.0, 30.0, 19.0, 2.2 };  // Frequency Domain Window: 10% of 22.0 range
-    this->bdwConfig = { 5.0, 38.0, 21.5, 3.3 };  // Bandwidth Domain Window: 10% of 33.0 range
-    this->brwConfig = { 8.0, 30.0, 19.0, 2.2 };  // Bit Rate Window: 10% of 22.0 range
-    this->ltwConfig = { 15.0, 30.0, 22.5, 1.5 }; // Left Track Window: 10% of 15.0 range
-    this->btwConfig = { 5.0, 40.0, 22.5, 3.5 };  // Bottom Track Window: 10% of 35.0 range
-    this->rtwConfig = { 12.0, 28.0, 20.0, 1.6 }; // Right Track Window: 10% of 16.0 range
-    this->ftwConfig = { 15.0, 30.0, 22.5, 1.5 }; // Frequency Time Window: 10% of 15.0 range
+    this->fdwConfig = {8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
+    this->bdwConfig = {5.0, 38.0, 21.5, 3.3};  // Bandwidth Domain Window: 10% of 33.0 range
+    this->brwConfig = {8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
+    this->ltwConfig = {15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
+    this->btwConfig = {5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
+    this->rtwConfig = {12.0, 28.0, 20.0, 1.6}; // Right Track Window: 10% of 16.0 range
+    this->ftwConfig = {15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
 
     ui->widget_2->setData(
         this->currentShipSpeed,
@@ -120,9 +120,9 @@ void MainWindow::updateSimulation()
     // qDebug() << "Sim Tick: " << this->simTick;
 
     auto randPercent = [](int max)
-        {
-            return static_cast<double>(std::rand() % max) / 100.0; // 0.00 .. (max-1)/100
-        };
+    {
+        return static_cast<double>(std::rand() % max) / 100.0; // 0.00 .. (max-1)/100
+    };
 
     // --- Own ship (small variations <10%) ---
     this->currentShipSpeed *= (0.95 + randPercent(10));   // ±5%
@@ -192,12 +192,12 @@ void MainWindow::updateSimulation()
     graphgrid->addDataPointToDataSource(GraphType::FTW, this->currentFTWValue, currentTime);
 
     qDebug() << "Added data points - FDW:" << this->currentFDWValue
-        << "BDW:" << this->currentBDWValue
-        << "BRW:" << this->currentBRWValue
-        << "LTW:" << this->currentLTWValue
-        << "BTW:" << this->currentBTWValue
-        << "RTW:" << this->currentRTWValue
-        << "FTW:" << this->currentFTWValue;
+             << "BDW:" << this->currentBDWValue
+             << "BRW:" << this->currentBRWValue
+             << "LTW:" << this->currentLTWValue
+             << "BTW:" << this->currentBTWValue
+             << "RTW:" << this->currentRTWValue
+             << "FTW:" << this->currentFTWValue;
 
     // set the current time to the system time
     graphgrid->setCurrentTime(QTime::currentTime());
@@ -274,36 +274,23 @@ void MainWindow::updateSimulation()
 
 void MainWindow::configureZoomPanel()
 {
-    // Connect test buttons to zoom panel indicator
-    connect(ui->testButton0, &QPushButton::clicked, [this]()
-        { ui->zoomPanel->setCenterLabelValue(0.0); });
-
-    connect(ui->testButton50, &QPushButton::clicked, [this]()
-        { ui->zoomPanel->setCenterLabelValue(0.5); });
-
-    connect(ui->testButton100, &QPushButton::clicked, [this]()
-        { ui->zoomPanel->setCenterLabelValue(1.0); });
-
-    // Initialize zoom panel with a default value
-    ui->zoomPanel->setCenterLabelValue(0.3);
-
     // Initialize label values
     ui->zoomPanel->setLeftLabelValue(0.0);   // Left reference value
-    ui->zoomPanel->setCenterLabelValue(0.5); // Center value
-    ui->zoomPanel->setRightLabelValue(1.0);  // Range for upper bound
+    ui->zoomPanel->setCenterLabelValue(50.0); // Center value
+    ui->zoomPanel->setRightLabelValue(100.0);  // Range for upper bound
 
     // Initialize the indicator value label
     ui->indicatorValueLabel->setText("Bounds: [0.35, 0.80]");
 
     // Connect to zoom panel value changed signal
     connect(ui->zoomPanel, &ZoomPanel::valueChanged, [this](ZoomBounds bounds)
-        {
-            // Update the indicator value label on main window with bounds
-            ui->indicatorValueLabel->setText(QString("Bounds: [%1, %2]").arg(bounds.lowerbound, 0, 'f', 2).arg(bounds.upperbound, 0, 'f', 2));
+            {
+                // Update the indicator value label on main window with bounds
+                ui->indicatorValueLabel->setText(QString("Bounds: [%1, %2]").arg(bounds.lowerbound, 0, 'f', 2).arg(bounds.upperbound, 0, 'f', 2));
 
-            // You can add additional logic here to respond to value changes
-            // For example, update other UI elements or trigger other actions
-        });
+                // You can add additional logic here to respond to value changes
+                // For example, update other UI elements or trigger other actions
+            });
 }
 
 void MainWindow::configureLayoutSelection()
@@ -321,7 +308,7 @@ void MainWindow::configureLayoutSelection()
 
     // Connect combobox to slot
     connect(ui->layoutSelectionComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),
-        this, &MainWindow::onLayoutTypeChanged);
+            this, &MainWindow::onLayoutTypeChanged);
 }
 
 void MainWindow::onLayoutTypeChanged(int index)
@@ -342,7 +329,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "=== Setting up New Graph Components Tab ===";
 
     // Create a grid layout for the new graph components tab
-    QGridLayout* gridLayout = new QGridLayout(ui->customGraphsTab);
+    QGridLayout *gridLayout = new QGridLayout(ui->customGraphsTab);
     gridLayout->setSpacing(10);
     gridLayout->setContentsMargins(10, 10, 10, 10);
 
