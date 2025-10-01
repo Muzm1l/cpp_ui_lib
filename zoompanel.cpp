@@ -117,7 +117,7 @@ void ZoomPanel::createTextItems()
     int rightMargin = qMax(2, drawArea.width() / 20);
 
     // Create left text item - positioned at left margin, constrained to maxLabelWidth
-    m_leftText = new QGraphicsTextItem("0.00");
+    m_leftText = new QGraphicsTextItem(QString::number(leftLabelValue, 'f', 2));
     m_leftText->setFont(textFont);
     m_leftText->setDefaultTextColor(Qt::white);
     m_leftText->setPos(leftMargin, textY);
@@ -125,7 +125,7 @@ void ZoomPanel::createTextItems()
     m_scene->addItem(m_leftText);
 
     // Create center text item - centered, constrained to maxLabelWidth
-    m_centerText = new QGraphicsTextItem("0.50");
+    m_centerText = new QGraphicsTextItem(QString::number(centerLabelValue, 'f', 2));
     m_centerText->setFont(textFont);
     m_centerText->setDefaultTextColor(Qt::white);
     m_centerText->setPos(drawArea.width() / 2 - maxLabelWidth / 2, textY); // Center horizontally with width constraint
@@ -133,7 +133,7 @@ void ZoomPanel::createTextItems()
     m_scene->addItem(m_centerText);
 
     // Create right text item - positioned at right margin, constrained to maxLabelWidth
-    m_rightText = new QGraphicsTextItem("1.00");
+    m_rightText = new QGraphicsTextItem(QString::number(rightLabelValue, 'f', 2));
     m_rightText->setFont(textFont);
     m_rightText->setDefaultTextColor(Qt::white);
     m_rightText->setPos(drawArea.width() - rightMargin - maxLabelWidth, textY); // Right aligned with width constraint
