@@ -715,7 +715,7 @@ void GraphContainer::initializeZoomPanelLimits()
     }
 
     // Get the Y range from the current data source
-    auto yRange = currentDataSource->getYRange();
+    auto yRange = currentDataSource->getCombinedYRange();
     qreal dataMin = yRange.first;
     qreal dataMax = yRange.second;
 
