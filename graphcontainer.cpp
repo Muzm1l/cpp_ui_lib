@@ -503,6 +503,16 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
         m_waterfallGraph->setDataSource(*dataSource);
     }
 
+    // Set the auto update Y range for the waterfall graph if it has stored range limits
+    if (hasGraphRangeLimits(graphType))
+    {
+        m_waterfallGraph->setAutoUpdateYRange(false);
+    }
+    else
+    {
+        m_waterfallGraph->setAutoUpdateYRange(true);
+    }
+
     // Enable mouse selection for the waterfall graph
     m_waterfallGraph->setMouseSelectionEnabled(true);
 
