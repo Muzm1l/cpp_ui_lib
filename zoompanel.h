@@ -63,9 +63,9 @@ private:
     QGraphicsTextItem *m_rightText;
 
     // Label values
-    qreal leftLabelValue = 0.0;   // Left reference value
-    qreal centerLabelValue = 0.5; // Center value
-    qreal rightLabelValue = 1.0;  // Range for upper bound
+    qreal m_leftLabelValue = 0.0;   // Left reference value
+    qreal m_centerLabelValue = 0.5; // Center value
+    qreal m_rightLabelValue = 1.0;  // Range for upper bound
 
     // Mouse interaction state
     bool m_isDragging;
@@ -105,6 +105,14 @@ private:
 
     // Helper method to calculate optimal font size
     int calculateOptimalFontSize(int maxWidth);
+
+    // Helper method to calculate interpolated bounds
+    ZoomBounds calculateInterpolatedBounds() const;
+
+    // Interpolation Ranges
+    const qreal m_interpolationLowerBound = 0.0;
+    const qreal m_interpolationUpperBound = 1.0;
+
 };
 
 #endif // ZOOMPANEL_H
