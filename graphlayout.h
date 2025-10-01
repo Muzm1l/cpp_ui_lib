@@ -38,20 +38,6 @@ public:
     void setGraphViewSize(int width, int height);
     void updateLayoutSizing();
 
-    // Data point methods - operate on all visible containers
-    void setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
-    void setData(const WaterfallData &data);
-    void clearData();
-    void addDataPoint(qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
-
-    // Data point methods - operate on specific container by label
-    void setData(const QString &containerLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
-    void setData(const QString &containerLabel, const WaterfallData &data);
-    void clearData(const QString &containerLabel);
-    void addDataPoint(const QString &containerLabel, qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(const QString &containerLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
-
     // Data options management - operate on specific container by label
     void addDataOption(const QString &containerLabel, const GraphType &graphType, WaterfallData &dataSource);
     void removeDataOption(const QString &containerLabel, const GraphType &graphType);
