@@ -43,12 +43,6 @@ public:
     QSize getGraphViewSize() const;
     QSize getTotalContainerSize() const;
 
-    // Data point methods
-    void setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
-    void setData(const WaterfallData &data);
-    void clearData();
-    void addDataPoint(qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
 
     // Data access methods
     WaterfallData getData() const;

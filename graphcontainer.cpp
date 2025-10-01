@@ -204,37 +204,6 @@ void GraphContainer::updateTotalContainerSize()
 
 // Data point methods implementation
 
-void GraphContainer::setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
-{
-    waterfallData.setData(yData, timestamps);
-    initializeZoomPanelLimits();
-}
-
-void GraphContainer::setData(const WaterfallData &data)
-{
-    waterfallData = data;
-    initializeZoomPanelLimits();
-}
-
-void GraphContainer::clearData()
-{
-    waterfallData.clearData();
-    // Initialize zoom panel limits after clearing data
-    initializeZoomPanelLimits();
-}
-
-void GraphContainer::addDataPoint(qreal yValue, const QDateTime &timestamp)
-{
-    waterfallData.addDataPoint(yValue, timestamp);
-    initializeZoomPanelLimits();
-}
-
-void GraphContainer::addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
-{
-    waterfallData.addDataPoints(yValues, timestamps);
-    initializeZoomPanelLimits();
-}
-
 WaterfallData GraphContainer::getData() const
 {
     return waterfallData;
