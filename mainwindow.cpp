@@ -19,12 +19,11 @@ MainWindow::MainWindow(QWidget *parent)
     std::srand(std::time(nullptr));
 
     this->simTick = 0;
-    // Simulation disabled - using static bulk data instead
-    // connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
-    // timer->start(1000); // 1000ms = 1 second
+    connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
+    timer->start(1000); // 1000ms = 1 second
 
-    // Set bulk data for all graphs (simulation disabled)
-    setBulkDataForAllGraphs();
+    // // Set bulk data for all graphs (simulation disabled)
+    // setBulkDataForAllGraphs();
 
     // Set up timer for time updates (every 1 second) - this will be passed to GraphLayout
     timeUpdateTimer->setInterval(1000); // 1000ms = 1 second
