@@ -468,7 +468,7 @@ void GraphLayout::addDataOption(const GraphType &graphType, WaterfallData &dataS
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->addDataOption(graphType, dataSource);
         }
@@ -479,7 +479,7 @@ void GraphLayout::removeDataOption(const GraphType &graphType)
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->removeDataOption(graphType);
         }
@@ -490,7 +490,7 @@ void GraphLayout::clearDataOptions()
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->clearDataOptions();
         }
@@ -501,7 +501,7 @@ void GraphLayout::setCurrentDataOption(const GraphType &graphType)
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->setCurrentDataOption(graphType);
         }
@@ -519,10 +519,10 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, qreal yVa
         it->second->addDataPoint(yValue, timestamp);
         qDebug() << "Added data point to" << dataSourceLabel << "y:" << yValue << "time:" << timestamp.toString();
 
-        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
+        // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
         {
-            if (container && container->isVisible() && container->hasDataOption(graphType))
+            if (container && container->hasDataOption(graphType))
             {
                 container->initializeZoomPanelLimits();
 
@@ -551,10 +551,10 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const st
         it->second->addDataPoints(yValues, timestamps);
         qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel;
 
-        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
+        // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
         {
-            if (container && container->isVisible() && container->hasDataOption(graphType))
+            if (container && container->hasDataOption(graphType))
             {
                 container->initializeZoomPanelLimits();
 
@@ -583,10 +583,10 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const std::vec
         it->second->setData(yData, timestamps);
         qDebug() << "Set data for" << dataSourceLabel << "size:" << yData.size();
 
-        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
+        // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
         {
-            if (container && container->isVisible() && container->hasDataOption(graphType))
+            if (container && container->hasDataOption(graphType))
             {
                 container->initializeZoomPanelLimits();
 
@@ -615,10 +615,10 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const Waterfal
         it->second->setData(data.getYData(), data.getTimestamps());
         qDebug() << "Set data for" << dataSourceLabel << "from WaterfallData object";
 
-        // Notify all visible containers that have this data source to update their zoom panels and redraw graphs
+        // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
         {
-            if (container && container->isVisible() && container->hasDataOption(graphType))
+            if (container && container->hasDataOption(graphType))
             {
                 container->initializeZoomPanelLimits();
 
@@ -872,7 +872,7 @@ void GraphLayout::setChevronLabel1(const QString &label)
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->setChevronLabel1(label);
         }
@@ -884,7 +884,7 @@ void GraphLayout::setChevronLabel2(const QString &label)
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->setChevronLabel2(label);
         }
@@ -896,7 +896,7 @@ void GraphLayout::setChevronLabel3(const QString &label)
 {
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             container->setChevronLabel3(label);
         }
@@ -909,7 +909,7 @@ QString GraphLayout::getChevronLabel1() const
     // Return the label from the first visible container
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             return container->getChevronLabel1();
         }
@@ -923,7 +923,7 @@ QString GraphLayout::getChevronLabel2() const
     // Return the label from the first visible container
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             return container->getChevronLabel2();
         }
@@ -937,7 +937,7 @@ QString GraphLayout::getChevronLabel3() const
     // Return the label from the first visible container
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible())
+        if (container)
         {
             return container->getChevronLabel3();
         }
