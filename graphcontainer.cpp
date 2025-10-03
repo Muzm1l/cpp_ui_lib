@@ -525,6 +525,7 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
     if (hasGraphRangeLimits(graphType))
     {
         graph->setAutoUpdateYRange(false);
+        graph->setCustomYRange(getGraphRangeLimits(graphType).first, getGraphRangeLimits(graphType).second);
     }
     else
     {
