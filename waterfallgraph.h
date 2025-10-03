@@ -114,6 +114,10 @@ protected:
     virtual void drawDataSeries(const QString &seriesLabel);
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
     void updateDataRanges();
+    void updateYRange();
+    void updateYRangeFromData();
+    void updateYRangeFromCustom();
+    void forceRangeUpdate();
 
     // Data range tracking
     qreal yMin, yMax;
@@ -162,8 +166,8 @@ public:
     // Range limiting methods
     void setRangeLimitingEnabled(bool enabled);
     bool isRangeLimitingEnabled() const;
-    void setCustomYRange(qreal yMin, qreal yMax);
-    void getCustomYRange(qreal &yMin, qreal &yMax) const;
+    void setCustomYRange(const qreal yMin, const qreal yMax);
+    std::pair<qreal,qreal> getCustomYRange() const;
     void unsetCustomYRange();
 
     // Time range update method

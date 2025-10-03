@@ -118,6 +118,8 @@ private:
     void setupEventConnections();
     void setupEventConnectionsForWaterfallGraph();
     WaterfallGraph *createWaterfallGraph(GraphType graphType);
+    void createAllWaterfallGraphs();
+    void setupWaterfallGraphProperties(WaterfallGraph *graph, GraphType graphType);
     void initializeWaterfallGraph(GraphType graphType);
     void setupTimer();
     void onTimerTick();
@@ -135,10 +137,13 @@ private:
     QVBoxLayout *m_leftLayout;
     QComboBox *m_comboBox;
     ZoomPanel *m_zoomPanel;
-    WaterfallGraph *m_waterfallGraph;
+    WaterfallGraph *m_currentWaterfallGraph;
     TimeSelectionVisualizer *m_timelineSelectionView;
     TimelineView *m_timelineView;
     bool m_showTimelineView;
+
+    // Waterfallgraph management
+    std::map<GraphType, WaterfallGraph *> m_waterfallGraphs;
 
     // Timer management
     QTimer *m_timer;

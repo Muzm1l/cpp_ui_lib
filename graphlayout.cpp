@@ -1031,7 +1031,7 @@ QString GraphLayout::getChevronLabel3(const QString &containerLabel) const
     }
 }
 
-void GraphLayout::setRangeLimits(const GraphType graphType, qreal yMin, qreal yMax)
+void GraphLayout::setHardRangeLimits(const GraphType graphType, qreal yMin, qreal yMax)
 {
     for (auto *container : m_graphContainers)
     {
@@ -1042,7 +1042,7 @@ void GraphLayout::setRangeLimits(const GraphType graphType, qreal yMin, qreal yM
     }
 }
 
-void GraphLayout::removeRangeLimits(const GraphType graphType)
+void GraphLayout::removeHardRangeLimits(const GraphType graphType)
 {
 
     // loop through all containers
@@ -1055,7 +1055,7 @@ void GraphLayout::removeRangeLimits(const GraphType graphType)
     }
 }
 
-void GraphLayout::clearAllRangeLimits()
+void GraphLayout::clearAllHardRangeLimits()
 {
     for (auto *container : m_graphContainers)
     {
@@ -1063,7 +1063,7 @@ void GraphLayout::clearAllRangeLimits()
     }
 }
 
-bool GraphLayout::hasRangeLimits(const GraphType graphType) const
+bool GraphLayout::hasHardRangeLimits(const GraphType graphType) const
 {
     for (auto *container : m_graphContainers)
     {
@@ -1075,7 +1075,7 @@ bool GraphLayout::hasRangeLimits(const GraphType graphType) const
     return false;
 }
 
-std::pair<qreal, qreal> GraphLayout::getRangeLimits(const GraphType graphType) const
+std::pair<qreal, qreal> GraphLayout::getHardRangeLimits(const GraphType graphType) const
 {
     for (auto *container : m_graphContainers)
     {

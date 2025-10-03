@@ -159,6 +159,9 @@ void WaterfallGraph::setData(const std::vector<qreal> &yData, const std::vector<
 
     qDebug() << "Data set successfully. Size:" << dataSource->getDataSize();
 
+    // Mark ranges as invalid so they'll be recalculated
+    dataRangesValid = false;
+    
     // Redraw the graph with the new data
     draw();
 }
@@ -180,6 +183,9 @@ void WaterfallGraph::setData(const WaterfallData &data)
 
     qDebug() << "Data set successfully from WaterfallData object. Size:" << dataSource->getDataSize();
 
+    // Mark ranges as invalid so they'll be recalculated
+    dataRangesValid = false;
+    
     // Redraw the graph with the new data
     draw();
 }
@@ -222,6 +228,9 @@ void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime &timestamp)
 
     qDebug() << "Data point added. New size:" << dataSource->getDataSize();
 
+    // Mark ranges as invalid so they'll be recalculated
+    dataRangesValid = false;
+    
     // Redraw the graph with the new data
     draw();
 }
@@ -244,6 +253,9 @@ void WaterfallGraph::addDataPoints(const std::vector<qreal> &yValues, const std:
 
     qDebug() << "Data points added. New size:" << dataSource->getDataSize();
 
+    // Mark ranges as invalid so they'll be recalculated
+    dataRangesValid = false;
+    
     // Redraw the graph with the new data
     draw();
 }
@@ -474,7 +486,11 @@ void WaterfallGraph::draw()
     // Draw the actual data if we have data
     if (dataSource && !dataSource->isEmpty())
     {
-        updateDataRanges();
+        // Only update ranges if they're not valid, otherwise just draw
+        if (!dataRangesValid)
+        {
+            updateDataRanges();
+        }
         drawAllDataSeries();
     }
 }
@@ -733,27 +749,48 @@ void WaterfallGraph::updateDataRanges()
     qreal dataYMin = yRange.first;
     qreal dataYMax = yRange.second;
 
-    if (rangeLimitingEnabled)
+    if (autoUpdateYRange)
     {
-        // Apply range limiting: use the intersection of custom range and data range
-        // Custom range acts as bounds, but we never exceed the actual data range
-        yMin = qMax(customYMin, dataYMin); // Take the larger of custom min and data min
-        yMax = qMin(customYMax, dataYMax); // Take the smaller of custom max and data max
-
-        // Ensure min < max
-        if (yMin >= yMax)
+        // Auto-update mode: existing implementation should run
+        if (rangeLimitingEnabled)
         {
-            // If custom range is invalid or doesn't overlap with data, use data range
+            // Apply range limiting: use the intersection of custom range and data range
+            // Custom range acts as bounds, but we never exceed the actual data range
+            yMin = qMax(customYMin, dataYMin); // Take the larger of custom min and data min
+            yMax = qMin(customYMax, dataYMax); // Take the smaller of custom max and data max
+
+            // Ensure min < max
+            if (yMin >= yMax)
+            {
+                // If custom range is invalid or doesn't overlap with data, use data range
+                yMin = dataYMin;
+                yMax = dataYMax;
+                qDebug() << "Warning: Custom range doesn't overlap with data range, using data range";
+                qDebug() << "Custom range:" << customYMin << "to" << customYMax;
+                qDebug() << "Data range:" << dataYMin << "to" << dataYMax;
+            }
+        }
+        else
+        {
+            // Use data range directly
             yMin = dataYMin;
             yMax = dataYMax;
-            qDebug() << "Warning: Custom range doesn't overlap with data range, using data range";
         }
     }
     else
     {
-        // Use data range directly
-        yMin = dataYMin;
-        yMax = dataYMax;
+        // Manual mode: range is always locked to the custom min and max
+        yMin = customYMin;
+        yMax = customYMax;
+        
+        // Ensure min < max
+        if (yMin >= yMax)
+        {
+            qDebug() << "Warning: Custom range is invalid (min >= max), using data range";
+            qDebug() << "Custom range:" << customYMin << "to" << customYMax;
+            yMin = dataYMin;
+            yMax = dataYMax;
+        }
     }
 
     // Set time range based on fixed interval with current time as top (t=0)
@@ -765,6 +802,7 @@ void WaterfallGraph::updateDataRanges()
     qDebug() << "Data ranges updated - Y:" << yMin << "to" << yMax
              << "Time:" << timeMin.toString() << "to" << timeMax.toString()
              << "Interval:" << timeIntervalToString(timeInterval)
+             << "Auto-update:" << (autoUpdateYRange ? "enabled" : "disabled")
              << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
 }
 
@@ -1078,7 +1116,7 @@ bool WaterfallGraph::isRangeLimitingEnabled() const
  * @param yMin Minimum Y value for the custom range
  * @param yMax Maximum Y value for the custom range
  */
-void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
+void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
 {
     // Validate the range
     if (yMin >= yMax)
@@ -1090,22 +1128,11 @@ void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
     customYMin = yMin;
     customYMax = yMax;
 
-    // Update data ranges and redraw if range limiting is enabled
-    if (rangeLimitingEnabled)
-    {
-        if (dataSource && !dataSource->isEmpty())
-        {
-            updateDataRanges();
-        }
-        else
-        {
-            // Even without data, set the Y range to the custom range for immediate feedback
-            this->yMin = customYMin;
-            this->yMax = customYMax;
-            dataRangesValid = true;
-        }
-        draw();
-    }
+    // Always update Y range immediately when custom range is set
+    updateYRange();
+    
+    // Force redraw to show new range
+    draw();
 
     qDebug() << "Custom Y range set to:" << yMin << "to" << yMax;
 }
@@ -1113,13 +1140,11 @@ void WaterfallGraph::setCustomYRange(qreal yMin, qreal yMax)
 /**
  * @brief Get the current custom Y range values.
  *
- * @param yMin Reference to store the minimum Y value
- * @param yMax Reference to store the maximum Y value
+ * @return std::pair<qreal,qreal> The current custom Y range values
  */
-void WaterfallGraph::getCustomYRange(qreal &yMin, qreal &yMax) const
+std::pair<qreal,qreal> WaterfallGraph::getCustomYRange() const
 {
-    yMin = customYMin;
-    yMax = customYMax;
+    return std::make_pair(customYMin, customYMax);
 }
 
 /**
@@ -1601,10 +1626,124 @@ std::vector<QString> WaterfallGraph::getVisibleSeries() const
 void WaterfallGraph::setAutoUpdateYRange(bool enabled)
 {
     autoUpdateYRange = enabled;
+    
+    // Trigger range update when switching modes
+    if (dataSource && !dataSource->isEmpty())
+    {
+        updateYRange();
+        draw();
+    }
+    
     qDebug() << "Auto-update Y range" << (enabled ? "enabled" : "disabled");
 }
 
 bool WaterfallGraph::getAutoUpdateYRange() const
 {
     return autoUpdateYRange;
+}
+
+// Convenience method to force range update for manual control
+void WaterfallGraph::forceRangeUpdate()
+{
+    dataRangesValid = false;
+    updateDataRanges();
+    draw();
+    qDebug() << "Forced range update - Y:" << yMin << "to" << yMax;
+}
+
+// New refactored range management methods
+
+/**
+ * @brief Update Y ranges based on current mode (manual vs auto)
+ *
+ */
+void WaterfallGraph::updateYRange()
+{
+    if (autoUpdateYRange)
+    {
+        updateYRangeFromData();
+    }
+    else
+    {
+        updateYRangeFromCustom();
+    }
+}
+
+/**
+ * @brief Update Y range from data source (auto mode)
+ *
+ */
+void WaterfallGraph::updateYRangeFromData()
+{
+    if (!dataSource || dataSource->isEmpty())
+    {
+        dataRangesValid = false;
+        return;
+    }
+
+    auto yRange = dataSource->getCombinedYRange();
+    qreal dataYMin = yRange.first;
+    qreal dataYMax = yRange.second;
+
+    if (rangeLimitingEnabled)
+    {
+        // Apply range limiting:
+        // Use the intersection of custom range and data range
+        yMin = qMax(customYMin, dataYMin); // Take the larger of custom min and data min
+        yMax = qMin(customYMax, dataYMax); // Take the smaller of custom max and data max
+
+        // Ensure min < max
+        if (yMin >= yMax)
+        {
+            // If custom range is invalid or doesn't overlap with data, use data range
+            yMin = dataYMin;
+            yMax = dataYMax;
+            qDebug() << "Warning: Custom range doesn't overlap with data range, using data range";
+            qDebug() << "Custom range:" << customYMin << "to" << customYMax;
+            qDebug() << "Data range:" << dataYMin << "to" << dataYMax;
+        }
+    }
+    else
+    {
+        // Use data range directly
+        yMin = dataYMin;
+        yMax = dataYMax;
+    }
+    
+    dataRangesValid = true;
+    qDebug() << "Y range updated from data - Y:" << yMin << "to" << yMax
+             << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
+}
+
+/**
+ * @brief Update Y range from custom values (manual mode)
+ *
+ */
+void WaterfallGraph::updateYRangeFromCustom()
+{
+    qreal dataYMin = 0.0, dataYMax = 100.0;
+    
+    // Get actual data range for validation, even in manual mode
+    if (dataSource && !dataSource->isEmpty())
+    {
+        auto yRange = dataSource->getCombinedYRange();
+        dataYMin = yRange.first;
+        dataYMax = yRange.second;
+    }
+    
+    // Manual mode: range is locked to the custom min and max
+    yMin = customYMin;
+    yMax = customYMax;
+    
+    // Validate range is reasonable
+    if (yMin >= yMax)
+    {
+        qDebug() << "Warning: Custom range is invalid (min >= max), using data range";
+        qDebug() << "Custom range:" << customYMin << "to" << customYMax;
+        yMin = dataYMin;
+        yMax = dataYMax;
+    }
+    
+    dataRangesValid = true;
+    qDebug() << "Y range updated from custom - Y:" << yMin << "to" << yMax;
 }

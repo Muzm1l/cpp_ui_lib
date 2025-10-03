@@ -75,13 +75,23 @@ MainWindow::MainWindow(QWidget *parent)
     this->ftwConfig = {15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
 
     // Set hard limits for all graph types using GraphLayout range limit methods
-    graphgrid->setRangeLimits(GraphType::FDW, 24.0, 90.0);  // Frequency Domain Window
-    graphgrid->setRangeLimits(GraphType::BDW, 15.0, 114.0); // Bandwidth Domain Window
-    graphgrid->setRangeLimits(GraphType::BRW, 24.0, 90.0);  // Bit Rate Window
-    graphgrid->setRangeLimits(GraphType::LTW, 45.0, 90.0);  // Left Track Window
-    graphgrid->setRangeLimits(GraphType::BTW, 15.0, 120.0); // Bottom Track Window
-    graphgrid->setRangeLimits(GraphType::RTW, 36.0, 84.0);  // Right Track Window
-    graphgrid->setRangeLimits(GraphType::FTW, 45.0, 90.0);  // Frequency Time Window
+    // Range limits are set to be 2x larger than the simulation ranges
+    // FDW: sim range 8.0-30.0, so limits 8.0-(8.0+2*(30.0-8.0)) = 8.0-52.0
+    graphgrid->setHardRangeLimits(GraphType::FDW, 8.0, 52.0);  // Frequency Domain Window
+    // BDW: sim range 5.0-38.0, so limits 5.0-(5.0+2*(38.0-5.0)) = 5.0-71.0
+    graphgrid->setHardRangeLimits(GraphType::BDW, 5.0, 71.0);  // Bandwidth Domain Window
+    // BRW: sim range 8.0-30.0, so limits 8.0-52.0
+    graphgrid->setHardRangeLimits(GraphType::BRW, 8.0, 52.0);  // Bit Rate Window
+    // LTW: sim range 15.0-30.0, so limits 15.0-(15.0+2*(30.0-15.0)) = 15.0-45.0
+    graphgrid->setHardRangeLimits(GraphType::LTW, 15.0, 45.0);  // Left Track Window
+    // BTW: sim range 5.0-40.0, so limits 5.0-(5.0+2*(40.0-5.0)) = 5.0-75.0
+    graphgrid->setHardRangeLimits(GraphType::BTW, 5.0, 75.0);   // Bottom Track Window
+    // RTW: sim range 12.0-28.0, so limits 12.0-(12.0+2*(28.0-12.0)) = 12.0-44.0
+    graphgrid->setHardRangeLimits(GraphType::RTW, 12.0, 44.0);  // Right Track Window
+    // FTW: sim range 15.0-30.0, so limits 15.0-45.0
+    graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
+    // graphgrid->setRangeLimits(GraphType::RTW, 36.0, 84.0);  // Right Track Window
+    graphgrid->setHardRangeLimits(GraphType::FTW, 45.0, 90.0);  // Frequency Time Window
 
     ui->widget_2->setData(
         this->currentShipSpeed,
@@ -448,7 +458,16 @@ void MainWindow::setBulkDataForAllGraphs()
         // FTW: Frequency Time Window - quadratic pattern
         ftwData.push_back(22.5 + 2.0 * (timeFactor - 0.5) * (timeFactor - 0.5) * 8 + (std::rand() % 100 - 50) / 100.0);
     }
-    
+
+    // Set range limits for all graphs
+    graphgrid->setHardRangeLimits(GraphType::FDW, 2, 102);
+    graphgrid->setHardRangeLimits(GraphType::BDW, 2, 102);
+    graphgrid->setHardRangeLimits(GraphType::BRW, 2, 102);
+    graphgrid->setHardRangeLimits(GraphType::LTW, 2, 102);
+    graphgrid->setHardRangeLimits(GraphType::BTW, 2, 102);
+    graphgrid->setHardRangeLimits(GraphType::RTW, 2, 102);
+    graphgrid->setHardRangeLimits(GraphType::FTW, 2, 102);
+
     // Add bulk data to each graph data source
     graphgrid->addDataPointsToDataSource(GraphType::FDW, fdwData, timestamps);
     graphgrid->addDataPointsToDataSource(GraphType::BDW, bdwData, timestamps);
@@ -457,6 +476,7 @@ void MainWindow::setBulkDataForAllGraphs()
     graphgrid->addDataPointsToDataSource(GraphType::BTW, btwData, timestamps);
     graphgrid->addDataPointsToDataSource(GraphType::RTW, rtwData, timestamps);
     graphgrid->addDataPointsToDataSource(GraphType::FTW, ftwData, timestamps);
+
     
     // Set current time to system time
     graphgrid->setCurrentTime(QTime::currentTime());

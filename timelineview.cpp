@@ -41,10 +41,10 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // This will automatically calculate optimal divisions based on current area
     createDrawingObjects();
 
-    qDebug() << "Time interval set to:" << timeIntervalToString(interval)
-             << "Divisions:" << m_numberOfDivisions
-             << "Segment duration:" << calculateSegmentDurationSeconds() << "seconds"
-             << "Min segment height:" << getMinimumSegmentHeight();
+    // qDebug() << "Time interval set to:" << timeIntervalToString(interval)
+    //          << "Divisions:" << m_numberOfDivisions
+    //          << "Segment duration:" << calculateSegmentDurationSeconds() << "seconds"
+    //          << "Min segment height:" << getMinimumSegmentHeight();
 }
 
 void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
@@ -105,8 +105,8 @@ void TimelineVisualizerWidget::updatePixelSpeed()
     double timeDiffSeconds = timeDiffMs / 1000.0;
     m_accumulatedOffset += m_pixelSpeed * timeDiffSeconds;
 
-    qDebug() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset
-             << "Segment duration:" << segmentDurationSeconds << "seconds";
+    // qDebug() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset
+    //          << "Segment duration:" << segmentDurationSeconds << "seconds";
 }
 
 double TimelineVisualizerWidget::calculateSmoothOffset()
@@ -173,7 +173,7 @@ void TimelineVisualizerWidget::createDrawingObjects()
     if (widgetHeight <= 0)
     {
         widgetHeight = 300; // Default height for timeline view
-        qDebug() << "Widget height is 0, using default height:" << widgetHeight;
+        // qDebug() << "Widget height is 0, using default height:" << widgetHeight;
     }
 
     // Use fixed number of segments for all time intervals
@@ -184,12 +184,12 @@ void TimelineVisualizerWidget::createDrawingObjects()
     // Calculate segment height to fill the entire drawing area
     double segmentHeight = static_cast<double>(widgetHeight) / m_numberOfDivisions;
 
-    qDebug() << "Creating drawing objects - Widget height:" << height()
-             << "Using height:" << widgetHeight
-             << "Draw area:" << drawArea
-             << "Fixed divisions:" << m_numberOfDivisions
-             << "Calculated segment height:" << segmentHeight
-             << "Time interval:" << timeIntervalToString(m_timeInterval);
+    // qDebug() << "Creating drawing objects - Widget height:" << height()
+    //          << "Using height:" << widgetHeight
+    //          << "Draw area:" << drawArea
+    //          << "Fixed divisions:" << m_numberOfDivisions
+    //          << "Calculated segment height:" << segmentHeight
+    //          << "Time interval:" << timeIntervalToString(m_timeInterval);
 
     // Create segment drawers for animation range (including off-screen segments)
     clearDrawingObjects(); // Clear existing ones first
@@ -203,11 +203,11 @@ void TimelineVisualizerWidget::createDrawingObjects()
     int startSegment = -(segmentsNeeded / 2);
     int endSegment = segmentsNeeded / 2;
 
-    qDebug() << "Creating fixed segments - Height:" << widgetHeight
-             << "Fixed divisions:" << m_numberOfDivisions
-             << "Segment height:" << segmentHeight
-             << "Segments needed:" << segmentsNeeded
-             << "Segments range:" << startSegment << "to" << endSegment;
+    // qDebug() << "Creating fixed segments - Height:" << widgetHeight
+    //          << "Fixed divisions:" << m_numberOfDivisions
+    //          << "Segment height:" << segmentHeight
+    //          << "Segments needed:" << segmentsNeeded
+    //          << "Segments range:" << startSegment << "to" << endSegment;
 
     for (int i = startSegment; i < endSegment; ++i)
     {
@@ -347,10 +347,10 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     static int debugCounter = 0;
     if (debugCounter++ % 60 == 0)
     { // Print every 60 frames to avoid spam
-        qDebug() << "PaintEvent - Widget rect:" << rect()
-                 << "Divisions:" << m_numberOfDivisions
-                 << "Segment height:" << segmentHeight
-                 << "Time interval:" << timeIntervalToString(m_timeInterval);
+        // qDebug() << "PaintEvent - Widget rect:" << rect()
+        //          << "Divisions:" << m_numberOfDivisions
+        //          << "Segment height:" << segmentHeight
+        //          << "Time interval:" << timeIntervalToString(m_timeInterval);
     }
 
     // Remove segments that have gone completely out of view (below the bottom)
@@ -450,14 +450,14 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     static int debugCounter2 = 0;
     if (debugCounter2++ % 60 == 0)
     {
-        qDebug() << "Segment coverage check - Widget height:" << rect().height()
-                 << "Total segments:" << m_segmentDrawers.size()
-                 << "Divisions:" << m_numberOfDivisions
-                 << "Segment height:" << segmentHeight
-                 << "Total coverage:" << (m_numberOfDivisions * segmentHeight)
-                 << "First visible:" << firstVisibleSegment
-                 << "Last visible:" << lastVisibleSegment
-                 << "Smooth offset:" << smoothOffset;
+        // qDebug() << "Segment coverage check - Widget height:" << rect().height()
+        //          << "Total segments:" << m_segmentDrawers.size()
+        //          << "Divisions:" << m_numberOfDivisions
+        //          << "Segment height:" << segmentHeight
+        //          << "Total coverage:" << (m_numberOfDivisions * segmentHeight)
+        //          << "First visible:" << firstVisibleSegment
+        //          << "Last visible:" << lastVisibleSegment
+        //          << "Smooth offset:" << smoothOffset;
     }
 
     // Draw chevron using drawing object - position it at the top of the timeline
@@ -479,7 +479,7 @@ void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
 
     // Recreate drawing objects with new dimensions
-    qDebug() << "Widget resized to:" << size();
+    // qDebug() << "Widget resized to:" << size();
     createDrawingObjects();
 }
 
@@ -542,7 +542,7 @@ void TimelineVisualizerWidget::drawChevronWithPainter(QPainter &painter, Timelin
 {
     if (!chevronDrawer)
     {
-        qDebug() << "Chevron drawer is null!";
+        // qDebug() << "Chevron drawer is null!";
         return;
     }
 
@@ -725,7 +725,7 @@ void TimelineView::setupTimer()
     // Start the timer
     m_timer->start();
 
-    qDebug() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
+    // qDebug() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
 
 void TimelineView::onTimerTick()
@@ -738,7 +738,7 @@ void TimelineView::onTimerTick()
         m_visualizerWidget->setCurrentTime(currentTime);
     }
 
-    qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
+    // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
 
 void TimelineView::updateButtonText(TimeInterval interval)

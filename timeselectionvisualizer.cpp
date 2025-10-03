@@ -196,7 +196,7 @@ void TimeSelectionVisualizer::setupTimer()
     // Start the timer
     m_timer->start();
 
-    qDebug() << "TimeSelectionVisualizer: Timer setup completed - interval:" << m_timer->interval() << "ms";
+    // qDebug() << "TimeSelectionVisualizer: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
 
 void TimeSelectionVisualizer::onTimerTick()
@@ -208,12 +208,12 @@ void TimeSelectionVisualizer::onTimerTick()
         m_visualizerWidget->setCurrentTime(currentTime);
     }
 
-    qDebug() << "TimeSelectionVisualizer: Timer tick - updated current time to" << currentTime.toString();
+    // qDebug() << "TimeSelectionVisualizer: Timer tick - updated current time to" << currentTime.toString();
 }
 
 void TimeSelectionVisualizer::onButtonClicked()
 {
     clearTimeSelections();
     emit timeSelectionsCleared();
-    qDebug() << "Time selections cleared and signal emitted!";
+    // qDebug() << "Time selections cleared and signal emitted!";
 }

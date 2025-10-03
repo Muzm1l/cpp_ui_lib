@@ -93,11 +93,11 @@ public:
     QString getChevronLabel3(const QString &containerLabel) const;
 
     // Set range limits methods
-    void setRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
-    void removeRangeLimits(const GraphType graphType);
-    void clearAllRangeLimits();
-    bool hasRangeLimits(const GraphType graphType) const;
-    std::pair<qreal, qreal> getRangeLimits(const GraphType graphType) const;
+    void setHardRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
+    void removeHardRangeLimits(const GraphType graphType);
+    void clearAllHardRangeLimits();
+    bool hasHardRangeLimits(const GraphType graphType) const;
+    std::pair<qreal, qreal> getHardRangeLimits(const GraphType graphType) const;
 
 public slots:
     void onTimerTick();
