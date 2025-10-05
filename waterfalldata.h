@@ -89,9 +89,6 @@ public:
     std::pair<QDateTime, QDateTime> getCombinedTimeRange() const;
 
 private:
-    // Legacy single series data (for backward compatibility)
-    std::vector<qreal> yData;
-    std::vector<QDateTime> timestamps;
 
     // Multiple data series storage
     std::map<QString, std::vector<qreal>> dataSeriesYData;
