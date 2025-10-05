@@ -517,14 +517,14 @@ void GraphLayout::setCurrentDataOption(const GraphType &graphType)
 
 // Data point methods for specific data sources
 
-void GraphLayout::addDataPointToDataSource(const GraphType &graphType, qreal yValue, const QDateTime &timestamp)
+void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, qreal yValue, const QDateTime &timestamp)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
-        it->second->addDataPoint(yValue, timestamp);
-        qDebug() << "Added data point to" << dataSourceLabel << "y:" << yValue << "time:" << timestamp.toString();
+        it->second->addDataPointToSeries(seriesLabel, yValue, timestamp);
+        qDebug() << "Added data point to" << dataSourceLabel << "series" << seriesLabel << "y:" << yValue << "time:" << timestamp.toString();
 
         // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
@@ -549,14 +549,14 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, qreal yVa
     }
 }
 
-void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
+void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
-        it->second->addDataPoints(yValues, timestamps);
-        qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel;
+        it->second->addDataPointsToSeries(seriesLabel, yValues, timestamps);
+        qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel << "series" << seriesLabel;
 
         // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
@@ -581,14 +581,14 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const st
     }
 }
 
-void GraphLayout::setDataToDataSource(const GraphType &graphType, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
+void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
-        it->second->setData(yData, timestamps);
-        qDebug() << "Set data for" << dataSourceLabel << "size:" << yData.size();
+        it->second->setDataSeries(seriesLabel, yData, timestamps);
+        qDebug() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
 
         // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
@@ -613,14 +613,24 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const std::vec
     }
 }
 
-void GraphLayout::setDataToDataSource(const GraphType &graphType, const WaterfallData &data)
+void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
-        it->second->setData(data.getYData(), data.getTimestamps());
-        qDebug() << "Set data for" << dataSourceLabel << "from WaterfallData object";
+        // Get the specific series data from the WaterfallData object
+        auto seriesData = data.getAllDataSeries(seriesLabel);
+        std::vector<qreal> yData;
+        std::vector<QDateTime> timestamps;
+        
+        for (const auto& pair : seriesData) {
+            yData.push_back(pair.first);
+            timestamps.push_back(pair.second);
+        }
+        
+        it->second->setDataSeries(seriesLabel, yData, timestamps);
+        qDebug() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "from WaterfallData object";
 
         // Notify all containers that have this data source to update their zoom panels and redraw graphs
         for (auto *container : m_graphContainers)
@@ -645,14 +655,14 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const Waterfal
     }
 }
 
-void GraphLayout::clearDataSource(const GraphType &graphType)
+void GraphLayout::clearDataSource(const GraphType &graphType, const QString &seriesLabel)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_dataSources.find(graphType);
     if (it != m_dataSources.end())
     {
-        it->second->clearData();
-        qDebug() << "Cleared data for" << dataSourceLabel;
+        it->second->clearDataSeries(seriesLabel);
+        qDebug() << "Cleared data for" << dataSourceLabel << "series" << seriesLabel;
     }
     else
     {
@@ -681,6 +691,59 @@ std::vector<GraphType> GraphLayout::getDataSourceLabels() const
         labels.push_back(pair.first);
     }
     return labels;
+}
+
+// Series-specific data source management
+
+bool GraphLayout::hasSeriesInDataSource(const GraphType &graphType, const QString &seriesLabel) const
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end())
+    {
+        return it->second->hasDataSeries(seriesLabel);
+    }
+    return false;
+}
+
+std::vector<QString> GraphLayout::getSeriesLabelsInDataSource(const GraphType &graphType) const
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end())
+    {
+        return it->second->getDataSeriesLabels();
+    }
+    return std::vector<QString>();
+}
+
+void GraphLayout::addSeriesToDataSource(const GraphType &graphType, const QString &seriesLabel)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end())
+    {
+        // Create empty vectors for the new series
+        std::vector<qreal> emptyYData;
+        std::vector<QDateTime> emptyTimestamps;
+        it->second->addDataSeries(seriesLabel, emptyYData, emptyTimestamps);
+        qDebug() << "Added series" << seriesLabel << "to data source" << graphTypeToString(graphType);
+    }
+    else
+    {
+        qDebug() << "Data source not found:" << graphTypeToString(graphType);
+    }
+}
+
+void GraphLayout::removeSeriesFromDataSource(const GraphType &graphType, const QString &seriesLabel)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end())
+    {
+        it->second->clearDataSeries(seriesLabel);
+        qDebug() << "Cleared series" << seriesLabel << "from data source" << graphTypeToString(graphType);
+    }
+    else
+    {
+        qDebug() << "Data source not found:" << graphTypeToString(graphType);
+    }
 }
 
 // Container management

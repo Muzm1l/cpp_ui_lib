@@ -219,13 +219,13 @@ void MainWindow::updateSimulation()
     this->currentFTWValue = qBound(this->ftwConfig.minValue, this->currentFTWValue, this->ftwConfig.maxValue);
 
     // Add new data points to each graph data source with precise timestamping
-    graphgrid->addDataPointToDataSource(GraphType::FDW, this->currentFDWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::BDW, this->currentBDWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::BRW, this->currentBRWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::LTW, this->currentLTWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::BTW, this->currentBTWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::RTW, this->currentRTWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::FTW, this->currentFTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::FDW, "FDW-1", this->currentFDWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::BDW, "BDW-1", this->currentBDWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::BRW, "BRW-1", this->currentBRWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::LTW, "LTW-1", this->currentLTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::BTW, "BTW-1", this->currentBTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::RTW, "RTW-1", this->currentRTWValue, currentTime);
+    graphgrid->addDataPointToDataSource(GraphType::FTW, "FTW-1", this->currentFTWValue, currentTime);
 
     qDebug() << "Added data points - FDW:" << this->currentFDWValue
              << "BDW:" << this->currentBDWValue
@@ -481,13 +481,13 @@ void MainWindow::setBulkDataForAllGraphs()
     graphgrid->setHardRangeLimits(GraphType::FTW, 2, 102);
 
     // Add bulk data to each graph data source
-    graphgrid->addDataPointsToDataSource(GraphType::FDW, fdwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::BDW, bdwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::BRW, brwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::LTW, ltwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::BTW, btwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::RTW, rtwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::FTW, ftwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::FDW, "FDW-1", fdwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::BDW, "BDW-1", bdwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::BRW, "BRW-1", brwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::LTW, "LTW-1", ltwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::BTW, "BTW-1", btwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::RTW, "RTW-1", rtwData, timestamps);
+    graphgrid->addDataPointsToDataSource(GraphType::FTW, "FTW-1", ftwData, timestamps);
 
     
     // Set current time to system time

@@ -55,16 +55,22 @@ public:
     void setCurrentDataOption(const GraphType &graphType);
 
     // Data point methods for specific data sources
-    void addDataPointToDataSource(const GraphType &graphType, qreal yValue, const QDateTime &timestamp);
-    void addDataPointsToDataSource(const GraphType &graphType, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
-    void setDataToDataSource(const GraphType &graphType, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
-    void setDataToDataSource(const GraphType &graphType, const WaterfallData &data);
-    void clearDataSource(const GraphType &graphType);
+    void addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, qreal yValue, const QDateTime &timestamp);
+    void addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data);
+    void clearDataSource(const GraphType &graphType, const QString &seriesLabel);
 
     // Data source management
     WaterfallData *getDataSource(const GraphType &graphType);
     bool hasDataSource(const GraphType &graphType) const;
     std::vector<GraphType> getDataSourceLabels() const;
+    
+    // Series-specific data source management
+    bool hasSeriesInDataSource(const GraphType &graphType, const QString &seriesLabel) const;
+    std::vector<QString> getSeriesLabelsInDataSource(const GraphType &graphType) const;
+    void addSeriesToDataSource(const GraphType &graphType, const QString &seriesLabel);
+    void removeSeriesFromDataSource(const GraphType &graphType, const QString &seriesLabel);
 
     // Container management
     std::vector<QString> getContainerLabels() const;
