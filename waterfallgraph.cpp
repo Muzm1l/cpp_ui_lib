@@ -1430,15 +1430,20 @@ void WaterfallGraph::drawAllDataSeries()
 {
     if (!graphicsScene || !dataSource || !dataRangesValid)
     {
+        qDebug() << "drawAllDataSeries: Early return - graphicsScene:" << (graphicsScene != nullptr) 
+                 << "dataSource:" << (dataSource != nullptr) 
+                 << "dataRangesValid:" << dataRangesValid;
         return;
     }
 
     // Get all available data series labels
     std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+    qDebug() << "drawAllDataSeries: Found" << seriesLabels.size() << "series labels";
 
     // If no multi-series data, fall back to legacy single series
     if (seriesLabels.empty())
     {
+        qDebug() << "drawAllDataSeries: No series found, falling back to legacy single series";
         drawDataLine();
         return;
     }
@@ -1446,6 +1451,8 @@ void WaterfallGraph::drawAllDataSeries()
     // Draw each visible series
     for (const QString &seriesLabel : seriesLabels)
     {
+        qDebug() << "drawAllDataSeries: Processing series:" << seriesLabel 
+                 << "visible:" << isSeriesVisible(seriesLabel);
         if (isSeriesVisible(seriesLabel))
         {
             drawDataSeries(seriesLabel);
@@ -1462,11 +1469,14 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 {
     if (!graphicsScene || !dataSource || !dataRangesValid)
     {
+        qDebug() << "drawDataSeries: Early return for series:" << seriesLabel;
         return;
     }
 
     const auto &yData = dataSource->getYDataSeries(seriesLabel);
     const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+
+    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << yData.size() << "yData points and" << timestamps.size() << "timestamps";
 
     if (yData.empty() || timestamps.empty())
     {
@@ -1483,6 +1493,9 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
             visibleData.push_back({yData[i], timestamps[i]});
         }
     }
+
+    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << visibleData.size() << "visible data points within time range" 
+             << timeMin.toString() << "to" << timeMax.toString();
 
     if (visibleData.empty())
     {

@@ -44,7 +44,7 @@ void BRWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::yellow, 3.0, Qt::black); // Default scatterplot for BRW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 

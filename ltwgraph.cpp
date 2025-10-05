@@ -44,7 +44,7 @@ void LTWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::green, 3.0, Qt::white); // Default scatterplot for LTW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 

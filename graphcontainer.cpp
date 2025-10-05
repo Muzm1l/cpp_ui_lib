@@ -544,6 +544,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
     // Set minimum size but allow expansion
     graph->setMinimumSize(m_graphViewSize);
     graph->updateGeometry();
+    
+    // Set up series colors from the color map
+    for (const auto& colorPair : m_seriesColorsMap) {
+        graph->setSeriesColor(colorPair.first, colorPair.second);
+    }
 }
 
 void GraphContainer::initializeWaterfallGraph(GraphType graphType)

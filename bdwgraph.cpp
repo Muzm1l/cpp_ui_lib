@@ -44,7 +44,7 @@ void BDWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::magenta, 3.0, Qt::white); // Default scatterplot for BDW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 

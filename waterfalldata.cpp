@@ -149,10 +149,13 @@ size_t WaterfallData::getDataSize() const
 
 bool WaterfallData::isEmpty() const
 {
-    auto yIt = dataSeriesYData.find(dataTitle);
-    auto tIt = dataSeriesTimestamps.find(dataTitle);
-    return (yIt == dataSeriesYData.end() || yIt->second.empty()) && 
-           (tIt == dataSeriesTimestamps.end() || tIt->second.empty());
+    // Check if any series has data
+    for (const auto& pair : dataSeriesYData) {
+        if (!pair.second.empty()) {
+            return false; // Found at least one series with data
+        }
+    }
+    return true; // No series has data
 }
 
 std::pair<qreal, qreal> WaterfallData::getYRange() const

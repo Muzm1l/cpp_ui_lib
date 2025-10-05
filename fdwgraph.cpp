@@ -44,7 +44,7 @@ void FDWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::cyan, 3.0, Qt::white); // Default scatterplot for FDW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 

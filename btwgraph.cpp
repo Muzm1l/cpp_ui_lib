@@ -44,7 +44,7 @@ void BTWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::red, 3.0, Qt::white); // Default scatterplot for BTW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 

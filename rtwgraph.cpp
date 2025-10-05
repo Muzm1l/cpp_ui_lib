@@ -44,7 +44,7 @@ void RTWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::blue, 3.0, Qt::white); // Default scatterplot for RTW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 

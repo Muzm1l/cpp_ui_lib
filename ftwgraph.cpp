@@ -44,7 +44,7 @@ void FTWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawScatterplot(Qt::white, 3.0, Qt::black); // Default scatterplot for FTW
+        drawAllDataSeries(); // Draw all series with their respective colors
     }
 }
 
