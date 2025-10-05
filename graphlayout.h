@@ -28,7 +28,7 @@ class GraphLayout : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr);
+    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr, std::map<GraphType, std::vector<QString>> seriesLabelsMap = std::map<GraphType, std::vector<QString>>());
     ~GraphLayout();
 
     void setLayoutType(LayoutType layoutType);
@@ -105,7 +105,6 @@ public slots:
 private:
     LayoutType m_layoutType;
     QTimer *m_timer;
-
     std::vector<GraphContainer *> m_graphContainers;
     std::vector<QString> m_containerLabels;
 
@@ -117,7 +116,7 @@ private:
 
     void attachContainerDataSources();
     void initializeContainers();
-    void initializeDataSources();
+    void initializeDataSources(std::map<GraphType, std::vector<QString>> seriesLabelsMap);
     int getContainerIndex(const QString &containerLabel) const;
     void disconnectAllContainerConnections();
 

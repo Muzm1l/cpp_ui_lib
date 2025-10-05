@@ -1,7 +1,7 @@
 #include "graphlayout.h"
 #include <QDebug>
 
-GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer)
+GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QString>> seriesLabelsMap)
     : QWidget{parent}, m_layoutType(layoutType), m_timer(timer)
 {
 
@@ -19,10 +19,8 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer)
         qDebug() << "GraphLayout: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
     }
 
-    auto dataSourceLabels = getAllGraphTypes();
-
     // Initialize data sources based on provided labels
-    initializeDataSources();
+    initializeDataSources(seriesLabelsMap);
     
     // Initialize container labels (using data source labels as container labels)
     m_containerLabels = getAllGraphTypeStrings();
@@ -201,16 +199,16 @@ void GraphLayout::setGraphViewSize(int width, int height)
     updateLayoutSizing();
 }
 
-void GraphLayout::initializeDataSources()
+void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QString>> seriesLabelsMap)
 {
     // Initialize data sources for all graph types manually
-    m_dataSources[GraphType::BDW] = new WaterfallData(graphTypeToString(GraphType::BDW), {"BDW-1", "ADOPTED"});
-    m_dataSources[GraphType::BRW] = new WaterfallData(graphTypeToString(GraphType::BRW), {"BRW-1", "BRW-2", "ADOPTED"});
-    m_dataSources[GraphType::BTW] = new WaterfallData(graphTypeToString(GraphType::BTW), {"BTW-1", "BTW-2", "BTW-3"});
-    m_dataSources[GraphType::FDW] = new WaterfallData(graphTypeToString(GraphType::FDW), {"FDW-1", "FDW-2", "ADOPTED"});
-    m_dataSources[GraphType::FTW] = new WaterfallData(graphTypeToString(GraphType::FTW), {"FTW-1", "FTW-2", "ADOPTED"});
-    m_dataSources[GraphType::LTW] = new WaterfallData(graphTypeToString(GraphType::LTW), {"LTW-1", "ADOPTED"});
-    m_dataSources[GraphType::RTW] = new WaterfallData(graphTypeToString(GraphType::RTW), {"RTW-1", "ADOPTED"});
+    m_dataSources[GraphType::BDW] = new WaterfallData(graphTypeToString(GraphType::BDW), seriesLabelsMap[GraphType::BDW]);
+    m_dataSources[GraphType::BRW] = new WaterfallData(graphTypeToString(GraphType::BRW), seriesLabelsMap[GraphType::BRW]);
+    m_dataSources[GraphType::BTW] = new WaterfallData(graphTypeToString(GraphType::BTW), seriesLabelsMap[GraphType::BTW]);
+    m_dataSources[GraphType::FDW] = new WaterfallData(graphTypeToString(GraphType::FDW), seriesLabelsMap[GraphType::FDW]);
+    m_dataSources[GraphType::FTW] = new WaterfallData(graphTypeToString(GraphType::FTW), seriesLabelsMap[GraphType::FTW]);
+    m_dataSources[GraphType::LTW] = new WaterfallData(graphTypeToString(GraphType::LTW), seriesLabelsMap[GraphType::LTW]);
+    m_dataSources[GraphType::RTW] = new WaterfallData(graphTypeToString(GraphType::RTW), seriesLabelsMap[GraphType::RTW]);
 }
 
 void GraphLayout::initializeContainers()

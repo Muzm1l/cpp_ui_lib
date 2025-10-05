@@ -10,8 +10,20 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
 
+    // Initialize series labels map
+    std::map<GraphType, std::vector<QString>> seriesLabelsMap;
+    
+    // Initialize series labels map
+    seriesLabelsMap[GraphType::BDW] = {"BDW-1", "ADOPTED"};
+    seriesLabelsMap[GraphType::BRW] = {"BRW-1", "BRW-2", "ADOPTED"};
+    seriesLabelsMap[GraphType::BTW] = {"BTW-1", "BTW-2", "BTW-3"};
+    seriesLabelsMap[GraphType::FDW] = {"FDW-1", "FDW-2", "ADOPTED"};
+    seriesLabelsMap[GraphType::FTW] = {"FTW-1", "FTW-2", "ADOPTED"};
+    seriesLabelsMap[GraphType::LTW] = {"LTW-1", "ADOPTED"};
+    seriesLabelsMap[GraphType::RTW] = {"RTW-1", "ADOPTED"};
+
     // Create GraphLayout programmatically with default graph types and timer
-    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer);
+    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(970, 70, 611, 651));
 
