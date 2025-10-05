@@ -1,7 +1,7 @@
 #include "graphlayout.h"
 #include <QDebug>
 
-GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QString>> seriesLabelsMap)
+GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
     : QWidget{parent}, m_layoutType(layoutType), m_timer(timer)
 {
 
@@ -199,16 +199,28 @@ void GraphLayout::setGraphViewSize(int width, int height)
     updateLayoutSizing();
 }
 
-void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QString>> seriesLabelsMap)
+void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
 {
     // Initialize data sources for all graph types manually
-    m_dataSources[GraphType::BDW] = new WaterfallData(graphTypeToString(GraphType::BDW), seriesLabelsMap[GraphType::BDW]);
-    m_dataSources[GraphType::BRW] = new WaterfallData(graphTypeToString(GraphType::BRW), seriesLabelsMap[GraphType::BRW]);
-    m_dataSources[GraphType::BTW] = new WaterfallData(graphTypeToString(GraphType::BTW), seriesLabelsMap[GraphType::BTW]);
-    m_dataSources[GraphType::FDW] = new WaterfallData(graphTypeToString(GraphType::FDW), seriesLabelsMap[GraphType::FDW]);
-    m_dataSources[GraphType::FTW] = new WaterfallData(graphTypeToString(GraphType::FTW), seriesLabelsMap[GraphType::FTW]);
-    m_dataSources[GraphType::LTW] = new WaterfallData(graphTypeToString(GraphType::LTW), seriesLabelsMap[GraphType::LTW]);
-    m_dataSources[GraphType::RTW] = new WaterfallData(graphTypeToString(GraphType::RTW), seriesLabelsMap[GraphType::RTW]);
+    for (auto& pair : seriesLabelsMap) {
+        GraphType graphType = pair.first;
+        const auto& seriesData = pair.second;
+        
+        // Extract just the series labels for WaterfallData constructor
+        std::vector<QString> seriesLabels;
+        for (const auto& seriesPair : seriesData) {
+            seriesLabels.push_back(seriesPair.first);
+        }
+        
+        // Create WaterfallData with series labels
+        m_dataSources[graphType] = new WaterfallData(graphTypeToString(graphType), seriesLabels);
+        
+        // Set colors for each series (this will require updating WaterfallData to support colors)
+        for (const auto& seriesPair : seriesData) {
+            m_seriesColorsMap[seriesPair.first] = seriesPair.second;
+        }
+
+    }
 }
 
 void GraphLayout::initializeContainers()
