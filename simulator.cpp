@@ -88,12 +88,20 @@ void Simulator::addDataPoints()
 
     // Add new data points to each graph data source with precise timestamping
     m_graphLayout->addDataPointToDataSource(GraphType::FDW, "FDW-1", m_currentFDWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::FDW, "FDW-2", m_currentFDWValue+10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BDW, "BDW-1", m_currentBDWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BDW, "BDW-2", m_currentBDWValue+10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BRW, "BRW-1", m_currentBRWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BRW, "BRW-2", m_currentBRWValue+10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::LTW, "LTW-1", m_currentLTWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::LTW, "LTW-2", m_currentLTWValue+10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-1", m_currentBTWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-2", m_currentBTWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-3", m_currentBTWValue+10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-1", m_currentRTWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-2", m_currentRTWValue+10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-1", m_currentFTWValue, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-2", m_currentFTWValue+10, currentTime);
 
     qDebug() << "Added data points - FDW:" << m_currentFDWValue
              << "BDW:" << m_currentBDWValue
