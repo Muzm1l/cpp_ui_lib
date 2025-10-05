@@ -10,6 +10,7 @@
 #include "graphlayout.h"
 #include "ltwgraph.h"
 #include "rtwgraph.h"
+#include "simulator.h"
 #include "timelineview.h"
 #include "timeselectionvisualizer.h"
 #include "waterfalldata.h"
@@ -42,6 +43,7 @@ private:
     QTimer* timeUpdateTimer; ///< Timer for updating current time
 
     GraphLayout* graphgrid; ///< Graph layout widget
+    Simulator* simulator;   ///< Simulator for generating data
 
     // New graph components for the second tab
     FDWGraph* fdwGraph; ///< FDW Graph component
@@ -62,7 +64,6 @@ private:
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
-    qreal generateRandomValue(qreal oldValue, qreal deltaValue);
 
     long simTick;
 
@@ -97,33 +98,6 @@ private:
     qreal prevAdoptedTrackBearing;
     qreal prevAdoptedTrackSpeed;
     qreal prevAdoptedTrackCourse;
-
-    // Current values for each graph type (for simulation)
-    qreal currentFDWValue; // Frequency Domain Window: 8.0-30.0 (range: 22.0)
-    qreal currentBDWValue; // Bandwidth Domain Window: 5.0-38.0 (range: 33.0)
-    qreal currentBRWValue; // Bit Rate Window: 8.0-30.0 (range: 22.0)
-    qreal currentLTWValue; // Left Track Window: 15.0-30.0 (range: 15.0)
-    qreal currentBTWValue; // Bottom Track Window: 5.0-40.0 (range: 35.0)
-    qreal currentRTWValue; // Right Track Window: 12.0-28.0 (range: 16.0)
-    qreal currentFTWValue; // Frequency Time Window: 15.0-30.0 (range: 15.0)
-
-    // Graph bounds and configuration
-    struct GraphConfig
-    {
-        qreal minValue;
-        qreal maxValue;
-        qreal startValue;
-        qreal deltaValue; // 10% of range for random variation
-    };
-
-    // Configuration for each graph type
-    GraphConfig fdwConfig; // Frequency Domain Window
-    GraphConfig bdwConfig; // Bandwidth Domain Window
-    GraphConfig brwConfig; // Bit Rate Window
-    GraphConfig ltwConfig; // Left Track Window
-    GraphConfig btwConfig; // Bottom Track Window
-    GraphConfig rtwConfig; // Right Track Window
-    GraphConfig ftwConfig; // Frequency Time Window
 
 private slots:
     /**

@@ -38,7 +38,8 @@ SOURCES += \
     fdwgraph.cpp \
     ftwgraph.cpp \
     ltwgraph.cpp \
-    rtwgraph.cpp 
+    rtwgraph.cpp \
+    simulator.cpp 
 
 HEADERS += \
     graphcontainer.h \
@@ -62,7 +63,8 @@ HEADERS += \
     fdwgraph.h \
     ftwgraph.h \
     ltwgraph.h \
-    rtwgraph.h 
+    rtwgraph.h \
+    simulator.h 
 
 FORMS += \
     mainwindow.ui

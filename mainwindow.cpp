@@ -27,6 +27,9 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(970, 70, 611, 651));
 
+    // Create Simulator instance
+    simulator = new Simulator(this, timeUpdateTimer, graphgrid);
+
     // inside MainWindow constructor
     std::srand(std::time(nullptr));
 
@@ -40,6 +43,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Set up timer for time updates (every 1 second) - this will be passed to GraphLayout
     timeUpdateTimer->setInterval(1000); // 1000ms = 1 second
     timeUpdateTimer->start();
+
+    // Start the simulator
+    simulator->start();
 
     // Initialize some sample data for the graph
     std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
@@ -67,24 +73,6 @@ MainWindow::MainWindow(QWidget *parent)
     this->currentAdoptedTrackRange = 10;
     this->currentAdoptedTrackBearing = 300;
     this->currentAdoptedTrackCourse = 270;
-
-    // Initialize current values for each graph type (starting at middle of ranges)
-    this->currentFDWValue = 19.0; // Middle of 8.0-30.0 range
-    this->currentBDWValue = 21.5; // Middle of 5.0-38.0 range
-    this->currentBRWValue = 19.0; // Middle of 8.0-30.0 range
-    this->currentLTWValue = 22.5; // Middle of 15.0-30.0 range
-    this->currentBTWValue = 22.5; // Middle of 5.0-40.0 range
-    this->currentRTWValue = 20.0; // Middle of 12.0-28.0 range
-    this->currentFTWValue = 22.5; // Middle of 15.0-30.0 range
-
-    // Initialize graph configurations with bounds, start values, and delta values
-    this->fdwConfig = {8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
-    this->bdwConfig = {5.0, 38.0, 21.5, 3.3};  // Bandwidth Domain Window: 10% of 33.0 range
-    this->brwConfig = {8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
-    this->ltwConfig = {15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
-    this->btwConfig = {5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
-    this->rtwConfig = {12.0, 28.0, 20.0, 1.6}; // Right Track Window: 10% of 16.0 range
-    this->ftwConfig = {15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
 
     // Set hard limits for all graph types using GraphLayout range limit methods
     // Range limits are set to be 2x larger than the simulation ranges
@@ -196,44 +184,6 @@ void MainWindow::updateSimulation()
         this->currentSelectedTrackBearing,
         this->currentAdoptedTrackCourse,
         this->currentSelectedTrackCourse);
-
-    // Update graph values with random generation (oldValue + random(-1,1) * delta)
-    QDateTime currentTime = QDateTime::currentDateTime();
-
-    // Generate new values using oldValue + random(-1,1) * delta pattern
-    this->currentFDWValue = generateRandomValue(this->currentFDWValue, this->fdwConfig.deltaValue);
-    this->currentBDWValue = generateRandomValue(this->currentBDWValue, this->bdwConfig.deltaValue);
-    this->currentBRWValue = generateRandomValue(this->currentBRWValue, this->brwConfig.deltaValue);
-    this->currentLTWValue = generateRandomValue(this->currentLTWValue, this->ltwConfig.deltaValue);
-    this->currentBTWValue = generateRandomValue(this->currentBTWValue, this->btwConfig.deltaValue);
-    this->currentRTWValue = generateRandomValue(this->currentRTWValue, this->rtwConfig.deltaValue);
-    this->currentFTWValue = generateRandomValue(this->currentFTWValue, this->ftwConfig.deltaValue);
-
-    // Clamp values to their respective ranges using configuration bounds
-    this->currentFDWValue = qBound(this->fdwConfig.minValue, this->currentFDWValue, this->fdwConfig.maxValue);
-    this->currentBDWValue = qBound(this->bdwConfig.minValue, this->currentBDWValue, this->bdwConfig.maxValue);
-    this->currentBRWValue = qBound(this->brwConfig.minValue, this->currentBRWValue, this->brwConfig.maxValue);
-    this->currentLTWValue = qBound(this->ltwConfig.minValue, this->currentLTWValue, this->ltwConfig.maxValue);
-    this->currentBTWValue = qBound(this->btwConfig.minValue, this->currentBTWValue, this->btwConfig.maxValue);
-    this->currentRTWValue = qBound(this->rtwConfig.minValue, this->currentRTWValue, this->rtwConfig.maxValue);
-    this->currentFTWValue = qBound(this->ftwConfig.minValue, this->currentFTWValue, this->ftwConfig.maxValue);
-
-    // Add new data points to each graph data source with precise timestamping
-    graphgrid->addDataPointToDataSource(GraphType::FDW, "FDW-1", this->currentFDWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::BDW, "BDW-1", this->currentBDWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::BRW, "BRW-1", this->currentBRWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::LTW, "LTW-1", this->currentLTWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::BTW, "BTW-1", this->currentBTWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::RTW, "RTW-1", this->currentRTWValue, currentTime);
-    graphgrid->addDataPointToDataSource(GraphType::FTW, "FTW-1", this->currentFTWValue, currentTime);
-
-    qDebug() << "Added data points - FDW:" << this->currentFDWValue
-             << "BDW:" << this->currentBDWValue
-             << "BRW:" << this->currentBRWValue
-             << "LTW:" << this->currentLTWValue
-             << "BTW:" << this->currentBTWValue
-             << "RTW:" << this->currentRTWValue
-             << "FTW:" << this->currentFTWValue;
 
     // set the current time to the system time
     graphgrid->setCurrentTime(QTime::currentTime());
@@ -353,13 +303,6 @@ void MainWindow::onLayoutTypeChanged(int index)
     graphgrid->setLayoutType(layoutType);
 }
 
-qreal MainWindow::generateRandomValue(qreal oldValue, qreal deltaValue)
-{
-    // Generate random value between -1 and 1
-    qreal randomFactor = (static_cast<qreal>(std::rand()) / RAND_MAX) * 2.0 - 1.0;
-    return oldValue + randomFactor * deltaValue;
-}
-
 void MainWindow::setupCustomGraphsTab()
 {
     qDebug() << "=== Setting up New Graph Components Tab ===";
@@ -434,76 +377,6 @@ void MainWindow::setupNewGraphData()
 
 void MainWindow::setBulkDataForAllGraphs()
 {
-    qDebug() << "Setting bulk data for all graphs (simulation disabled)";
-    
-    // Generate timestamps for the last 15 minutes (900 seconds)
-    QDateTime currentTime = QDateTime::currentDateTime();
-    std::vector<QDateTime> timestamps;
-    std::vector<qreal> fdwData, bdwData, brwData, ltwData, btwData, rtwData, ftwData;
-    
-    // Generate data points every 10 seconds for the last 15 minutes (90 data points)
-    for (int i = 0; i < 90; ++i) {
-        QDateTime timestamp = currentTime.addSecs(-(90 - i) * 10); // Every 10 seconds
-        timestamps.push_back(timestamp);
-        
-        // Generate realistic data patterns for each graph type
-        qreal timeFactor = static_cast<qreal>(i) / 90.0; // 0.0 to 1.0
-        
-        // FDW: Frequency Domain Window - sine wave pattern
-        fdwData.push_back(19.0 + 5.0 * sin(timeFactor * 4 * M_PI) + (std::rand() % 100 - 50) / 100.0);
-        
-        // BDW: Bandwidth Domain Window - linear increase with noise
-        bdwData.push_back(21.5 + 8.0 * timeFactor + (std::rand() % 100 - 50) / 100.0);
-        
-        // BRW: Bit Rate Window - exponential decay pattern
-        brwData.push_back(19.0 + 6.0 * exp(-timeFactor * 2) + (std::rand() % 100 - 50) / 100.0);
-        
-        // LTW: Latency Time Window - sawtooth pattern
-        ltwData.push_back(22.5 + 3.0 * (timeFactor * 3 - floor(timeFactor * 3)) + (std::rand() % 100 - 50) / 100.0);
-        
-        // BTW: Bit Time Window - cosine wave pattern
-        btwData.push_back(22.5 + 7.0 * cos(timeFactor * 3 * M_PI) + (std::rand() % 100 - 50) / 100.0);
-        
-        // RTW: Rate Time Window - step function pattern
-        rtwData.push_back(20.0 + 4.0 * (timeFactor > 0.5 ? 1.0 : -1.0) + (std::rand() % 100 - 50) / 100.0);
-        
-        // FTW: Frequency Time Window - quadratic pattern
-        ftwData.push_back(22.5 + 2.0 * (timeFactor - 0.5) * (timeFactor - 0.5) * 8 + (std::rand() % 100 - 50) / 100.0);
-    }
-
-    // Set range limits for all graphs
-    graphgrid->setHardRangeLimits(GraphType::FDW, 2, 102);
-    graphgrid->setHardRangeLimits(GraphType::BDW, 2, 102);
-    graphgrid->setHardRangeLimits(GraphType::BRW, 2, 102);
-    graphgrid->setHardRangeLimits(GraphType::LTW, 2, 102);
-    graphgrid->setHardRangeLimits(GraphType::BTW, 2, 102);
-    graphgrid->setHardRangeLimits(GraphType::RTW, 2, 102);
-    graphgrid->setHardRangeLimits(GraphType::FTW, 2, 102);
-
-    // Add bulk data to each graph data source
-    graphgrid->addDataPointsToDataSource(GraphType::FDW, "FDW-1", fdwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::BDW, "BDW-1", bdwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::BRW, "BRW-1", brwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::LTW, "LTW-1", ltwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::BTW, "BTW-1", btwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::RTW, "RTW-1", rtwData, timestamps);
-    graphgrid->addDataPointsToDataSource(GraphType::FTW, "FTW-1", ftwData, timestamps);
-
-    
-    // Set current time to system time
-    graphgrid->setCurrentTime(QTime::currentTime());
-    
-    // Set chevron labels
-    graphgrid->setChevronLabel1("Start");
-    graphgrid->setChevronLabel2("Now");
-    graphgrid->setChevronLabel3("End");
-    
-    qDebug() << "Bulk data set for all graphs - 90 data points per graph over 15 minutes";
-    qDebug() << "FDW range:" << *std::min_element(fdwData.begin(), fdwData.end()) << "to" << *std::max_element(fdwData.begin(), fdwData.end());
-    qDebug() << "BDW range:" << *std::min_element(bdwData.begin(), bdwData.end()) << "to" << *std::max_element(bdwData.begin(), bdwData.end());
-    qDebug() << "BRW range:" << *std::min_element(brwData.begin(), brwData.end()) << "to" << *std::max_element(brwData.begin(), brwData.end());
-    qDebug() << "LTW range:" << *std::min_element(ltwData.begin(), ltwData.end()) << "to" << *std::max_element(ltwData.begin(), ltwData.end());
-    qDebug() << "BTW range:" << *std::min_element(btwData.begin(), btwData.end()) << "to" << *std::max_element(btwData.begin(), btwData.end());
-    qDebug() << "RTW range:" << *std::min_element(rtwData.begin(), rtwData.end()) << "to" << *std::max_element(rtwData.begin(), rtwData.end());
-    qDebug() << "FTW range:" << *std::min_element(ftwData.begin(), ftwData.end()) << "to" << *std::max_element(ftwData.begin(), ftwData.end());
+    // Method moved to Simulator class
+    simulator->generateBulkData(90);
 }
