@@ -11,6 +11,19 @@ WaterfallData::WaterfallData(const QString& title)
     dataSeriesTimestamps[dataTitle] = std::vector<QDateTime>();
 }
 
+WaterfallData::WaterfallData(const QString& title, const std::vector<QString>& seriesLabels)
+{
+    dataTitle = title;
+    
+    // Initialize empty series for each provided label
+    for (const QString& seriesLabel : seriesLabels)
+    {
+        dataSeriesYData[seriesLabel] = std::vector<qreal>();
+        dataSeriesTimestamps[seriesLabel] = std::vector<QDateTime>();
+    }
+    
+}
+
 WaterfallData::~WaterfallData()
 {
     // Vectors will be automatically cleaned up
@@ -505,6 +518,115 @@ bool WaterfallData::isValidSelectionTime(const QDateTime& time) const
 
     QDateTime earliest = getSelectionEarliestTime();
     QDateTime latest = getSelectionLatestTime();
+
+    // Check if the time is within the available data range
+    return (time >= earliest && time <= latest);
+}
+
+// Series-specific versions of legacy methods implementation
+
+void WaterfallData::setDataSeries(const QString& seriesLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+{
+    // Validate that both vectors have the same size
+    if (yData.size() != timestamps.size()) {
+        qDebug() << "Error: yData and timestamps must have the same size for series" << seriesLabel
+            << ". yData size:" << yData.size() << "timestamps size:" << timestamps.size();
+        return;
+    }
+
+    // Store the data series
+    dataSeriesYData[seriesLabel] = yData;
+    dataSeriesTimestamps[seriesLabel] = timestamps;
+
+    validateDataSeriesConsistency(seriesLabel);
+}
+
+std::vector<std::pair<qreal, QDateTime>> WaterfallData::getAllDataSeries(const QString& seriesLabel) const
+{
+    std::vector<std::pair<qreal, QDateTime>> result;
+    
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto tIt = dataSeriesTimestamps.find(seriesLabel);
+    
+    if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
+        result.reserve(yIt->second.size());
+        
+        for (size_t i = 0; i < yIt->second.size(); ++i) {
+            result.emplace_back(yIt->second[i], tIt->second[i]);
+        }
+    }
+    
+    return result;
+}
+
+qreal WaterfallData::getMinYSeries(const QString& seriesLabel) const
+{
+    auto it = dataSeriesYData.find(seriesLabel);
+    if (it == dataSeriesYData.end() || it->second.empty()) {
+        return 0.0;
+    }
+
+    return *std::min_element(it->second.begin(), it->second.end());
+}
+
+qreal WaterfallData::getMaxYSeries(const QString& seriesLabel) const
+{
+    auto it = dataSeriesYData.find(seriesLabel);
+    if (it == dataSeriesYData.end() || it->second.empty()) {
+        return 0.0;
+    }
+
+    return *std::max_element(it->second.begin(), it->second.end());
+}
+
+qint64 WaterfallData::getTimeSpanMsSeries(const QString& seriesLabel) const
+{
+    auto it = dataSeriesTimestamps.find(seriesLabel);
+    if (it == dataSeriesTimestamps.end() || it->second.size() < 2) {
+        return 0;
+    }
+
+    auto timeRange = getTimeRangeSeries(seriesLabel);
+    return timeRange.first.msecsTo(timeRange.second);
+}
+
+QDateTime WaterfallData::getEarliestTimeSeries(const QString& seriesLabel) const
+{
+    auto it = dataSeriesTimestamps.find(seriesLabel);
+    if (it == dataSeriesTimestamps.end() || it->second.empty()) {
+        return QDateTime();
+    }
+
+    return *std::min_element(it->second.begin(), it->second.end());
+}
+
+QDateTime WaterfallData::getLatestTimeSeries(const QString& seriesLabel) const
+{
+    auto it = dataSeriesTimestamps.find(seriesLabel);
+    if (it == dataSeriesTimestamps.end() || it->second.empty()) {
+        return QDateTime();
+    }
+
+    return *std::max_element(it->second.begin(), it->second.end());
+}
+
+bool WaterfallData::isValidIndexSeries(const QString& seriesLabel, size_t index) const
+{
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto tIt = dataSeriesTimestamps.find(seriesLabel);
+    return (yIt != dataSeriesYData.end() && index < yIt->second.size()) && 
+           (tIt != dataSeriesTimestamps.end() && index < tIt->second.size());
+}
+
+bool WaterfallData::isValidSelectionTimeSeries(const QString& seriesLabel, const QDateTime& time) const
+{
+    auto it = dataSeriesTimestamps.find(seriesLabel);
+    if (it == dataSeriesTimestamps.end() || it->second.empty()) {
+        return false;
+    }
+
+    QDateTime earliest = getEarliestTimeSeries(seriesLabel);
+    QDateTime latest = getLatestTimeSeries(seriesLabel);
 
     // Check if the time is within the available data range
     return (time >= earliest && time <= latest);

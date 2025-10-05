@@ -12,6 +12,7 @@ class WaterfallData
 {
 public:
     WaterfallData(const QString& title = "");
+    WaterfallData(const QString& title, const std::vector<QString>& seriesLabels);
     ~WaterfallData();
 
     // Data management methods
@@ -83,6 +84,17 @@ public:
     // Data series range methods
     std::pair<qreal, qreal> getYRangeSeries(const QString& seriesLabel) const;
     std::pair<QDateTime, QDateTime> getTimeRangeSeries(const QString& seriesLabel) const;
+
+    // Series-specific versions of legacy methods
+    void setDataSeries(const QString& seriesLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
+    std::vector<std::pair<qreal, QDateTime>> getAllDataSeries(const QString& seriesLabel) const;
+    qreal getMinYSeries(const QString& seriesLabel) const;
+    qreal getMaxYSeries(const QString& seriesLabel) const;
+    qint64 getTimeSpanMsSeries(const QString& seriesLabel) const;
+    QDateTime getEarliestTimeSeries(const QString& seriesLabel) const;
+    QDateTime getLatestTimeSeries(const QString& seriesLabel) const;
+    bool isValidIndexSeries(const QString& seriesLabel, size_t index) const;
+    bool isValidSelectionTimeSeries(const QString& seriesLabel, const QDateTime& time) const;
 
     // Combined range methods for all series
     std::pair<qreal, qreal> getCombinedYRange() const;
