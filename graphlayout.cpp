@@ -226,10 +226,10 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
 void GraphLayout::initializeContainers()
 {
     // Create 4 graph containers with timer
-    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
-    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
-    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
-    m_graphContainers.push_back(new GraphContainer(this, true, m_timer));
+    m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer));
+    m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer));
+    m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer));
+    m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer));
 
     // Attach data sources to containers
     attachContainerDataSources();

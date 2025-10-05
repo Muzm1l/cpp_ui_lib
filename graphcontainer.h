@@ -30,7 +30,7 @@ class GraphContainer : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, QTimer *timer = nullptr);
+    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), QTimer *timer = nullptr);
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
@@ -152,6 +152,9 @@ private:
     // Sizing properties
     int m_timelineWidth;
     QSize m_graphViewSize;
+
+    // Series colors map
+    std::map<QString, QColor> m_seriesColorsMap;
 
     // Data source management
     WaterfallData waterfallData;
