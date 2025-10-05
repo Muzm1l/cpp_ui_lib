@@ -22,11 +22,8 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer)
     auto dataSourceLabels = getAllGraphTypes();
 
     // Initialize data sources based on provided labels
-    for (const GraphType &label : dataSourceLabels)
-    {
-        m_dataSources[label] = new WaterfallData(graphTypeToString(label));
-    }
-
+    initializeDataSources();
+    
     // Initialize container labels (using data source labels as container labels)
     m_containerLabels = getAllGraphTypeStrings();
 
@@ -202,6 +199,18 @@ void GraphLayout::setGraphViewSize(int width, int height)
         container->setGraphViewSize(width, height);
     }
     updateLayoutSizing();
+}
+
+void GraphLayout::initializeDataSources()
+{
+    // Initialize data sources for all graph types manually
+    m_dataSources[GraphType::BDW] = new WaterfallData(graphTypeToString(GraphType::BDW), {"BDW-1", "ADOPTED"});
+    m_dataSources[GraphType::BRW] = new WaterfallData(graphTypeToString(GraphType::BRW), {"BRW-1", "BRW-2", "ADOPTED"});
+    m_dataSources[GraphType::BTW] = new WaterfallData(graphTypeToString(GraphType::BTW), {"BTW-1", "BTW-2", "BTW-3"});
+    m_dataSources[GraphType::FDW] = new WaterfallData(graphTypeToString(GraphType::FDW), {"FDW-1", "FDW-2", "ADOPTED"});
+    m_dataSources[GraphType::FTW] = new WaterfallData(graphTypeToString(GraphType::FTW), {"FTW-1", "FTW-2", "ADOPTED"});
+    m_dataSources[GraphType::LTW] = new WaterfallData(graphTypeToString(GraphType::LTW), {"LTW-1", "ADOPTED"});
+    m_dataSources[GraphType::RTW] = new WaterfallData(graphTypeToString(GraphType::RTW), {"RTW-1", "ADOPTED"});
 }
 
 void GraphLayout::initializeContainers()
