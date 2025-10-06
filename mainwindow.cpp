@@ -2,6 +2,7 @@
 #include "ui_mainwindow.h"
 #include <QDateTime>
 #include <QDebug>
+#include <QLabel>
 #include <cmath>
 #include <algorithm>
 
@@ -333,7 +334,7 @@ void MainWindow::setupCustomGraphsTab()
     // Create all 7 new graph components
 
     // FDW Graph - Frequency Domain Waterfall
-    fdwGraph = new FDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    fdwGraph = new FDWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     fdwGraph->setObjectName("fdwGraph");
     fdwGraph->setMouseSelectionEnabled(true);
     fdwGraph->setDataSource(*fdwData); // Connect to data source
@@ -345,7 +346,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "FDW Graph connected to data source and colors set";
 
     // BDW Graph - Bandwidth Domain Waterfall
-    bdwGraph = new BDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    bdwGraph = new BDWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     bdwGraph->setObjectName("bdwGraph");
     bdwGraph->setMouseSelectionEnabled(true);
     bdwGraph->setDataSource(*bdwData); // Connect to data source
@@ -357,7 +358,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "BDW Graph connected to data source and colors set";
 
     // BRW Graph - Bit Rate Waterfall
-    brwGraph = new BRWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    brwGraph = new BRWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     brwGraph->setObjectName("brwGraph");
     brwGraph->setMouseSelectionEnabled(true);
     brwGraph->setDataSource(*brwData); // Connect to data source
@@ -369,7 +370,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "BRW Graph connected to data source and colors set";
 
     // LTW Graph - Latency Time Waterfall
-    ltwGraph = new LTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    ltwGraph = new LTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     ltwGraph->setObjectName("ltwGraph");
     ltwGraph->setMouseSelectionEnabled(true);
     ltwGraph->setDataSource(*ltwData); // Connect to data source
@@ -381,7 +382,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "LTW Graph connected to data source and colors set";
 
     // BTW Graph - Bit Time Waterfall
-    btwGraph = new BTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    btwGraph = new BTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     btwGraph->setObjectName("btwGraph");
     btwGraph->setMouseSelectionEnabled(true);
     btwGraph->setDataSource(*btwData); // Connect to data source
@@ -394,7 +395,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "BTW Graph connected to data source and colors set";
 
     // RTW Graph - Rate Time Waterfall
-    rtwGraph = new RTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    rtwGraph = new RTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     rtwGraph->setObjectName("rtwGraph");
     rtwGraph->setMouseSelectionEnabled(true);
     rtwGraph->setDataSource(*rtwData); // Connect to data source
@@ -406,7 +407,7 @@ void MainWindow::setupCustomGraphsTab()
     qDebug() << "RTW Graph connected to data source and colors set";
 
     // FTW Graph - Frequency Time Waterfall
-    ftwGraph = new FTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
+    ftwGraph = new FTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     ftwGraph->setObjectName("ftwGraph");
     ftwGraph->setMouseSelectionEnabled(true);
     ftwGraph->setDataSource(*ftwData); // Connect to data source
@@ -417,28 +418,77 @@ void MainWindow::setupCustomGraphsTab()
     ftwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "FTW Graph connected to data source and colors set";
 
-    // Add graphs to grid layout (3x3 with 2 empty spaces)
-    gridLayout->addWidget(fdwGraph, 0, 0);
-    gridLayout->addWidget(bdwGraph, 0, 1);
-    gridLayout->addWidget(brwGraph, 0, 2);
-    gridLayout->addWidget(ltwGraph, 1, 0);
-    gridLayout->addWidget(btwGraph, 1, 1);
-    gridLayout->addWidget(rtwGraph, 1, 2);
-    gridLayout->addWidget(ftwGraph, 2, 0);
+    // Create labels for each graph
+    QLabel *fdwLabel = new QLabel("FDW", ui->customGraphsTab);
+    QLabel *bdwLabel = new QLabel("BDW", ui->customGraphsTab);
+    QLabel *brwLabel = new QLabel("BRW", ui->customGraphsTab);
+    QLabel *ltwLabel = new QLabel("LTW", ui->customGraphsTab);
+    QLabel *btwLabel = new QLabel("BTW", ui->customGraphsTab);
+    QLabel *rtwLabel = new QLabel("RTW", ui->customGraphsTab);
+    QLabel *ftwLabel = new QLabel("FTW", ui->customGraphsTab);
+
+    // Style the labels
+    QString labelStyle = "QLabel { color: white; font-size: 12px; font-weight: bold; background-color: rgba(0, 0, 0, 150); padding: 4px; border-radius: 4px; }";
+    fdwLabel->setStyleSheet(labelStyle);
+    bdwLabel->setStyleSheet(labelStyle);
+    brwLabel->setStyleSheet(labelStyle);
+    ltwLabel->setStyleSheet(labelStyle);
+    btwLabel->setStyleSheet(labelStyle);
+    rtwLabel->setStyleSheet(labelStyle);
+    ftwLabel->setStyleSheet(labelStyle);
+
+    // Set label alignment
+    fdwLabel->setAlignment(Qt::AlignCenter);
+    bdwLabel->setAlignment(Qt::AlignCenter);
+    brwLabel->setAlignment(Qt::AlignCenter);
+    ltwLabel->setAlignment(Qt::AlignCenter);
+    btwLabel->setAlignment(Qt::AlignCenter);
+    rtwLabel->setAlignment(Qt::AlignCenter);
+    ftwLabel->setAlignment(Qt::AlignCenter);
+
+    // Add graphs and labels to grid layout (6x3 - labels above graphs)
+    // Row 0: Labels
+    gridLayout->addWidget(fdwLabel, 0, 0);
+    gridLayout->addWidget(bdwLabel, 0, 1);
+    gridLayout->addWidget(brwLabel, 0, 2);
+    
+    // Row 1: Graphs
+    gridLayout->addWidget(fdwGraph, 1, 0);
+    gridLayout->addWidget(bdwGraph, 1, 1);
+    gridLayout->addWidget(brwGraph, 1, 2);
+    
+    // Row 2: Labels
+    gridLayout->addWidget(ltwLabel, 2, 0);
+    gridLayout->addWidget(btwLabel, 2, 1);
+    gridLayout->addWidget(rtwLabel, 2, 2);
+    
+    // Row 3: Graphs
+    gridLayout->addWidget(ltwGraph, 3, 0);
+    gridLayout->addWidget(btwGraph, 3, 1);
+    gridLayout->addWidget(rtwGraph, 3, 2);
+    
+    // Row 4: Label
+    gridLayout->addWidget(ftwLabel, 4, 0);
+    
+    // Row 5: Graph
+    gridLayout->addWidget(ftwGraph, 5, 0);
 
     // Set equal column and row stretches
     gridLayout->setColumnStretch(0, 1);
     gridLayout->setColumnStretch(1, 1);
     gridLayout->setColumnStretch(2, 1);
-    gridLayout->setRowStretch(0, 1);
-    gridLayout->setRowStretch(1, 1);
-    gridLayout->setRowStretch(2, 1);
+    gridLayout->setRowStretch(0, 0);  // Label rows - minimal height
+    gridLayout->setRowStretch(1, 1);  // Graph rows - full height
+    gridLayout->setRowStretch(2, 0);  // Label rows - minimal height
+    gridLayout->setRowStretch(3, 1);  // Graph rows - full height
+    gridLayout->setRowStretch(4, 0);  // Label rows - minimal height
+    gridLayout->setRowStretch(5, 1);  // Graph rows - full height
 
     // Create configuration map for data generation
     auto waterfallDataMap = std::map<WaterfallData*, SimulatorConfig>();
 
     waterfallDataMap[fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
-    waterfallDataMap[bdwData] = SimulatorConfig{5.0, 38.0, 21.5, 3.3};
+    waterfallDataMap[bdwData] = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};
     waterfallDataMap[brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
     waterfallDataMap[ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
     waterfallDataMap[btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
@@ -535,7 +585,7 @@ void MainWindow::setBulkDataForAllGraphs()
     WaterfallData ftwData("FTW", {"FTW-1", "FTW-2"});
 
     waterfallDataMap[&fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
-    waterfallDataMap[&bdwData] = SimulatorConfig{5.0, 38.0, 21.5, 3.3};
+    waterfallDataMap[&bdwData] = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};
     waterfallDataMap[&brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
     waterfallDataMap[&ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
     waterfallDataMap[&btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};

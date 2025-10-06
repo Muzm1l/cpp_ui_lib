@@ -13,6 +13,7 @@
 #include <QDebug>
 #include <QMouseEvent>
 #include <QEnterEvent>
+#include <QtMath>
 
 /**
  * @brief Construct a new LTWGraph::LTWGraph object
@@ -59,8 +60,12 @@ LTWGraph::~LTWGraph()
  */
 void LTWGraph::draw()
 {
-    if (!graphicsScene)
+    qDebug() << "LTW: draw() called";
+    
+    if (!graphicsScene) {
+        qDebug() << "LTW: draw() early return - no graphicsScene";
         return;
+    }
 
     graphicsScene->clear();
     setupDrawingArea();
@@ -72,12 +77,16 @@ void LTWGraph::draw()
 
     if (dataSource && !dataSource->isEmpty())
     {
+        qDebug() << "LTW: draw() - dataSource available, updating ranges and drawing series";
         updateDataRanges();
         
         // Draw custom markers for each series with their respective colors
         std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+        qDebug() << "LTW: draw() - found" << seriesLabels.size() << "series labels";
+        
         for (const QString &seriesLabel : seriesLabels)
         {
+            qDebug() << "LTW: draw() - processing series:" << seriesLabel << "visible:" << isSeriesVisible(seriesLabel);
             if (isSeriesVisible(seriesLabel))
             {
                 QColor seriesColor = getSeriesColor(seriesLabel);
@@ -85,15 +94,21 @@ void LTWGraph::draw()
                 if (seriesLabel == "ADOPTED")
                 {
                     // Draw curve for ADOPTED series without points
+                    qDebug() << "LTW: draw() - drawing ADOPTED series as line";
                     drawDataLine(seriesLabel, false);
                 }
                 else
                 {
-                    // Draw custom markers for other series with 1/5 sampling
+                    // Draw custom markers for other series with adaptive sampling
+                    qDebug() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
                     drawCustomMarkers(seriesLabel, seriesColor);
                 }
             }
         }
+    }
+    else
+    {
+        qDebug() << "LTW: draw() - no dataSource or dataSource is empty";
     }
 }
 
@@ -134,7 +149,8 @@ void LTWGraph::drawLTWScatterplot()
 }
 
 /**
- * @brief Draw custom markers for LTW graph with 1/5 sampling
+ * @brief Draw custom markers for LTW graph with adaptive time-based binning
+ * Uses 1/5 of the current time interval as the bin duration for sampling
  *
  * @param seriesLabel The series label to draw markers for
  * @param markerColor The color for the markers
@@ -142,39 +158,68 @@ void LTWGraph::drawLTWScatterplot()
 void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &markerColor)
 {
     if (!dataSource || !graphicsScene) {
+        qDebug() << "LTW: drawCustomMarkers early return - no dataSource or graphicsScene";
         return;
     }
 
-    // Get data for the series
-    std::vector<qreal> yData = dataSource->getYDataSeries(seriesLabel);
-    std::vector<QDateTime> timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    // Get total data size for comparison
+    size_t totalDataSize = dataSource->getDataSeriesSize(seriesLabel);
+    qDebug() << "LTW: drawCustomMarkers called for series" << seriesLabel << "with total data size:" << totalDataSize;
 
-    if (yData.empty() || timestamps.empty()) {
+    if (totalDataSize == 0) {
+        qDebug() << "LTW: No data available for series" << seriesLabel;
         return;
     }
 
-    // Apply 1/5 sampling (every 5th point)
-    std::vector<qreal> sampledYData;
-    std::vector<QDateTime> sampledTimestamps;
+    // Use the static binning method to sample data based on time intervals
+    // Set sampling rate to 1/5 of current time interval
+    qint64 currentIntervalMs = getTimeIntervalMs();
+    qint64 samplingIntervalMs = currentIntervalMs / 5; // 1/5 of current time interval
     
-    for (size_t i = 0; i < yData.size(); i += 5) {
-        sampledYData.push_back(yData[i]);
-        sampledTimestamps.push_back(timestamps[i]);
+    // Convert to QTime for the binning method
+    QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
+    
+    // Get raw data and use static binning method
+    const std::vector<qreal>& yData = dataSource->getYDataSeries(seriesLabel);
+    const std::vector<QDateTime>& timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    std::vector<std::pair<qreal, QDateTime>> binnedData = WaterfallData::binDataByTime(yData, timestamps, binDuration);
+    
+    // Filter binned data to only include points within the visible time range
+    std::vector<std::pair<qreal, QDateTime>> visibleBinnedData;
+    for (const auto& point : binnedData) {
+        if (point.second >= timeMin && point.second <= timeMax) {
+            visibleBinnedData.push_back(point);
+        }
+    }
+    
+    qDebug() << "LTW: Time range filtering - Total binned:" << binnedData.size() 
+             << "- Visible binned:" << visibleBinnedData.size()
+             << "- Time range:" << timeMin.toString() << "to" << timeMax.toString();
+
+    qDebug() << "LTW: Binning completed for series" << seriesLabel 
+             << "- Total data:" << totalDataSize 
+             << "- Binned data:" << binnedData.size()
+             << "- Visible binned data:" << visibleBinnedData.size()
+             << "- Bin duration:" << samplingIntervalMs << "ms";
+
+    if (visibleBinnedData.empty()) {
+        qDebug() << "LTW: No visible binned data available for series" << seriesLabel;
+        return;
     }
 
-    qDebug() << "LTW: Drawing custom markers for series" << seriesLabel 
-             << "with" << sampledYData.size() << "sampled points out of" << yData.size() << "total points";
-
-    // Draw markers for each sampled point
-    for (size_t i = 0; i < sampledYData.size(); ++i) {
-        QPointF screenPos = mapDataToScreen(sampledYData[i], sampledTimestamps[i]);
+    // Draw markers for each visible binned point
+    int markersDrawn = 0;
+    for (const auto& point : visibleBinnedData) {
+        qreal yValue = point.first;
+        QDateTime timestamp = point.second;
+        QPointF screenPos = mapDataToScreen(yValue, timestamp);
         
         // Check if point is within visible area
         if (drawingArea.contains(screenPos)) {
             // Calculate marker sizes
-            qreal squareSize = 12.0; // Base square size (3x larger: 4.0 * 3)
+            QSize windowSize = this->size();
+            qreal squareSize = std::min(0.05 * windowSize.width(), 12.0); // Cap at 12 pixels
             qreal triangleSize = squareSize * 0.5; // Triangle is half the width of square
-            qreal padding = triangleSize * 0.05; // 5% padding
             
             // Draw cyan square border
             QGraphicsRectItem *square = new QGraphicsRectItem(
@@ -183,7 +228,7 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
                 squareSize, 
                 squareSize
             );
-            square->setPen(QPen(Qt::cyan, 1.0));
+            square->setPen(QPen(Qt::white, 1.0));
             square->setBrush(QBrush(Qt::transparent));
             square->setZValue(500); // Lower z-value than triangle
             graphicsScene->addItem(square);
@@ -195,12 +240,16 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
                      << QPointF(screenPos.x() + triangleSize/2, screenPos.y() + triangleSize/2); // Bottom right
             
             QGraphicsPolygonItem *triangleItem = new QGraphicsPolygonItem(triangle);
-            triangleItem->setPen(QPen(Qt::cyan, 1.0));
-            triangleItem->setBrush(QBrush(Qt::cyan));
+            triangleItem->setPen(QPen(Qt::white, 1.0));
+            triangleItem->setBrush(QBrush(Qt::white));
             triangleItem->setZValue(600); // Higher z-value than square
             graphicsScene->addItem(triangleItem);
+            
+            markersDrawn++;
         }
     }
+    
+    qDebug() << "LTW: Successfully drew" << markersDrawn << "markers for series" << seriesLabel;
 }
 
 /**

@@ -5,6 +5,7 @@
 #include <utility>
 #include <map>
 #include <QDateTime>
+#include <QTime>
 #include <QDebug>
 #include <QString>
 
@@ -87,6 +88,16 @@ public:
     // Combined range methods for all series
     std::pair<qreal, qreal> getCombinedYRange() const;
     std::pair<QDateTime, QDateTime> getCombinedTimeRange() const;
+
+    // Data binning methods for sampling
+    std::vector<std::pair<qreal, QDateTime>> getBinnedDataSeries(const QString& seriesLabel, const QTime& binDuration) const;
+    
+    // Static binning method that doesn't depend on class state
+    static std::vector<std::pair<qreal, QDateTime>> binDataByTime(
+        const std::vector<qreal>& yData, 
+        const std::vector<QDateTime>& timestamps, 
+        const QTime& binDuration
+    );
 
 private:
 

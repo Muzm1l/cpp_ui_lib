@@ -618,3 +618,120 @@ bool WaterfallData::isValidSelectionTimeSeries(const QString& seriesLabel, const
     // Check if the time is within the available data range
     return (time >= earliest && time <= latest);
 }
+
+// Data binning methods implementation
+
+std::vector<std::pair<qreal, QDateTime>> WaterfallData::getBinnedDataSeries(const QString& seriesLabel, const QTime& binDuration) const
+{
+    std::vector<std::pair<qreal, QDateTime>> result;
+    
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto tIt = dataSeriesTimestamps.find(seriesLabel);
+    
+    if (yIt == dataSeriesYData.end() || tIt == dataSeriesTimestamps.end() || yIt->second.empty()) {
+        return result; // Return empty vector if series doesn't exist or is empty
+    }
+    
+    const auto& yData = yIt->second;
+    const auto& timestamps = tIt->second;
+    
+    if (timestamps.empty()) {
+        return result;
+    }
+    
+    // Convert QTime duration to milliseconds
+    qint64 binSizeMs = QTime(0, 0, 0).msecsTo(binDuration);
+    
+    if (binSizeMs <= 0) {
+        qDebug() << "Warning: Invalid bin duration provided for series" << seriesLabel;
+        return result;
+    }
+    
+    // Find the earliest timestamp to use as reference for binning
+    QDateTime earliestTime = *std::min_element(timestamps.begin(), timestamps.end());
+    
+    // Create a map to store the first value in each bin
+    std::map<qint64, std::pair<qreal, QDateTime>> bins;
+    
+    for (size_t i = 0; i < timestamps.size(); ++i) {
+        // Calculate which bin this timestamp belongs to
+        qint64 timeDiffMs = earliestTime.msecsTo(timestamps[i]);
+        qint64 binIndex = timeDiffMs / binSizeMs;
+        
+        // If this is the first value in this bin, store it
+        if (bins.find(binIndex) == bins.end()) {
+            bins[binIndex] = std::make_pair(yData[i], timestamps[i]);
+        }
+    }
+    
+    // Convert the map to a vector, maintaining chronological order
+    result.reserve(bins.size());
+    for (const auto& bin : bins) {
+        result.push_back(bin.second);
+    }
+    
+    // Sort by timestamp to ensure chronological order
+    std::sort(result.begin(), result.end(), 
+              [](const std::pair<qreal, QDateTime>& a, const std::pair<qreal, QDateTime>& b) {
+                  return a.second < b.second;
+              });
+    
+    return result;
+}
+
+// Static binning method implementation
+
+std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
+    const std::vector<qreal>& yData, 
+    const std::vector<QDateTime>& timestamps, 
+    const QTime& binDuration)
+{
+    std::vector<std::pair<qreal, QDateTime>> result;
+    
+    // Validate input data
+    if (yData.empty() || timestamps.empty() || yData.size() != timestamps.size()) {
+        qDebug() << "WaterfallData::binDataByTime: Invalid input data - sizes don't match or data is empty";
+        return result;
+    }
+    
+    // Convert QTime duration to milliseconds
+    qint64 binSizeMs = QTime(0, 0, 0).msecsTo(binDuration);
+    
+    if (binSizeMs <= 0) {
+        qDebug() << "WaterfallData::binDataByTime: Invalid bin duration provided";
+        return result;
+    }
+    
+    // Find the earliest timestamp to use as reference for binning
+    QDateTime earliestTime = *std::min_element(timestamps.begin(), timestamps.end());
+    
+    // Create a map to store the first value in each bin
+    std::map<qint64, std::pair<qreal, QDateTime>> bins;
+    
+    for (size_t i = 0; i < timestamps.size(); ++i) {
+        // Calculate which bin this timestamp belongs to
+        qint64 timeDiffMs = earliestTime.msecsTo(timestamps[i]);
+        qint64 binIndex = timeDiffMs / binSizeMs;
+        
+        // If this is the first value in this bin, store it
+        if (bins.find(binIndex) == bins.end()) {
+            bins[binIndex] = std::make_pair(yData[i], timestamps[i]);
+        }
+    }
+    
+    // Convert the map to a vector, maintaining chronological order
+    result.reserve(bins.size());
+    for (const auto& bin : bins) {
+        result.push_back(bin.second);
+    }
+    
+    // Sort by timestamp to ensure chronological order
+    std::sort(result.begin(), result.end(), 
+              [](const std::pair<qreal, QDateTime>& a, const std::pair<qreal, QDateTime>& b) {
+                  return a.second < b.second;
+              });
+    
+    qDebug() << "WaterfallData::binDataByTime: Binned" << yData.size() << "points into" << result.size() << "bins with duration" << binSizeMs << "ms";
+    
+    return result;
+}

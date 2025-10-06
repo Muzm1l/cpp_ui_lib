@@ -28,6 +28,7 @@ protected:
 private:
     // BDW-specific properties and methods can be added here
     void drawBDWScatterplot();
+    void drawZeroAxis();
 };
 
 #endif // BDWGRAPH_H
