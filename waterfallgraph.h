@@ -128,6 +128,10 @@ protected:
     bool rangeLimitingEnabled;
     qreal customYMin, customYMax;
 
+    // Time range management
+    bool customTimeRangeEnabled;
+    QDateTime customTimeMin, customTimeMax;
+
     // Time interval configuration
     TimeInterval timeInterval;
 
@@ -172,6 +176,17 @@ public:
 
     // Time range update method
     void updateTimeRange();
+
+    // Time range management methods
+    void setTimeRange(const QDateTime &timeMin, const QDateTime &timeMax);
+    void setTimeMax(const QDateTime &timeMax);
+    void setTimeMin(const QDateTime &timeMin);
+    QDateTime getTimeMax() const;
+    QDateTime getTimeMin() const;
+    std::pair<QDateTime, QDateTime> getTimeRange() const;
+    void setTimeRangeFromData();
+    void setTimeRangeFromDataWithInterval(qint64 intervalMs);
+    void unsetCustomTimeRange();
 
     // Public draw method for external redraw triggers
     virtual void draw();

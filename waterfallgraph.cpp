@@ -9,7 +9,7 @@
  * @param timeInterval Time interval for the waterfall display
  */
 WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), mouseSelectionEnabled(false), selectionRect(nullptr), autoUpdateYRange(true)
+    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), customTimeRangeEnabled(false), customTimeMin(QDateTime()), customTimeMax(QDateTime()), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), mouseSelectionEnabled(false), selectionRect(nullptr), autoUpdateYRange(true)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -332,8 +332,17 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     timeInterval = interval;
 
     // Always update time range based on new interval
-    timeMax = QDateTime::currentDateTime();           // Current time (top of graph)
-    timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
+    if (customTimeRangeEnabled)
+    {
+        // If custom time range is enabled, keep it but adjust the interval
+        // The custom range takes precedence
+        qDebug() << "Custom time range is enabled, keeping custom range";
+    }
+    else
+    {
+        // Update time range based on data with new interval
+        setTimeRangeFromDataWithInterval(getTimeIntervalMs());
+    }
 
     // Update data ranges if we have data
     if (dataSource && !dataSource->isEmpty())
@@ -779,9 +788,18 @@ void WaterfallGraph::updateDataRanges()
         }
     }
 
-    // Set time range based on fixed interval with current time as top (t=0)
-    timeMax = QDateTime::currentDateTime();           // Current time (top of graph)
-    timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
+    // Set time range based on data or custom range
+    if (customTimeRangeEnabled)
+    {
+        // Use custom time range
+        timeMin = customTimeMin;
+        timeMax = customTimeMax;
+    }
+    else
+    {
+        // Set time range based on data timestamps
+        setTimeRangeFromData();
+    }
 
     dataRangesValid = true;
 
@@ -1139,9 +1157,19 @@ std::pair<qreal,qreal> WaterfallGraph::getCustomYRange() const
  */
 void WaterfallGraph::updateTimeRange()
 {
-    // Update time range based on fixed interval with current time as top (t=0)
-    timeMax = QDateTime::currentDateTime();           // Current time (top of graph)
-    timeMin = timeMax.addMSecs(-getTimeIntervalMs()); // Bottom of graph
+    if (customTimeRangeEnabled)
+    {
+        // Use custom time range
+        timeMin = customTimeMin;
+        timeMax = customTimeMax;
+        qDebug() << "Time range updated using custom range - Time:" << timeMin.toString() << "to" << timeMax.toString();
+    }
+    else
+    {
+        // Update time range based on data
+        setTimeRangeFromData();
+        qDebug() << "Time range updated from data - Time:" << timeMin.toString() << "to" << timeMax.toString();
+    }
 
     // Update data ranges if we have data
     if (dataSource && !dataSource->isEmpty())
@@ -1151,9 +1179,6 @@ void WaterfallGraph::updateTimeRange()
 
     // Force redraw to show only data within the new time range
     draw();
-
-    qDebug() << "Time range updated - Time:" << timeMin.toString() << "to" << timeMax.toString()
-             << "Interval:" << timeIntervalToString(timeInterval);
 }
 
 /**
@@ -1701,4 +1726,178 @@ void WaterfallGraph::updateYRangeFromCustom()
     
     dataRangesValid = true;
     qDebug() << "Y range updated from custom - Y:" << yMin << "to" << yMax;
+}
+
+// Time range management methods implementation
+
+/**
+ * @brief Set a custom time range for the waterfall graph.
+ *
+ * @param timeMin Minimum time for the display range
+ * @param timeMax Maximum time for the display range
+ */
+void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &timeMax)
+{
+    // Validate the range
+    if (timeMin >= timeMax)
+    {
+        qDebug() << "Error: Invalid time range - min must be before max";
+        return;
+    }
+
+    customTimeMin = timeMin;
+    customTimeMax = timeMax;
+    customTimeRangeEnabled = true;
+
+    // Update the current time range
+    this->timeMin = timeMin;
+    this->timeMax = timeMax;
+
+    // Force redraw to show new time range
+    draw();
+
+    qDebug() << "Custom time range set to:" << timeMin.toString() << "to" << timeMax.toString();
+}
+
+/**
+ * @brief Set the maximum time for the waterfall graph.
+ *
+ * @param timeMax Maximum time for the display range
+ */
+void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
+{
+    if (customTimeRangeEnabled)
+    {
+        customTimeMax = timeMax;
+        this->timeMax = timeMax;
+    }
+    else
+    {
+        // If not using custom range, set it based on data
+        setTimeRangeFromData();
+    }
+
+    // Force redraw to show new time range
+    draw();
+
+    qDebug() << "Time max set to:" << timeMax.toString();
+}
+
+/**
+ * @brief Set the minimum time for the waterfall graph.
+ *
+ * @param timeMin Minimum time for the display range
+ */
+void WaterfallGraph::setTimeMin(const QDateTime &timeMin)
+{
+    if (customTimeRangeEnabled)
+    {
+        customTimeMin = timeMin;
+        this->timeMin = timeMin;
+    }
+    else
+    {
+        // If not using custom range, set it based on data
+        setTimeRangeFromData();
+    }
+
+    // Force redraw to show new time range
+    draw();
+
+    qDebug() << "Time min set to:" << timeMin.toString();
+}
+
+/**
+ * @brief Get the current maximum time.
+ *
+ * @return QDateTime Current maximum time
+ */
+QDateTime WaterfallGraph::getTimeMax() const
+{
+    return timeMax;
+}
+
+/**
+ * @brief Get the current minimum time.
+ *
+ * @return QDateTime Current minimum time
+ */
+QDateTime WaterfallGraph::getTimeMin() const
+{
+    return timeMin;
+}
+
+/**
+ * @brief Get the current time range.
+ *
+ * @return std::pair<QDateTime, QDateTime> Current time range (min, max)
+ */
+std::pair<QDateTime, QDateTime> WaterfallGraph::getTimeRange() const
+{
+    return std::make_pair(timeMin, timeMax);
+}
+
+/**
+ * @brief Set the time range based on the data source timestamps.
+ *
+ */
+void WaterfallGraph::setTimeRangeFromData()
+{
+    if (!dataSource || dataSource->isEmpty())
+    {
+        // No data available, use default range
+        timeMax = QDateTime::currentDateTime();
+        timeMin = timeMax.addMSecs(-getTimeIntervalMs());
+        qDebug() << "No data available, using default time range";
+        return;
+    }
+
+    // Get the combined time range from all series
+    auto timeRange = dataSource->getCombinedTimeRange();
+    timeMin = timeRange.first;
+    timeMax = timeRange.second;
+
+    qDebug() << "Time range set from data - Time:" << timeMin.toString() << "to" << timeMax.toString();
+}
+
+/**
+ * @brief Set the time range based on the data source timestamps with a specific interval.
+ *
+ * @param intervalMs Time interval in milliseconds
+ */
+void WaterfallGraph::setTimeRangeFromDataWithInterval(qint64 intervalMs)
+{
+    if (!dataSource || dataSource->isEmpty())
+    {
+        // No data available, use default range
+        timeMax = QDateTime::currentDateTime();
+        timeMin = timeMax.addMSecs(-intervalMs);
+        qDebug() << "No data available, using default time range with interval:" << intervalMs << "ms";
+        return;
+    }
+
+    // Get the latest timestamp from data
+    timeMax = dataSource->getLatestTime();
+    timeMin = timeMax.addMSecs(-intervalMs);
+
+    qDebug() << "Time range set from data with interval - Time:" << timeMin.toString() << "to" << timeMax.toString() << "Interval:" << intervalMs << "ms";
+}
+
+/**
+ * @brief Unset the custom time range and revert to using data-based time range.
+ *
+ */
+void WaterfallGraph::unsetCustomTimeRange()
+{
+    customTimeRangeEnabled = false;
+    customTimeMin = QDateTime();
+    customTimeMax = QDateTime();
+
+    // Update time range based on data
+    setTimeRangeFromData();
+
+    // Force redraw to show new time range
+    draw();
+
+    qDebug() << "Custom time range unset, reverting to data-based time range";
 }
