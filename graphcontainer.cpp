@@ -389,6 +389,10 @@ void GraphContainer::setupEventConnections()
     {
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionsCleared,
                 this, &GraphContainer::onClearTimeSelectionsButtonClicked);
+        
+        // Connect TimeSelectionVisualizer time selection made events
+        connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionMade,
+                this, &GraphContainer::onTimeSelectionMade);
     }
 
     qDebug() << "GraphContainer: All event connections established";
@@ -656,6 +660,14 @@ void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
     }
 
     // Emit the new signal for external components
+    emit TimeSelectionCreated(selection);
+}
+
+void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
+{
+    qDebug() << "GraphContainer: Time selection made from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+
+    // Emit the TimeSelectionCreated signal for external components
     emit TimeSelectionCreated(selection);
 }
 

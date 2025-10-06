@@ -107,6 +107,7 @@ public:
 
 public slots:
     void onTimerTick();
+    void onTimeSelectionCreated(const TimeSelectionSpan &selection);
 
 private:
     LayoutType m_layoutType;
@@ -128,6 +129,7 @@ private:
     void initializeDataSources(std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap);
     int getContainerIndex(const QString &containerLabel) const;
     void disconnectAllContainerConnections();
+    void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
 
 signals:
 };

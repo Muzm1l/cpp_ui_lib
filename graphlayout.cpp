@@ -233,6 +233,15 @@ void GraphLayout::initializeContainers()
 
     // Attach data sources to containers
     attachContainerDataSources();
+    
+    // Connect all containers' TimeSelectionCreated signals to our slot
+    for (auto *container : m_graphContainers)
+    {
+        connect(container, &GraphContainer::TimeSelectionCreated,
+                this, &GraphLayout::onTimeSelectionCreated);
+    }
+    
+    qDebug() << "GraphLayout: Connected all containers to time selection propagation";
 }
 
 void GraphLayout::attachContainerDataSources()
@@ -947,6 +956,29 @@ void GraphLayout::linkHorizontalContainers()
 void GraphLayout::onTimerTick()
 {
     setCurrentTime(QTime::currentTime());
+}
+
+void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
+{
+    qDebug() << "GraphLayout: Time selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+    
+    // Propagate the selection to all containers
+    propagateTimeSelectionToAllContainers(selection);
+}
+
+void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection)
+{
+    qDebug() << "GraphLayout: Propagating time selection to all containers";
+    
+    // Add the selection to all visible containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible())
+        {
+            container->addTimeSelection(selection);
+            qDebug() << "GraphLayout: Selection added to container";
+        }
+    }
 }
 
 // Chevron label control methods implementation - operate on all visible containers

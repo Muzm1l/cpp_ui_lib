@@ -109,6 +109,7 @@ public slots:
     void onTimeIntervalChanged(TimeInterval interval);
     void onSelectionCreated(const TimeSelectionSpan &selection);
     void onZoomValueChanged(ZoomBounds bounds);
+    void onTimeSelectionMade(const TimeSelectionSpan &selection);
 
 private:
     void updateTotalContainerSize();
