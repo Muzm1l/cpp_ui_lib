@@ -7,6 +7,12 @@
 #include <QDebug>
 #include "graphlayout.h"
 #include "graphtype.h"
+#include "waterfalldata.h"
+#include <map>
+#include <vector>
+#include <cmath>
+#include <algorithm>
+#include <random>
 
 
 /**
@@ -88,7 +94,18 @@ public:
      * 
      * @param numPoints Number of data points to generate
      */
-    void generateBulkData(int numPoints = 100);
+    static void generateBulkData(WaterfallData* data, SimulatorConfig config, int numPoints = 100);
+
+    /**
+     * @brief Static method to generate bulk data for WaterfallData instances
+     * 
+     * @param waterfallDataMap Map of GraphType to WaterfallData instances
+     * @param configs Vector of SimulatorConfig instances (each contains GraphType)
+     * @param numPoints Number of data points to generate
+     */
+    static void generateBulkDataForWaterfallData(
+        std::map<WaterfallData* , SimulatorConfig> &waterfallDataMap,
+        int numPoints = 100);
 
 private slots:
     /**

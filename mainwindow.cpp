@@ -366,6 +366,29 @@ void MainWindow::setupCustomGraphsTab()
     gridLayout->setRowStretch(1, 1);
     gridLayout->setRowStretch(2, 1);
 
+    
+    // Create 7 data sources for the new graph components
+    WaterfallData fdwData("FDW", {"FDW-1", "FDW-2"});
+    WaterfallData bdwData("BDW", {"BDW-1", "BDW-2"});
+    WaterfallData brwData("BRW", {"BRW-1", "BRW-2"});
+    WaterfallData ltwData("LTW", {"LTW-1", "LTW-2"});
+    WaterfallData btwData("BTW", {"BTW-1", "BTW-2", "BTW-3"});
+    WaterfallData rtwData("RTW", {"RTW-1", "RTW-2"});
+    WaterfallData ftwData("FTW", {"FTW-1", "FTW-2"});
+
+    auto waterfallDataMap = std::map<WaterfallData* , SimulatorConfig>();
+
+    waterfallDataMap[&fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[&bdwData] = SimulatorConfig{5.0, 38.0, 21.5, 3.3};
+    waterfallDataMap[&brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[&ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
+    waterfallDataMap[&btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
+    waterfallDataMap[&rtwData] = SimulatorConfig{12.0, 28.0, 20.0, 1.6};
+    waterfallDataMap[&ftwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
+
+    // Now generate the data for the new graph components
+    simulator->generateBulkDataForWaterfallData(waterfallDataMap, 90);
+
     qDebug() << "New graph components tab setup completed successfully";
 }
 
@@ -377,6 +400,24 @@ void MainWindow::setupNewGraphData()
 
 void MainWindow::setBulkDataForAllGraphs()
 {
+    auto waterfallDataMap = std::map<WaterfallData* , SimulatorConfig>();
+
+    WaterfallData fdwData("FDW", {"FDW-1", "FDW-2"});
+    WaterfallData bdwData("BDW", {"BDW-1", "BDW-2"});
+    WaterfallData brwData("BRW", {"BRW-1", "BRW-2"});
+    WaterfallData ltwData("LTW", {"LTW-1", "LTW-2"});
+    WaterfallData btwData("BTW", {"BTW-1", "BTW-2", "BTW-3"});
+    WaterfallData rtwData("RTW", {"RTW-1", "RTW-2"});
+    WaterfallData ftwData("FTW", {"FTW-1", "FTW-2"});
+
+    waterfallDataMap[&fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[&bdwData] = SimulatorConfig{5.0, 38.0, 21.5, 3.3};
+    waterfallDataMap[&brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[&ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
+    waterfallDataMap[&btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
+    waterfallDataMap[&rtwData] = SimulatorConfig{12.0, 28.0, 20.0, 1.6};
+    waterfallDataMap[&ftwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
+    
     // Method moved to Simulator class
-    simulator->generateBulkData(90);
+    simulator->generateBulkDataForWaterfallData(waterfallDataMap, 90);
 }

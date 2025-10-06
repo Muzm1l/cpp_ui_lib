@@ -112,15 +112,13 @@ void Simulator::addDataPoints()
              << "FTW:" << m_currentFTWValue;
 }
 
-void Simulator::generateBulkData(int numPoints)
+void Simulator::generateBulkData(WaterfallData* data, SimulatorConfig config, int numPoints)
 {
-    if (!m_graphLayout) {
-        return;
-    }
+
 
     QDateTime currentTime = QDateTime::currentDateTime();
     std::vector<QDateTime> timestamps;
-    std::vector<qreal> fdwData, bdwData, brwData, ltwData, btwData, rtwData, ftwData;
+    std::vector<qreal> dataSeries;
 
     // Generate timestamps and data for each point
     for (int i = 0; i < numPoints; ++i) {
@@ -130,52 +128,31 @@ void Simulator::generateBulkData(int numPoints)
         double timeFactor = static_cast<double>(i) / numPoints;
 
         // FDW: Frequency Domain Window - sine wave pattern
-        fdwData.push_back(19.0 + 11.0 * std::sin(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0);
-
-        // BDW: Bandwidth Domain Window - cosine wave pattern
-        bdwData.push_back(21.5 + 16.5 * std::cos(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0);
-
-        // BRW: Bit Rate Window - sawtooth pattern
-        brwData.push_back(19.0 + 11.0 * (timeFactor - std::floor(timeFactor)) + (std::rand() % 100 - 50) / 100.0);
-
-        // LTW: Left Track Window - linear pattern
-        ltwData.push_back(22.5 + 7.5 * (timeFactor - 0.5) + (std::rand() % 100 - 50) / 100.0);
-
-        // BTW: Bottom Track Window - exponential pattern
-        btwData.push_back(22.5 + 17.5 * std::exp(-timeFactor * 2) + (std::rand() % 100 - 50) / 100.0);
-
-        // RTW: Right Track Window - logarithmic pattern
-        rtwData.push_back(20.0 + 8.0 * std::log(timeFactor * 10 + 1) + (std::rand() % 100 - 50) / 100.0);
-
-        // FTW: Frequency Time Window - quadratic pattern
-        ftwData.push_back(22.5 + 2.0 * (timeFactor - 0.5) * (timeFactor - 0.5) * 8 + (std::rand() % 100 - 50) / 100.0);
+        dataSeries.push_back(config.startValue + (config.maxValue - config.minValue) * 0.5 * std::sin(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0);
     }
 
-    // Set hard range limits for each graph
-    m_graphLayout->setHardRangeLimits(GraphType::FDW, 2, 102);
-    m_graphLayout->setHardRangeLimits(GraphType::BDW, 2, 102);
-    m_graphLayout->setHardRangeLimits(GraphType::BRW, 2, 102);
-    m_graphLayout->setHardRangeLimits(GraphType::LTW, 2, 102);
-    m_graphLayout->setHardRangeLimits(GraphType::BTW, 2, 102);
-    m_graphLayout->setHardRangeLimits(GraphType::RTW, 2, 102);
-    m_graphLayout->setHardRangeLimits(GraphType::FTW, 2, 102);
-
     // Add bulk data to each graph data source
-    m_graphLayout->addDataPointsToDataSource(GraphType::FDW, "FDW-1", fdwData, timestamps);
-    m_graphLayout->addDataPointsToDataSource(GraphType::BDW, "BDW-1", bdwData, timestamps);
-    m_graphLayout->addDataPointsToDataSource(GraphType::BRW, "BRW-1", brwData, timestamps);
-    m_graphLayout->addDataPointsToDataSource(GraphType::LTW, "LTW-1", ltwData, timestamps);
-    m_graphLayout->addDataPointsToDataSource(GraphType::BTW, "BTW-1", btwData, timestamps);
-    m_graphLayout->addDataPointsToDataSource(GraphType::RTW, "RTW-1", rtwData, timestamps);
-    m_graphLayout->addDataPointsToDataSource(GraphType::FTW, "FTW-1", ftwData, timestamps);
+    qDebug() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end()) << "to" << *std::max_element(dataSeries.begin(), dataSeries.end());
+}
 
-    qDebug() << "FDW range:" << *std::min_element(fdwData.begin(), fdwData.end()) << "to" << *std::max_element(fdwData.begin(), fdwData.end());
-    qDebug() << "BDW range:" << *std::min_element(bdwData.begin(), bdwData.end()) << "to" << *std::max_element(bdwData.begin(), bdwData.end());
-    qDebug() << "BRW range:" << *std::min_element(brwData.begin(), brwData.end()) << "to" << *std::max_element(brwData.begin(), brwData.end());
-    qDebug() << "LTW range:" << *std::min_element(ltwData.begin(), ltwData.end()) << "to" << *std::max_element(ltwData.begin(), ltwData.end());
-    qDebug() << "BTW range:" << *std::min_element(btwData.begin(), btwData.end()) << "to" << *std::max_element(btwData.begin(), btwData.end());
-    qDebug() << "RTW range:" << *std::min_element(rtwData.begin(), rtwData.end()) << "to" << *std::max_element(rtwData.begin(), rtwData.end());
-    qDebug() << "FTW range:" << *std::min_element(ftwData.begin(), ftwData.end()) << "to" << *std::max_element(ftwData.begin(), ftwData.end());
+void Simulator::generateBulkDataForWaterfallData(
+    std::map<WaterfallData* , SimulatorConfig> &waterfallDataMap,
+    int numPoints)
+{
+    qDebug() << "Simulator: Generating bulk data for" << numPoints << "points using static method";
+    
+    QDateTime currentTime = QDateTime::currentDateTime();
+    
+    // Go through each of the waterfallDataMap
+    for (const auto& pair : waterfallDataMap) {
+        WaterfallData* data = pair.first;
+        SimulatorConfig config = pair.second;
+
+        // Generate the points based on the config
+        generateBulkData(data, config, numPoints);
+    }
+    
+    qDebug() << "Simulator: Static bulk data generation completed";
 }
 
 void Simulator::onTimerTick()
