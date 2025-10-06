@@ -161,7 +161,7 @@ void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<qreal
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
-    
+
     // Redraw the graph with the new data
     draw();
 }
@@ -185,7 +185,7 @@ void WaterfallGraph::setData(const WaterfallData &data)
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
-    
+
     // Redraw the graph with the new data
     draw();
 }
@@ -230,7 +230,7 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, cons
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
-    
+
     // Redraw the graph with the new data
     draw();
 }
@@ -255,7 +255,7 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
-    
+
     // Redraw the graph with the new data
     draw();
 }
@@ -777,7 +777,7 @@ void WaterfallGraph::updateDataRanges()
         // Manual mode: range is always locked to the custom min and max
         yMin = customYMin;
         yMax = customYMax;
-        
+
         // Ensure min < max
         if (yMin >= yMax)
         {
@@ -839,7 +839,7 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
  * @brief Draw the data line from top to bottom.
  *
  */
-void WaterfallGraph::drawDataLine(const QString &seriesLabel)
+void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 {
     if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
     {
@@ -888,18 +888,23 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel)
     }
 
     // Draw the line
-    QPen linePen(Qt::green, 2);
+    QColor seriesColor = getSeriesColor(seriesLabel);
+    QPen linePen(seriesColor, 2);
     graphicsScene->addPath(path, linePen);
 
-    // Draw data points
-    QPen pointPen(Qt::yellow, 0); // No stroke (width 0)
-    for (size_t i = 0; i < visibleData.size(); ++i)
+    // Draw data points if enabled
+    if (plotPoints)
     {
-        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+        // Draw data points
+        QPen pointPen(seriesColor, 0); // No stroke (width 0)
+        for (size_t i = 0; i < visibleData.size(); ++i)
+        {
+            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+            graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+        }
     }
 
-    qDebug() << "Data line drawn with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
+    qDebug() << "Data line drawn for series" << seriesLabel << "with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
 }
 
 // Mouse selection functionality implementation
@@ -1134,7 +1139,7 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
 
     // Always update Y range immediately when custom range is set
     updateYRange();
-    
+
     // Force redraw to show new range
     draw();
 
@@ -1146,7 +1151,7 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
  *
  * @return std::pair<qreal,qreal> The current custom Y range values
  */
-std::pair<qreal,qreal> WaterfallGraph::getCustomYRange() const
+std::pair<qreal, qreal> WaterfallGraph::getCustomYRange() const
 {
     return std::make_pair(customYMin, customYMax);
 }
@@ -1378,8 +1383,8 @@ void WaterfallGraph::drawAllDataSeries()
 {
     if (!graphicsScene || !dataSource || !dataRangesValid)
     {
-        qDebug() << "drawAllDataSeries: Early return - graphicsScene:" << (graphicsScene != nullptr) 
-                 << "dataSource:" << (dataSource != nullptr) 
+        qDebug() << "drawAllDataSeries: Early return - graphicsScene:" << (graphicsScene != nullptr)
+                 << "dataSource:" << (dataSource != nullptr)
                  << "dataRangesValid:" << dataRangesValid;
         return;
     }
@@ -1401,14 +1406,14 @@ void WaterfallGraph::drawAllDataSeries()
         debugInfo += QString("  dataSource: %1\n").arg(dataSource ? "set" : "nullptr");
         debugInfo += QString("  dataRangesValid: %1\n").arg(dataRangesValid ? "true" : "false");
         debugInfo += QString("  drawingArea: (%1, %2, %3, %4)\n")
-                        .arg(drawingArea.left())
-                        .arg(drawingArea.top())
-                        .arg(drawingArea.width())
-                        .arg(drawingArea.height());
+                         .arg(drawingArea.left())
+                         .arg(drawingArea.top())
+                         .arg(drawingArea.width())
+                         .arg(drawingArea.height());
         debugInfo += QString("  yMin: %1, yMax: %2\n").arg(yMin).arg(yMax);
         debugInfo += QString("  timeMin: %1, timeMax: %2\n")
-                        .arg(timeMin.toString())
-                        .arg(timeMax.toString());
+                         .arg(timeMin.toString())
+                         .arg(timeMax.toString());
         debugInfo += QString("  autoUpdateYRange: %1\n").arg(autoUpdateYRange ? "true" : "false");
         debugInfo += QString("  rangeLimitingEnabled: %1\n").arg(rangeLimitingEnabled ? "true" : "false");
         qDebug() << debugInfo;
@@ -1418,7 +1423,7 @@ void WaterfallGraph::drawAllDataSeries()
     // Draw each visible series
     for (const QString &seriesLabel : seriesLabels)
     {
-        qDebug() << "drawAllDataSeries: Processing series:" << seriesLabel 
+        qDebug() << "drawAllDataSeries: Processing series:" << seriesLabel
                  << "visible:" << isSeriesVisible(seriesLabel);
         if (isSeriesVisible(seriesLabel))
         {
@@ -1461,7 +1466,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         }
     }
 
-    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << visibleData.size() << "visible data points within time range" 
+    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << visibleData.size() << "visible data points within time range"
              << timeMin.toString() << "to" << timeMax.toString();
 
     if (visibleData.empty())
@@ -1606,14 +1611,14 @@ std::vector<QString> WaterfallGraph::getVisibleSeries() const
 void WaterfallGraph::setAutoUpdateYRange(bool enabled)
 {
     autoUpdateYRange = enabled;
-    
+
     // Trigger range update when switching modes
     if (dataSource && !dataSource->isEmpty())
     {
         updateYRange();
         draw();
     }
-    
+
     qDebug() << "Auto-update Y range" << (enabled ? "enabled" : "disabled");
 }
 
@@ -1689,7 +1694,7 @@ void WaterfallGraph::updateYRangeFromData()
         yMin = dataYMin;
         yMax = dataYMax;
     }
-    
+
     dataRangesValid = true;
     qDebug() << "Y range updated from data - Y:" << yMin << "to" << yMax
              << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
@@ -1702,7 +1707,7 @@ void WaterfallGraph::updateYRangeFromData()
 void WaterfallGraph::updateYRangeFromCustom()
 {
     qreal dataYMin = 0.0, dataYMax = 100.0;
-    
+
     // Get actual data range for validation, even in manual mode
     if (dataSource && !dataSource->isEmpty())
     {
@@ -1710,11 +1715,11 @@ void WaterfallGraph::updateYRangeFromCustom()
         dataYMin = yRange.first;
         dataYMax = yRange.second;
     }
-    
+
     // Manual mode: range is locked to the custom min and max
     yMin = customYMin;
     yMax = customYMax;
-    
+
     // Validate range is reasonable
     if (yMin >= yMax)
     {
@@ -1723,7 +1728,7 @@ void WaterfallGraph::updateYRangeFromCustom()
         yMin = dataYMin;
         yMax = dataYMax;
     }
-    
+
     dataRangesValid = true;
     qDebug() << "Y range updated from custom - Y:" << yMin << "to" << yMax;
 }

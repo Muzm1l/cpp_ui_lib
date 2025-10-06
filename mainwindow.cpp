@@ -322,13 +322,13 @@ void MainWindow::setupCustomGraphsTab()
     gridLayout->setContentsMargins(10, 10, 10, 10);
 
     // Create WaterfallData objects as member variables
-    fdwData = new WaterfallData("FDW", {"FDW-1", "FDW-2"});
-    bdwData = new WaterfallData("BDW", {"BDW-1", "BDW-2"});
-    brwData = new WaterfallData("BRW", {"BRW-1", "BRW-2"});
-    ltwData = new WaterfallData("LTW", {"LTW-1", "LTW-2"});
-    btwData = new WaterfallData("BTW", {"BTW-1", "BTW-2", "BTW-3"});
-    rtwData = new WaterfallData("RTW", {"RTW-1", "RTW-2"});
-    ftwData = new WaterfallData("FTW", {"FTW-1", "FTW-2"});
+    fdwData = new WaterfallData("FDW", {"FDW-1", "FDW-2", "ADOPTED"});
+    bdwData = new WaterfallData("BDW", {"BDW-1", "BDW-2", "ADOPTED"});
+    brwData = new WaterfallData("BRW", {"BRW-1", "BRW-2", "ADOPTED"});
+    ltwData = new WaterfallData("LTW", {"LTW-1", "LTW-2", "ADOPTED"});
+    btwData = new WaterfallData("BTW", {"BTW-1", "BTW-2", "BTW-3", "ADOPTED"});
+    rtwData = new WaterfallData("RTW", {"RTW-1", "RTW-2", "ADOPTED"});
+    ftwData = new WaterfallData("FTW", {"FTW-1", "FTW-2", "ADOPTED"});
 
     // Create all 7 new graph components
 
@@ -341,6 +341,7 @@ void MainWindow::setupCustomGraphsTab()
     // Set series colors for FDW graph
     fdwGraph->setSeriesColor("FDW-1", QColor(Qt::red));
     fdwGraph->setSeriesColor("FDW-2", QColor(Qt::green));
+    fdwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "FDW Graph connected to data source and colors set";
 
     // BDW Graph - Bandwidth Domain Waterfall
@@ -352,6 +353,7 @@ void MainWindow::setupCustomGraphsTab()
     // Set series colors for BDW graph
     bdwGraph->setSeriesColor("BDW-1", QColor(Qt::red));
     bdwGraph->setSeriesColor("BDW-2", QColor(Qt::green));
+    bdwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "BDW Graph connected to data source and colors set";
 
     // BRW Graph - Bit Rate Waterfall
@@ -363,6 +365,7 @@ void MainWindow::setupCustomGraphsTab()
     // Set series colors for BRW graph
     brwGraph->setSeriesColor("BRW-1", QColor(Qt::green));
     brwGraph->setSeriesColor("BRW-2", QColor(Qt::blue));
+    brwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "BRW Graph connected to data source and colors set";
 
     // LTW Graph - Latency Time Waterfall
@@ -374,6 +377,7 @@ void MainWindow::setupCustomGraphsTab()
     // Set series colors for LTW graph
     ltwGraph->setSeriesColor("LTW-1", QColor(Qt::red));
     ltwGraph->setSeriesColor("LTW-2", QColor(Qt::green));
+    ltwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "LTW Graph connected to data source and colors set";
 
     // BTW Graph - Bit Time Waterfall
@@ -386,6 +390,7 @@ void MainWindow::setupCustomGraphsTab()
     btwGraph->setSeriesColor("BTW-1", QColor(Qt::red));
     btwGraph->setSeriesColor("BTW-2", QColor(Qt::green));
     btwGraph->setSeriesColor("BTW-3", QColor(Qt::blue));
+    btwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "BTW Graph connected to data source and colors set";
 
     // RTW Graph - Rate Time Waterfall
@@ -397,6 +402,7 @@ void MainWindow::setupCustomGraphsTab()
     // Set series colors for RTW graph
     rtwGraph->setSeriesColor("RTW-1", QColor(Qt::red));
     rtwGraph->setSeriesColor("RTW-2", QColor(Qt::green));
+    rtwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "RTW Graph connected to data source and colors set";
 
     // FTW Graph - Frequency Time Waterfall
@@ -408,6 +414,7 @@ void MainWindow::setupCustomGraphsTab()
     // Set series colors for FTW graph
     ftwGraph->setSeriesColor("FTW-1", QColor(Qt::red));
     ftwGraph->setSeriesColor("FTW-2", QColor(Qt::green));
+    ftwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "FTW Graph connected to data source and colors set";
 
     // Add graphs to grid layout (3x3 with 2 empty spaces)

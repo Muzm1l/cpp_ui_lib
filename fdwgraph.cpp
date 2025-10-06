@@ -52,7 +52,17 @@ void FDWGraph::draw()
             if (isSeriesVisible(seriesLabel))
             {
                 QColor seriesColor = getSeriesColor(seriesLabel);
-                drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                
+                if (seriesLabel == "ADOPTED")
+                {
+                    // Draw curve for ADOPTED series without points
+                    drawDataLine(seriesLabel, false);
+                }
+                else
+                {
+                    // Draw scatterplot for other series
+                    drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                }
             }
         }
     }

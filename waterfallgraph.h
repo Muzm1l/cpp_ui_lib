@@ -109,7 +109,7 @@ protected:
     void updateGraphicsDimensions();
 
     // Data plotting methods
-    virtual void drawDataLine(const QString &seriesLabel);
+    virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
