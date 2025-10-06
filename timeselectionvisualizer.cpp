@@ -177,6 +177,9 @@ TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget* parent, QTimer* timer)
     // Connect button click to internal handler
     connect(m_button, &QPushButton::clicked, this, &TimeSelectionVisualizer::onButtonClicked);
 
+    // Connect visualizer widget signals to our signals
+    connect(m_visualizerWidget, &TimeVisualizerWidget::timeSelectionMade, this, &TimeSelectionVisualizer::timeSelectionMade);
+
     // Set the layout
     setLayout(m_layout);
 }

@@ -79,6 +79,7 @@ public:
 
 signals:
     void timeSelectionsCleared();
+    void timeSelectionMade(const TimeSelectionSpan& span);
 
 private slots:
     void onButtonClicked();
