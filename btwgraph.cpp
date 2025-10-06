@@ -221,9 +221,9 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                 // Draw angled line (5x radius on both sides)
                 qreal lineLength = 5 * markerRadius;
                 
-                // Use delta value directly as angle in degrees
-                // Positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
-                qreal angleDegrees = deltaValue; // Delta value directly represents degrees
+                // Calculate angle from delta value
+                // Map delta value to angle: positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
+                qreal angleDegrees = deltaValue * 10.0; // Scale factor to convert delta to meaningful angle
                 qreal angleRadians = qDegreesToRadians(angleDegrees);
                 
                 // Calculate line endpoints based on angle
@@ -305,9 +305,9 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
             
-            // Use delta value directly as angle in degrees
-            // Positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
-            qreal angleDegrees = deltaValue; // Delta value directly represents degrees
+            // Calculate angle from delta value
+            // Map delta value to angle: positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
+            qreal angleDegrees = deltaValue * 10.0; // Scale factor to convert delta to meaningful angle
             qreal angleRadians = qDegreesToRadians(angleDegrees);
             
             // Calculate line endpoints based on angle
