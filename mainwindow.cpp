@@ -317,10 +317,10 @@ void MainWindow::setupCustomGraphsTab()
 {
     qDebug() << "=== Setting up New Graph Components Tab ===";
 
-    // Create a grid layout for the new graph components tab
-    QGridLayout *gridLayout = new QGridLayout(ui->customGraphsTab);
-    gridLayout->setSpacing(10);
-    gridLayout->setContentsMargins(10, 10, 10, 10);
+    // Create a horizontal layout for the new graph components tab
+    QHBoxLayout *horizontalLayout = new QHBoxLayout(ui->customGraphsTab);
+    horizontalLayout->setSpacing(5);
+    horizontalLayout->setContentsMargins(10, 10, 10, 10);
 
     // Create WaterfallData objects as member variables
     fdwData = new WaterfallData("FDW", {"FDW-1", "FDW-2", "ADOPTED"});
@@ -446,43 +446,49 @@ void MainWindow::setupCustomGraphsTab()
     rtwLabel->setAlignment(Qt::AlignCenter);
     ftwLabel->setAlignment(Qt::AlignCenter);
 
-    // Add graphs and labels to grid layout (6x3 - labels above graphs)
-    // Row 0: Labels
-    gridLayout->addWidget(fdwLabel, 0, 0);
-    gridLayout->addWidget(bdwLabel, 0, 1);
-    gridLayout->addWidget(brwLabel, 0, 2);
-    
-    // Row 1: Graphs
-    gridLayout->addWidget(fdwGraph, 1, 0);
-    gridLayout->addWidget(bdwGraph, 1, 1);
-    gridLayout->addWidget(brwGraph, 1, 2);
-    
-    // Row 2: Labels
-    gridLayout->addWidget(ltwLabel, 2, 0);
-    gridLayout->addWidget(btwLabel, 2, 1);
-    gridLayout->addWidget(rtwLabel, 2, 2);
-    
-    // Row 3: Graphs
-    gridLayout->addWidget(ltwGraph, 3, 0);
-    gridLayout->addWidget(btwGraph, 3, 1);
-    gridLayout->addWidget(rtwGraph, 3, 2);
-    
-    // Row 4: Label
-    gridLayout->addWidget(ftwLabel, 4, 0);
-    
-    // Row 5: Graph
-    gridLayout->addWidget(ftwGraph, 5, 0);
+    // Add graphs and labels horizontally stacked
+    // Each graph gets its own vertical container with label above and graph below
+    QVBoxLayout *fdwContainer = new QVBoxLayout();
+    fdwContainer->addWidget(fdwLabel);
+    fdwContainer->addWidget(fdwGraph);
+    fdwContainer->setSpacing(2);
+    horizontalLayout->addLayout(fdwContainer, 1);
 
-    // Set equal column and row stretches
-    gridLayout->setColumnStretch(0, 1);
-    gridLayout->setColumnStretch(1, 1);
-    gridLayout->setColumnStretch(2, 1);
-    gridLayout->setRowStretch(0, 0);  // Label rows - minimal height
-    gridLayout->setRowStretch(1, 1);  // Graph rows - full height
-    gridLayout->setRowStretch(2, 0);  // Label rows - minimal height
-    gridLayout->setRowStretch(3, 1);  // Graph rows - full height
-    gridLayout->setRowStretch(4, 0);  // Label rows - minimal height
-    gridLayout->setRowStretch(5, 1);  // Graph rows - full height
+    QVBoxLayout *bdwContainer = new QVBoxLayout();
+    bdwContainer->addWidget(bdwLabel);
+    bdwContainer->addWidget(bdwGraph);
+    bdwContainer->setSpacing(2);
+    horizontalLayout->addLayout(bdwContainer, 1);
+
+    QVBoxLayout *brwContainer = new QVBoxLayout();
+    brwContainer->addWidget(brwLabel);
+    brwContainer->addWidget(brwGraph);
+    brwContainer->setSpacing(2);
+    horizontalLayout->addLayout(brwContainer, 1);
+
+    QVBoxLayout *ltwContainer = new QVBoxLayout();
+    ltwContainer->addWidget(ltwLabel);
+    ltwContainer->addWidget(ltwGraph);
+    ltwContainer->setSpacing(2);
+    horizontalLayout->addLayout(ltwContainer, 1);
+
+    QVBoxLayout *btwContainer = new QVBoxLayout();
+    btwContainer->addWidget(btwLabel);
+    btwContainer->addWidget(btwGraph);
+    btwContainer->setSpacing(2);
+    horizontalLayout->addLayout(btwContainer, 1);
+
+    QVBoxLayout *rtwContainer = new QVBoxLayout();
+    rtwContainer->addWidget(rtwLabel);
+    rtwContainer->addWidget(rtwGraph);
+    rtwContainer->setSpacing(2);
+    horizontalLayout->addLayout(rtwContainer, 1);
+
+    QVBoxLayout *ftwContainer = new QVBoxLayout();
+    ftwContainer->addWidget(ftwLabel);
+    ftwContainer->addWidget(ftwGraph);
+    ftwContainer->setSpacing(2);
+    horizontalLayout->addLayout(ftwContainer, 1);
 
     // Create configuration map for data generation
     auto waterfallDataMap = std::map<WaterfallData*, SimulatorConfig>();

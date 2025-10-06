@@ -66,8 +66,8 @@ void BTWGraph::draw()
 
                 if (seriesLabel == "BTW-1")
                 {
-                    // Draw custom circle markers for BTW-1 series
-                    drawCustomCircleMarkers(seriesLabel);
+                    // Draw custom circle markers for BTW-1 series with true north reference (0° = vertical)
+                    drawCustomCircleMarkers(seriesLabel, 0.0);
                 }
             }
         }
@@ -111,12 +111,13 @@ void BTWGraph::drawBTWScatterplot()
 }
 
 /**
- * @brief Draw custom circle markers with crossing line for BTW graph
- * Circle outline with a line crossing through it that is 5x radius on both sides
+ * @brief Draw custom circle markers with angled line for BTW graph
+ * Circle outline with a line at specified angle (true north reference: 0=vertical, +clockwise, -counterclockwise)
  *
  * @param seriesLabel The series label to draw markers for
+ * @param angleDegrees The angle in degrees (0=vertical/north, +clockwise, -counterclockwise)
  */
-void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
+void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel, qreal angleDegrees)
 {
     if (!dataSource || !graphicsScene) {
         qDebug() << "BTW: drawCustomCircleMarkers early return - no dataSource or graphicsScene";
@@ -186,15 +187,26 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                 
                 graphicsScene->addItem(circleOutline);
                 
-                // Draw crossing line (5x radius on both sides)
+                // Draw angled line (5x radius on both sides)
                 qreal lineLength = 5 * markerRadius;
-                QGraphicsLineItem *crossingLine = new QGraphicsLineItem();
-                crossingLine->setLine(screenPos.x() - lineLength, screenPos.y(),
-                                    screenPos.x() + lineLength, screenPos.y());
-                crossingLine->setPen(QPen(Qt::blue, 2));
-                crossingLine->setZValue(1001);
                 
-                graphicsScene->addItem(crossingLine);
+                // Convert angle from degrees to radians
+                // True north reference: 0 degrees = vertical (pointing up)
+                // Positive angles rotate clockwise, negative counterclockwise
+                qreal angleRadians = qDegreesToRadians(angleDegrees);
+                
+                // Calculate line endpoints based on angle
+                // For true north (0°), line points up/down (vertical)
+                qreal deltaX = lineLength * qSin(angleRadians);
+                qreal deltaY = -lineLength * qCos(angleRadians); // Negative because Y increases downward
+                
+                QGraphicsLineItem *angledLine = new QGraphicsLineItem();
+                angledLine->setLine(screenPos.x() - deltaX, screenPos.y() - deltaY,
+                                  screenPos.x() + deltaX, screenPos.y() + deltaY);
+                angledLine->setPen(QPen(Qt::blue, 2));
+                angledLine->setZValue(1001);
+                
+                graphicsScene->addItem(angledLine);
                 
                 fallbackMarkersDrawn++;
             }
@@ -232,15 +244,26 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             
             graphicsScene->addItem(circleOutline);
             
-            // Draw crossing line (5x radius on both sides)
+            // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
-            QGraphicsLineItem *crossingLine = new QGraphicsLineItem();
-            crossingLine->setLine(screenPos.x() - lineLength, screenPos.y(),
-                                screenPos.x() + lineLength, screenPos.y());
-            crossingLine->setPen(QPen(Qt::blue, 2));
-            crossingLine->setZValue(1001);
             
-            graphicsScene->addItem(crossingLine);
+            // Convert angle from degrees to radians
+            // True north reference: 0 degrees = vertical (pointing up)
+            // Positive angles rotate clockwise, negative counterclockwise
+            qreal angleRadians = qDegreesToRadians(angleDegrees);
+            
+            // Calculate line endpoints based on angle
+            // For true north (0°), line points up/down (vertical)
+            qreal deltaX = lineLength * qSin(angleRadians);
+            qreal deltaY = -lineLength * qCos(angleRadians); // Negative because Y increases downward
+            
+            QGraphicsLineItem *angledLine = new QGraphicsLineItem();
+            angledLine->setLine(screenPos.x() - deltaX, screenPos.y() - deltaY,
+                              screenPos.x() + deltaX, screenPos.y() + deltaY);
+            angledLine->setPen(QPen(Qt::blue, 2));
+            angledLine->setZValue(1001);
+            
+            graphicsScene->addItem(angledLine);
             
             markersDrawn++;
         }
