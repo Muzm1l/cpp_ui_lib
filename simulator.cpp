@@ -187,24 +187,24 @@ void Simulator::onTimerTick()
 
 void Simulator::initializeConfigurations()
 {
-    // Initialize configuration for each graph type
-    m_fdwConfig = {8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
-    m_bdwConfig = {5.0, 38.0, 21.5, 3.3};  // Bandwidth Domain Window: 10% of 33.0 range
-    m_brwConfig = {8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
-    m_ltwConfig = {15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
-    m_btwConfig = {5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
-    m_rtwConfig = {12.0, 28.0, 20.0, 1.6}; // Right Track Window: 10% of 16.0 range
-    m_ftwConfig = {15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
+    // Initialize configuration for each graph type (Start, End, Start, Delta)
+    m_fdwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
+    m_bdwConfig = SimulatorConfig{5.0, 38.0, 21.5, 3.3};  // Bandwidth Domain Window: 10% of 33.0 range
+    m_brwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
+    m_ltwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
+    m_btwConfig = SimulatorConfig{5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
+    m_rtwConfig = SimulatorConfig{12.0, 28.0, 20.0, 1.6}; // Right Track Window: 10% of 16.0 range
+    m_ftwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
 }
 
 void Simulator::initializeCurrentValues()
 {
     // Initialize current values to middle of their respective ranges
-    m_currentFDWValue = 19.0; // Middle of 8.0-30.0 range
-    m_currentBDWValue = 21.5; // Middle of 5.0-38.0 range
-    m_currentBRWValue = 19.0; // Middle of 8.0-30.0 range
-    m_currentLTWValue = 22.5; // Middle of 15.0-30.0 range
-    m_currentBTWValue = 22.5; // Middle of 5.0-40.0 range
-    m_currentRTWValue = 20.0; // Middle of 12.0-28.0 range
-    m_currentFTWValue = 22.5; // Middle of 15.0-30.0 range
+    m_currentFDWValue = m_fdwConfig.startValue; // Middle of 8.0-30.0 range
+    m_currentBDWValue = m_bdwConfig.startValue; // Middle of 5.0-38.0 range
+    m_currentBRWValue = m_brwConfig.startValue; // Middle of 8.0-30.0 range
+    m_currentLTWValue = m_ltwConfig.startValue; // Middle of 15.0-30.0 range
+    m_currentBTWValue = m_btwConfig.startValue; // Middle of 5.0-40.0 range
+    m_currentRTWValue = m_rtwConfig.startValue; // Middle of 12.0-28.0 range
+    m_currentFTWValue = m_ftwConfig.startValue; // Middle of 15.0-30.0 range
 }

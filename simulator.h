@@ -8,6 +8,20 @@
 #include "graphlayout.h"
 #include "graphtype.h"
 
+
+/**
+ * @brief Simulator configuration
+ * 
+ */
+struct SimulatorConfig
+{
+    qreal minValue;           ///< Minimum value
+    qreal maxValue;           ///< Maximum value
+    qreal startValue;         ///< Start value
+    qreal deltaValue;         ///< Delta value
+};
+
+
 /**
  * @brief The Simulator class handles the simulation of data for all graph types
  * 
@@ -19,17 +33,6 @@ class Simulator : public QObject
     Q_OBJECT
 
 public:
-    /**
-     * @brief Configuration structure for each graph type
-     */
-    struct GraphConfig
-    {
-        qreal minValue;
-        qreal maxValue;
-        qreal startValue;
-        qreal deltaValue; // 10% of range for random variation
-    };
-
     /**
      * @brief Construct a new Simulator object
      * 
@@ -108,13 +111,13 @@ private:
     qreal m_currentFTWValue;            ///< Current FTW value
 
     // Configuration for each graph type
-    GraphConfig m_fdwConfig;            ///< FDW configuration
-    GraphConfig m_bdwConfig;            ///< BDW configuration
-    GraphConfig m_brwConfig;            ///< BRW configuration
-    GraphConfig m_ltwConfig;            ///< LTW configuration
-    GraphConfig m_btwConfig;            ///< BTW configuration
-    GraphConfig m_rtwConfig;            ///< RTW configuration
-    GraphConfig m_ftwConfig;            ///< FTW configuration
+    SimulatorConfig m_fdwConfig;            ///< FDW configuration
+    SimulatorConfig m_bdwConfig;            ///< BDW configuration
+    SimulatorConfig m_brwConfig;            ///< BRW configuration
+    SimulatorConfig m_ltwConfig;            ///< LTW configuration
+    SimulatorConfig m_btwConfig;            ///< BTW configuration
+    SimulatorConfig m_rtwConfig;            ///< RTW configuration
+    SimulatorConfig m_ftwConfig;            ///< FTW configuration
 
     /**
      * @brief Initialize default configurations for all graph types
