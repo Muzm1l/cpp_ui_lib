@@ -1,10 +1,14 @@
 #include "timeselectionvisualizer.h"
 #include <QDebug>
+#include <algorithm>
 
 TimeVisualizerWidget::TimeVisualizerWidget(QWidget* parent)
     : QWidget(parent)
     , m_timeLineLength(QTime(0, 0, 0))
     , m_currentTime(QTime(0, 0, 0))
+    , m_isSelecting(false)
+    , m_selectionStartY(0)
+    , m_selectionEndY(0)
 {
     setFixedWidth(GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -61,7 +65,7 @@ void TimeVisualizerWidget::drawSelection(QPainter& painter, const TimeSelectionS
     }
 }
 
-void TimeVisualizerWidget::paintEvent(QPaintEvent* event)
+void TimeVisualizerWidget::paintEvent(QPaintEvent* /*event*/)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
@@ -74,6 +78,11 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent* event)
         for (const TimeSelectionSpan& span : m_timeSelections) {
             drawSelection(painter, span);
         }
+    }
+
+    // Draw current selection being made
+    if (m_isSelecting) {
+        drawCurrentSelection(painter);
     }
 
     // Draw a border to make it more visible
@@ -216,4 +225,113 @@ void TimeSelectionVisualizer::onButtonClicked()
     clearTimeSelections();
     emit timeSelectionsCleared();
     // qDebug() << "Time selections cleared and signal emitted!";
+}
+
+// Mouse event handlers for TimeVisualizerWidget
+void TimeVisualizerWidget::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton) {
+        m_isSelecting = true;
+        m_selectionStartY = event->pos().y();
+        m_selectionEndY = event->pos().y();
+        update();
+    }
+}
+
+void TimeVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    if (m_isSelecting) {
+        m_selectionEndY = event->pos().y();
+        update();
+    }
+}
+
+void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && m_isSelecting) {
+        m_isSelecting = false;
+        
+        // Calculate the selection span
+        TimeSelectionSpan span = calculateSelectionSpan(m_selectionStartY, m_selectionEndY);
+        
+        // Add the selection using existing method
+        addTimeSelection(span);
+        
+        // Emit signal with the selection span
+        emit timeSelectionMade(span);
+        
+        update();
+    }
+}
+
+void TimeVisualizerWidget::drawCurrentSelection(QPainter& painter)
+{
+    QRect drawArea = rect();
+    int widgetHeight = drawArea.height();
+    int widgetWidth = drawArea.width();
+    
+    // Clamp Y coordinates to widget bounds
+    int startY = qMax(0, qMin(widgetHeight, m_selectionStartY));
+    int endY = qMax(0, qMin(widgetHeight, m_selectionEndY));
+    
+    // Ensure the rectangle is at least 1 pixel high
+    int topY = qMin(startY, endY);
+    int bottomY = qMax(startY, endY);
+    int rectHeight = qMax(1, bottomY - topY);
+    
+    // Draw dark grey selection
+    painter.fillRect(0, topY, widgetWidth, rectHeight, QColor(100, 100, 100));
+    
+    // Draw border
+    painter.setPen(QPen(QColor(50, 50, 50), 1));
+    painter.drawRect(0, topY, widgetWidth, rectHeight);
+}
+
+QTime TimeVisualizerWidget::yCoordinateToTime(int y) const
+{
+    QRect drawArea = rect();
+    int widgetHeight = drawArea.height();
+    
+    // Calculate the total timeline duration in seconds
+    int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    
+    if (totalSeconds <= 0 || widgetHeight <= 0) {
+        return m_currentTime; // Return current time if invalid parameters
+    }
+    
+    // Calculate pixels per second
+    double pixelsPerSecond = static_cast<double>(widgetHeight) / totalSeconds;
+    
+    // Get current time in seconds
+    int currentTimeSeconds = m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second();
+    
+    // Calculate time at Y coordinate
+    // Y=0 corresponds to currentTime, Y=height corresponds to currentTime-timespan
+    int timeAtYSeconds = currentTimeSeconds - static_cast<int>(y / pixelsPerSecond);
+    
+    // Convert back to QTime
+    int hours = timeAtYSeconds / 3600;
+    int minutes = (timeAtYSeconds % 3600) / 60;
+    int seconds = timeAtYSeconds % 60;
+    
+    // Handle negative time values
+    if (timeAtYSeconds < 0) {
+        hours = 24 + hours;
+        if (hours >= 24) hours -= 24;
+    }
+    
+    return QTime(hours, minutes, seconds);
+}
+
+TimeSelectionSpan TimeVisualizerWidget::calculateSelectionSpan(int startY, int endY) const
+{
+    QTime startTime = yCoordinateToTime(startY);
+    QTime endTime = yCoordinateToTime(endY);
+    
+    // Ensure startTime is before endTime
+    if (startTime > endTime) {
+        std::swap(startTime, endTime);
+    }
+    
+    return TimeSelectionSpan(startTime, endTime);
 }

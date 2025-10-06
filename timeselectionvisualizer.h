@@ -9,6 +9,7 @@
 #include <QTime>
 #include <QTimer>
 #include <QList>
+#include <QMouseEvent>
 #include "timelineutils.h"
 
 // Compile-time parameters
@@ -37,14 +38,28 @@ public:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+
+signals:
+    void timeSelectionMade(const TimeSelectionSpan& span);
 
 private:
     QList<TimeSelectionSpan> m_timeSelections;
     QTime m_timeLineLength;
     QTime m_currentTime;
 
+    // Mouse selection state
+    bool m_isSelecting;
+    int m_selectionStartY;
+    int m_selectionEndY;
+
     void updateVisualization();
     void drawSelection(QPainter& painter, const TimeSelectionSpan& span);
+    void drawCurrentSelection(QPainter& painter);
+    QTime yCoordinateToTime(int y) const;
+    TimeSelectionSpan calculateSelectionSpan(int startY, int endY) const;
 };
 
 class TimeSelectionVisualizer : public QWidget
