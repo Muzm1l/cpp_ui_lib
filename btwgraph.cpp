@@ -221,9 +221,9 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                 // Draw angled line (5x radius on both sides)
                 qreal lineLength = 5 * markerRadius;
                 
-                // Calculate angle from delta value
-                // Map delta value to angle: positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
-                qreal angleDegrees = deltaValue * 10.0; // Scale factor to convert delta to meaningful angle
+                // Use delta value directly as angle in degrees
+                // Positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
+                qreal angleDegrees = deltaValue; // Delta value directly represents degrees
                 qreal angleRadians = qDegreesToRadians(angleDegrees);
                 
                 // Calculate line endpoints based on angle
@@ -238,6 +238,32 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                 angledLine->setZValue(1001);
                 
                 graphicsScene->addItem(angledLine);
+                
+                // Add blue text label with rectangular outline beside the marker
+                QGraphicsTextItem *textLabel = new QGraphicsTextItem("R" + QString::number(deltaValue, 'f', 1));
+                QFont font = textLabel->font();
+                font.setPointSizeF(8.0);
+                font.setBold(true);
+                textLabel->setFont(font);
+                textLabel->setDefaultTextColor(Qt::blue);
+                
+                // Position text label to the left of the marker
+                QRectF textRect = textLabel->boundingRect();
+                textLabel->setPos(screenPos.x() - textRect.width() - markerRadius - 5, 
+                                screenPos.y() - textRect.height() / 2);
+                textLabel->setZValue(1002);
+                
+                graphicsScene->addItem(textLabel);
+                
+                // Add rectangular outline around the text
+                QGraphicsRectItem *textOutline = new QGraphicsRectItem();
+                textOutline->setRect(textLabel->pos().x() - 2, textLabel->pos().y() - 2,
+                                   textRect.width() + 4, textRect.height() + 4);
+                textOutline->setPen(QPen(Qt::blue, 1));
+                textOutline->setBrush(QBrush(Qt::transparent));
+                textOutline->setZValue(1001);
+                
+                graphicsScene->addItem(textOutline);
                 
                 fallbackMarkersDrawn++;
             }
@@ -279,9 +305,9 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
             
-            // Calculate angle from delta value
-            // Map delta value to angle: positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
-            qreal angleDegrees = deltaValue * 10.0; // Scale factor to convert delta to meaningful angle
+            // Use delta value directly as angle in degrees
+            // Positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
+            qreal angleDegrees = deltaValue; // Delta value directly represents degrees
             qreal angleRadians = qDegreesToRadians(angleDegrees);
             
             // Calculate line endpoints based on angle
@@ -296,6 +322,32 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             angledLine->setZValue(1001);
             
             graphicsScene->addItem(angledLine);
+            
+            // Add blue text label with rectangular outline beside the marker
+            QGraphicsTextItem *textLabel = new QGraphicsTextItem("R" + QString::number(deltaValue, 'f', 1));
+            QFont font = textLabel->font();
+            font.setPointSizeF(8.0);
+            font.setBold(true);
+            textLabel->setFont(font);
+            textLabel->setDefaultTextColor(Qt::blue);
+            
+            // Position text label to the left of the marker
+            QRectF textRect = textLabel->boundingRect();
+            textLabel->setPos(screenPos.x() - textRect.width() - markerRadius - 5, 
+                            screenPos.y() - textRect.height() / 2);
+            textLabel->setZValue(1002);
+            
+            graphicsScene->addItem(textLabel);
+            
+            // Add rectangular outline around the text
+            QGraphicsRectItem *textOutline = new QGraphicsRectItem();
+            textOutline->setRect(textLabel->pos().x() - 2, textLabel->pos().y() - 2,
+                               textRect.width() + 4, textRect.height() + 4);
+            textOutline->setPen(QPen(Qt::blue, 1));
+            textOutline->setBrush(QBrush(Qt::transparent));
+            textOutline->setZValue(1001);
+            
+            graphicsScene->addItem(textOutline);
             
             markersDrawn++;
         }
