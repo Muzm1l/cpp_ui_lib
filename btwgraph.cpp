@@ -63,6 +63,12 @@ void BTWGraph::draw()
                     // Draw scatterplot for other series
                     drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
                 }
+
+                if (seriesLabel == "BTW-1")
+                {
+                    // Draw custom circle markers for BTW-1 series
+                    drawCustomCircleMarkers(seriesLabel);
+                }
             }
         }
     }
@@ -102,4 +108,143 @@ void BTWGraph::drawBTWScatterplot()
     drawScatterplot(QString("BTW-1"), Qt::red, 4.0, Qt::white);
 
     qDebug() << "BTW scatterplot drawn";
+}
+
+/**
+ * @brief Draw custom circle markers with crossing line for BTW graph
+ * Circle outline with a line crossing through it that is 5x radius on both sides
+ *
+ * @param seriesLabel The series label to draw markers for
+ */
+void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
+{
+    if (!dataSource || !graphicsScene) {
+        qDebug() << "BTW: drawCustomCircleMarkers early return - no dataSource or graphicsScene";
+        return;
+    }
+
+    // Get total data size for comparison
+    size_t totalDataSize = dataSource->getDataSeriesSize(seriesLabel);
+    qDebug() << "BTW: drawCustomCircleMarkers called for series" << seriesLabel << "with total data size:" << totalDataSize;
+
+    if (totalDataSize == 0) {
+        qDebug() << "BTW: No data available for series" << seriesLabel;
+        return;
+    }
+
+    // Use 1/5 of current time interval for sampling (following pattern from RTW/LTW)
+    qint64 samplingIntervalMs = 300000; // 3 seconds
+
+    // Convert to QTime for the binning method
+    QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
+    
+    // Get raw data and use static binning method
+    const std::vector<qreal>& yData = dataSource->getYDataSeries(seriesLabel);
+    const std::vector<QDateTime>& timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    std::vector<std::pair<qreal, QDateTime>> binnedData = WaterfallData::binDataByTime(yData, timestamps, binDuration);
+    
+    // Filter binned data to only include points within the visible time range
+    std::vector<std::pair<qreal, QDateTime>> visibleBinnedData;
+    for (const auto& point : binnedData) {
+        if (point.second >= timeMin && point.second <= timeMax) {
+            visibleBinnedData.push_back(point);
+        }
+    }
+    
+    qDebug() << "BTW: Time range filtering - Total binned:" << binnedData.size() 
+             << "- Visible binned:" << visibleBinnedData.size()
+             << "- Time range:" << timeMin.toString() << "to" << timeMax.toString();
+
+    qDebug() << "BTW: Binning completed for series" << seriesLabel 
+             << "- Total data:" << totalDataSize 
+             << "- Binned data:" << binnedData.size()
+             << "- Visible binned data:" << visibleBinnedData.size()
+             << "- Sampling interval:" << samplingIntervalMs << "ms)";
+
+    if (visibleBinnedData.empty()) {
+        qDebug() << "BTW: No visible binned data available for series" << seriesLabel;
+        qDebug() << "BTW: Trying fallback - drawing markers for raw data";
+        
+        // Fallback: draw markers for raw data if binning produces no visible results
+        int fallbackMarkersDrawn = 0;
+        for (size_t i = 0; i < yData.size() && i < 10; ++i) { // Limit to first 10 points
+            qreal yValue = yData[i];
+            QDateTime timestamp = timestamps[i];
+            QPointF screenPos = mapDataToScreen(yValue, timestamp);
+            
+            if (drawingArea.contains(screenPos)) {
+                QSize windowSize = this->size();
+                qreal markerRadius = std::min(0.04 * windowSize.width(), 12.0);
+                
+                // Draw circle outline
+                QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
+                circleOutline->setRect(screenPos.x() - markerRadius, screenPos.y() - markerRadius, 
+                                     2 * markerRadius, 2 * markerRadius);
+                circleOutline->setPen(QPen(Qt::blue, 2));
+                circleOutline->setBrush(QBrush(Qt::transparent));
+                circleOutline->setZValue(1000);
+                
+                graphicsScene->addItem(circleOutline);
+                
+                // Draw crossing line (5x radius on both sides)
+                qreal lineLength = 5 * markerRadius;
+                QGraphicsLineItem *crossingLine = new QGraphicsLineItem();
+                crossingLine->setLine(screenPos.x() - lineLength, screenPos.y(),
+                                    screenPos.x() + lineLength, screenPos.y());
+                crossingLine->setPen(QPen(Qt::blue, 2));
+                crossingLine->setZValue(1001);
+                
+                graphicsScene->addItem(crossingLine);
+                
+                fallbackMarkersDrawn++;
+            }
+        }
+        qDebug() << "BTW: Fallback drew" << fallbackMarkersDrawn << "blue circle markers";
+        return;
+    }
+
+    // Draw circle markers for each visible binned point
+    int markersDrawn = 0;
+    qDebug() << "BTW: Drawing area:" << drawingArea;
+    for (const auto& point : visibleBinnedData) {
+        qreal yValue = point.first;
+        QDateTime timestamp = point.second;
+        QPointF screenPos = mapDataToScreen(yValue, timestamp);
+        
+        // Only debug first few points to avoid spam
+        if (markersDrawn < 3) {
+            qDebug() << "BTW: Point" << markersDrawn << "- Y:" << yValue << "Time:" << timestamp.toString() << "Screen:" << screenPos << "In area:" << drawingArea.contains(screenPos);
+        }
+        
+        // Check if point is within visible area
+        if (drawingArea.contains(screenPos)) {
+            // Calculate marker size based on window size
+            QSize windowSize = this->size();
+            qreal markerRadius = std::min(0.04 * windowSize.width(), 12.0); // Circle radius, cap at 12 pixels
+            
+            // Draw circle outline
+            QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
+            circleOutline->setRect(screenPos.x() - markerRadius, screenPos.y() - markerRadius, 
+                                 2 * markerRadius, 2 * markerRadius);
+            circleOutline->setPen(QPen(Qt::blue, 2));
+            circleOutline->setBrush(QBrush(Qt::transparent));
+            circleOutline->setZValue(1000);
+            
+            graphicsScene->addItem(circleOutline);
+            
+            // Draw crossing line (5x radius on both sides)
+            qreal lineLength = 5 * markerRadius;
+            QGraphicsLineItem *crossingLine = new QGraphicsLineItem();
+            crossingLine->setLine(screenPos.x() - lineLength, screenPos.y(),
+                                screenPos.x() + lineLength, screenPos.y());
+            crossingLine->setPen(QPen(Qt::blue, 2));
+            crossingLine->setZValue(1001);
+            
+            graphicsScene->addItem(crossingLine);
+            
+            markersDrawn++;
+        }
+    }
+    
+    qDebug() << "BTW: Drew" << markersDrawn << "circle markers for series" << seriesLabel;
 }

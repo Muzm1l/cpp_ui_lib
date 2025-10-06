@@ -28,6 +28,7 @@ protected:
 private:
     // BTW-specific properties and methods can be added here
     void drawBTWScatterplot();
+    void drawCustomCircleMarkers(const QString &seriesLabel);
 };
 
 #endif // BTWGRAPH_H

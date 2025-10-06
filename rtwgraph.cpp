@@ -145,10 +145,9 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
         return;
     }
 
-    // Use 1/5 of current time interval for sampling
-    qint64 currentIntervalMs = getTimeIntervalMs();
-    qint64 samplingIntervalMs = currentIntervalMs / 5; // 1/5 of current time interval
-    
+    // Use the static binning method to sample data
+    qint64 samplingIntervalMs = 300000; // 3 seconds
+
     // Convert to QTime for the binning method
     QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
     
@@ -180,7 +179,7 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
              << "- Total data:" << totalDataSize 
              << "- Binned data:" << binnedData.size()
              << "- Visible binned data:" << visibleBinnedData.size()
-             << "- Sampling interval:" << samplingIntervalMs << "ms (1/5 of" << currentIntervalMs << "ms)";
+             << "- Sampling interval:" << samplingIntervalMs << "ms)";
 
     if (visibleBinnedData.empty()) {
         qDebug() << "RTW: No visible binned data available for series" << seriesLabel;

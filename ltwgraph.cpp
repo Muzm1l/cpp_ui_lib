@@ -172,10 +172,8 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
     }
 
     // Use the static binning method to sample data based on time intervals
-    // Set sampling rate to 1/5 of current time interval
-    qint64 currentIntervalMs = getTimeIntervalMs();
-    qint64 samplingIntervalMs = currentIntervalMs / 5; // 1/5 of current time interval
-    
+    qint64 samplingIntervalMs = 300000; // 3 seconds
+
     // Convert to QTime for the binning method
     QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
     
