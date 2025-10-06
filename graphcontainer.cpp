@@ -513,7 +513,7 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
     }
     
     // Enable mouse selection for the waterfall graph
-    graph->setMouseSelectionEnabled(true);
+    graph->setMouseSelectionEnabled(false);
     
     // Enable range limiting for the waterfall graph
     graph->setRangeLimitingEnabled(true);

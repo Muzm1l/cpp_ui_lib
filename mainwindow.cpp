@@ -336,7 +336,6 @@ void MainWindow::setupCustomGraphsTab()
     // FDW Graph - Frequency Domain Waterfall
     fdwGraph = new FDWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     fdwGraph->setObjectName("fdwGraph");
-    fdwGraph->setMouseSelectionEnabled(true);
     fdwGraph->setDataSource(*fdwData); // Connect to data source
     
     // Set series colors for FDW graph
@@ -348,7 +347,6 @@ void MainWindow::setupCustomGraphsTab()
     // BDW Graph - Bandwidth Domain Waterfall
     bdwGraph = new BDWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     bdwGraph->setObjectName("bdwGraph");
-    bdwGraph->setMouseSelectionEnabled(true);
     bdwGraph->setDataSource(*bdwData); // Connect to data source
     
     // Set series colors for BDW graph
@@ -360,7 +358,6 @@ void MainWindow::setupCustomGraphsTab()
     // BRW Graph - Bit Rate Waterfall
     brwGraph = new BRWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     brwGraph->setObjectName("brwGraph");
-    brwGraph->setMouseSelectionEnabled(true);
     brwGraph->setDataSource(*brwData); // Connect to data source
     
     // Set series colors for BRW graph
@@ -372,7 +369,6 @@ void MainWindow::setupCustomGraphsTab()
     // LTW Graph - Latency Time Waterfall
     ltwGraph = new LTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     ltwGraph->setObjectName("ltwGraph");
-    ltwGraph->setMouseSelectionEnabled(true);
     ltwGraph->setDataSource(*ltwData); // Connect to data source
     
     // Set series colors for LTW graph
@@ -384,7 +380,6 @@ void MainWindow::setupCustomGraphsTab()
     // BTW Graph - Bit Time Waterfall
     btwGraph = new BTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     btwGraph->setObjectName("btwGraph");
-    btwGraph->setMouseSelectionEnabled(true);
     btwGraph->setDataSource(*btwData); // Connect to data source
     
     // Set series colors for BTW graph
@@ -397,7 +392,6 @@ void MainWindow::setupCustomGraphsTab()
     // RTW Graph - Rate Time Waterfall
     rtwGraph = new RTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     rtwGraph->setObjectName("rtwGraph");
-    rtwGraph->setMouseSelectionEnabled(true);
     rtwGraph->setDataSource(*rtwData); // Connect to data source
     
     // Set series colors for RTW graph
@@ -409,7 +403,6 @@ void MainWindow::setupCustomGraphsTab()
     // FTW Graph - Frequency Time Waterfall
     ftwGraph = new FTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
     ftwGraph->setObjectName("ftwGraph");
-    ftwGraph->setMouseSelectionEnabled(true);
     ftwGraph->setDataSource(*ftwData); // Connect to data source
     
     // Set series colors for FTW graph
