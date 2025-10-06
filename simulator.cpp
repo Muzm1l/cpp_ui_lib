@@ -114,25 +114,48 @@ void Simulator::addDataPoints()
 
 void Simulator::generateBulkData(WaterfallData* data, SimulatorConfig config, int numPoints)
 {
-
+    if (!data) {
+        qDebug() << "Simulator: Null WaterfallData pointer provided";
+        return;
+    }
 
     QDateTime currentTime = QDateTime::currentDateTime();
     std::vector<QDateTime> timestamps;
     std::vector<qreal> dataSeries;
 
     // Generate timestamps and data for each point
+    // Generate data going backwards in time to fill the waterfall display
+    // Use smaller intervals to fit more data within the 15-minute window
     for (int i = 0; i < numPoints; ++i) {
-        QDateTime timestamp = currentTime.addSecs(i * 60); // 1 minute intervals
+        QDateTime timestamp = currentTime.addSecs(-i * 60); // Go backwards in time, 10 second intervals
         timestamps.push_back(timestamp);
 
         double timeFactor = static_cast<double>(i) / numPoints;
 
-        // FDW: Frequency Domain Window - sine wave pattern
-        dataSeries.push_back(config.startValue + (config.maxValue - config.minValue) * 0.5 * std::sin(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0);
+        // Generate sine wave pattern
+        qreal value = config.startValue + (config.maxValue - config.minValue) * 0.5 * std::sin(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0;
+        
+        // Ensure value stays within bounds
+        value = qBound(config.minValue, value, config.maxValue);
+        dataSeries.push_back(value);
     }
 
-    // Add bulk data to each graph data source
-    qDebug() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end()) << "to" << *std::max_element(dataSeries.begin(), dataSeries.end());
+    // Get the first series label from the data source
+    std::vector<QString> seriesLabels = data->getDataSeriesLabels();
+    if (seriesLabels.empty()) {
+        qDebug() << "Simulator: No series labels found in WaterfallData";
+        return;
+    }
+
+    QString firstSeriesLabel = seriesLabels[0];
+    qDebug() << "Simulator: Adding bulk data to series:" << firstSeriesLabel;
+
+    // Add the data to the first series
+    data->addDataPointsToSeries(firstSeriesLabel, dataSeries, timestamps);
+
+    qDebug() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end()) 
+             << "to" << *std::max_element(dataSeries.begin(), dataSeries.end())
+             << "for series:" << firstSeriesLabel;
 }
 
 void Simulator::generateBulkDataForWaterfallData(
@@ -141,15 +164,23 @@ void Simulator::generateBulkDataForWaterfallData(
 {
     qDebug() << "Simulator: Generating bulk data for" << numPoints << "points using static method";
     
-    QDateTime currentTime = QDateTime::currentDateTime();
-    
     // Go through each of the waterfallDataMap
     for (const auto& pair : waterfallDataMap) {
         WaterfallData* data = pair.first;
         SimulatorConfig config = pair.second;
 
+        qDebug() << "Simulator: Processing WaterfallData with title:" << data->getDataTitle();
+        
         // Generate the points based on the config
         generateBulkData(data, config, numPoints);
+        
+        // Verify data was added
+        std::vector<QString> seriesLabels = data->getDataSeriesLabels();
+        if (!seriesLabels.empty()) {
+            QString firstSeries = seriesLabels[0];
+            qDebug() << "Simulator: Verified data added to series" << firstSeries 
+                     << "with" << data->getDataSeriesSize(firstSeries) << "points";
+        }
     }
     
     qDebug() << "Simulator: Static bulk data generation completed";

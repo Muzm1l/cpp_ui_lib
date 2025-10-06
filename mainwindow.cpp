@@ -412,6 +412,71 @@ void MainWindow::setupCustomGraphsTab()
     // Generate the data for the new graph components
     Simulator::generateBulkDataForWaterfallData(waterfallDataMap, 90);
 
+    // Trigger the graphs to redraw
+    fdwGraph->update();
+    bdwGraph->update();
+    brwGraph->update();
+    ltwGraph->update();
+    btwGraph->update();
+    rtwGraph->update();
+    ftwGraph->update();
+    qDebug() << "All graphs redrawn";
+
+    // Debug: Verify data was generated for each series
+    qDebug() << "=== Verifying bulk data generation ===";
+    qDebug() << "FDW Data series:" << fdwData->getDataSeriesLabels().size() << "series";
+    if (!fdwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = fdwData->getDataSeriesLabels()[0];
+        qDebug() << "FDW First series" << firstSeries << "has" << fdwData->getDataSeriesSize(firstSeries) << "points";
+    }
+    
+    qDebug() << "BDW Data series:" << bdwData->getDataSeriesLabels().size() << "series";
+    if (!bdwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = bdwData->getDataSeriesLabels()[0];
+        qDebug() << "BDW First series" << firstSeries << "has" << bdwData->getDataSeriesSize(firstSeries) << "points";
+    }
+    
+    qDebug() << "BRW Data series:" << brwData->getDataSeriesLabels().size() << "series";
+    if (!brwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = brwData->getDataSeriesLabels()[0];
+        qDebug() << "BRW First series" << firstSeries << "has" << brwData->getDataSeriesSize(firstSeries) << "points";
+    }
+    
+    qDebug() << "LTW Data series:" << ltwData->getDataSeriesLabels().size() << "series";
+    if (!ltwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = ltwData->getDataSeriesLabels()[0];
+        qDebug() << "LTW First series" << firstSeries << "has" << ltwData->getDataSeriesSize(firstSeries) << "points";
+    }
+    
+    qDebug() << "BTW Data series:" << btwData->getDataSeriesLabels().size() << "series";
+    if (!btwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = btwData->getDataSeriesLabels()[0];
+        qDebug() << "BTW First series" << firstSeries << "has" << btwData->getDataSeriesSize(firstSeries) << "points";
+    }
+    
+    qDebug() << "RTW Data series:" << rtwData->getDataSeriesLabels().size() << "series";
+    if (!rtwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = rtwData->getDataSeriesLabels()[0];
+        qDebug() << "RTW First series" << firstSeries << "has" << rtwData->getDataSeriesSize(firstSeries) << "points";
+    }
+    
+    qDebug() << "FTW Data series:" << ftwData->getDataSeriesLabels().size() << "series";
+    if (!ftwData->getDataSeriesLabels().empty()) {
+        QString firstSeries = ftwData->getDataSeriesLabels()[0];
+        qDebug() << "FTW First series" << firstSeries << "has" << ftwData->getDataSeriesSize(firstSeries) << "points";
+    }
+
+    // Force all graphs to redraw with the new data
+    qDebug() << "=== Forcing graph redraws ===";
+    fdwGraph->update();
+    bdwGraph->update();
+    brwGraph->update();
+    ltwGraph->update();
+    btwGraph->update();
+    rtwGraph->update();
+    ftwGraph->update();
+    qDebug() << "All graphs redrawn";
+
     qDebug() << "New graph components tab setup completed successfully";
 }
 
