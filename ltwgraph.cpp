@@ -74,7 +74,7 @@ void LTWGraph::draw()
     {
         updateDataRanges();
         
-        // Draw scatterplots for each series with their respective colors
+        // Draw custom markers for each series with their respective colors
         std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
         for (const QString &seriesLabel : seriesLabels)
         {
@@ -89,8 +89,8 @@ void LTWGraph::draw()
                 }
                 else
                 {
-                    // Draw scatterplot for other series
-                    drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                    // Draw custom markers for other series with 1/5 sampling
+                    drawCustomMarkers(seriesLabel, seriesColor);
                 }
             }
         }
@@ -131,6 +131,76 @@ void LTWGraph::drawLTWScatterplot()
     drawScatterplot(QString("LTW-1"), Qt::green, 4.0, Qt::white);
 
     qDebug() << "LTW scatterplot drawn";
+}
+
+/**
+ * @brief Draw custom markers for LTW graph with 1/5 sampling
+ *
+ * @param seriesLabel The series label to draw markers for
+ * @param markerColor The color for the markers
+ */
+void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &markerColor)
+{
+    if (!dataSource || !graphicsScene) {
+        return;
+    }
+
+    // Get data for the series
+    std::vector<qreal> yData = dataSource->getYDataSeries(seriesLabel);
+    std::vector<QDateTime> timestamps = dataSource->getTimestampsSeries(seriesLabel);
+
+    if (yData.empty() || timestamps.empty()) {
+        return;
+    }
+
+    // Apply 1/5 sampling (every 5th point)
+    std::vector<qreal> sampledYData;
+    std::vector<QDateTime> sampledTimestamps;
+    
+    for (size_t i = 0; i < yData.size(); i += 5) {
+        sampledYData.push_back(yData[i]);
+        sampledTimestamps.push_back(timestamps[i]);
+    }
+
+    qDebug() << "LTW: Drawing custom markers for series" << seriesLabel 
+             << "with" << sampledYData.size() << "sampled points out of" << yData.size() << "total points";
+
+    // Draw markers for each sampled point
+    for (size_t i = 0; i < sampledYData.size(); ++i) {
+        QPointF screenPos = mapDataToScreen(sampledYData[i], sampledTimestamps[i]);
+        
+        // Check if point is within visible area
+        if (drawingArea.contains(screenPos)) {
+            // Calculate marker sizes
+            qreal squareSize = 12.0; // Base square size (3x larger: 4.0 * 3)
+            qreal triangleSize = squareSize * 0.5; // Triangle is half the width of square
+            qreal padding = triangleSize * 0.05; // 5% padding
+            
+            // Draw cyan square border
+            QGraphicsRectItem *square = new QGraphicsRectItem(
+                screenPos.x() - squareSize/2, 
+                screenPos.y() - squareSize/2, 
+                squareSize, 
+                squareSize
+            );
+            square->setPen(QPen(Qt::cyan, 1.0));
+            square->setBrush(QBrush(Qt::transparent));
+            square->setZValue(500); // Lower z-value than triangle
+            graphicsScene->addItem(square);
+            
+            // Draw cyan triangle
+            QPolygonF triangle;
+            triangle << QPointF(screenPos.x(), screenPos.y() - triangleSize/2)  // Top point
+                     << QPointF(screenPos.x() - triangleSize/2, screenPos.y() + triangleSize/2)  // Bottom left
+                     << QPointF(screenPos.x() + triangleSize/2, screenPos.y() + triangleSize/2); // Bottom right
+            
+            QGraphicsPolygonItem *triangleItem = new QGraphicsPolygonItem(triangle);
+            triangleItem->setPen(QPen(Qt::cyan, 1.0));
+            triangleItem->setBrush(QBrush(Qt::cyan));
+            triangleItem->setZValue(600); // Higher z-value than square
+            graphicsScene->addItem(triangleItem);
+        }
+    }
 }
 
 /**

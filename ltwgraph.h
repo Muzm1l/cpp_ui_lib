@@ -35,6 +35,7 @@ protected:
 private:
     // LTW-specific properties and methods can be added here
     void drawLTWScatterplot();
+    void drawCustomMarkers(const QString &seriesLabel, const QColor &markerColor);
     
     // Crosshair functionality
     void setupCrosshair();
