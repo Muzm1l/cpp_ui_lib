@@ -107,7 +107,7 @@ void Simulator::addDataPoints()
     m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-2", m_currentBTWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-3", m_currentBTWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-1", m_currentRTWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-2", m_currentRTWValue + 10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::RTW, "ADOPTED", m_currentRTWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-1", m_currentFTWValue, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-2", m_currentFTWValue + 10, currentTime);
 
@@ -232,7 +232,7 @@ void Simulator::initializeConfigurations()
     m_brwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
     m_ltwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
     m_btwConfig = SimulatorConfig{5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
-    m_rtwConfig = SimulatorConfig{12.0, 28.0, 20.0, 1.6}; // Right Track Window: 10% of 16.0 range
+    m_rtwConfig = SimulatorConfig{0.0, 25.0, 12.5, 2.5}; // Right Track Window: 0-25 range
     m_ftwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
 }
 
@@ -244,6 +244,6 @@ void Simulator::initializeCurrentValues()
     m_currentBRWValue = m_brwConfig.startValue; // Middle of 8.0-30.0 range
     m_currentLTWValue = m_ltwConfig.startValue; // Middle of 15.0-30.0 range
     m_currentBTWValue = m_btwConfig.startValue; // Middle of 5.0-40.0 range
-    m_currentRTWValue = m_rtwConfig.startValue; // Middle of 12.0-28.0 range
+    m_currentRTWValue = m_rtwConfig.startValue; // Middle of 0.0-25.0 range
     m_currentFTWValue = m_ftwConfig.startValue; // Middle of 15.0-30.0 range
 }

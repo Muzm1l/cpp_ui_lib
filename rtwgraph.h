@@ -28,6 +28,7 @@ protected:
 private:
     // RTW-specific properties and methods can be added here
     void drawRTWScatterplot();
+    void drawCustomRMarkers(const QString &seriesLabel);
 };
 
 #endif // RTWGRAPH_H

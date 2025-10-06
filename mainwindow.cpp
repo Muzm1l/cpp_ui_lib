@@ -87,8 +87,8 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->setHardRangeLimits(GraphType::LTW, 15.0, 45.0);  // Left Track Window
     // BTW: sim range 5.0-40.0, so limits 5.0-(5.0+2*(40.0-5.0)) = 5.0-75.0
     graphgrid->setHardRangeLimits(GraphType::BTW, 5.0, 75.0);   // Bottom Track Window
-    // RTW: sim range 12.0-28.0, so limits 12.0-(12.0+2*(28.0-12.0)) = 12.0-44.0
-    graphgrid->setHardRangeLimits(GraphType::RTW, 12.0, 44.0);  // Right Track Window
+    // RTW: sim range 0.0-25.0, so limits 0.0-(0.0+2*(25.0-0.0)) = 0.0-50.0
+    graphgrid->setHardRangeLimits(GraphType::RTW, 0.0, 50.0);  // Right Track Window
     // FTW: sim range 15.0-30.0, so limits 15.0-45.0
     graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
     // graphgrid->setRangeLimits(GraphType::RTW, 36.0, 84.0);  // Right Track Window
@@ -492,7 +492,7 @@ void MainWindow::setupCustomGraphsTab()
     waterfallDataMap[brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
     waterfallDataMap[ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
     waterfallDataMap[btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
-    waterfallDataMap[rtwData] = SimulatorConfig{12.0, 28.0, 20.0, 1.6};
+    waterfallDataMap[rtwData] = SimulatorConfig{0.0, 25.0, 12.5, 2.5};
     waterfallDataMap[ftwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
 
     // Generate the data for the new graph components
@@ -589,7 +589,7 @@ void MainWindow::setBulkDataForAllGraphs()
     waterfallDataMap[&brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
     waterfallDataMap[&ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
     waterfallDataMap[&btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
-    waterfallDataMap[&rtwData] = SimulatorConfig{12.0, 28.0, 20.0, 1.6};
+    waterfallDataMap[&rtwData] = SimulatorConfig{0.0, 25.0, 12.5, 2.5};
     waterfallDataMap[&ftwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
     
     // Method moved to Simulator class
