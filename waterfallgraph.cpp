@@ -146,7 +146,7 @@ WaterfallData *WaterfallGraph::getDataSource() const
  * @param yData
  * @param timestamps
  */
-void WaterfallGraph::setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
+void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
 {
     if (!dataSource)
     {
@@ -155,9 +155,9 @@ void WaterfallGraph::setData(const std::vector<qreal> &yData, const std::vector<
     }
 
     // Store the data using the data source
-    dataSource->setData(yData, timestamps);
+    dataSource->setDataSeries(seriesLabel, yData, timestamps);
 
-    qDebug() << "Data set successfully. Size:" << dataSource->getDataSize();
+    qDebug() << "Data set successfully. Size:" << dataSource->getDataSeriesSize(seriesLabel);
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
@@ -181,7 +181,7 @@ void WaterfallGraph::setData(const WaterfallData &data)
 
     *dataSource = data;
 
-    qDebug() << "Data set successfully from WaterfallData object. Size:" << dataSource->getDataSize();
+    qDebug() << "Data set successfully from WaterfallData object. Series labels:" << dataSource->getDataSeriesLabels();
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
@@ -216,7 +216,7 @@ void WaterfallGraph::clearData()
  * @param yValue
  * @param timestamp
  */
-void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime &timestamp)
+void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, const QDateTime &timestamp)
 {
     if (!dataSource)
     {
@@ -224,9 +224,9 @@ void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime &timestamp)
         return;
     }
 
-    dataSource->addDataPoint(yValue, timestamp);
+    dataSource->addDataPointToSeries(seriesLabel, yValue, timestamp);
 
-    qDebug() << "Data point added. New size:" << dataSource->getDataSize();
+    qDebug() << "Data point added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
@@ -241,7 +241,7 @@ void WaterfallGraph::addDataPoint(qreal yValue, const QDateTime &timestamp)
  * @param yValues
  * @param timestamps
  */
-void WaterfallGraph::addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
+void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
 {
     if (!dataSource)
     {
@@ -249,9 +249,9 @@ void WaterfallGraph::addDataPoints(const std::vector<qreal> &yValues, const std:
         return;
     }
 
-    dataSource->addDataPoints(yValues, timestamps);
+    dataSource->addDataPointsToSeries(seriesLabel, yValues, timestamps);
 
-    qDebug() << "Data points added. New size:" << dataSource->getDataSize();
+    qDebug() << "Data points added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
@@ -261,33 +261,19 @@ void WaterfallGraph::addDataPoints(const std::vector<qreal> &yValues, const std:
 }
 
 /**
- * @brief Get all data from the graph.
- *
- * @return WaterfallData
- */
-WaterfallData WaterfallGraph::getData() const
-{
-    if (!dataSource)
-    {
-        return WaterfallData();
-    }
-    return *dataSource;
-}
-
-/**
  * @brief Get data within specified y extents.
  *
  * @param yMin
  * @param yMax
  * @return std::vector<std::pair<qreal, QDateTime>>
  */
-std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinYExtents(qreal yMin, qreal yMax) const
+std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinYExtents(const QString &seriesLabel, qreal yMin, qreal yMax) const
 {
     if (!dataSource)
     {
         return std::vector<std::pair<qreal, QDateTime>>();
     }
-    return dataSource->getDataWithinYExtents(yMin, yMax);
+    return dataSource->getDataSeriesWithinYExtents(seriesLabel, yMin, yMax);
 }
 
 /**
@@ -297,13 +283,13 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinYExtents(q
  * @param endTime
  * @return std::vector<std::pair<qreal, QDateTime>>
  */
-std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const
+std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(const QString &seriesLabel, const QDateTime &startTime, const QDateTime &endTime) const
 {
     if (!dataSource)
     {
         return std::vector<std::pair<qreal, QDateTime>>();
     }
-    return dataSource->getDataWithinTimeRange(startTime, endTime);
+    return dataSource->getDataSeriesWithinTimeRange(seriesLabel, startTime, endTime);
 }
 
 /**
@@ -311,14 +297,14 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(
  *
  * @return const std::vector<qreal>&
  */
-const std::vector<qreal> &WaterfallGraph::getYData() const
+const std::vector<qreal> &WaterfallGraph::getYData(const QString &seriesLabel) const
 {
     static const std::vector<qreal> emptyVector;
     if (!dataSource)
     {
         return emptyVector;
     }
-    return dataSource->getYData();
+    return dataSource->getYDataSeries(seriesLabel);
 }
 
 /**
@@ -326,14 +312,14 @@ const std::vector<qreal> &WaterfallGraph::getYData() const
  *
  * @return const std::vector<QDateTime>&
  */
-const std::vector<QDateTime> &WaterfallGraph::getTimestamps() const
+const std::vector<QDateTime> &WaterfallGraph::getTimestamps(const QString &seriesLabel) const
 {
     static const std::vector<QDateTime> emptyVector;
     if (!dataSource)
     {
         return emptyVector;
     }
-    return dataSource->getTimestamps();
+    return dataSource->getTimestampsSeries(seriesLabel);
 }
 
 /**
@@ -835,15 +821,15 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
  * @brief Draw the data line from top to bottom.
  *
  */
-void WaterfallGraph::drawDataLine()
+void WaterfallGraph::drawDataLine(const QString &seriesLabel)
 {
     if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
     {
         return;
     }
 
-    const auto &yData = dataSource->getYData();
-    const auto &timestamps = dataSource->getTimestamps();
+    const auto &yData = dataSource->getYDataSeries(seriesLabel);
+    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
     // Filter data points to only include those within the current time range
     std::vector<std::pair<qreal, QDateTime>> visibleData;
@@ -1298,9 +1284,8 @@ void WaterfallGraph::drawTriangleMarker(const QPointF &position, const QColor &f
 }
 
 /**
- * @brief Draw a scatterplot for a given data series.
+ * @brief Draw a scatterplot for the default data series.
  *
- * @param seriesLabel The label of the data series to plot
  * @param pointColor The color of the scatterplot points (default: white)
  * @param pointSize The size of the scatterplot points (default: 3.0)
  * @param outlineColor The outline color of the scatterplot points (default: black)
@@ -1310,71 +1295,9 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
     if (!graphicsScene || !dataSource)
         return;
 
-    // Get the data series
+    // Get the default data series
     const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
     const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-
-    if (yData.empty() || timestamps.empty())
-    {
-        qDebug() << "No data available for scatterplot series:" << seriesLabel;
-        return;
-    }
-
-    if (yData.size() != timestamps.size())
-    {
-        qDebug() << "Data size mismatch for scatterplot series:" << seriesLabel;
-        return;
-    }
-
-    // Filter data points to only include those within the current time range
-    std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i)
-    {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
-        {
-            visibleData.push_back({yData[i], timestamps[i]});
-        }
-    }
-
-    if (visibleData.empty())
-    {
-        qDebug() << "No data points within current time range for scatterplot series:" << seriesLabel;
-        return;
-    }
-
-    // Draw scatterplot points
-    for (const auto &dataPoint : visibleData)
-    {
-        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
-
-        // Create a circle for the scatterplot point
-        QGraphicsEllipseItem *point = new QGraphicsEllipseItem();
-        point->setRect(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2, pointSize, pointSize);
-        point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
-        point->setBrush(QBrush(pointColor));
-        point->setZValue(120); // Draw above data lines but below markers
-
-        graphicsScene->addItem(point);
-    }
-
-    qDebug() << "Scatterplot drawn for series" << seriesLabel << "with" << visibleData.size() << "points";
-}
-
-/**
- * @brief Draw a scatterplot for the default data series.
- *
- * @param pointColor The color of the scatterplot points (default: white)
- * @param pointSize The size of the scatterplot points (default: 3.0)
- * @param outlineColor The outline color of the scatterplot points (default: black)
- */
-void WaterfallGraph::drawScatterplot(const QColor &pointColor, qreal pointSize, const QColor &outlineColor)
-{
-    if (!graphicsScene || !dataSource)
-        return;
-
-    // Get the default data series
-    const std::vector<qreal> &yData = dataSource->getYData();
-    const std::vector<QDateTime> &timestamps = dataSource->getTimestamps();
 
     if (yData.empty() || timestamps.empty())
     {
@@ -1444,8 +1367,27 @@ void WaterfallGraph::drawAllDataSeries()
     if (seriesLabels.empty())
     {
         qDebug() << "drawAllDataSeries: No series found, falling back to legacy single series";
-        drawDataLine();
-        return;
+        // Throw an exception
+        // Gather more debug info about the WaterfallGraph state
+        QString debugInfo;
+        debugInfo += "No series found in data source.\n";
+        debugInfo += QString("WaterfallGraph info:\n");
+        debugInfo += QString("  graphicsScene: %1\n").arg(graphicsScene ? "set" : "nullptr");
+        debugInfo += QString("  dataSource: %1\n").arg(dataSource ? "set" : "nullptr");
+        debugInfo += QString("  dataRangesValid: %1\n").arg(dataRangesValid ? "true" : "false");
+        debugInfo += QString("  drawingArea: (%1, %2, %3, %4)\n")
+                        .arg(drawingArea.left())
+                        .arg(drawingArea.top())
+                        .arg(drawingArea.width())
+                        .arg(drawingArea.height());
+        debugInfo += QString("  yMin: %1, yMax: %2\n").arg(yMin).arg(yMax);
+        debugInfo += QString("  timeMin: %1, timeMax: %2\n")
+                        .arg(timeMin.toString())
+                        .arg(timeMax.toString());
+        debugInfo += QString("  autoUpdateYRange: %1\n").arg(autoUpdateYRange ? "true" : "false");
+        debugInfo += QString("  rangeLimitingEnabled: %1\n").arg(rangeLimitingEnabled ? "true" : "false");
+        qDebug() << debugInfo;
+        throw std::runtime_error(debugInfo.toStdString());
     }
 
     // Draw each visible series

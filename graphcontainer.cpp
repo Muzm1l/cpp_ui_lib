@@ -212,26 +212,6 @@ WaterfallData GraphContainer::getData() const
     return waterfallData;
 }
 
-std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinYExtents(qreal yMin, qreal yMax) const
-{
-    return waterfallData.getDataWithinYExtents(yMin, yMax);
-}
-
-std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const
-{
-    return waterfallData.getDataWithinTimeRange(startTime, endTime);
-}
-
-qreal GraphContainer::getMinY() const
-{
-    return waterfallData.getMinY();
-}
-
-qreal GraphContainer::getMaxY() const
-{
-    return waterfallData.getMaxY();
-}
-
 std::pair<qreal, qreal> GraphContainer::getYRange() const
 {
     return waterfallData.getYRange();

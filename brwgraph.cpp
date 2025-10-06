@@ -79,7 +79,7 @@ void BRWGraph::onMouseDrag(const QPointF &scenePos)
 void BRWGraph::drawBRWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::yellow, 4.0, Qt::black);
+    drawScatterplot(QString("BRW-1"), Qt::yellow, 4.0, Qt::black);
 
     qDebug() << "BRW scatterplot drawn";
 }

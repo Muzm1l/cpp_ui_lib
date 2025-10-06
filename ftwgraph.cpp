@@ -79,7 +79,7 @@ void FTWGraph::onMouseDrag(const QPointF& scenePos)
 void FTWGraph::drawFTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::white, 4.0, Qt::black);
+    drawScatterplot(QString("FTW-1"), Qt::white, 4.0, Qt::black);
 
     qDebug() << "FTW scatterplot drawn";
 }

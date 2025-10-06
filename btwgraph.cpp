@@ -79,7 +79,7 @@ void BTWGraph::onMouseDrag(const QPointF &scenePos)
 void BTWGraph::drawBTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::red, 4.0, Qt::white);
+    drawScatterplot(QString("BTW-1"), Qt::red, 4.0, Qt::white);
 
     qDebug() << "BTW scatterplot drawn";
 }

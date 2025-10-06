@@ -79,7 +79,7 @@ void FDWGraph::onMouseDrag(const QPointF &scenePos)
 void FDWGraph::drawFDWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::cyan, 4.0, Qt::white);
+    drawScatterplot(QString("FDW-1"), Qt::cyan, 4.0, Qt::white);
 
     qDebug() << "FDW scatterplot drawn";
 }

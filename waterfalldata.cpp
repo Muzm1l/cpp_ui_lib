@@ -52,100 +52,6 @@ void WaterfallData::clearData()
     dataSeriesTimestamps[dataTitle].clear();
 }
 
-void WaterfallData::addDataPoint(qreal yValue, const QDateTime& timestamp)
-{
-    dataSeriesYData[dataTitle].push_back(yValue);
-    dataSeriesTimestamps[dataTitle].push_back(timestamp);
-}
-
-void WaterfallData::addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
-{
-    // Validate that both vectors have the same size
-    if (yValues.size() != timestamps.size()) {
-        qDebug() << "Error: yValues and timestamps must have the same size. yValues size:" << yValues.size() << "timestamps size:" << timestamps.size();
-        return;
-    }
-
-    // Append the data
-    this->dataSeriesYData[dataTitle].insert(this->dataSeriesYData[dataTitle].end(), yValues.begin(), yValues.end());
-    this->dataSeriesTimestamps[dataTitle].insert(this->dataSeriesTimestamps[dataTitle].end(), timestamps.begin(), timestamps.end());
-
-    validateDataConsistency();
-}
-
-std::vector<std::pair<qreal, QDateTime>> WaterfallData::getAllData() const
-{
-    std::vector<std::pair<qreal, QDateTime>> result;
-    
-    auto yIt = dataSeriesYData.find(dataTitle);
-    auto tIt = dataSeriesTimestamps.find(dataTitle);
-    
-    if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
-        result.reserve(yIt->second.size());
-        
-        for (size_t i = 0; i < yIt->second.size(); ++i) {
-            result.emplace_back(yIt->second[i], tIt->second[i]);
-        }
-    }
-    
-    return result;
-}
-
-std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataWithinYExtents(qreal yMin, qreal yMax) const
-{
-    std::vector<std::pair<qreal, QDateTime>> result;
-    
-    auto yIt = dataSeriesYData.find(dataTitle);
-    auto tIt = dataSeriesTimestamps.find(dataTitle);
-    
-    if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
-        for (size_t i = 0; i < yIt->second.size(); ++i) {
-            if (yIt->second[i] >= yMin && yIt->second[i] <= yMax) {
-                result.emplace_back(yIt->second[i], tIt->second[i]);
-            }
-        }
-    }
-    
-    return result;
-}
-
-std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
-{
-    std::vector<std::pair<qreal, QDateTime>> result;
-    
-    auto yIt = dataSeriesYData.find(dataTitle);
-    auto tIt = dataSeriesTimestamps.find(dataTitle);
-    
-    if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
-        for (size_t i = 0; i < tIt->second.size(); ++i) {
-            if (tIt->second[i] >= startTime && tIt->second[i] <= endTime) {
-                result.emplace_back(yIt->second[i], tIt->second[i]);
-            }
-        }
-    }
-    
-    return result;
-}
-
-const std::vector<qreal>& WaterfallData::getYData() const
-{
-    static const std::vector<qreal> emptyVector;
-    auto it = dataSeriesYData.find(dataTitle);
-    return (it != dataSeriesYData.end()) ? it->second : emptyVector;
-}
-
-const std::vector<QDateTime>& WaterfallData::getTimestamps() const
-{
-    static const std::vector<QDateTime> emptyVector;
-    auto it = dataSeriesTimestamps.find(dataTitle);
-    return (it != dataSeriesTimestamps.end()) ? it->second : emptyVector;
-}
-
-size_t WaterfallData::getDataSize() const
-{
-    auto it = dataSeriesYData.find(dataTitle);
-    return (it != dataSeriesYData.end()) ? it->second.size() : 0;
-}
 
 bool WaterfallData::isEmpty() const
 {
@@ -160,44 +66,91 @@ bool WaterfallData::isEmpty() const
 
 std::pair<qreal, qreal> WaterfallData::getYRange() const
 {
-    auto it = dataSeriesYData.find(dataTitle);
-    if (it == dataSeriesYData.end() || it->second.empty()) {
-        return std::make_pair(0.0, 0.0);
+
+    bool found = false;
+    qreal minY = 0.0, maxY = 0.0;
+
+    for (const auto &pair : dataSeriesYData)
+    {
+        if (pair.second.empty()) continue;
+        auto minmax = std::minmax_element(pair.second.begin(), pair.second.end());
+        if (!found) {
+            minY = *minmax.first;
+            maxY = *minmax.second;
+            found = true;
+        } else {
+            if (*minmax.first < minY) minY = *minmax.first;
+            if (*minmax.second > maxY) maxY = *minmax.second;
+        }
     }
 
-    auto minMax = std::minmax_element(it->second.begin(), it->second.end());
-    return std::make_pair(*minMax.first, *minMax.second);
+    if (!found) {
+        return std::make_pair(0.0, 0.0);
+    }
+    return std::make_pair(minY, maxY);
 }
 
 std::pair<QDateTime, QDateTime> WaterfallData::getTimeRange() const
 {
-    auto it = dataSeriesTimestamps.find(dataTitle);
-    if (it == dataSeriesTimestamps.end() || it->second.empty()) {
-        return std::make_pair(QDateTime(), QDateTime());
+    QDateTime minTime, maxTime;
+
+    bool hasValue = false;
+    for (const auto& pair : dataSeriesTimestamps) {
+        for (const auto& t : pair.second) {
+            if (!hasValue) {
+                minTime = maxTime = t;
+                hasValue = true;
+            } else {
+                if (t < minTime) minTime = t;
+                if (t > maxTime) maxTime = t;
+            }
+        }
     }
 
-    auto minMax = std::minmax_element(it->second.begin(), it->second.end());
-    return std::make_pair(*minMax.first, *minMax.second);
+    if (!hasValue) {
+        return std::make_pair(QDateTime(), QDateTime());
+    }
+    return std::make_pair(minTime, maxTime);
 }
 
 qreal WaterfallData::getMinY() const
 {
-    auto it = dataSeriesYData.find(dataTitle);
-    if (it == dataSeriesYData.end() || it->second.empty()) {
+    bool found = false;
+    qreal minY = 0.0;
+    for (const auto& pair : dataSeriesYData) {
+        if (pair.second.empty()) continue;
+        qreal seriesMin = *std::min_element(pair.second.begin(), pair.second.end());
+        if (!found) {
+            minY = seriesMin;
+            found = true;
+        } else {
+            if (seriesMin < minY) minY = seriesMin;
+        }
+    }
+    if (!found) {
         return 0.0;
     }
-
-    return *std::min_element(it->second.begin(), it->second.end());
+    return minY;
 }
 
 qreal WaterfallData::getMaxY() const
 {
-    auto it = dataSeriesYData.find(dataTitle);
-    if (it == dataSeriesYData.end() || it->second.empty()) {
+    bool found = false;
+    qreal maxY = 0.0;
+    for (const auto& pair : dataSeriesYData) {
+        if (pair.second.empty()) continue;
+        qreal seriesMax = *std::max_element(pair.second.begin(), pair.second.end());
+        if (!found) {
+            maxY = seriesMax;
+            found = true;
+        } else {
+            if (seriesMax > maxY) maxY = seriesMax;
+        }
+    }
+    if (!found) {
         return 0.0;
     }
-
-    return *std::max_element(it->second.begin(), it->second.end());
+    return maxY;
 }
 
 qint64 WaterfallData::getTimeSpanMs() const
@@ -213,22 +166,53 @@ qint64 WaterfallData::getTimeSpanMs() const
 
 QDateTime WaterfallData::getEarliestTime() const
 {
-    auto it = dataSeriesTimestamps.find(dataTitle);
-    if (it == dataSeriesTimestamps.end() || it->second.empty()) {
+    QDateTime earliestTime;
+    bool hasValue = false;
+
+    for (const auto& pair : dataSeriesTimestamps) {
+        if (!pair.second.empty()) {
+            QDateTime seriesEarliest = *std::min_element(pair.second.begin(), pair.second.end());
+            if (!hasValue) {
+                earliestTime = seriesEarliest;
+                hasValue = true;
+            } else {
+                if (seriesEarliest < earliestTime) {
+                    earliestTime = seriesEarliest;
+                }
+            }
+        }
+    }
+
+    if (!hasValue) {
         return QDateTime();
     }
 
-    return *std::min_element(it->second.begin(), it->second.end());
+    return earliestTime;
 }
 
 QDateTime WaterfallData::getLatestTime() const
 {
-    auto it = dataSeriesTimestamps.find(dataTitle);
-    if (it == dataSeriesTimestamps.end() || it->second.empty()) {
-        return QDateTime();
+    QDateTime latestTime;
+    bool hasValue = false;
+
+    for (const auto& pair : dataSeriesTimestamps) {
+        if (!pair.second.empty()) {
+            QDateTime seriesLatest = *std::max_element(pair.second.begin(), pair.second.end());
+            if (!hasValue) {
+                latestTime = seriesLatest;
+                hasValue = true;
+            } else {
+                if (seriesLatest > latestTime) {
+                    latestTime = seriesLatest;
+                }
+            }
+        }
     }
 
-    return *std::max_element(it->second.begin(), it->second.end());
+    if (!hasValue) {
+        return QDateTime();
+    }
+    return latestTime;
 }
 
 bool WaterfallData::isValidIndex(size_t index) const

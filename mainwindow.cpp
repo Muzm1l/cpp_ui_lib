@@ -129,6 +129,15 @@ MainWindow::MainWindow(QWidget *parent)
 
 MainWindow::~MainWindow()
 {
+    // Clean up WaterfallData objects
+    delete fdwData;
+    delete bdwData;
+    delete brwData;
+    delete ltwData;
+    delete btwData;
+    delete rtwData;
+    delete ftwData;
+    
     delete ui;
 }
 
@@ -312,42 +321,65 @@ void MainWindow::setupCustomGraphsTab()
     gridLayout->setSpacing(10);
     gridLayout->setContentsMargins(10, 10, 10, 10);
 
+    // Create WaterfallData objects as member variables
+    fdwData = new WaterfallData("FDW", {"FDW-1", "FDW-2"});
+    bdwData = new WaterfallData("BDW", {"BDW-1", "BDW-2"});
+    brwData = new WaterfallData("BRW", {"BRW-1", "BRW-2"});
+    ltwData = new WaterfallData("LTW", {"LTW-1", "LTW-2"});
+    btwData = new WaterfallData("BTW", {"BTW-1", "BTW-2", "BTW-3"});
+    rtwData = new WaterfallData("RTW", {"RTW-1", "RTW-2"});
+    ftwData = new WaterfallData("FTW", {"FTW-1", "FTW-2"});
+
     // Create all 7 new graph components
 
     // FDW Graph - Frequency Domain Waterfall
     fdwGraph = new FDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     fdwGraph->setObjectName("fdwGraph");
     fdwGraph->setMouseSelectionEnabled(true);
+    fdwGraph->setDataSource(*fdwData); // Connect to data source
+    qDebug() << "FDW Graph connected to data source";
 
     // BDW Graph - Bandwidth Domain Waterfall
     bdwGraph = new BDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     bdwGraph->setObjectName("bdwGraph");
     bdwGraph->setMouseSelectionEnabled(true);
+    bdwGraph->setDataSource(*bdwData); // Connect to data source
+    qDebug() << "BDW Graph connected to data source";
 
     // BRW Graph - Bit Rate Waterfall
     brwGraph = new BRWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     brwGraph->setObjectName("brwGraph");
     brwGraph->setMouseSelectionEnabled(true);
+    brwGraph->setDataSource(*brwData); // Connect to data source
+    qDebug() << "BRW Graph connected to data source";
 
     // LTW Graph - Latency Time Waterfall
     ltwGraph = new LTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     ltwGraph->setObjectName("ltwGraph");
     ltwGraph->setMouseSelectionEnabled(true);
+    ltwGraph->setDataSource(*ltwData); // Connect to data source
+    qDebug() << "LTW Graph connected to data source";
 
     // BTW Graph - Bit Time Waterfall
     btwGraph = new BTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     btwGraph->setObjectName("btwGraph");
     btwGraph->setMouseSelectionEnabled(true);
+    btwGraph->setDataSource(*btwData); // Connect to data source
+    qDebug() << "BTW Graph connected to data source";
 
     // RTW Graph - Rate Time Waterfall
     rtwGraph = new RTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     rtwGraph->setObjectName("rtwGraph");
     rtwGraph->setMouseSelectionEnabled(true);
+    rtwGraph->setDataSource(*rtwData); // Connect to data source
+    qDebug() << "RTW Graph connected to data source";
 
     // FTW Graph - Frequency Time Waterfall
     ftwGraph = new FTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     ftwGraph->setObjectName("ftwGraph");
     ftwGraph->setMouseSelectionEnabled(true);
+    ftwGraph->setDataSource(*ftwData); // Connect to data source
+    qDebug() << "FTW Graph connected to data source";
 
     // Add graphs to grid layout (3x3 with 2 empty spaces)
     gridLayout->addWidget(fdwGraph, 0, 0);
@@ -366,28 +398,19 @@ void MainWindow::setupCustomGraphsTab()
     gridLayout->setRowStretch(1, 1);
     gridLayout->setRowStretch(2, 1);
 
-    
-    // Create 7 data sources for the new graph components
-    WaterfallData fdwData("FDW", {"FDW-1", "FDW-2"});
-    WaterfallData bdwData("BDW", {"BDW-1", "BDW-2"});
-    WaterfallData brwData("BRW", {"BRW-1", "BRW-2"});
-    WaterfallData ltwData("LTW", {"LTW-1", "LTW-2"});
-    WaterfallData btwData("BTW", {"BTW-1", "BTW-2", "BTW-3"});
-    WaterfallData rtwData("RTW", {"RTW-1", "RTW-2"});
-    WaterfallData ftwData("FTW", {"FTW-1", "FTW-2"});
+    // Create configuration map for data generation
+    auto waterfallDataMap = std::map<WaterfallData*, SimulatorConfig>();
 
-    auto waterfallDataMap = std::map<WaterfallData* , SimulatorConfig>();
+    waterfallDataMap[fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[bdwData] = SimulatorConfig{5.0, 38.0, 21.5, 3.3};
+    waterfallDataMap[brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
+    waterfallDataMap[btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
+    waterfallDataMap[rtwData] = SimulatorConfig{12.0, 28.0, 20.0, 1.6};
+    waterfallDataMap[ftwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
 
-    waterfallDataMap[&fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
-    waterfallDataMap[&bdwData] = SimulatorConfig{5.0, 38.0, 21.5, 3.3};
-    waterfallDataMap[&brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
-    waterfallDataMap[&ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
-    waterfallDataMap[&btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
-    waterfallDataMap[&rtwData] = SimulatorConfig{12.0, 28.0, 20.0, 1.6};
-    waterfallDataMap[&ftwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
-
-    // Now generate the data for the new graph components
-    simulator->generateBulkDataForWaterfallData(waterfallDataMap, 90);
+    // Generate the data for the new graph components
+    Simulator::generateBulkDataForWaterfallData(waterfallDataMap, 90);
 
     qDebug() << "New graph components tab setup completed successfully";
 }

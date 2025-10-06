@@ -19,35 +19,23 @@ public:
     void setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
     void clearData();
 
-    // Incremental data addition methods
-    void addDataPoint(qreal yValue, const QDateTime& timestamp);
-    void addDataPoints(const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
+    QDateTime getLatestTime() const;
+    QDateTime getEarliestTime() const;
 
-    // Data access methods
-    std::vector<std::pair<qreal, QDateTime>> getAllData() const;
-    std::vector<std::pair<qreal, QDateTime>> getDataWithinYExtents(qreal yMin, qreal yMax) const;
-    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
-
-    // Direct access to data vectors
-    const std::vector<qreal>& getYData() const;
-    const std::vector<QDateTime>& getTimestamps() const;
-
+    qreal getMinY() const;
+    qreal getMaxY() const;
+    
     // Utility methods
-    size_t getDataSize() const;
     bool isEmpty() const;
 
     // Data range methods
     std::pair<qreal, qreal> getYRange() const;
     std::pair<QDateTime, QDateTime> getTimeRange() const;
 
-    // Individual min/max methods
-    qreal getMinY() const;
-    qreal getMaxY() const;
+    
 
     // Time-based utility methods
     qint64 getTimeSpanMs() const;
-    QDateTime getEarliestTime() const;
-    QDateTime getLatestTime() const;
 
     // Selection time span methods
     QDateTime getSelectionEarliestTime() const;

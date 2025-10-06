@@ -4,7 +4,6 @@
 #include "bdwgraph.h"
 #include "brwgraph.h"
 #include "btwgraph.h"
-#include "customwaterfallgraph.h"
 #include "fdwgraph.h"
 #include "ftwgraph.h"
 #include "graphlayout.h"
@@ -53,6 +52,15 @@ private:
     BTWGraph* btwGraph; ///< BTW Graph component
     RTWGraph* rtwGraph; ///< RTW Graph component
     FTWGraph* ftwGraph; ///< FTW Graph component
+
+    // WaterfallData objects for the second tab
+    WaterfallData* fdwData; ///< FDW Data source
+    WaterfallData* bdwData; ///< BDW Data source
+    WaterfallData* brwData; ///< BRW Data source
+    WaterfallData* ltwData; ///< LTW Data source
+    WaterfallData* btwData; ///< BTW Data source
+    WaterfallData* rtwData; ///< RTW Data source
+    WaterfallData* ftwData; ///< FTW Data source
 
     // void configureTimeVisualizer();
     // void configureTimelineView();

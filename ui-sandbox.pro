@@ -29,7 +29,6 @@ SOURCES += \
     twoaxisgraph.cpp \
     waterfalldata.cpp \
     waterfallgraph.cpp \
-    customwaterfallgraph.cpp \
     drawutils.cpp \
     zoompanel.cpp \
     bdwgraph.cpp \
@@ -54,7 +53,6 @@ HEADERS += \
     twoaxisgraph.h \
     waterfalldata.h \
     waterfallgraph.h \
-    customwaterfallgraph.h \
     drawutils.h \
     zoompanel.h\
     bdwgraph.h \

@@ -79,7 +79,8 @@ void BDWGraph::onMouseDrag(const QPointF &scenePos)
 void BDWGraph::drawBDWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::magenta, 4.0, Qt::white);
+    // TODO: Change
+    drawScatterplot(QString("BDW-1"), Qt::magenta, 4.0, Qt::white);
 
     qDebug() << "BDW scatterplot drawn";
 }

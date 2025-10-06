@@ -79,7 +79,7 @@ void RTWGraph::onMouseDrag(const QPointF &scenePos)
 void RTWGraph::drawRTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::blue, 4.0, Qt::white);
+    drawScatterplot(QString("RTW-1"), Qt::blue, 4.0, Qt::white);
 
     qDebug() << "RTW scatterplot drawn";
 }

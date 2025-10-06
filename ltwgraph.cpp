@@ -79,7 +79,7 @@ void LTWGraph::onMouseDrag(const QPointF &scenePos)
 void LTWGraph::drawLTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
-    drawScatterplot(Qt::green, 4.0, Qt::white);
+    drawScatterplot(QString("LTW-1"), Qt::green, 4.0, Qt::white);
 
     qDebug() << "LTW scatterplot drawn";
 }

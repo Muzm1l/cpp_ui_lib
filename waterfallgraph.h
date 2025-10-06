@@ -52,22 +52,22 @@ public:
     int getGridDivisions() const;
 
     // Data handling (delegates to data source)
-    void setData(const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setData(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void setData(const WaterfallData &data);
     void clearData();
 
     // Incremental data addition methods (delegates to data source)
-    void addDataPoint(qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    void addDataPoint(const QString &seriesLabel, qreal yValue, const QDateTime &timestamp);
+    void addDataPoints(const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
 
     // Data access methods (delegates to data source)
-    WaterfallData getData() const;
-    std::vector<std::pair<qreal, QDateTime>> getDataWithinYExtents(qreal yMin, qreal yMax) const;
-    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const;
+    WaterfallData getData(const QString &seriesLabel) const;
+    std::vector<std::pair<qreal, QDateTime>> getDataWithinYExtents(const QString &seriesLabel, qreal yMin, qreal yMax) const;
+    std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QString &seriesLabel, const QDateTime &startTime, const QDateTime &endTime) const;
 
     // Direct access to data vectors (delegates to data source)
-    const std::vector<qreal> &getYData() const;
-    const std::vector<QDateTime> &getTimestamps() const;
+    const std::vector<qreal> &getYData(const QString &seriesLabel) const;
+    const std::vector<QDateTime> &getTimestamps(const QString &seriesLabel) const;
 
     // Mouse event handlers (virtual so they can be overridden in derived classes)
     virtual void onMouseClick(const QPointF &scenePos);
@@ -109,7 +109,7 @@ protected:
     void updateGraphicsDimensions();
 
     // Data plotting methods
-    virtual void drawDataLine();
+    virtual void drawDataLine(const QString &seriesLabel);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
@@ -182,7 +182,6 @@ public:
     void drawCharacterLabel(const QString &text, const QPointF &position, const QColor &color = Qt::white, int fontSize = 12);
     void drawTriangleMarker(const QPointF &position, const QColor &fillColor = Qt::red, const QColor &outlineColor = Qt::black, qreal size = 8.0);
     void drawScatterplot(const QString &seriesLabel, const QColor &pointColor = Qt::white, qreal pointSize = 3.0, const QColor &outlineColor = Qt::black);
-    void drawScatterplot(const QColor &pointColor = Qt::white, qreal pointSize = 3.0, const QColor &outlineColor = Qt::black);
 
     // Multi-series support methods
     void setSeriesColor(const QString &seriesLabel, const QColor &color);

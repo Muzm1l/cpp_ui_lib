@@ -4,7 +4,6 @@
 #include "bdwgraph.h"
 #include "brwgraph.h"
 #include "btwgraph.h"
-#include "customwaterfallgraph.h"
 #include "fdwgraph.h"
 #include "ftwgraph.h"
 #include "graphtype.h"
