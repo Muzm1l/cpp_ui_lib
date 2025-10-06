@@ -964,6 +964,9 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
     
     // Propagate the selection to all containers
     propagateTimeSelectionToAllContainers(selection);
+    
+    // Emit the signal for external components
+    emit TimeSelectionCreated(selection);
 }
 
 void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection)

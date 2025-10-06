@@ -132,6 +132,7 @@ private:
     void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
 
 signals:
+    void TimeSelectionCreated(const TimeSelectionSpan &selection);
 };
 
 #endif // GRAPHLAYOUT_H
