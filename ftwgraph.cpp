@@ -44,7 +44,17 @@ void FTWGraph::draw()
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        drawAllDataSeries(); // Draw all series with their respective colors
+        
+        // Draw scatterplots for each series with their respective colors
+        std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+        for (const QString &seriesLabel : seriesLabels)
+        {
+            if (isSeriesVisible(seriesLabel))
+            {
+                QColor seriesColor = getSeriesColor(seriesLabel);
+                drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+            }
+        }
     }
 }
 

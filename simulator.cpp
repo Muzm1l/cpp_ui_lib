@@ -1,21 +1,24 @@
 #include "simulator.h"
-#include <QRandomGenerator>
 #include <QDateTime>
+#include <QRandomGenerator>
 
 Simulator::Simulator(QObject *parent, QTimer *timer, GraphLayout *graphLayout)
     : QObject(parent), m_timer(timer), m_graphLayout(graphLayout), m_running(false)
 {
     qDebug() << "Simulator constructor called with timer:" << m_timer << "graphLayout:" << m_graphLayout;
-    
+
     // Initialize configurations and current values
     initializeConfigurations();
     initializeCurrentValues();
 
     // Connect timer to our tick handler
-    if (m_timer) {
+    if (m_timer)
+    {
         connect(m_timer, &QTimer::timeout, this, &Simulator::onTimerTick);
         qDebug() << "Simulator: Timer connected successfully";
-    } else {
+    }
+    else
+    {
         qDebug() << "Simulator: No timer provided!";
     }
 }
@@ -27,18 +30,22 @@ Simulator::~Simulator()
 
 void Simulator::start()
 {
-    if (m_timer && !m_running) {
+    if (m_timer && !m_running)
+    {
         m_timer->start();
         m_running = true;
         qDebug() << "Simulator started successfully";
-    } else {
+    }
+    else
+    {
         qDebug() << "Simulator start failed - timer:" << m_timer << "running:" << m_running;
     }
 }
 
 void Simulator::stop()
 {
-    if (m_timer && m_running) {
+    if (m_timer && m_running)
+    {
         m_timer->stop();
         m_running = false;
         qDebug() << "Simulator stopped";
@@ -80,7 +87,8 @@ void Simulator::updateValues()
 
 void Simulator::addDataPoints()
 {
-    if (!m_graphLayout) {
+    if (!m_graphLayout)
+    {
         return;
     }
 
@@ -88,20 +96,20 @@ void Simulator::addDataPoints()
 
     // Add new data points to each graph data source with precise timestamping
     m_graphLayout->addDataPointToDataSource(GraphType::FDW, "FDW-1", m_currentFDWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::FDW, "FDW-2", m_currentFDWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::FDW, "FDW-2", m_currentFDWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BDW, "BDW-1", m_currentBDWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::BDW, "BDW-2", m_currentBDWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BDW, "BDW-2", m_currentBDWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BRW, "BRW-1", m_currentBRWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::BRW, "BRW-2", m_currentBRWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BRW, "BRW-2", m_currentBRWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::LTW, "LTW-1", m_currentLTWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::LTW, "LTW-2", m_currentLTWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::LTW, "LTW-2", m_currentLTWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-1", m_currentBTWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-2", m_currentBTWValue+10, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-3", m_currentBTWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-2", m_currentBTWValue + 10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::BTW, "BTW-3", m_currentBTWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-1", m_currentRTWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-2", m_currentRTWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::RTW, "RTW-2", m_currentRTWValue + 10, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-1", m_currentFTWValue, currentTime);
-    m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-2", m_currentFTWValue+10, currentTime);
+    m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-2", m_currentFTWValue + 10, currentTime);
 
     qDebug() << "Added data points - FDW:" << m_currentFDWValue
              << "BDW:" << m_currentBDWValue
@@ -112,77 +120,100 @@ void Simulator::addDataPoints()
              << "FTW:" << m_currentFTWValue;
 }
 
-void Simulator::generateBulkData(WaterfallData* data, SimulatorConfig config, int numPoints)
+void Simulator::generateBulkData(WaterfallData *data, SimulatorConfig config, int numPoints)
 {
-    if (!data) {
+    if (!data)
+    {
         qDebug() << "Simulator: Null WaterfallData pointer provided";
         return;
     }
 
-    QDateTime currentTime = QDateTime::currentDateTime();
-    std::vector<QDateTime> timestamps;
-    std::vector<qreal> dataSeries;
-
-    // Generate timestamps and data for each point
-    // Generate data going backwards in time to fill the waterfall display
-    // Use smaller intervals to fit more data within the 15-minute window
-    for (int i = 0; i < numPoints; ++i) {
-        QDateTime timestamp = currentTime.addSecs(-i * 60); // Go backwards in time, 10 second intervals
-        timestamps.push_back(timestamp);
-
-        double timeFactor = static_cast<double>(i) / numPoints;
-
-        // Generate sine wave pattern
-        qreal value = config.startValue + (config.maxValue - config.minValue) * 0.5 * std::sin(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0;
-        
-        // Ensure value stays within bounds
-        value = qBound(config.minValue, value, config.maxValue);
-        dataSeries.push_back(value);
-    }
-
-    // Get the first series label from the data source
+    // Get all series labels from the data source
     std::vector<QString> seriesLabels = data->getDataSeriesLabels();
-    if (seriesLabels.empty()) {
+    if (seriesLabels.empty())
+    {
         qDebug() << "Simulator: No series labels found in WaterfallData";
         return;
     }
 
-    QString firstSeriesLabel = seriesLabels[0];
-    qDebug() << "Simulator: Adding bulk data to series:" << firstSeriesLabel;
+    qDebug() << "Simulator: Generating bulk data for" << seriesLabels.size() << "series in WaterfallData:" << data->getDataTitle();
 
-    // Add the data to the first series
-    data->addDataPointsToSeries(firstSeriesLabel, dataSeries, timestamps);
+    // Generate data for each series
+    for (size_t seriesIndex = 0; seriesIndex < seriesLabels.size(); ++seriesIndex)
+    {
+        const QString &seriesLabel = seriesLabels[seriesIndex];
 
-    qDebug() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end()) 
-             << "to" << *std::max_element(dataSeries.begin(), dataSeries.end())
-             << "for series:" << firstSeriesLabel;
+        QDateTime currentTime = QDateTime::currentDateTime();
+        std::vector<QDateTime> timestamps;
+        std::vector<qreal> dataSeries;
+
+        // Generate timestamps and data for each point
+        // Generate data going backwards in time to fill the waterfall display
+        // Use smaller intervals to fit more data within the 15-minute window
+        for (int i = 0; i < numPoints; ++i)
+        {
+            QDateTime timestamp = currentTime.addSecs(-i * 10); // Go backwards in time, 10 second intervals
+            timestamps.push_back(timestamp);
+
+            double timeFactor = static_cast<double>(i) / numPoints;
+
+            // Generate different patterns for different series
+            qreal value;
+            if (seriesIndex == 0)
+            {
+                // First series: sine wave pattern
+                value = config.startValue + (config.maxValue - config.minValue) * 0.5 * std::sin(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0;
+            }
+            else
+            {
+                // Additional series: cosine wave pattern with offset
+                qreal offset = (config.maxValue - config.minValue) * 0.2 * seriesIndex;
+                value = config.startValue + offset + (config.maxValue - config.minValue) * 0.3 * std::cos(timeFactor * 2 * M_PI) + (std::rand() % 100 - 50) / 100.0;
+            }
+
+            // Ensure value stays within bounds
+            value = qBound(config.minValue, value, config.maxValue);
+            dataSeries.push_back(value);
+        }
+
+        qDebug() << "Simulator: Adding bulk data to series:" << seriesLabel << "with" << dataSeries.size() << "points";
+
+        // Add the data to this series
+        data->addDataPointsToSeries(seriesLabel, dataSeries, timestamps);
+
+        qDebug() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end())
+                 << "to" << *std::max_element(dataSeries.begin(), dataSeries.end())
+                 << "for series:" << seriesLabel;
+    }
 }
 
 void Simulator::generateBulkDataForWaterfallData(
-    std::map<WaterfallData* , SimulatorConfig> &waterfallDataMap,
+    std::map<WaterfallData *, SimulatorConfig> &waterfallDataMap,
     int numPoints)
 {
     qDebug() << "Simulator: Generating bulk data for" << numPoints << "points using static method";
-    
+
     // Go through each of the waterfallDataMap
-    for (const auto& pair : waterfallDataMap) {
-        WaterfallData* data = pair.first;
+    for (const auto &pair : waterfallDataMap)
+    {
+        WaterfallData *data = pair.first;
         SimulatorConfig config = pair.second;
 
         qDebug() << "Simulator: Processing WaterfallData with title:" << data->getDataTitle();
-        
+
         // Generate the points based on the config
         generateBulkData(data, config, numPoints);
-        
+
         // Verify data was added
         std::vector<QString> seriesLabels = data->getDataSeriesLabels();
-        if (!seriesLabels.empty()) {
+        if (!seriesLabels.empty())
+        {
             QString firstSeries = seriesLabels[0];
-            qDebug() << "Simulator: Verified data added to series" << firstSeries 
+            qDebug() << "Simulator: Verified data added to series" << firstSeries
                      << "with" << data->getDataSeriesSize(firstSeries) << "points";
         }
     }
-    
+
     qDebug() << "Simulator: Static bulk data generation completed";
 }
 

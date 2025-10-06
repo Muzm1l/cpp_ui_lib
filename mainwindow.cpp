@@ -337,49 +337,78 @@ void MainWindow::setupCustomGraphsTab()
     fdwGraph->setObjectName("fdwGraph");
     fdwGraph->setMouseSelectionEnabled(true);
     fdwGraph->setDataSource(*fdwData); // Connect to data source
-    qDebug() << "FDW Graph connected to data source";
+    
+    // Set series colors for FDW graph
+    fdwGraph->setSeriesColor("FDW-1", QColor(Qt::red));
+    fdwGraph->setSeriesColor("FDW-2", QColor(Qt::green));
+    qDebug() << "FDW Graph connected to data source and colors set";
 
     // BDW Graph - Bandwidth Domain Waterfall
     bdwGraph = new BDWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     bdwGraph->setObjectName("bdwGraph");
     bdwGraph->setMouseSelectionEnabled(true);
     bdwGraph->setDataSource(*bdwData); // Connect to data source
-    qDebug() << "BDW Graph connected to data source";
+    
+    // Set series colors for BDW graph
+    bdwGraph->setSeriesColor("BDW-1", QColor(Qt::red));
+    bdwGraph->setSeriesColor("BDW-2", QColor(Qt::green));
+    qDebug() << "BDW Graph connected to data source and colors set";
 
     // BRW Graph - Bit Rate Waterfall
     brwGraph = new BRWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     brwGraph->setObjectName("brwGraph");
     brwGraph->setMouseSelectionEnabled(true);
     brwGraph->setDataSource(*brwData); // Connect to data source
-    qDebug() << "BRW Graph connected to data source";
+    
+    // Set series colors for BRW graph
+    brwGraph->setSeriesColor("BRW-1", QColor(Qt::green));
+    brwGraph->setSeriesColor("BRW-2", QColor(Qt::blue));
+    qDebug() << "BRW Graph connected to data source and colors set";
 
     // LTW Graph - Latency Time Waterfall
     ltwGraph = new LTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     ltwGraph->setObjectName("ltwGraph");
     ltwGraph->setMouseSelectionEnabled(true);
     ltwGraph->setDataSource(*ltwData); // Connect to data source
-    qDebug() << "LTW Graph connected to data source";
+    
+    // Set series colors for LTW graph
+    ltwGraph->setSeriesColor("LTW-1", QColor(Qt::red));
+    ltwGraph->setSeriesColor("LTW-2", QColor(Qt::green));
+    qDebug() << "LTW Graph connected to data source and colors set";
 
     // BTW Graph - Bit Time Waterfall
     btwGraph = new BTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     btwGraph->setObjectName("btwGraph");
     btwGraph->setMouseSelectionEnabled(true);
     btwGraph->setDataSource(*btwData); // Connect to data source
-    qDebug() << "BTW Graph connected to data source";
+    
+    // Set series colors for BTW graph
+    btwGraph->setSeriesColor("BTW-1", QColor(Qt::red));
+    btwGraph->setSeriesColor("BTW-2", QColor(Qt::green));
+    btwGraph->setSeriesColor("BTW-3", QColor(Qt::blue));
+    qDebug() << "BTW Graph connected to data source and colors set";
 
     // RTW Graph - Rate Time Waterfall
     rtwGraph = new RTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     rtwGraph->setObjectName("rtwGraph");
     rtwGraph->setMouseSelectionEnabled(true);
     rtwGraph->setDataSource(*rtwData); // Connect to data source
-    qDebug() << "RTW Graph connected to data source";
+    
+    // Set series colors for RTW graph
+    rtwGraph->setSeriesColor("RTW-1", QColor(Qt::red));
+    rtwGraph->setSeriesColor("RTW-2", QColor(Qt::green));
+    qDebug() << "RTW Graph connected to data source and colors set";
 
     // FTW Graph - Frequency Time Waterfall
     ftwGraph = new FTWGraph(ui->customGraphsTab, true, 8, TimeInterval::FifteenMinutes);
     ftwGraph->setObjectName("ftwGraph");
     ftwGraph->setMouseSelectionEnabled(true);
     ftwGraph->setDataSource(*ftwData); // Connect to data source
-    qDebug() << "FTW Graph connected to data source";
+    
+    // Set series colors for FTW graph
+    ftwGraph->setSeriesColor("FTW-1", QColor(Qt::red));
+    ftwGraph->setSeriesColor("FTW-2", QColor(Qt::green));
+    qDebug() << "FTW Graph connected to data source and colors set";
 
     // Add graphs to grid layout (3x3 with 2 empty spaces)
     gridLayout->addWidget(fdwGraph, 0, 0);
