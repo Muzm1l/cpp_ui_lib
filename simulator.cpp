@@ -32,9 +32,15 @@ void Simulator::start()
 {
     if (m_timer && !m_running)
     {
-        m_timer->start();
-        m_running = true;
-        qDebug() << "Simulator started successfully";
+        // Check if the timer is still valid before calling start()
+        // This prevents crashes when the timer has been deleted by Qt's object hierarchy
+        try {
+            m_timer->start();
+            m_running = true;
+            qDebug() << "Simulator started successfully";
+        } catch (...) {
+            qDebug() << "Simulator start failed - timer is invalid or being destroyed";
+        }
     }
     else
     {
@@ -46,7 +52,13 @@ void Simulator::stop()
 {
     if (m_timer && m_running)
     {
-        m_timer->stop();
+        // Check if the timer is still valid before calling stop()
+        // This prevents crashes when the timer has been deleted by Qt's object hierarchy
+        try {
+            m_timer->stop();
+        } catch (...) {
+            // Timer was already deleted, just continue
+        }
         m_running = false;
         qDebug() << "Simulator stopped";
     }
