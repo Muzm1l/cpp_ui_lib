@@ -19,7 +19,7 @@
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
-#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 128
+#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 80
 
 class TimelineVisualizerWidget : public QWidget
 {

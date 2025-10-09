@@ -2,7 +2,7 @@
 #include <QDebug>
 
 GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer)
-    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(150), m_graphViewSize(80, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap)
+    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(80), m_graphViewSize(226, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap)
 {
 
     // If the timer is not provided, create a default 1-second timer
