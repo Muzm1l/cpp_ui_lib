@@ -52,7 +52,12 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_mainLayout->addLayout(m_leftLayout, 1); // Give stretch factor of 1 to left layout
 
     // Create TimelineSelectionView with timer
-    m_timelineSelectionView = new TimeSelectionVisualizer(this, m_timer);
+    // Calculate combined height of combobox and zoompanel for clear button height
+    int comboboxHeight = m_comboBox->sizeHint().height();
+    int zoompanelHeight = m_zoomPanel->maximumHeight();
+    int clearButtonHeight = comboboxHeight + zoompanelHeight;
+    
+    m_timelineSelectionView = new TimeSelectionVisualizer(this, m_timer, clearButtonHeight);
     m_mainLayout->addWidget(m_timelineSelectionView);
     m_timelineSelectionView->setCurrentTime(QTime::currentTime());
     m_timelineSelectionView->setTimeLineLength(TimeInterval::FifteenMinutes);

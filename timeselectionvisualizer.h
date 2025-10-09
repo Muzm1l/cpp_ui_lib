@@ -67,7 +67,7 @@ class TimeSelectionVisualizer : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimeSelectionVisualizer(QWidget* parent = nullptr, QTimer* timer = nullptr);
+    explicit TimeSelectionVisualizer(QWidget* parent = nullptr, QTimer* timer = nullptr, int clearButtonHeight = BUTTON_SIZE);
     ~TimeSelectionVisualizer();
 
     // Delegate methods to the visualizer widget

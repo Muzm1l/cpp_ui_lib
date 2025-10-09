@@ -127,7 +127,7 @@ void TimeVisualizerWidget::updateVisualization()
     update(); // Trigger a repaint
 }
 
-TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget* parent, QTimer* timer)
+TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget* parent, QTimer* timer, int clearButtonHeight)
     : QWidget(parent)
     , m_button(nullptr)
     , m_visualizerWidget(nullptr)
@@ -148,7 +148,7 @@ TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget* parent, QTimer* timer)
 
     // Create button with grey background and white border
     m_button = new QPushButton("H", this);
-    m_button->setFixedSize(BUTTON_SIZE, BUTTON_SIZE);
+    m_button->setFixedSize(BUTTON_SIZE, clearButtonHeight);
     m_button->setContentsMargins(0, 0, 0, 0); // Remove button margins
     m_button->setStyleSheet(
         "QPushButton {"
