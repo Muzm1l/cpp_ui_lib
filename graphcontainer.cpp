@@ -36,7 +36,10 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     // Create ZoomPanel
     m_zoomPanel = new ZoomPanel(this);
     m_zoomPanel->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-    m_zoomPanel->setMaximumHeight(50); // Limit zoom panel height
+    // Set zoompanel height to match combobox height
+    int comboboxHeight = m_comboBox->sizeHint().height();
+    m_zoomPanel->setMaximumHeight(comboboxHeight);
+    m_zoomPanel->setMinimumHeight(comboboxHeight);
 
     // Add ComboBox and ZoomPanel to left layout first
     m_leftLayout->addWidget(m_comboBox);
@@ -53,7 +56,6 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
 
     // Create TimelineSelectionView with timer
     // Calculate combined height of combobox and zoompanel for clear button height
-    int comboboxHeight = m_comboBox->sizeHint().height();
     int zoompanelHeight = m_zoomPanel->maximumHeight();
     int clearButtonHeight = comboboxHeight + zoompanelHeight;
     
