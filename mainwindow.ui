@@ -49,16 +49,6 @@
          </rect>
         </property>
        </widget>
-       <widget class="TacticalSolutionView" name="widget_2" native="true">
-        <property name="geometry">
-         <rect>
-          <x>60</x>
-          <y>450</y>
-          <width>226</width>
-          <height>240</height>
-         </rect>
-        </property>
-       </widget>
        <widget class="GraphContainer" name="graphContainer" native="true">
         <property name="geometry">
          <rect>
@@ -150,6 +140,22 @@
         <string>Graph Components</string>
        </attribute>
       </widget>
+      <widget class="QWidget" name="TacticalViewTab">
+       <attribute name="title">
+        <string>Tactical View</string>
+       </attribute>
+       <widget class="TacticalSolutionView" name="widget_2" native="true">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>10</y>
+          <width>800</width>
+          <height>600</height>
+         </rect>
+        </property>
+       </widget>
+      </widget>
+
      </widget>
     </item>
    </layout>
