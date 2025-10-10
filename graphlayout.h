@@ -6,6 +6,7 @@
 #include "waterfalldata.h"
 #include <QDateTime>
 #include <QHBoxLayout>
+#include <QResizeEvent>
 #include <QString>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -104,6 +105,9 @@ public:
     void clearAllHardRangeLimits();
     bool hasHardRangeLimits(const GraphType graphType) const;
     std::pair<qreal, qreal> getHardRangeLimits(const GraphType graphType) const;
+
+protected:
+    void resizeEvent(QResizeEvent *event) override;
 
 public slots:
     void onTimerTick();

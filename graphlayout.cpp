@@ -259,136 +259,187 @@ void GraphLayout::attachContainerDataSources()
 
 void GraphLayout::updateLayoutSizing()
 {
-    // Calculate total dimensions based on visible containers
-    int totalWidth = 0;
-    int totalHeight = 0;
-
+    // Get the current geometry of this GraphLayout widget
+    QSize currentSize = size();
+    if (currentSize.isEmpty()) {
+        // If size is not set yet, use the minimum size hint
+        currentSize = minimumSizeHint();
+    }
+    
+    int availableHeight = currentSize.height();
+    
+    // Calculate container heights based on layout type and available space
+    int containerHeight = 0;
+    int numRows = 1;
+    
     switch (m_layoutType)
     {
     case LayoutType::GPW1W:
-    {
-        // Single container
-        if (m_graphContainers[0]->isVisible())
-        {
-            QSize containerSize = m_graphContainers[0]->getTotalContainerSize();
-            totalWidth = containerSize.width();
-            totalHeight = containerSize.height();
-        }
+        numRows = 1;
         break;
-    }
     case LayoutType::GPW2WH:
-    {
-        // Two containers horizontally
-        int maxHeight = 0;
-        for (int i = 0; i < 2; ++i)
-        {
-            if (m_graphContainers[i]->isVisible())
-            {
-                QSize containerSize = m_graphContainers[i]->getTotalContainerSize();
-                totalWidth += containerSize.width();
-                maxHeight = qMax(maxHeight, containerSize.height());
-            }
-        }
-        totalHeight = maxHeight;
-        if (totalWidth > 0)
-        {
-            totalWidth += 1; // Add spacing between containers
-        }
-        break;
-    }
     case LayoutType::GPW4WH:
-    {
-        // Four containers horizontally
-        int maxHeight = 0;
-        for (int i = 0; i < 4; ++i)
-        {
-            if (m_graphContainers[i]->isVisible())
-            {
-                QSize containerSize = m_graphContainers[i]->getTotalContainerSize();
-                totalWidth += containerSize.width();
-                maxHeight = qMax(maxHeight, containerSize.height());
-            }
-        }
-        totalHeight = maxHeight;
-        if (totalWidth > 0)
-        {
-            totalWidth += 3; // Add spacing between 4 containers (3 gaps)
-        }
+        numRows = 1;
         break;
-    }
     case LayoutType::GPW2WV:
-    {
-        // Two containers vertically
-        int maxWidth = 0;
-        for (int i = 0; i < 2; ++i)
-        {
-            if (m_graphContainers[i]->isVisible())
-            {
-                QSize containerSize = m_graphContainers[i]->getTotalContainerSize();
-                maxWidth = qMax(maxWidth, containerSize.width());
-                totalHeight += containerSize.height();
-            }
-        }
-        totalWidth = maxWidth;
-        if (totalHeight > 0)
-        {
-            totalHeight += 1; // Add spacing between containers
-        }
+        numRows = 2;
         break;
-    }
     case LayoutType::GPW4W:
-    {
-        // Four containers in 2x2 grid
-        int maxWidthRow1 = 0, maxWidthRow2 = 0;
-        int maxHeightRow1 = 0, maxHeightRow2 = 0;
-
-        // Row 1: containers 0, 1
-        for (int i = 0; i < 2; ++i)
-        {
-            if (m_graphContainers[i]->isVisible())
-            {
-                QSize containerSize = m_graphContainers[i]->getTotalContainerSize();
-                maxWidthRow1 += containerSize.width();
-                maxHeightRow1 = qMax(maxHeightRow1, containerSize.height());
-            }
-        }
-        if (maxWidthRow1 > 0)
-        {
-            maxWidthRow1 += 1; // Add spacing between containers in row
-        }
-
-        // Row 2: containers 2, 3
-        for (int i = 2; i < 4; ++i)
-        {
-            if (m_graphContainers[i]->isVisible())
-            {
-                QSize containerSize = m_graphContainers[i]->getTotalContainerSize();
-                maxWidthRow2 += containerSize.width();
-                maxHeightRow2 = qMax(maxHeightRow2, containerSize.height());
-            }
-        }
-        if (maxWidthRow2 > 0)
-        {
-            maxWidthRow2 += 1; // Add spacing between containers in row
-        }
-
-        totalWidth = qMax(maxWidthRow1, maxWidthRow2);
-        totalHeight = maxHeightRow1 + maxHeightRow2;
-        if (totalHeight > 0)
-        {
-            totalHeight += 1; // Add spacing between rows
-        }
+        numRows = 2;
         break;
-    }
     case LayoutType::HIDDEN:
-        totalWidth = 0;
-        totalHeight = 0;
+        numRows = 0;
         break;
     }
-
-    setMinimumSize(totalWidth, totalHeight);
-    setMaximumSize(totalWidth, totalHeight);
+    
+    if (numRows > 0) {
+        // Calculate height per row, accounting for spacing between rows
+        int spacingHeight = (numRows > 1) ? (numRows - 1) : 0; // 1px spacing between rows
+        containerHeight = (availableHeight - spacingHeight) / numRows;
+        
+        // Ensure minimum height
+        containerHeight = qMax(containerHeight, 200);
+    }
+    
+    // Set container heights for all visible containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible())
+        {
+            container->setContainerHeight(containerHeight);
+        }
+    }
+    
+    // Calculate widths based on formula: totalWidth = N_Columns * container_width + 80
+    int numColumns = 0;
+    int containerWidth = 0;
+    
+    switch (m_layoutType)
+    {
+    case LayoutType::GPW1W:
+        numColumns = 1;
+        break;
+    case LayoutType::GPW2WH:
+        numColumns = 2;
+        break;
+    case LayoutType::GPW4WH:
+        numColumns = 4;
+        break;
+    case LayoutType::GPW2WV:
+        numColumns = 1; // Stacked vertically, so 1 column
+        break;
+    case LayoutType::GPW4W:
+        numColumns = 2; // 2x2 grid, so 2 columns
+        break;
+    case LayoutType::HIDDEN:
+        numColumns = 0;
+        break;
+    }
+    
+    if (numColumns > 0) {
+        // Calculate container width from available space
+        // Formula: totalWidth = N_Columns * container_width + 80
+        // So: container_width = (totalWidth - 80) / N_Columns
+        int availableWidth = currentSize.width();
+        containerWidth = (availableWidth - 80) / numColumns;
+        
+        // Ensure minimum width
+        containerWidth = qMax(containerWidth, 200);
+        
+        // Set container widths based on layout type
+        switch (m_layoutType)
+        {
+        case LayoutType::GPW1W:
+            if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
+                m_graphContainers[0]->setContainerWidth(containerWidth + 80);
+            }
+            break;
+        case LayoutType::GPW2WH:
+            for (int i = 0; i < 2; ++i) {
+                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                    if (i == 0) {
+                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
+                    } else {
+                        m_graphContainers[i]->setContainerWidth(containerWidth);
+                    }
+                }
+            }
+            break;
+        case LayoutType::GPW4WH:
+            for (int i = 0; i < 4; ++i) {
+                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                    if (i == 0) {
+                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
+                    } else {
+                        m_graphContainers[i]->setContainerWidth(containerWidth);
+                    }
+                }
+            }
+            break;
+        case LayoutType::GPW2WV:
+            // For vertical stacking, both containers should have the same width
+            // Containers 0 and 2 are used in GPW2WV layout
+            if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
+                m_graphContainers[0]->setContainerWidth(containerWidth + 80);
+            }
+            if (m_graphContainers[2] && m_graphContainers[2]->isVisible()) {
+                m_graphContainers[2]->setContainerWidth(containerWidth + 80);
+            }
+            break;
+        case LayoutType::GPW4W:
+            // For 2x2 grid, first container in each row gets extra width
+            for (int i = 0; i < 4; ++i) {
+                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                    if (i == 0 || i == 2) {
+                        // First container in each row gets extra 80px for timeline view
+                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
+                    } else {
+                        // Second container in each row gets standard width
+                        m_graphContainers[i]->setContainerWidth(containerWidth);
+                    }
+                }
+            }
+            break;
+        case LayoutType::HIDDEN:
+            break;
+        }
+        
+        // Calculate and set total width based on layout type
+        int totalWidth = 0;
+        switch (m_layoutType)
+        {
+        case LayoutType::GPW1W:
+            totalWidth = containerWidth + 80;
+            break;
+        case LayoutType::GPW2WH:
+            totalWidth = (containerWidth + 80) + containerWidth;
+            break;
+        case LayoutType::GPW4WH:
+            totalWidth = (containerWidth + 80) + containerWidth + containerWidth + containerWidth;
+            break;
+        case LayoutType::GPW2WV:
+            totalWidth = containerWidth + 80; // Both containers have same width with timeline view
+            break;
+        case LayoutType::GPW4W:
+            // 2x2 grid: first container in each row gets +80px
+            totalWidth = (containerWidth + 80) + containerWidth; // Row 1
+            break;
+        case LayoutType::HIDDEN:
+            totalWidth = 0;
+            break;
+        }
+        setFixedWidth(totalWidth);
+    }
+    
     updateGeometry();
+}
+
+void GraphLayout::resizeEvent(QResizeEvent *event)
+{
+    QWidget::resizeEvent(event);
+    
+    // Update container heights when the layout is resized
+    updateLayoutSizing();
 }
 
 // Data point methods implementation
