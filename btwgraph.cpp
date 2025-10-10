@@ -324,7 +324,9 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             graphicsScene->addItem(angledLine);
             
             // Add blue text label with rectangular outline beside the marker
-            QGraphicsTextItem *textLabel = new QGraphicsTextItem("R" + QString::number(deltaValue, 'f', 1));
+            QString prefix = (deltaValue >= 0) ? "R" : "L";
+            QString displayValue = (deltaValue >= 0) ? QString::number(deltaValue, 'f', 1) : QString::number(-deltaValue, 'f', 1);
+            QGraphicsTextItem *textLabel = new QGraphicsTextItem(prefix + displayValue);
             QFont font = textLabel->font();
             font.setPointSizeF(8.0);
             font.setBold(true);
