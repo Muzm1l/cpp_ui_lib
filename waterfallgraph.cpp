@@ -1,4 +1,6 @@
 #include "waterfallgraph.h"
+#include <QApplication>
+#include <QPointF>
 
 /**
  * @brief Construct a new WaterfallGraph::WaterfallGraph object
@@ -57,7 +59,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     overlayView->setRenderHint(QPainter::Antialiasing);
     overlayView->setDragMode(QGraphicsView::NoDrag);                   // We'll handle our own mouse events
     overlayView->setMouseTracking(true);                               // Enable mouse tracking
-    overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
+    // Remove the transparent mouse events attribute to allow interactive items to receive mouse events
+    // overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
 
     // Set transparent background for overlay view
     overlayView->setBackgroundBrush(QBrush(Qt::transparent));
@@ -599,6 +602,19 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
         {
+            // First, try to forward the mouse event to the overlay view
+            if (overlayView && overlayScene) {
+                QPointF overlayScenePos = overlayView->mapToScene(event->pos());
+                QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
+                if (itemAtPos) {
+                    qDebug() << "WaterfallGraph: Found interactive item at overlay position:" << overlayScenePos << "item:" << itemAtPos;
+                    // Forward the mouse event to the overlay view
+                    QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
+                    QApplication::postEvent(overlayView, overlayEvent);
+                    return; // Don't process further, let the overlay handle it
+                }
+            }
+
             isDragging = true;
             lastMousePos = scenePos;
 
@@ -632,6 +648,19 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
  */
 void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
 {
+    // First, try to forward the mouse event to the overlay view if we're dragging
+    if (isDragging && overlayView && overlayScene) {
+        QPointF overlayScenePos = overlayView->mapToScene(event->pos());
+        QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
+        if (itemAtPos) {
+            qDebug() << "WaterfallGraph: Forwarding mouse move to overlay item:" << itemAtPos;
+            // Forward the mouse event to the overlay view
+            QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
+            QApplication::postEvent(overlayView, overlayEvent);
+            return; // Don't process further, let the overlay handle it
+        }
+    }
+
     if (isDragging && (event->buttons() & Qt::LeftButton))
     {
         // Convert widget coordinates to scene coordinates
@@ -662,6 +691,18 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
  */
 void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
 {
+    // First, try to forward the mouse event to the overlay view if we're dragging
+    if (isDragging && overlayView && overlayScene) {
+        QPointF overlayScenePos = overlayView->mapToScene(event->pos());
+        QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
+        if (itemAtPos) {
+            qDebug() << "WaterfallGraph: Forwarding mouse release to overlay item:" << itemAtPos;
+            // Forward the mouse event to the overlay view
+            QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
+            QApplication::postEvent(overlayView, overlayEvent);
+        }
+    }
+
     if (event->button() == Qt::LeftButton)
     {
         // End selection if mouse selection is enabled

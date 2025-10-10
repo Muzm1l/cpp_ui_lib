@@ -1,5 +1,7 @@
 #include "btwgraph.h"
+#include "btwinteractiveoverlay.h"
 #include <QDebug>
+#include <QRandomGenerator>
 
 /**
  * @brief Construct a new BTWGraph::BTWGraph object
@@ -11,8 +13,12 @@
  */
 BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
+    , m_interactiveOverlay(nullptr)
 {
     qDebug() << "BTWGraph constructor called";
+    
+    // Setup interactive overlay
+    setupInteractiveOverlay();
 }
 
 /**
@@ -76,12 +82,46 @@ void BTWGraph::draw()
 
 /**
  * @brief Handle mouse click events specific to BTW graph
+ * Adds a single interactive marker when clicking on the graph
+ * Removes any existing marker before adding a new one
  *
  * @param scenePos Scene position of the click
  */
 void BTWGraph::onMouseClick(const QPointF &scenePos)
 {
     qDebug() << "BTWGraph mouse clicked at scene position:" << scenePos;
+    
+    // Check if we clicked on an existing interactive marker in the overlay scene
+    if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
+        QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
+        if (itemAtPos) {
+            qDebug() << "BTWGraph: Clicked on existing interactive item:" << itemAtPos << "letting it handle the event";
+            // Don't add a new marker, let the interactive item handle the click
+            return;
+        } else {
+            qDebug() << "BTWGraph: No interactive item found at position:" << scenePos;
+            qDebug() << "BTWGraph: Overlay scene items count:" << m_interactiveOverlay->getOverlayScene()->items().size();
+        }
+    }
+    
+    // Only add a marker if we clicked on empty space (no interactive items)
+    if (m_interactiveOverlay) {
+        // Clear any existing markers first (only allow one marker)
+        m_interactiveOverlay->clearAllMarkers();
+        
+        // Convert scene position to overlay coordinates
+        QPointF overlayPos = scenePos;
+        
+        // Add a data point marker at the clicked position
+        QDateTime timestamp = QDateTime::currentDateTime();
+        qreal value = 50.0; // Default value
+        QString seriesLabel = "BTW-Click";
+        
+        m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
+        
+        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos;
+    }
+    
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -356,4 +396,89 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
     }
     
     qDebug() << "BTW: Drew" << markersDrawn << "delta-based circle markers";
+}
+
+/**
+ * @brief Get the interactive overlay
+ * @return Pointer to the interactive overlay
+ */
+BTWInteractiveOverlay* BTWGraph::getInteractiveOverlay() const
+{
+    return m_interactiveOverlay;
+}
+
+/**
+ * @brief Override resize event to update overlay
+ * @param event Resize event
+ */
+void BTWGraph::resizeEvent(QResizeEvent *event)
+{
+    WaterfallGraph::resizeEvent(event);
+    
+    // Update overlay after resize
+    if (m_interactiveOverlay) {
+        m_interactiveOverlay->updateOverlay();
+    }
+}
+
+/**
+ * @brief Setup interactive overlay
+ */
+void BTWGraph::setupInteractiveOverlay()
+{
+    m_interactiveOverlay = new BTWInteractiveOverlay(this, this);
+    
+    // Connect overlay signals
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerAdded, 
+            this, [this](InteractiveGraphicsItem *marker, BTWInteractiveOverlay::MarkerType type) {
+                onMarkerAdded(marker, static_cast<int>(type));
+            });
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerRemoved, 
+            this, [this](InteractiveGraphicsItem *marker, BTWInteractiveOverlay::MarkerType type) {
+                onMarkerRemoved(marker, static_cast<int>(type));
+            });
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerMoved, 
+            this, &BTWGraph::onMarkerMoved);
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerRotated, 
+            this, &BTWGraph::onMarkerRotated);
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerClicked,
+            this, &BTWGraph::onMarkerClicked);
+    
+    qDebug() << "BTWGraph: Interactive overlay setup complete";
+}
+
+
+void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
+{
+    Q_UNUSED(marker);
+    Q_UNUSED(type);
+    qDebug() << "BTWGraph: Marker added, type:" << type;
+}
+
+void BTWGraph::onMarkerRemoved(InteractiveGraphicsItem *marker, int type)
+{
+    Q_UNUSED(marker);
+    Q_UNUSED(type);
+    qDebug() << "BTWGraph: Marker removed, type:" << type;
+}
+
+void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &newPosition)
+{
+    Q_UNUSED(marker);
+    Q_UNUSED(newPosition);
+    qDebug() << "BTWGraph: Marker moved to:" << newPosition;
+}
+
+void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
+{
+    Q_UNUSED(marker);
+    Q_UNUSED(angle);
+    qDebug() << "BTWGraph: Marker rotated by:" << angle << "degrees";
+}
+
+void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
+{
+    Q_UNUSED(marker);
+    Q_UNUSED(position);
+    qDebug() << "BTWGraph: Marker clicked at:" << position;
 }

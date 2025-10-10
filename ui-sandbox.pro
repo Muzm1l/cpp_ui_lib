@@ -38,7 +38,9 @@ SOURCES += \
     ftwgraph.cpp \
     ltwgraph.cpp \
     rtwgraph.cpp \
-    simulator.cpp 
+    simulator.cpp \
+    interactivegraphicsitem.cpp \
+    btwinteractiveoverlay.cpp 
 
 HEADERS += \
     graphcontainer.h \
@@ -62,7 +64,9 @@ HEADERS += \
     ftwgraph.h \
     ltwgraph.h \
     rtwgraph.h \
-    simulator.h 
+    simulator.h \
+    interactivegraphicsitem.h \
+    btwinteractiveoverlay.h 
 
 FORMS += \
     mainwindow.ui

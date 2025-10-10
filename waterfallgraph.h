@@ -166,6 +166,9 @@ public:
 
     // Test method to manually create a selection rectangle
     void testSelectionRectangle();
+    
+    // Public access to overlay scene for interactive elements
+    QGraphicsScene* getOverlayScene() const { return overlayScene; }
 
     // Range limiting methods
     void setRangeLimitingEnabled(bool enabled);
