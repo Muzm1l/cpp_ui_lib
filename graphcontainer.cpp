@@ -1,9 +1,17 @@
 #include "graphcontainer.h"
 #include <QDebug>
 
-GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer)
+GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer, int containerWidth, int containerHeight)
     : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(80), m_graphViewSize(226, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap)
 {
+    // Set size policy to expand both horizontally and vertically
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    // Set container geometry if provided
+    if (containerWidth > 0 && containerHeight > 0)
+    {
+        setFixedSize(containerWidth, containerHeight);
+    }
 
     // If the timer is not provided, create a default 1-second timer
     if (!m_timer)
@@ -67,11 +75,14 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     // Create TimelineView (conditionally based on showTimelineView) with timer
     if (m_showTimelineView)
     {
+        qDebug() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
         m_timelineView = new TimelineView(this, m_timer);
         m_mainLayout->addWidget(m_timelineView);
+        qDebug() << "GraphContainer constructor: TimelineView created and added to layout";
     }
     else
     {
+        qDebug() << "GraphContainer constructor: Not creating TimelineView, showTimelineView = false";
         m_timelineView = nullptr;
     }
 
@@ -134,15 +145,23 @@ GraphContainer::~GraphContainer()
 
 void GraphContainer::setShowTimelineView(bool showTimelineView)
 {
+    qDebug() << "GraphContainer::setShowTimelineView called with:" << showTimelineView;
     m_showTimelineView = showTimelineView;
     if (m_timelineView)
     {
+        qDebug() << "GraphContainer: Setting existing TimelineView visibility to:" << showTimelineView;
         m_timelineView->setVisible(showTimelineView);
+        qDebug() << "GraphContainer: TimelineView visibility after setting:" << m_timelineView->isVisible();
+        qDebug() << "GraphContainer: TimelineView size:" << m_timelineView->size();
     }
     else
     {
+        qDebug() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
         m_timelineView = new TimelineView(this, m_timer);
         m_mainLayout->addWidget(m_timelineView);
+        m_timelineView->setVisible(showTimelineView);
+        qDebug() << "GraphContainer: New TimelineView visibility after setting:" << m_timelineView->isVisible();
+        qDebug() << "GraphContainer: New TimelineView size:" << m_timelineView->size();
 
         // Re-establish event connections to include the new TimelineView
         setupEventConnections();
@@ -202,6 +221,71 @@ QSize GraphContainer::getTotalContainerSize() const
     totalWidth += 2; // 2 spacings: between graph and timeline selection, and between timeline selection and timeline view
 
     return QSize(totalWidth, totalHeight);
+}
+
+// Container geometry methods
+void GraphContainer::setContainerHeight(int height)
+{
+    if (height > 0)
+    {
+        QSize currentSize = size();
+        setFixedSize(currentSize.width(), height);
+    }
+    else
+    {
+        // Remove height constraint by setting size policy back to expanding
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+}
+
+void GraphContainer::setContainerWidth(int width)
+{
+    if (width > 0)
+    {
+        QSize currentSize = size();
+        setFixedSize(width, currentSize.height());
+    }
+    else
+    {
+        // Remove width constraint by setting size policy back to expanding
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+}
+
+void GraphContainer::setContainerSize(int width, int height)
+{
+    if (width > 0 && height > 0)
+    {
+        setFixedSize(width, height);
+    }
+    else if (width > 0)
+    {
+        setContainerWidth(width);
+    }
+    else if (height > 0)
+    {
+        setContainerHeight(height);
+    }
+    else
+    {
+        // Remove size constraints by setting size policy back to expanding
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    }
+}
+
+int GraphContainer::getContainerHeight() const
+{
+    return height();
+}
+
+int GraphContainer::getContainerWidth() const
+{
+    return width();
+}
+
+QSize GraphContainer::getContainerSize() const
+{
+    return size();
 }
 
 void GraphContainer::updateTotalContainerSize()

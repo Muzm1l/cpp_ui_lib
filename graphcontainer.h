@@ -29,13 +29,21 @@ class GraphContainer : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), QTimer *timer = nullptr);
+    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), QTimer *timer = nullptr, int containerWidth = 0, int containerHeight = 0);
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
 
     // Sizing methods
     int getTimelineWidth() const;
+    
+    // Container geometry methods
+    void setContainerHeight(int height);
+    void setContainerWidth(int width);
+    void setContainerSize(int width, int height);
+    int getContainerHeight() const;
+    int getContainerWidth() const;
+    QSize getContainerSize() const;
 
     // Graph view sizing methods
     void setGraphViewSize(int width, int height);

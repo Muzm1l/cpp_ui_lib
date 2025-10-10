@@ -26,7 +26,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Create GraphLayout programmatically with default graph types and timer
     graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap);
     graphgrid->setObjectName("graphgrid");
-    graphgrid->setGeometry(QRect(100, 100, 611, 900));
+    graphgrid->setGeometry(QRect(100, 100, 900, 900));
 
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);

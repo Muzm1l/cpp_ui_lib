@@ -25,6 +25,10 @@ Simulator::Simulator(QObject *parent, QTimer *timer, GraphLayout *graphLayout)
 
 Simulator::~Simulator()
 {
+    // Disconnect from timer first to prevent signal emission during destruction
+    if (m_timer) {
+        disconnect(m_timer, &QTimer::timeout, this, &Simulator::onTimerTick);
+    }
     stop();
 }
 
@@ -35,9 +39,14 @@ void Simulator::start()
         // Check if the timer is still valid before calling start()
         // This prevents crashes when the timer has been deleted by Qt's object hierarchy
         try {
-            m_timer->start();
-            m_running = true;
-            qDebug() << "Simulator started successfully";
+            // Additional safety check: verify the timer object is still valid
+            if (m_timer->parent() != nullptr) {
+                m_timer->start();
+                m_running = true;
+                qDebug() << "Simulator started successfully";
+            } else {
+                qDebug() << "Simulator start failed - timer parent is null";
+            }
         } catch (...) {
             qDebug() << "Simulator start failed - timer is invalid or being destroyed";
         }
@@ -55,12 +64,22 @@ void Simulator::stop()
         // Check if the timer is still valid before calling stop()
         // This prevents crashes when the timer has been deleted by Qt's object hierarchy
         try {
-            m_timer->stop();
+            // Additional safety check: verify the timer object is still valid
+            // Check if the timer's parent is still valid (not being destroyed)
+            if (m_timer->parent() != nullptr) {
+                m_timer->stop();
+            }
         } catch (...) {
             // Timer was already deleted, just continue
         }
         m_running = false;
         qDebug() << "Simulator stopped";
+    }
+    else if (m_running)
+    {
+        // Timer is null but we were running - just set running to false
+        m_running = false;
+        qDebug() << "Simulator stopped (timer was null)";
     }
 }
 
