@@ -94,7 +94,7 @@ MainWindow::MainWindow(QWidget *parent)
     // graphgrid->setRangeLimits(GraphType::RTW, 36.0, 84.0);  // Right Track Window
     graphgrid->setHardRangeLimits(GraphType::FTW, 45.0, 90.0);  // Frequency Time Window
 
-    ui->widget_2->setData(
+    ui->tsv->setData(
         this->currentShipSpeed,
         this->currentOwnShipBearing,
         this->currentSensorBearing,
@@ -182,7 +182,7 @@ void MainWindow::updateSimulation()
     this->currentSelectedTrackCourse = fmod(this->currentSelectedTrackCourse + 360.0, 360.0);
 
     // Push updated values into TacticalSolutionView
-    ui->widget_2->setData(
+    ui->tsv->setData(
         this->currentShipSpeed,
         this->currentOwnShipBearing,
         this->currentSensorBearing,

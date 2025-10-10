@@ -68,6 +68,8 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     int clearButtonHeight = comboboxHeight + zoompanelHeight;
     
     m_timelineSelectionView = new TimeSelectionVisualizer(this, m_timer, clearButtonHeight);
+    // Set size policy to expand vertically
+    m_timelineSelectionView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
     m_mainLayout->addWidget(m_timelineSelectionView);
     m_timelineSelectionView->setCurrentTime(QTime::currentTime());
     m_timelineSelectionView->setTimeLineLength(TimeInterval::FifteenMinutes);
@@ -77,6 +79,8 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     {
         qDebug() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
         m_timelineView = new TimelineView(this, m_timer);
+        // Set size policy to expand vertically
+        m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
         qDebug() << "GraphContainer constructor: TimelineView created and added to layout";
     }
@@ -158,6 +162,8 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     {
         qDebug() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
         m_timelineView = new TimelineView(this, m_timer);
+        // Set size policy to expand vertically
+        m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
         m_timelineView->setVisible(showTimelineView);
         qDebug() << "GraphContainer: New TimelineView visibility after setting:" << m_timelineView->isVisible();
@@ -193,6 +199,17 @@ void GraphContainer::setGraphViewSize(int width, int height)
         m_currentWaterfallGraph->updateGeometry();
     }
 
+    // Update all waterfall graphs to have the same size policy
+    for (auto &pair : m_waterfallGraphs)
+    {
+        if (pair.second)
+        {
+            pair.second->setMinimumSize(m_graphViewSize);
+            pair.second->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+            pair.second->updateGeometry();
+        }
+    }
+
     // Update the total container size
     updateTotalContainerSize();
 }
@@ -220,6 +237,8 @@ QSize GraphContainer::getTotalContainerSize() const
     // Add spacing between components (1px each)
     totalWidth += 2; // 2 spacings: between graph and timeline selection, and between timeline selection and timeline view
 
+    // For vertical stretching, we only set a minimum height, not a fixed height
+    // The actual height will be determined by the parent layout
     return QSize(totalWidth, totalHeight);
 }
 
@@ -291,8 +310,10 @@ QSize GraphContainer::getContainerSize() const
 void GraphContainer::updateTotalContainerSize()
 {
     QSize totalSize = getTotalContainerSize();
+    // Only set minimum size to allow vertical expansion
     setMinimumSize(totalSize);
-    setMaximumSize(totalSize);
+    // Remove maximum size constraint to allow stretching
+    setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
     updateGeometry();
 }
 
