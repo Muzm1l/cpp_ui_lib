@@ -685,6 +685,35 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
 }
 
 /**
+ * @brief Handle enter events (mouse enters widget).
+ *
+ * @param event
+ */
+void WaterfallGraph::enterEvent(QEnterEvent *event)
+{
+    QWidget::enterEvent(event);
+    // Enable mouse tracking when mouse enters the widget
+    setMouseTracking(true);
+    qDebug() << "Mouse entered WaterfallGraph widget";
+}
+
+/**
+ * @brief Handle leave events (mouse leaves widget).
+ *
+ * @param event
+ */
+void WaterfallGraph::leaveEvent(QEvent *event)
+{
+    QWidget::leaveEvent(event);
+    // Clear any ongoing selection when mouse leaves
+    if (mouseSelectionEnabled)
+    {
+        clearSelection();
+    }
+    qDebug() << "Mouse left WaterfallGraph widget";
+}
+
+/**
  * @brief Handle mouse release events.
  *
  * @param event

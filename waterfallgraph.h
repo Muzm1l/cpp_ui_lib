@@ -80,14 +80,18 @@ public:
 protected:
     // Override mouse events
     void mousePressEvent(QMouseEvent *event) override;
-    void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    // Override mouse move to track cursor for crosshair
+    void enterEvent(QEnterEvent *event) override;
+    void leaveEvent(QEvent *event) override;
+    void mouseMoveEvent(QMouseEvent *event) override;
 
     // Override resize event
     void resizeEvent(QResizeEvent *event) override;
 
     // Override show event
     void showEvent(QShowEvent *event) override;
+
 
     // Auto-update Y range flag
     bool autoUpdateYRange;
