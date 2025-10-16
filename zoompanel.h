@@ -15,6 +15,7 @@
 #include <QThread>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QDebug>
 
 struct ZoomBounds
 {

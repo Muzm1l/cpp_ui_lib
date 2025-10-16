@@ -9,6 +9,7 @@
 #include <QtMath>
 #include <algorithm>
 #include <cmath>
+#include <QDebug>
 
 using namespace std;
 

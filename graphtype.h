@@ -2,6 +2,7 @@
 #define GRAPHTYPE_H
 
 #include <QString>
+#include <vector>
 
 //"BDW", "BRW",  "BTW", "FDW", "FTW" ,"LTW", "RTW"
 enum class GraphType
