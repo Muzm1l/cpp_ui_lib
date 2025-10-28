@@ -11,7 +11,7 @@
  * @param timeInterval Time interval for the waterfall display
  */
 WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), customTimeRangeEnabled(false), customTimeMin(QDateTime()), customTimeMax(QDateTime()), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), mouseSelectionEnabled(false), selectionRect(nullptr), autoUpdateYRange(true)
+    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), customTimeRangeEnabled(false), customTimeMin(QDateTime()), customTimeMax(QDateTime()), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), crosshairHorizontal(nullptr), crosshairVertical(nullptr), crosshairEnabled(true), mouseSelectionEnabled(false), selectionRect(nullptr), autoUpdateYRange(true)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -59,8 +59,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     overlayView->setRenderHint(QPainter::Antialiasing);
     overlayView->setDragMode(QGraphicsView::NoDrag);                   // We'll handle our own mouse events
     overlayView->setMouseTracking(true);                               // Enable mouse tracking
-    // Remove the transparent mouse events attribute to allow interactive items to receive mouse events
-    // overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
+    // Make overlay view transparent to mouse events so WaterfallGraph receives them
+    overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true);
 
     // Set transparent background for overlay view
     overlayView->setBackgroundBrush(QBrush(Qt::transparent));
@@ -103,6 +103,9 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     selectionRect->setZValue(1000);                             // Ensure it's drawn on top
     overlayScene->addItem(selectionRect);                       // Add to overlay scene
 
+    // Setup crosshair
+    setupCrosshair();
+
     // Debug: Print initial state
     qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
     qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
@@ -118,6 +121,16 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
  */
 WaterfallGraph::~WaterfallGraph()
 {
+    // Clean up crosshair items
+    if (crosshairHorizontal) {
+        delete crosshairHorizontal;
+        crosshairHorizontal = nullptr;
+    }
+    if (crosshairVertical) {
+        delete crosshairVertical;
+        crosshairVertical = nullptr;
+    }
+    
     // Note: graphicsView and graphicsScene are child widgets/scenes, so they will be automatically deleted by Qt's parent-child mechanism
 }
 
@@ -680,6 +693,18 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
         }
     }
 
+    // Update crosshair if enabled
+    if (crosshairEnabled && overlayScene && overlayView)
+    {
+        QPointF scenePos = overlayView->mapToScene(event->pos());
+        // Show crosshair if not already visible
+        if (crosshairHorizontal && !crosshairHorizontal->isVisible())
+        {
+            showCrosshair();
+        }
+        updateCrosshair(scenePos);
+    }
+
     // Call parent implementation
     QWidget::mouseMoveEvent(event);
 }
@@ -694,6 +719,11 @@ void WaterfallGraph::enterEvent(QEnterEvent *event)
     QWidget::enterEvent(event);
     // Enable mouse tracking when mouse enters the widget
     setMouseTracking(true);
+    // Show crosshair when mouse enters if enabled
+    if (crosshairEnabled)
+    {
+        showCrosshair();
+    }
     qDebug() << "Mouse entered WaterfallGraph widget";
 }
 
@@ -709,6 +739,11 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     if (mouseSelectionEnabled)
     {
         clearSelection();
+    }
+    // Hide crosshair when mouse leaves if enabled
+    if (crosshairEnabled)
+    {
+        hideCrosshair();
     }
     qDebug() << "Mouse left WaterfallGraph widget";
 }
@@ -787,11 +822,22 @@ void WaterfallGraph::showEvent(QShowEvent *event)
     // This is called when the widget becomes visible
     qDebug() << "showEvent - Widget size:" << this->size();
     qDebug() << "showEvent - Graphics view size:" << graphicsView->size();
+    qDebug() << "showEvent - crosshairEnabled:" << crosshairEnabled;
 
     // Ensure graphics view fits the widget exactly
     if (graphicsView)
     {
         graphicsView->resize(this->size());
+    }
+
+    // Ensure overlay view also fits the widget exactly and is positioned on top
+    if (overlayView)
+    {
+        overlayView->setGeometry(QRect(0, 0, this->size().width(), this->size().height()));
+        overlayView->raise();
+        overlayView->show();
+        overlayView->update(); // Force a repaint
+        qDebug() << "showEvent - Overlay view geometry:" << overlayView->geometry() << "visible:" << overlayView->isVisible();
     }
 
     // Update graphics dimensions now that we're visible
@@ -1975,4 +2021,114 @@ void WaterfallGraph::unsetCustomTimeRange()
     draw();
 
     qDebug() << "Custom time range unset, reverting to data-based time range";
+}
+
+// Crosshair functionality implementation
+
+/**
+ * @brief Setup crosshair graphics items in the overlay scene
+ */
+void WaterfallGraph::setupCrosshair()
+{
+    if (!overlayScene) {
+        return;
+    }
+
+
+    // Create horizontal crosshair line
+    crosshairHorizontal = new QGraphicsLineItem();
+    crosshairHorizontal->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
+    crosshairHorizontal->setZValue(1000); // High z-value to appear on top
+    crosshairHorizontal->setVisible(false);
+    overlayScene->addItem(crosshairHorizontal);
+    
+    // Create vertical crosshair line
+    crosshairVertical = new QGraphicsLineItem();
+    crosshairVertical->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
+    crosshairVertical->setZValue(1000); // High z-value to appear on top
+    crosshairVertical->setVisible(false);
+    overlayScene->addItem(crosshairVertical);
+}
+
+/**
+ * @brief Update crosshair position based on mouse position
+ *
+ * @param mousePos Mouse position in scene coordinates
+ */
+void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
+{
+    if (!crosshairHorizontal || !crosshairVertical || !overlayScene) {
+        return;
+    }
+    
+    // Get the scene rectangle
+    QRectF sceneRect = overlayScene->sceneRect();
+    
+    // If scene rect is empty, use widget dimensions
+    if (sceneRect.isEmpty()) {
+        sceneRect = QRectF(0, 0, this->width(), this->height());
+    }
+    
+    // Update horizontal line (left to right)
+    crosshairHorizontal->setLine(sceneRect.left(), mousePos.y(), sceneRect.right(), mousePos.y());
+    
+    // Update vertical line (top to bottom)
+    crosshairVertical->setLine(mousePos.x(), sceneRect.top(), mousePos.x(), sceneRect.bottom());
+    
+}
+
+/**
+ * @brief Show the crosshair
+ */
+void WaterfallGraph::showCrosshair()
+{
+    if (crosshairHorizontal && crosshairVertical) {
+        crosshairHorizontal->setVisible(true);
+        crosshairVertical->setVisible(true);
+    }
+}
+
+/**
+ * @brief Hide the crosshair
+ */
+void WaterfallGraph::hideCrosshair()
+{
+    if (crosshairHorizontal && crosshairVertical) {
+        crosshairHorizontal->setVisible(false);
+        crosshairVertical->setVisible(false);
+    }
+}
+
+/**
+ * @brief Enable or disable the crosshair functionality
+ *
+ * @param enabled True to enable crosshair, false to disable
+ */
+void WaterfallGraph::setCrosshairEnabled(bool enabled)
+{
+    if (crosshairEnabled != enabled)
+    {
+        crosshairEnabled = enabled;
+
+        // Make overlay view transparent to mouse events so WaterfallGraph receives them
+        overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
+        // If disabling, hide the crosshair
+        if (!enabled)
+        {
+            hideCrosshair();
+            // Make overlay view opaque to mouse events so WaterfallGraph receives them
+            overlayView->setAttribute(Qt::WA_TransparentForMouseEvents, false);
+        }
+    }
+}
+
+/**
+ * @brief Check if crosshair is currently enabled
+ *
+ * @return bool True if crosshair is enabled, false otherwise
+ */
+bool WaterfallGraph::isCrosshairEnabled() const
+{
+    return crosshairEnabled;
 }

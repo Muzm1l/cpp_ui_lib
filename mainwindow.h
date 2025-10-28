@@ -61,6 +61,10 @@ private:
     WaterfallData* btwData; ///< BTW Data source
     WaterfallData* rtwData; ///< RTW Data source
     WaterfallData* ftwData; ///< FTW Data source
+    
+    // Test WaterfallGraph for controls tab
+    WaterfallGraph* testWaterfallGraph; ///< Test graph for crosshair testing
+    WaterfallData* testWaterfallData; ///< Test data for waterfall graph
 
     // void configureTimeVisualizer();
     // void configureTimelineView();
@@ -69,6 +73,7 @@ private:
     void configureLayoutSelection();
     void demonstrateDataPointMethods();
     void setupCustomGraphsTab();
+    void setupTestWaterfallGraph(); ///< Setup test WaterfallGraph in controls tab
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();

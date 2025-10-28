@@ -112,6 +112,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Setup custom graphs tab
     setupCustomGraphsTab();
+    
+    // Setup test WaterfallGraph in controls tab for crosshair testing
+    setupTestWaterfallGraph();
 
     // // Configure TimeSelectionVisualizer
     // configureTimeVisualizer();
@@ -138,6 +141,7 @@ MainWindow::~MainWindow()
     delete btwData;
     delete rtwData;
     delete ftwData;
+    delete testWaterfallData;
     
     delete ui;
 }
@@ -313,9 +317,51 @@ void MainWindow::onLayoutTypeChanged(int index)
     graphgrid->setLayoutType(layoutType);
 }
 
+/**
+ * @brief Setup test WaterfallGraph in controls tab for crosshair testing
+ */
+void MainWindow::setupTestWaterfallGraph()
+{
+    qDebug() << "=== Setting up Test WaterfallGraph in Controls Tab ===";
+    
+    // Create WaterfallData for test
+    testWaterfallData = new WaterfallData("TEST", {"TEST-1", "ADOPTED"});
+    
+    // Create test WaterfallGraph in the controls tab
+    testWaterfallGraph = new WaterfallGraph(ui->controlsTab, true, 8, TimeInterval::FifteenMinutes);
+    testWaterfallGraph->setObjectName("testWaterfallGraph");
+    testWaterfallGraph->setGeometry(QRect(500, 10, 400, 500));
+    testWaterfallGraph->setDataSource(*testWaterfallData);
+    
+    // Set series colors
+    testWaterfallGraph->setSeriesColor("TEST-1", QColor(Qt::red));
+    testWaterfallGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
+    
+    // Enable crosshair (already enabled by default, but explicitly set)
+    testWaterfallGraph->setCrosshairEnabled(true);
+    
+    // Add some test data
+    QDateTime baseTime = QDateTime::currentDateTime();
+    for (int i = 0; i < 20; i++)
+    {
+        QDateTime timestamp = baseTime.addSecs(-i * 10); // 10 seconds apart
+        qreal value = 0.3 + 0.4 * (i / 20.0) + 0.1 * std::sin(i * 0.5); // Varying values
+        testWaterfallGraph->addDataPoint("TEST-1", value, timestamp);
+        
+        qreal adoptedValue = 0.5 + 0.2 * std::cos(i * 0.3);
+        testWaterfallGraph->addDataPoint("ADOPTED", adoptedValue, timestamp);
+    }
+    
+    qDebug() << "Test WaterfallGraph created in controls tab with" 
+             << testWaterfallData->getDataSeriesSize("TEST-1") << "test data points";
+    qDebug() << "Crosshair enabled:" << testWaterfallGraph->isCrosshairEnabled();
+    qDebug() << "Test WaterfallGraph geometry:" << testWaterfallGraph->geometry();
+    qDebug() << "Test WaterfallGraph visible:" << testWaterfallGraph->isVisible();
+}
+
 void MainWindow::setupCustomGraphsTab()
 {
-    qDebug() << "=== Setting up New Graph Components Tab ===";
+    qDebug() << "=== Setting up Custom Graph Components Tab ===";
 
     // Create a horizontal layout for the new graph components tab
     QHBoxLayout *horizontalLayout = new QHBoxLayout(ui->customGraphsTab);

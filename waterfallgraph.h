@@ -149,6 +149,15 @@ protected:
     bool isDragging;
     QPointF lastMousePos;
 
+    // Crosshair functionality
+    void setupCrosshair();
+    void updateCrosshair(const QPointF &mousePos);
+    void showCrosshair();
+    void hideCrosshair();
+    QGraphicsLineItem *crosshairHorizontal;
+    QGraphicsLineItem *crosshairVertical;
+    bool crosshairEnabled;
+
     // Mouse selection functionality
     bool mouseSelectionEnabled;
     QPointF selectionStartPos;
@@ -169,6 +178,10 @@ public:
 
     // Test method to manually create a selection rectangle
     void testSelectionRectangle();
+    
+    // Crosshair control
+    void setCrosshairEnabled(bool enabled);
+    bool isCrosshairEnabled() const;
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }
