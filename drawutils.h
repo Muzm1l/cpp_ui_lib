@@ -3,6 +3,8 @@
 
 #include <QGraphicsItem>
 #include <QGraphicsScene>
+#include <QGraphicsTextItem>
+#include <QGraphicsRectItem>
 #include <QPointF>
 #include <QRectF>
 #include <QTransform>
@@ -10,6 +12,9 @@
 #include <algorithm>
 #include <cmath>
 #include <QDebug>
+#include <QColor>
+#include <QFont>
+#include <QFontMetrics>
 
 using namespace std;
 
@@ -42,6 +47,9 @@ public:
     static void drawShadedPolygon(QGraphicsScene *scene, QVector<QPointF> &poly, const QPen &pen, const QBrush &brush);
 
     static qreal capPolarAngle(qreal angle);
+    
+    static void addBearingRateBoxToScene(QGraphicsScene *scene, qreal bearingRate, const QColor &color,
+                                         const QPointF &markerPos, qreal markerRadius, int zValue);
 };
 
 #endif // DRAWUTILS_H

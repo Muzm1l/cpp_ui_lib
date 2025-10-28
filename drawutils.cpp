@@ -507,3 +507,56 @@ qreal DrawUtils::capPolarAngle(qreal angle)
     }
     return angle;
 }
+
+/**
+ * @brief Adds bearing rate text box with rectangular outline to a QGraphicsScene
+ * 
+ * @param scene The graphics scene to add items to
+ * @param bearingRate The bearing rate value to display
+ * @param color The color for the text and outline
+ * @param markerPos The position of the marker (for reference to position the box)
+ * @param markerRadius The radius of the marker
+ * @param zValue The z-order value for the items
+ */
+void DrawUtils::addBearingRateBoxToScene(QGraphicsScene *scene, qreal bearingRate, const QColor &color,
+                                         const QPointF &markerPos, qreal markerRadius, int zValue)
+{
+    if (!scene) {
+        return;
+    }
+    
+    // Format the bearing rate text with R/L prefix
+    QString prefix = (bearingRate >= 0) ? "R" : "L";
+    QString displayValue = (bearingRate >= 0) ? QString::number(bearingRate, 'f', 1) : QString::number(-bearingRate, 'f', 1);
+    QString bearingRateText = prefix + displayValue;
+    
+    // Set up font
+    QFont font;
+    font.setPointSizeF(8.0);
+    font.setBold(true);
+    
+    // Calculate text dimensions
+    QFontMetrics fm(font);
+    QRectF textRect = fm.boundingRect(bearingRateText);
+    
+    // Position text to the left of the marker (centered vertically)
+    qreal textX = markerPos.x() - textRect.width() - markerRadius - 5;
+    qreal textY = markerPos.y() - textRect.height() / 2;
+    
+    // Create and add text label
+    QGraphicsTextItem *textLabel = new QGraphicsTextItem(bearingRateText);
+    textLabel->setFont(font);
+    textLabel->setDefaultTextColor(color);
+    textLabel->setPos(textX, textY);
+    textLabel->setZValue(zValue + 1);
+    scene->addItem(textLabel);
+    
+    // Create and add rectangular outline around the text
+    QGraphicsRectItem *textOutline = new QGraphicsRectItem();
+    textOutline->setRect(textX - 2, textY - 2, textRect.width() + 4, textRect.height() + 4);
+    textOutline->setPen(QPen(color, 1));
+    textOutline->setBrush(QBrush(Qt::transparent));
+    textOutline->setZValue(zValue);
+    scene->addItem(textOutline);
+}
+
