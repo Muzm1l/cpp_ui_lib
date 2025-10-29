@@ -10,6 +10,7 @@
 #include <QBrush>
 #include <QColor>
 #include <QList>
+#include <QMap>
 #include <QDebug>
 
 // Forward declaration to avoid circular dependency
@@ -213,6 +214,7 @@ private:
     // Marker storage
     QList<InteractiveGraphicsItem*> m_markers;
     QList<MarkerType> m_markerTypes;
+    QMap<InteractiveGraphicsItem*, QList<QGraphicsItem*>> m_bearingRateItems; // Maps each marker to its bearing rate items
 
     // Styling
     QPen m_dataPointPen;
@@ -228,6 +230,8 @@ private:
     void setupDefaultStyles();
     void connectMarkerSignals(InteractiveGraphicsItem *marker);
     void disconnectMarkerSignals(InteractiveGraphicsItem *marker);
+    void updateBearingRateBox(InteractiveGraphicsItem *marker);
+    void removeBearingRateBox(InteractiveGraphicsItem *marker);
 };
 
 #endif // BTWINTERACTIVEOVERLAY_H

@@ -1,8 +1,13 @@
 #include "btwinteractiveoverlay.h"
 #include "btwgraph.h"
 #include "interactivegraphicsitem.h"
+#include "drawutils.h"
 #include <QGraphicsScene>
 #include <QGraphicsView>
+#include <QGraphicsTextItem>
+#include <QGraphicsRectItem>
+#include <QFont>
+#include <QFontMetrics>
 #include <QDebug>
 
 BTWInteractiveOverlay::BTWInteractiveOverlay(BTWGraph *btwGraph, QObject *parent)
@@ -36,6 +41,8 @@ BTWInteractiveOverlay::~BTWInteractiveOverlay()
 
 InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF &position, const QDateTime &timestamp, qreal value, const QString &seriesLabel)
 {
+    Q_UNUSED(value); // Not used yet but may be used for bearing rate calculation in future
+    
     if (!m_overlayScene) {
         qDebug() << "BTWInteractiveOverlay: Cannot add marker - no overlay scene";
         return nullptr;
@@ -46,7 +53,11 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     marker->setSize(QSizeF(20, 20));
 
     // Set custom drawing function for data point - green version without interaction regions
-    marker->setCustomDrawFunction([timestamp, value, seriesLabel](QPainter *painter, const QRectF &rect) {
+    marker->setCustomDrawFunction([timestamp, seriesLabel](QPainter *painter, const QRectF &rect) {
+        Q_UNUSED(timestamp);
+        Q_UNUSED(seriesLabel);
+        Q_UNUSED(rect);
+        
         // Calculate marker radius based on the original size (20x20)
         qreal markerRadius = 10.0; // Half of the 20x20 size
         
@@ -95,6 +106,9 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     if (m_overlayScene) {
         m_overlayScene->update();
     }
+
+    // Create bearing rate box for the marker
+    updateBearingRateBox(marker);
 
     qDebug() << "BTWInteractiveOverlay: Added data point marker at" << position << "for series" << seriesLabel;
     qDebug() << "BTWInteractiveOverlay: Marker bounding rect:" << marker->boundingRect();
@@ -235,6 +249,9 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
     if (index >= 0) {
         MarkerType type = m_markerTypes[index];
         
+        // Remove bearing rate items
+        removeBearingRateBox(marker);
+        
         // Disconnect signals
         disconnectMarkerSignals(marker);
         
@@ -261,6 +278,9 @@ void BTWInteractiveOverlay::clearAllMarkers()
     
     // Disconnect all signals and remove all markers
     for (InteractiveGraphicsItem *marker : m_markers) {
+        // Remove bearing rate items
+        removeBearingRateBox(marker);
+        
         disconnectMarkerSignals(marker);
         if (m_overlayScene) {
             m_overlayScene->removeItem(marker);
@@ -270,6 +290,7 @@ void BTWInteractiveOverlay::clearAllMarkers()
     
     m_markers.clear();
     m_markerTypes.clear();
+    m_bearingRateItems.clear();
     
     // Force scene update to remove any drawing artifacts
     if (m_overlayScene) {
@@ -364,6 +385,8 @@ void BTWInteractiveOverlay::onMarkerMoved(const QPointF &newPosition)
     // Find which marker was moved and emit signal
     InteractiveGraphicsItem *senderMarker = qobject_cast<InteractiveGraphicsItem*>(sender());
     if (senderMarker) {
+        // Update bearing rate box position
+        updateBearingRateBox(senderMarker);
         emit markerMoved(senderMarker, senderMarker->pos());
     }
 }
@@ -374,6 +397,8 @@ void BTWInteractiveOverlay::onMarkerRotated(qreal angle)
     // Find which marker was rotated and emit signal
     InteractiveGraphicsItem *senderMarker = qobject_cast<InteractiveGraphicsItem*>(sender());
     if (senderMarker) {
+        // Update bearing rate box position (it should follow marker but not rotate)
+        updateBearingRateBox(senderMarker);
         emit markerRotated(senderMarker, senderMarker->rotation());
     }
 }
@@ -428,5 +453,81 @@ void BTWInteractiveOverlay::disconnectMarkerSignals(InteractiveGraphicsItem *mar
                    this, &BTWInteractiveOverlay::onMarkerRotated);
         disconnect(marker, &InteractiveGraphicsItem::regionClicked,
                    this, &BTWInteractiveOverlay::onMarkerRegionClicked);
+    }
+}
+
+void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker)
+{
+    if (!marker || !m_overlayScene) {
+        return;
+    }
+    
+    // Remove old bearing rate items if they exist
+    removeBearingRateBox(marker);
+    
+    // Get marker position (use scene position for absolute coordinates)
+    QPointF markerPos = marker->scenePos();
+    qreal markerRadius = 10.0; // Match the marker radius in addDataPointMarker
+    qreal bearingRate = marker->rotation(); // Use the rotation angle as the bearing rate
+    
+    // Format the bearing rate text with R/L prefix (no decimal places)
+    QString prefix = (0 == bearingRate) ? "" : (bearingRate >= 0) ? "R" : "L";
+    QString displayValue = (bearingRate >= 0) ? QString::number(bearingRate, 'f', 0) : QString::number(-bearingRate, 'f', 0);
+    QString bearingRateText = prefix + displayValue;
+    
+    // Set up font
+    QFont font;
+    font.setPointSizeF(8.0);
+    font.setBold(true);
+    
+    // Calculate text dimensions
+    QFontMetrics fm(font);
+    QRectF textRect = fm.boundingRect(bearingRateText);
+    
+    // Position text to the left of the marker (centered vertically)
+    qreal textX = markerPos.x() - textRect.width() - markerRadius - 7;
+    qreal textY = markerPos.y() - textRect.height() / 2;
+    
+    // Create and add text label
+    QGraphicsTextItem *textLabel = new QGraphicsTextItem(bearingRateText);
+    textLabel->setFont(font);
+    textLabel->setDefaultTextColor(Qt::green);
+    textLabel->setPos(textX, textY);
+    textLabel->setZValue(1002);
+    
+    // Create and add rectangular outline around the text
+    QGraphicsRectItem *textOutline = new QGraphicsRectItem();
+    textOutline->setRect(textX - 2, textY + 1, textRect.width() + 6, textRect.height() + 4);
+    textOutline->setPen(QPen(Qt::green, 1));
+    textOutline->setBrush(QBrush(Qt::transparent));
+    textOutline->setZValue(1001);
+    
+    // Add items to scene
+    m_overlayScene->addItem(textLabel);
+    m_overlayScene->addItem(textOutline);
+    
+    // Store the items so we can remove them later
+    QList<QGraphicsItem*> items;
+    items.append(textLabel);
+    items.append(textOutline);
+    m_bearingRateItems[marker] = items;
+}
+
+void BTWInteractiveOverlay::removeBearingRateBox(InteractiveGraphicsItem *marker)
+{
+    if (!marker || !m_overlayScene) {
+        return;
+    }
+    
+    // Remove stored bearing rate items from scene
+    if (m_bearingRateItems.contains(marker)) {
+        QList<QGraphicsItem*> items = m_bearingRateItems[marker];
+        for (QGraphicsItem *item : items) {
+            if (item) {
+                m_overlayScene->removeItem(item);
+                delete item;
+            }
+        }
+        m_bearingRateItems.remove(marker);
     }
 }
