@@ -295,6 +295,29 @@ void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
     }
 }
 
+void TimeVisualizerWidget::mouseDoubleClickEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton) {
+        // Determine the full range to select: valid range if set, otherwise full visualizer range
+        TimeSelectionSpan span{QTime(), QTime()};
+        if (hasValidRange()) {
+            span.startTime = m_validStartTime;
+            span.endTime = m_validEndTime;
+        } else {
+            // Map the entire widget: bottom corresponds to oldest (height), top to current (0)
+            const int bottomY = rect().height();
+            const int topY = 0;
+            span.startTime = yCoordinateToTime(bottomY);
+            span.endTime = yCoordinateToTime(topY);
+            if (span.startTime > span.endTime) std::swap(span.startTime, span.endTime);
+        }
+
+        addTimeSelection(span);
+        emit timeSelectionMade(span);
+        update();
+    }
+}
+
 void TimeVisualizerWidget::drawCurrentSelection(QPainter& painter)
 {
     QRect drawArea = rect();
