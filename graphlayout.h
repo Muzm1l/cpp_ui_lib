@@ -138,6 +138,7 @@ private:
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
+    void TimeSelectionsCleared();
 };
 
 #endif // GRAPHLAYOUT_H

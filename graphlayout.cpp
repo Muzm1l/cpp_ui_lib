@@ -974,6 +974,9 @@ void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan 
             qDebug() << "GraphLayout: Selection added to container";
         }
     }
+
+    // Emit the signal for external consumers
+    emit TimeSelectionCreated(selection);
 }
 
 void GraphLayout::onTimeSelectionsCleared()
@@ -991,6 +994,9 @@ void GraphLayout::onTimeSelectionsCleared()
             container->clearTimeSelectionsSilent();
         }
     }
+
+    // Emit the signal for external consumers
+    emit TimeSelectionsCleared();
 }
 
 // Chevron label control methods implementation - operate on all visible containers
