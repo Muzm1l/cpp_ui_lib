@@ -112,6 +112,7 @@ protected:
 public slots:
     void onTimerTick();
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
+    void onTimeSelectionsCleared();
 
 private:
     LayoutType m_layoutType;
