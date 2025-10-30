@@ -6,6 +6,8 @@ TimeVisualizerWidget::TimeVisualizerWidget(QWidget* parent)
     : QWidget(parent)
     , m_timeLineLength(QTime(0, 0, 0))
     , m_currentTime(QTime(0, 0, 0))
+    , m_validStartTime(QTime())
+    , m_validEndTime(QTime())
     , m_isSelecting(false)
     , m_selectionStartY(0)
     , m_selectionEndY(0)
@@ -92,10 +94,36 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent* /*event*/)
 
 void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
 {
-    if (m_timeSelections.size() < MAX_TIME_SELECTIONS) {
-        m_timeSelections.append(span);
-        updateVisualization();
+    // Normalize order
+    if (span.startTime > span.endTime) {
+        std::swap(span.startTime, span.endTime);
     }
+
+    // Merge with overlapping selections (compute union and remove overlaps)
+    TimeSelectionSpan merged = span;
+    QList<int> indicesToRemove;
+    for (int i = 0; i < m_timeSelections.size(); ++i) {
+        const TimeSelectionSpan &existing = m_timeSelections[i];
+        const bool overlaps = !(existing.endTime < merged.startTime || merged.endTime < existing.startTime);
+        if (overlaps) {
+            if (existing.startTime < merged.startTime) merged.startTime = existing.startTime;
+            if (existing.endTime > merged.endTime) merged.endTime = existing.endTime;
+            indicesToRemove.append(i);
+        }
+    }
+
+    // Remove overlapped selections (from highest index down)
+    std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<int>());
+    for (int idx : indicesToRemove) {
+        m_timeSelections.removeAt(idx);
+    }
+
+    if (m_timeSelections.size() >= MAX_TIME_SELECTIONS) {
+        m_timeSelections.removeFirst();
+    }
+
+    m_timeSelections.append(merged);
+    updateVisualization();
 }
 
 void TimeVisualizerWidget::clearTimeSelections()
@@ -337,4 +365,21 @@ TimeSelectionSpan TimeVisualizerWidget::calculateSelectionSpan(int startY, int e
     }
     
     return TimeSelectionSpan(startTime, endTime);
+}
+
+void TimeVisualizerWidget::setValidSelectionRange(const QTime& start, const QTime& end)
+{
+    m_validStartTime = start;
+    m_validEndTime = end;
+    updateVisualization();
+}
+
+TimeSelectionSpan TimeVisualizerWidget::clampToValidRange(const TimeSelectionSpan& span) const
+{
+    if (!hasValidRange()) return span;
+
+    TimeSelectionSpan clamped = span;
+    if (clamped.startTime < m_validStartTime) clamped.startTime = m_validStartTime;
+    if (clamped.endTime > m_validEndTime) clamped.endTime = m_validEndTime;
+    return clamped;
 }

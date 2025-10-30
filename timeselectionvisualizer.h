@@ -28,6 +28,10 @@ public:
     void addTimeSelection(TimeSelectionSpan span);
     void clearTimeSelections();
 
+    // Valid selection range
+    void setValidSelectionRange(const QTime& start, const QTime& end);
+    void setValidSelectionRange(const TimeSelectionSpan& span) { setValidSelectionRange(span.startTime, span.endTime); }
+
     // Properties
     void setTimeLineLength(const QTime& length);
     void setTimeLineLength(TimeInterval interval);
@@ -50,6 +54,10 @@ private:
     QTime m_timeLineLength;
     QTime m_currentTime;
 
+    // Valid selection range (inclusive). If start or end is null, no range enforcement
+    QTime m_validStartTime;
+    QTime m_validEndTime;
+
     // Mouse selection state
     bool m_isSelecting;
     int m_selectionStartY;
@@ -60,6 +68,8 @@ private:
     void drawCurrentSelection(QPainter& painter);
     QTime yCoordinateToTime(int y) const;
     TimeSelectionSpan calculateSelectionSpan(int startY, int endY) const;
+    bool hasValidRange() const { return !m_validStartTime.isNull() && !m_validEndTime.isNull(); }
+    TimeSelectionSpan clampToValidRange(const TimeSelectionSpan& span) const;
 };
 
 class TimeSelectionVisualizer : public QWidget
@@ -76,6 +86,8 @@ public:
     void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
     void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
+    void setValidSelectionRange(const QTime& start, const QTime& end) { m_visualizerWidget->setValidSelectionRange(start, end); }
+    void setValidSelectionRange(const TimeSelectionSpan& span) { m_visualizerWidget->setValidSelectionRange(span); }
 
 signals:
     void timeSelectionsCleared();
