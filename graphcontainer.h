@@ -116,6 +116,18 @@ public:
     bool hasGraphRangeLimits(const GraphType graphType) const;
     std::pair<qreal, qreal> getGraphRangeLimits(const GraphType graphType) const;
 
+    // Computed property getters for visualization state
+    QDateTime getCurrentDisplayTimeMin() const;
+    QDateTime getCurrentDisplayTimeMax() const;
+    std::pair<QDateTime, QDateTime> getCurrentDisplayTimeRange() const;
+    QDateTime getAvailableDataTimeMin() const;
+    QDateTime getAvailableDataTimeMax() const;
+    std::pair<QDateTime, QDateTime> getAvailableDataTimeRange() const;
+    qreal getAvailableDataYMin() const;
+    qreal getAvailableDataYMax() const;
+    std::pair<qreal, qreal> getAvailableDataYRange() const;
+    WaterfallData *getCurrentWaterfallData() const;
+
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
     void onSelectionCreated(const TimeSelectionSpan &selection);

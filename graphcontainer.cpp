@@ -1,5 +1,6 @@
 #include "graphcontainer.h"
 #include <QDebug>
+#include <stdexcept>
 
 GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer, int containerWidth, int containerHeight)
     : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(80), m_graphViewSize(226, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap)
@@ -941,6 +942,35 @@ void GraphContainer::onDataChanged(GraphType graphType)
 
         // Force redraw of the waterfall graph
         redrawWaterfallGraph();
+
+        // Update valid time range in TimeSelectionVisualizer from available data
+        if (m_timelineSelectionView)
+        {
+            try
+            {
+                auto timeRange = getAvailableDataTimeRange();
+                if (timeRange.first.isValid() && timeRange.second.isValid())
+                {
+                    QTime startTime = timeRange.first.time();
+                    QTime endTime = timeRange.second.time();
+                    m_timelineSelectionView->setValidSelectionRange(startTime, endTime);
+                    qDebug() << "GraphContainer: Updated TimeSelectionVisualizer valid range to" 
+                             << startTime.toString() << "to" << endTime.toString();
+                }
+                else
+                {
+                    // If time range is invalid, clear the valid range
+                    m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
+                    qDebug() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
+                }
+            }
+            catch (const std::runtime_error &e)
+            {
+                // If data is empty or not available, clear the valid range
+                m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
+                qDebug() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
+            }
+        }
     }
 }
 
@@ -1106,4 +1136,127 @@ std::pair<qreal, qreal> GraphContainer::getGraphRangeLimits(const GraphType grap
 {
     auto it = graphRangeLimits.find(graphType);
     return (it != graphRangeLimits.end()) ? it->second : std::make_pair(0.0, 0.0);
+}
+
+// Computed property getters implementation
+
+QDateTime GraphContainer::getCurrentDisplayTimeMin() const
+{
+    if (!m_currentWaterfallGraph)
+    {
+        throw std::runtime_error("GraphContainer::getCurrentDisplayTimeMin(): No current waterfall graph set");
+    }
+    return m_currentWaterfallGraph->getTimeMin();
+}
+
+QDateTime GraphContainer::getCurrentDisplayTimeMax() const
+{
+    if (!m_currentWaterfallGraph)
+    {
+        throw std::runtime_error("GraphContainer::getCurrentDisplayTimeMax(): No current waterfall graph set");
+    }
+    return m_currentWaterfallGraph->getTimeMax();
+}
+
+std::pair<QDateTime, QDateTime> GraphContainer::getCurrentDisplayTimeRange() const
+{
+    if (!m_currentWaterfallGraph)
+    {
+        throw std::runtime_error("GraphContainer::getCurrentDisplayTimeRange(): No current waterfall graph set");
+    }
+    return m_currentWaterfallGraph->getTimeRange();
+}
+
+WaterfallData *GraphContainer::getCurrentWaterfallData() const
+{
+    auto it = dataOptions.find(currentDataOption);
+    if (it != dataOptions.end())
+    {
+        return it->second;
+    }
+    throw std::runtime_error("GraphContainer::getCurrentWaterfallData(): No WaterfallData available for current data option");
+}
+
+QDateTime GraphContainer::getAvailableDataTimeMin() const
+{
+    WaterfallData *data = getCurrentWaterfallData();
+    if (!data)
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataTimeMin(): No current WaterfallData available");
+    }
+    if (data->isEmpty())
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataTimeMin(): Current WaterfallData is empty");
+    }
+    return data->getCombinedTimeRange().first;
+}
+
+QDateTime GraphContainer::getAvailableDataTimeMax() const
+{
+    WaterfallData *data = getCurrentWaterfallData();
+    if (!data)
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataTimeMax(): No current WaterfallData available");
+    }
+    if (data->isEmpty())
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataTimeMax(): Current WaterfallData is empty");
+    }
+    return data->getCombinedTimeRange().second;
+}
+
+std::pair<QDateTime, QDateTime> GraphContainer::getAvailableDataTimeRange() const
+{
+    WaterfallData *data = getCurrentWaterfallData();
+    if (!data)
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataTimeRange(): No current WaterfallData available");
+    }
+    if (data->isEmpty())
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataTimeRange(): Current WaterfallData is empty");
+    }
+    return data->getCombinedTimeRange();
+}
+
+qreal GraphContainer::getAvailableDataYMin() const
+{
+    WaterfallData *data = getCurrentWaterfallData();
+    if (!data)
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataYMin(): No current WaterfallData available");
+    }
+    if (data->isEmpty())
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataYMin(): Current WaterfallData is empty");
+    }
+    return data->getCombinedYRange().first;
+}
+
+qreal GraphContainer::getAvailableDataYMax() const
+{
+    WaterfallData *data = getCurrentWaterfallData();
+    if (!data)
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataYMax(): No current WaterfallData available");
+    }
+    if (data->isEmpty())
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataYMax(): Current WaterfallData is empty");
+    }
+    return data->getCombinedYRange().second;
+}
+
+std::pair<qreal, qreal> GraphContainer::getAvailableDataYRange() const
+{
+    WaterfallData *data = getCurrentWaterfallData();
+    if (!data)
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataYRange(): No current WaterfallData available");
+    }
+    if (data->isEmpty())
+    {
+        throw std::runtime_error("GraphContainer::getAvailableDataYRange(): Current WaterfallData is empty");
+    }
+    return data->getCombinedYRange();
 }

@@ -99,6 +99,15 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
         std::swap(span.startTime, span.endTime);
     }
 
+    // Clamp to valid range if configured
+    if (hasValidRange()) {
+        span = clampToValidRange(span);
+        // If clamped becomes invalid (end before start), ignore
+        if (span.endTime < span.startTime) {
+            return;
+        }
+    }
+
     // Merge with overlapping selections (compute union and remove overlaps)
     TimeSelectionSpan merged = span;
     QList<int> indicesToRemove;
@@ -109,6 +118,15 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
             if (existing.startTime < merged.startTime) merged.startTime = existing.startTime;
             if (existing.endTime > merged.endTime) merged.endTime = existing.endTime;
             indicesToRemove.append(i);
+        }
+    }
+
+    // Clamp merged selection to valid range if configured
+    if (hasValidRange()) {
+        merged = clampToValidRange(merged);
+        // If merged becomes invalid after clamping, ignore
+        if (merged.endTime < merged.startTime) {
+            return;
         }
     }
 
@@ -285,10 +303,23 @@ void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         // Calculate the selection span
         TimeSelectionSpan span = calculateSelectionSpan(m_selectionStartY, m_selectionEndY);
         
-        // Add the selection using existing method
+        // Clamp to valid range if configured (before adding and emitting)
+        if (hasValidRange()) {
+            TimeSelectionSpan clamped = clampToValidRange(span);
+            // Only proceed if clamped span is valid
+            if (clamped.endTime >= clamped.startTime) {
+                span = clamped;
+            } else {
+                // Invalid selection after clamping, ignore
+                update();
+                return;
+            }
+        }
+        
+        // Add the selection using existing method (will clamp again but that's safe)
         addTimeSelection(span);
         
-        // Emit signal with the selection span
+        // Emit signal with the clamped selection span
         emit timeSelectionMade(span);
         
         update();
