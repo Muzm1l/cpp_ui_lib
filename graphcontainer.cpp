@@ -1,9 +1,10 @@
 #include "graphcontainer.h"
 #include <QDebug>
+#include <QTimer>
 #include <stdexcept>
 
 GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer, int containerWidth, int containerHeight)
-    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(80), m_graphViewSize(226, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap)
+    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(80), m_graphViewSize(226, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap), m_updatingTimeInterval(false)
 {
     // Set size policy to expand both horizontally and vertically
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -495,6 +496,9 @@ void GraphContainer::setupEventConnections()
     {
         connect(m_timelineView, &TimelineView::TimeIntervalChanged,
                 this, &GraphContainer::onTimeIntervalChanged);
+        
+        connect(m_timelineView, &TimelineView::TimeScopeChanged,
+                this, &GraphContainer::onTimeScopeChanged);
     }
 
     // Connect TimeSelectionVisualizer clear button events
@@ -737,6 +741,9 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
 {
     qDebug() << "GraphContainer: Updating time interval to" << timeIntervalToString(interval);
 
+    // Set flag to prevent TimeScopeChanged from interfering
+    m_updatingTimeInterval = true;
+
     // Update the waterfall graph time interval
     if (m_currentWaterfallGraph)
     {
@@ -756,6 +763,13 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         m_timelineView->setTimeLineLength(interval);
         qDebug() << "TimelineView updated with interval:" << timeIntervalToString(interval);
     }
+
+    // Reset flag after a short delay to allow signals to propagate
+    // Use QTimer::singleShot to reset the flag after the current event loop
+    QTimer::singleShot(0, this, [this]() {
+        m_updatingTimeInterval = false;
+        qDebug() << "GraphContainer: Time interval update complete, TimeScopeChanged handler re-enabled";
+    });
 }
 
 void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
@@ -782,6 +796,31 @@ void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
 
     // Emit the TimeSelectionCreated signal for external components
     emit TimeSelectionCreated(selection);
+}
+
+void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
+{
+    // Skip processing if we're in the middle of updating the time interval
+    // This prevents TimeScopeChanged (which is emitted as a side effect of interval changes)
+    // from interfering with the proper time range setup during interval updates
+    if (m_updatingTimeInterval)
+    {
+        qDebug() << "GraphContainer: Ignoring TimeScopeChanged during interval update";
+        return;
+    }
+
+    if (!m_currentWaterfallGraph)
+    {
+        qDebug() << "GraphContainer: Cannot update waterfall graph - no waterfall graph";
+        return;
+    }
+
+    qDebug() << "GraphContainer: Time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+
+    // Update the waterfall graph's time range to match the visible scope
+    m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
+
+    qDebug() << "GraphContainer: Waterfall graph time range updated";
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)

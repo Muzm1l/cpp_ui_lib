@@ -133,6 +133,7 @@ public slots:
     void onSelectionCreated(const TimeSelectionSpan &selection);
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
+    void onTimeScopeChanged(const TimeSelectionSpan &selection);
 
 private:
     void updateTotalContainerSize();
@@ -188,6 +189,9 @@ private:
 
     // Range limits management
     std::map<GraphType, std::pair<qreal, qreal>> graphRangeLimits;
+
+    // Flag to prevent TimeScopeChanged from interfering with interval updates
+    bool m_updatingTimeInterval;
 };
 
 #endif // GRAPHCONTAINER_H

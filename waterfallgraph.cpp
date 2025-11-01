@@ -356,8 +356,13 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     }
     else
     {
-        // Update time range based on data with new interval
-        setTimeRangeFromDataWithInterval(getTimeIntervalMs());
+        // Update time range keeping the max time at current time
+        // This ensures the graph always shows up to "now" when interval changes
+        timeMax = QDateTime::currentDateTime();
+        timeMin = timeMax.addMSecs(-getTimeIntervalMs());
+        qDebug() << "Time range updated with interval - max set to current time. Time:" 
+                 << timeMin.toString() << "to" << timeMax.toString() 
+                 << "Interval:" << timeIntervalToString(interval);
     }
 
     // Update data ranges if we have data

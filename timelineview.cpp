@@ -270,11 +270,11 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     m_accumulatedOffset = 0.0;
 
     // Update slider state to match the new interval length
-    // Keep the start time, adjust the end time
-    TimeSelectionSpan currentWindow = m_sliderState.getTimeWindow();
+    // Keep the end time at current time, adjust the start time backward
+    QDateTime now = QDateTime::currentDateTime();
     int intervalSeconds = newLength.hour() * 3600 + newLength.minute() * 60 + newLength.second();
-    QDateTime endTime = currentWindow.startTime.addSecs(intervalSeconds);
-    TimeSelectionSpan newWindow(currentWindow.startTime, endTime);
+    QDateTime startTime = now.addSecs(-intervalSeconds);
+    TimeSelectionSpan newWindow(startTime, now);
     m_sliderState.setTimeWindow(newWindow, rect().height(), newLength);
     
     // Keep legacy member in sync
