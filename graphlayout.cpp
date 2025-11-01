@@ -122,6 +122,10 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
 
+        // Connect the time scope change handler of containers 1 to the event of 0 and the 3 to the event of 2
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+
         break;
     case LayoutType::GPW2WV:
         // Add 1 graph container to row 1
@@ -147,6 +151,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
 
         // Connect the interval change handler of containers 1 to the event of 0
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+        
+        // Connect the time scope change handler of containers 1 to the event of 0
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
         break;
     case LayoutType::GPW4WH:
         // Add 4 graph containers to row 1
@@ -164,6 +171,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[2], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
+        
+        // Connect the time scope change handlers of containers 1,2,3 to the event of 0
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[2], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
         break;
     case LayoutType::HIDDEN:
         // Hide all containers
@@ -838,8 +850,9 @@ void GraphLayout::disconnectAllContainerConnections()
     {
         if (container)
         {
-            // Disconnect IntervalChanged, TimeSelectionCreated, and TimeSelectionsCleared signals to preserve internal functionality
+            // Disconnect IntervalChanged, TimeScopeChanged, TimeSelectionCreated, and TimeSelectionsCleared signals to preserve internal functionality
             container->disconnect(SIGNAL(IntervalChanged(TimeInterval)));
+            container->disconnect(SIGNAL(TimeScopeChanged(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionCreated(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionsCleared()));
             qDebug() << "GraphLayout: Disconnected external signals from container";
@@ -876,6 +889,14 @@ void GraphLayout::linkHorizontalContainers()
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
                 m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
 
+        // Link row 1: container 0 -> container 1 (time scope change)
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+
+        // Link row 2: container 2 -> container 3 (time scope change)
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+
         qDebug() << "GraphLayout: Linked containers for GPW4W layout";
         break;
 
@@ -883,6 +904,10 @@ void GraphLayout::linkHorizontalContainers()
         // Link horizontal: container 0 -> container 1 (interval change)
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
                 m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+
+        // Link horizontal: container 0 -> container 1 (time scope change)
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
 
         qDebug() << "GraphLayout: Linked containers for GPW2WH layout";
         break;
@@ -895,6 +920,14 @@ void GraphLayout::linkHorizontalContainers()
                 m_graphContainers[2], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
                 m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
+
+        // Link horizontal: container 0 -> containers 1, 2, 3 (time scope change)
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[2], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
 
         qDebug() << "GraphLayout: Linked containers for GPW4WH layout";
         break;

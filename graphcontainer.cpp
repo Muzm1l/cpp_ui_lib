@@ -820,7 +820,10 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     // Update the waterfall graph's time range to match the visible scope
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
 
-    qDebug() << "GraphContainer: Waterfall graph time range updated";
+    // Emit the signal so other containers in the row can update
+    emit TimeScopeChanged(selection);
+
+    qDebug() << "GraphContainer: Waterfall graph time range updated and signal emitted";
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)
