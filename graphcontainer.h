@@ -98,6 +98,9 @@ public:
     // Public method for external components to update time interval
     void updateTimeInterval(TimeInterval interval);
 
+    // Unified data change notification handler
+    void onDataChanged(GraphType graphType);
+
     // Chevron label control methods
     void setChevronLabel1(const QString &label);
     void setChevronLabel2(const QString &label);

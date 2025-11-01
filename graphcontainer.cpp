@@ -925,6 +925,25 @@ void GraphContainer::initializeZoomPanelLimits()
              << "Center:" << centerValue << "Max:" << dataMax << "- Zoom reset to 50%";
 }
 
+void GraphContainer::onDataChanged(GraphType graphType)
+{
+    // Only process if this container has this data option
+    if (!hasDataOption(graphType))
+    {
+        return;
+    }
+
+    // If this is the currently displayed graph, update UI components
+    if (getCurrentDataOption() == graphType)
+    {
+        // Update zoom panel limits to reflect new data ranges
+        initializeZoomPanelLimits();
+
+        // Force redraw of the waterfall graph
+        redrawWaterfallGraph();
+    }
+}
+
 void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
 {
     if (!m_currentWaterfallGraph)
