@@ -16,6 +16,9 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGraphicsRectItem>
+#include <QPair>
+#include <QRect>
+#include <QPoint>
 #include <vector>
 #include "timelineutils.h"
 #include "timelinedrawingobjects.h"
@@ -23,6 +26,77 @@
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
 #define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 80
+
+// Forward declarations
+class TimelineVisualizerWidget;
+
+// Slider Geometry Helper - Centralized calculations for slider dimensions and positions
+class SliderGeometry
+{
+public:
+    // Calculate slider rectangle based on position and dimensions
+    static QRect calculateSliderRect(int widgetHeight, int widgetWidth, 
+                                     const QTime& timeInterval,
+                                     int sliderYPosition);
+    
+    // Calculate slider Y position from time window
+    static int calculateSliderYFromTime(const TimeSelectionSpan& timeWindow,
+                                        int widgetHeight);
+    
+    // Calculate time window from slider Y position
+    static TimeSelectionSpan calculateTimeWindowFromY(int sliderY,
+                                                     const QTime& timeInterval,
+                                                     int widgetHeight);
+    
+    // Get slider bounds (min/max Y) given widget dimensions
+    static QPair<int, int> getSliderBounds(int widgetHeight, int sliderHeight);
+    
+    // Get minimum slider height
+    static int getMinimumSliderHeight();
+    
+    // Calculate slider height for given time interval
+    static int calculateSliderHeight(const QTime& timeInterval, int widgetHeight);
+    
+    // Get twelve hours in minutes constant
+    static int getTwelveHoursInMinutes() { return TWELVE_HOURS_IN_MINUTES; }
+    
+private:
+    static const int TWELVE_HOURS_IN_MINUTES;
+    static const int MINIMUM_SLIDER_HEIGHT;
+};
+
+// Slider State Manager - Encapsulates slider position, time window, and drag state
+class SliderState
+{
+public:
+    SliderState();
+    
+    // Position management
+    void setYPosition(int y, int widgetHeight, const QTime& interval);
+    int getYPosition() const;
+    
+    // Time window management
+    TimeSelectionSpan getTimeWindow() const;
+    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval);
+    
+    // Drag state management
+    void startDrag(const QPoint& mousePos);
+    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval);
+    void endDrag(int widgetHeight, const QTime& interval);
+    bool isDragging() const;
+    
+    // Validation and synchronization
+    void clampToBounds(int widgetHeight, const QTime& interval);
+    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval);
+    void syncPositionFromTimeWindow(int widgetHeight);
+    
+private:
+    int m_yPosition = 0;              // Current pixel position (source of truth)
+    TimeSelectionSpan m_timeWindow;    // Time window (derived from position)
+    bool m_isDragging = false;
+    QPoint m_dragStartMousePos;
+    int m_dragStartSliderY;
+};
 
 class TimelineVisualizerWidget : public QWidget
 {
@@ -100,13 +174,13 @@ private:
     QString m_chevronLabel2 = "2";
     QString m_chevronLabel3 = "3";
 
-    // Slider state (following zoom slider pattern)
+    // Slider state - using new state manager
+    SliderState m_sliderState;
+    
+    // Legacy member kept for backward compatibility with getVisibleTimeWindow()
+    // This will be removed and replaced by m_sliderState.getTimeWindow()
     TimeSelectionSpan m_sliderVisibleWindow;
-    bool m_isDragging = false;
-    QPoint m_initialMousePos;
-    QPoint m_initialSliderPos;
-    int m_currentSliderY = 0; // Current slider Y position (for direct position tracking during drag)
-    QGraphicsRectItem* m_sliderIndicator = nullptr;
+    QGraphicsRectItem* m_sliderIndicator = nullptr; // Kept for now but may be removed
 
     void updateVisualization();
     double calculateTimeOffset();
