@@ -6,7 +6,7 @@
 #include <algorithm>
 
 TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_isDragging(false), m_sliderIndicator(nullptr)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -14,8 +14,21 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
 
+    // Enable mouse tracking for slider interaction
+    setMouseTracking(true);
+
+    // Initialize slider visible window: from "(now - interval)" to "now" (default 15 minutes)
+    // This ensures the window fits within the 12-hour range that ends at "now"
+    QTime now = QTime::currentTime();
+    int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    QTime startTime = now.addSecs(-intervalSeconds);
+    m_sliderVisibleWindow = TimeSelectionSpan(startTime, now);
+
     // Create drawing objects
     createDrawingObjects();
+    
+    // Create slider indicator
+    createSliderIndicator();
 }
 
 void TimelineVisualizerWidget::setTimeLineLength(const QTime &length)
@@ -37,9 +50,22 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // Reset accumulated offset when interval changes
     m_accumulatedOffset = 0.0;
 
+    // Update slider visible window to match the new interval length
+    // Keep the start time, adjust the end time
+    QTime startTime = m_sliderVisibleWindow.startTime;
+    int intervalSeconds = newLength.hour() * 3600 + newLength.minute() * 60 + newLength.second();
+    QTime endTime = startTime.addSecs(intervalSeconds);
+    m_sliderVisibleWindow = TimeSelectionSpan(startTime, endTime);
+
     // Recreate all drawing objects with new parameters
     // This will automatically calculate optimal divisions based on current area
     createDrawingObjects();
+    
+    // Update slider indicator for new interval
+    updateSliderIndicator();
+
+    // Emit signal for the updated time window
+    emitTimeScopeChanged();
 
     // qDebug() << "Time interval set to:" << timeIntervalToString(interval)
     //          << "Divisions:" << m_numberOfDivisions
@@ -52,7 +78,13 @@ void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
     m_lastCurrentTime = m_currentTime;
     m_currentTime = currentTime;
     updatePixelSpeed();
-    updateVisualization();
+    
+    // Don't update visualization if dragging (preserve dragged position)
+    // The slider position will be recalculated when drag ends
+    if (!m_isDragging)
+    {
+        updateVisualization();
+    }
 }
 
 void TimelineVisualizerWidget::setNumberOfDivisions(int divisions)
@@ -65,7 +97,8 @@ void TimelineVisualizerWidget::setNumberOfDivisions(int divisions)
 
 void TimelineVisualizerWidget::updateVisualization()
 {
-    update(); // Trigger a repaint
+    // Trigger a repaint (slider position is calculated in paintEvent)
+    update();
 }
 
 void TimelineVisualizerWidget::updateAndDraw()
@@ -472,6 +505,46 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     // Draw a border to make it more visible
     painter.setPen(QPen(QColor(150, 150, 150), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
+
+    // Draw slider indicator (50% opacity white rectangle)
+    // Calculate slider rectangle
+    const int twelveHoursInMinutes = 720;
+    int intervalMinutes = m_timeLineLength.hour() * 60 + m_timeLineLength.minute();
+    double rectangleHeightRatio = static_cast<double>(intervalMinutes) / twelveHoursInMinutes;
+    int rectangleHeight = static_cast<int>(rectangleHeightRatio * rect().height());
+    if (rectangleHeight < 20)
+    {
+        rectangleHeight = 20;
+    }
+    
+    int yPosition;
+    if (m_isDragging)
+    {
+        // During drag, use the directly tracked Y position (like zoom slider)
+        // This prevents snap-back during timer updates
+        yPosition = m_currentSliderY;
+        int maxY = rect().height() - rectangleHeight;
+        yPosition = qBound(0, yPosition, maxY);
+    }
+    else
+    {
+        // When not dragging, use the stored slider Y position
+        // This preserves the position after dragging and prevents snap-back on timer updates
+        // The position is only recalculated from time window when explicitly set (e.g., setTimeInterval)
+        yPosition = m_currentSliderY;
+        int maxY = rect().height() - rectangleHeight;
+        yPosition = qBound(0, yPosition, maxY);
+        // Keep m_currentSliderY updated if clamped
+        if (yPosition != m_currentSliderY)
+        {
+            m_currentSliderY = yPosition;
+        }
+    }
+    
+    // Draw the slider rectangle with 50% opacity white
+    QRect sliderRect(0, yPosition, rect().width(), rectangleHeight);
+    QColor sliderColor(255, 255, 255, 128); // 50% opacity white
+    painter.fillRect(sliderRect, sliderColor);
 }
 
 void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
@@ -481,6 +554,9 @@ void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
     // Recreate drawing objects with new dimensions
     // qDebug() << "Widget resized to:" << size();
     createDrawingObjects();
+    
+    // Update slider indicator for new size
+    updateSliderIndicator();
 }
 
 // Helper methods to draw using QPainter instead of QGraphicsScene
@@ -617,6 +693,247 @@ void TimelineVisualizerWidget::drawChevronWithPainter(QPainter &painter, Timelin
     }
 }
 
+// Slider methods implementation (following zoom slider pattern - vertical orientation)
+void TimelineVisualizerWidget::createSliderIndicator()
+{
+    // Create a simple QGraphicsRectItem for the slider indicator
+    // We'll use the widget's rect as the "scene" and draw directly
+    // Actually, we need to create it without a scene for now since we're using QPainter
+    // Let's create it as a simple rectangle we can track
+    
+    // For now, we'll keep using QPainter but structure the code like zoom slider
+    updateSliderIndicator();
+}
+
+void TimelineVisualizerWidget::updateSliderIndicator()
+{
+    // Update the stored slider position for mouse interaction
+    // The actual drawing is done in paintEvent
+    if (rect().height() <= 0)
+    {
+        return;
+    }
+
+    const int twelveHoursInMinutes = 720;
+    int intervalMinutes = m_timeLineLength.hour() * 60 + m_timeLineLength.minute();
+    double rectangleHeightRatio = static_cast<double>(intervalMinutes) / twelveHoursInMinutes;
+    int rectangleHeight = static_cast<int>(rectangleHeightRatio * rect().height());
+    if (rectangleHeight < 20)
+    {
+        rectangleHeight = 20;
+    }
+    
+    QTime now = QTime::currentTime();
+    QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    int minutesFromStart = twelveHoursAgo.msecsTo(m_sliderVisibleWindow.startTime) / 60000;
+    minutesFromStart = qBound(0, minutesFromStart, twelveHoursInMinutes);
+    
+    double positionRatio = static_cast<double>(minutesFromStart) / twelveHoursInMinutes;
+    int yPosition = static_cast<int>(positionRatio * rect().height());
+    int maxY = rect().height() - rectangleHeight;
+    yPosition = qBound(0, yPosition, maxY);
+    
+    // Store slider position for mouse interaction (for dragging calculations)
+    m_initialSliderPos = QPoint(0, yPosition);
+    m_currentSliderY = yPosition; // Store current Y position for direct updates
+}
+
+void TimelineVisualizerWidget::updateSliderFromMousePosition(const QPoint& currentPos)
+{
+    if (rect().height() <= 0)
+    {
+        return;
+    }
+    
+    // Calculate the change in Y position (like zoom slider - direct position tracking)
+    int deltaY = currentPos.y() - m_initialMousePos.y();
+    int newSliderY = m_initialSliderPos.y() + deltaY;
+    
+    // Calculate available vertical space for movement
+    const int twelveHoursInMinutes = 720;
+    int intervalMinutes = m_timeLineLength.hour() * 60 + m_timeLineLength.minute();
+    double rectangleHeightRatio = static_cast<double>(intervalMinutes) / twelveHoursInMinutes;
+    int rectangleHeight = static_cast<int>(rectangleHeightRatio * rect().height());
+    if (rectangleHeight < 20)
+    {
+        rectangleHeight = 20;
+    }
+    
+    int minY = 0;
+    int maxY = rect().height() - rectangleHeight;
+    
+    // Clamp the slider position to stay within bounds
+    newSliderY = qBound(minY, newSliderY, maxY);
+    
+    // Store current slider Y position directly (like zoom slider stores indicator position)
+    m_currentSliderY = newSliderY;
+    
+    // Convert Y position back to time (for signal emission)
+    QTime now = QTime::currentTime();
+    QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    
+    double positionRatio = static_cast<double>(newSliderY) / rect().height();
+    int minutesFromStart = static_cast<int>(positionRatio * twelveHoursInMinutes);
+    QTime windowStart = twelveHoursAgo.addSecs(minutesFromStart * 60);
+    
+    // Calculate the end time based on the interval length
+    int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    QTime windowEnd = windowStart.addSecs(intervalSeconds);
+    
+    // Update the visible window
+    m_sliderVisibleWindow = TimeSelectionSpan(windowStart, windowEnd);
+    
+    qDebug() << "Dragging - Mouse Y:" << currentPos.y() << "Delta Y:" << deltaY 
+             << "Initial slider Y:" << m_initialSliderPos.y() << "New slider Y:" << newSliderY
+             << "Current slider Y:" << m_currentSliderY
+             << "Window:" << windowStart.toString("HH:mm:ss") << "to" << windowEnd.toString("HH:mm:ss");
+    
+    // Trigger immediate repaint to show updated slider position
+    repaint();
+    
+    // Emit signal during drag (like zoom slider does)
+    emitTimeScopeChanged();
+}
+
+void TimelineVisualizerWidget::emitTimeScopeChanged()
+{
+    // Ensure the timespan is valid before emitting
+    if (m_sliderVisibleWindow.startTime.isValid() && m_sliderVisibleWindow.endTime.isValid())
+    {
+        // Ensure endTime is after startTime
+        if (m_sliderVisibleWindow.startTime <= m_sliderVisibleWindow.endTime)
+        {
+            emit visibleTimeWindowChanged(m_sliderVisibleWindow);
+        }
+        else
+        {
+            // Swap if invalid order
+            TimeSelectionSpan corrected = TimeSelectionSpan(
+                m_sliderVisibleWindow.endTime,
+                m_sliderVisibleWindow.startTime
+            );
+            m_sliderVisibleWindow = corrected;
+            emit visibleTimeWindowChanged(m_sliderVisibleWindow);
+        }
+    }
+}
+
+void TimelineVisualizerWidget::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && !m_isDragging)
+    {
+        QPoint pos = event->pos();
+        
+        // Calculate slider rectangle (use current stored position, same as paintEvent)
+        const int twelveHoursInMinutes = 720;
+        int intervalMinutes = m_timeLineLength.hour() * 60 + m_timeLineLength.minute();
+        double rectangleHeightRatio = static_cast<double>(intervalMinutes) / twelveHoursInMinutes;
+        int rectangleHeight = static_cast<int>(rectangleHeightRatio * rect().height());
+        if (rectangleHeight < 20)
+        {
+            rectangleHeight = 20;
+        }
+        
+        // Use the stored slider Y position (same as paintEvent uses)
+        int yPosition = m_currentSliderY;
+        int maxY = rect().height() - rectangleHeight;
+        yPosition = qBound(0, yPosition, maxY);
+        
+        QRect sliderRect(0, yPosition, rect().width(), rectangleHeight);
+        
+        if (sliderRect.contains(pos))
+        {
+            m_isDragging = true;
+            m_initialMousePos = pos;
+            m_initialSliderPos = QPoint(0, yPosition);
+            setCursor(Qt::ClosedHandCursor);
+            qDebug() << "Slider drag started at Y:" << pos.y() << "Slider Y:" << yPosition;
+            event->accept();
+            return;
+        }
+    }
+    QWidget::mousePressEvent(event);
+}
+
+void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    if (m_isDragging)
+    {
+        // Update slider based on mouse movement (like zoom slider)
+        updateSliderFromMousePosition(event->pos());
+        event->accept();
+        return;
+    }
+    else
+    {
+        // Update cursor based on hover position (like zoom slider)
+        QPoint pos = event->pos();
+        
+        // Check if hovering over slider (use current stored position, same as paintEvent)
+        const int twelveHoursInMinutes = 720;
+        int intervalMinutes = m_timeLineLength.hour() * 60 + m_timeLineLength.minute();
+        double rectangleHeightRatio = static_cast<double>(intervalMinutes) / twelveHoursInMinutes;
+        int rectangleHeight = static_cast<int>(rectangleHeightRatio * rect().height());
+        if (rectangleHeight < 20)
+        {
+            rectangleHeight = 20;
+        }
+        
+        // Use the stored slider Y position (same as paintEvent uses)
+        int yPosition = m_currentSliderY;
+        int maxY = rect().height() - rectangleHeight;
+        yPosition = qBound(0, yPosition, maxY);
+        
+        QRect sliderRect(0, yPosition, rect().width(), rectangleHeight);
+        
+        if (sliderRect.contains(pos))
+        {
+            setCursor(Qt::OpenHandCursor);
+        }
+        else
+        {
+            setCursor(Qt::ArrowCursor);
+        }
+    }
+    QWidget::mouseMoveEvent(event);
+}
+
+void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && m_isDragging)
+    {
+        m_isDragging = false;
+        setCursor(Qt::ArrowCursor);
+        
+        // Update the time window from the final slider position
+        // This ensures the time window matches the dragged position
+        const int twelveHoursInMinutes = 720;
+        QTime now = QTime::currentTime();
+        QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+        double positionRatio = static_cast<double>(m_currentSliderY) / rect().height();
+        int minutesFromStart = static_cast<int>(positionRatio * twelveHoursInMinutes);
+        QTime windowStart = twelveHoursAgo.addSecs(minutesFromStart * 60);
+        int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+        QTime windowEnd = windowStart.addSecs(intervalSeconds);
+        m_sliderVisibleWindow = TimeSelectionSpan(windowStart, windowEnd);
+        
+        // Emit signal when drag is complete (final update)
+        emitTimeScopeChanged();
+        qDebug() << "Slider drag ended - Final window:" << windowStart.toString("HH:mm:ss") 
+                 << "to" << windowEnd.toString("HH:mm:ss");
+        
+        // Trigger repaint to show final position
+        update();
+    }
+    QWidget::mouseReleaseEvent(event);
+}
+
+void TimelineVisualizerWidget::enterEvent(QEnterEvent* event)
+{
+    QWidget::enterEvent(event);
+    // Cursor will be updated in mouseMoveEvent
+}
+
 TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     : QWidget(parent), m_intervalChangeButton(nullptr), m_timeModeChangeButton(nullptr), m_visualizerWidget(nullptr), m_layout(nullptr), m_timer(timer), m_ownsTimer(false)
 {
@@ -686,6 +1003,13 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     connect(m_timeModeChangeButton, &QPushButton::clicked, this, &TimelineView::onTimeModeButtonClicked);
     connect(m_intervalChangeButton, &QPushButton::clicked, this, &TimelineView::onIntervalButtonClicked);
 
+    // Connect slider signal to emit TimeScopeChanged
+    if (m_visualizerWidget)
+    {
+        connect(m_visualizerWidget, &TimelineVisualizerWidget::visibleTimeWindowChanged, 
+                this, &TimelineView::onVisibleTimeWindowChanged);
+    }
+
     // Set the layout
     setLayout(m_layout);
 
@@ -697,6 +1021,7 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
 
     // Initialize button text with default interval
     updateButtonText(TimeInterval::FifteenMinutes);
+    // Note: setTimeInterval will emit TimeScopeChanged signal via the connection established above
 }
 
 TimelineView::~TimelineView()
@@ -776,4 +1101,13 @@ void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
 {
     QString buttonText = isAbsoluteTime ? "Abs" : "Rel";
     m_timeModeChangeButton->setText(buttonText);
+}
+
+void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection)
+{
+    // Ensure we emit a valid timespan with proper start and end times
+    if (selection.startTime.isValid() && selection.endTime.isValid())
+    {
+        emit TimeScopeChanged(selection);
+    }
 }

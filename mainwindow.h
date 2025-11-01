@@ -66,6 +66,12 @@ private:
     WaterfallGraph* testWaterfallGraph; ///< Test graph for crosshair testing
     WaterfallData* testWaterfallData; ///< Test data for waterfall graph
 
+    // TimelineView for controls tab testing
+    TimelineView* testTimelineView; ///< Timeline view for testing slider functionality
+    QLabel* timespanStartLabel; ///< Label to display start time
+    QLabel* timespanEndLabel; ///< Label to display end time
+    QLabel* timespanDurationLabel; ///< Label to display duration
+
     // void configureTimeVisualizer();
     // void configureTimelineView();
     void configureZoomPanel();
@@ -74,6 +80,7 @@ private:
     void demonstrateDataPointMethods();
     void setupCustomGraphsTab();
     void setupTestWaterfallGraph(); ///< Setup test WaterfallGraph in controls tab
+    void setupTimelineView(); ///< Setup TimelineView in controls tab for testing
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();

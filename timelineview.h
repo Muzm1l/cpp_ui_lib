@@ -7,12 +7,15 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QResizeEvent>
+#include <QMouseEvent>
+#include <QEnterEvent>
 #include <QTime>
 #include <QList>
 #include <QObject>
 #include <QTimer>
 #include <QGraphicsScene>
 #include <QGraphicsView>
+#include <QGraphicsRectItem>
 #include <vector>
 #include "timelineutils.h"
 #include "timelinedrawingobjects.h"
@@ -62,9 +65,16 @@ public:
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
 
+    // Slider visible window access
+    TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void enterEvent(QEnterEvent* event) override;
 
 private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes
@@ -90,6 +100,14 @@ private:
     QString m_chevronLabel2 = "2";
     QString m_chevronLabel3 = "3";
 
+    // Slider state (following zoom slider pattern)
+    TimeSelectionSpan m_sliderVisibleWindow;
+    bool m_isDragging = false;
+    QPoint m_initialMousePos;
+    QPoint m_initialSliderPos;
+    int m_currentSliderY = 0; // Current slider Y position (for direct position tracking during drag)
+    QGraphicsRectItem* m_sliderIndicator = nullptr;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -102,6 +120,15 @@ private:
     // Helper methods for drawing with QPainter
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
     void drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer);
+    
+    // Slider methods (following zoom slider pattern)
+    void createSliderIndicator();
+    void updateSliderIndicator();
+    void updateSliderFromMousePosition(const QPoint& currentPos);
+    void emitTimeScopeChanged();
+
+signals:
+    void visibleTimeWindowChanged(const TimeSelectionSpan& selection);
 
 };
 
@@ -152,6 +179,7 @@ private:
     void updateButtonText(TimeInterval interval);
     void updateTimeModeButtonText(bool isAbsoluteTime);
     void setupTimer();
+    void onVisibleTimeWindowChanged(const TimeSelectionSpan& selection);
 
 private slots:
     void onIntervalButtonClicked();

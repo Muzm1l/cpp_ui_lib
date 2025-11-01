@@ -116,6 +116,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup test WaterfallGraph in controls tab for crosshair testing
     setupTestWaterfallGraph();
 
+    // Setup TimelineView in controls tab for slider testing
+    setupTimelineView();
+
     // // Configure TimeSelectionVisualizer
     // configureTimeVisualizer();
 
@@ -357,6 +360,95 @@ void MainWindow::setupTestWaterfallGraph()
     qDebug() << "Crosshair enabled:" << testWaterfallGraph->isCrosshairEnabled();
     qDebug() << "Test WaterfallGraph geometry:" << testWaterfallGraph->geometry();
     qDebug() << "Test WaterfallGraph visible:" << testWaterfallGraph->isVisible();
+}
+
+/**
+ * @brief Setup TimelineView in a dedicated timelineview tab
+ */
+void MainWindow::setupTimelineView()
+{
+    qDebug() << "=== Setting up TimelineView Tab ===";
+    
+    // Create a new tab for TimelineView
+    QWidget* timelineViewTab = new QWidget();
+    timelineViewTab->setObjectName("timelineViewTab");
+    ui->tabWidget->addTab(timelineViewTab, "Timeline View");
+    
+    // Create TimelineView in the new tab
+    testTimelineView = new TimelineView(timelineViewTab, timeUpdateTimer);
+    testTimelineView->setObjectName("testTimelineView");
+    testTimelineView->setGeometry(QRect(50, 50, 80, 600));
+    
+    // Create labels for monitoring timespan changes
+    QLabel* titleLabel = new QLabel("Timeline Slider Control", timelineViewTab);
+    titleLabel->setGeometry(QRect(150, 50, 300, 30));
+    titleLabel->setStyleSheet("QLabel { color: white; font-size: 16px; font-weight: bold; background-color: rgba(0, 0, 0, 150); padding: 6px; border-radius: 4px; }");
+    
+    QLabel* startLabel = new QLabel("Start Time:", timelineViewTab);
+    startLabel->setGeometry(QRect(150, 100, 120, 25));
+    startLabel->setStyleSheet("QLabel { color: white; font-size: 13px; font-weight: bold; }");
+    
+    timespanStartLabel = new QLabel("--:--:--", timelineViewTab);
+    timespanStartLabel->setGeometry(QRect(280, 100, 200, 25));
+    timespanStartLabel->setStyleSheet("QLabel { color: yellow; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 1px solid gray; border-radius: 3px; }");
+    
+    QLabel* endLabel = new QLabel("End Time:", timelineViewTab);
+    endLabel->setGeometry(QRect(150, 135, 120, 25));
+    endLabel->setStyleSheet("QLabel { color: white; font-size: 13px; font-weight: bold; }");
+    
+    timespanEndLabel = new QLabel("--:--:--", timelineViewTab);
+    timespanEndLabel->setGeometry(QRect(280, 135, 200, 25));
+    timespanEndLabel->setStyleSheet("QLabel { color: yellow; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 1px solid gray; border-radius: 3px; }");
+    
+    QLabel* durationLabel = new QLabel("Duration:", timelineViewTab);
+    durationLabel->setGeometry(QRect(150, 170, 120, 25));
+    durationLabel->setStyleSheet("QLabel { color: white; font-size: 13px; font-weight: bold; }");
+    
+    timespanDurationLabel = new QLabel("--:--:--", timelineViewTab);
+    timespanDurationLabel->setGeometry(QRect(280, 170, 200, 25));
+    timespanDurationLabel->setStyleSheet("QLabel { color: cyan; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 1px solid gray; border-radius: 3px; }");
+    
+    // Add instructions label
+    QLabel* instructionsLabel = new QLabel(
+        "Instructions:\n"
+        "• Drag the white rectangle in the slider to change the visible time window\n"
+        "• The slider represents the last 12 hours\n"
+        "• The white rectangle size is proportional to the selected time interval\n"
+        "• Use the interval button (dt:) to change the time interval",
+        timelineViewTab);
+    instructionsLabel->setGeometry(QRect(150, 220, 500, 150));
+    instructionsLabel->setStyleSheet("QLabel { color: lightgray; font-size: 12px; background-color: rgba(0, 0, 0, 100); padding: 10px; border: 1px solid gray; border-radius: 4px; }");
+    instructionsLabel->setWordWrap(true);
+    
+    // Connect TimeScopeChanged signal to update labels
+    connect(testTimelineView, &TimelineView::TimeScopeChanged, 
+            [this](const TimeSelectionSpan& selection) {
+                if (selection.startTime.isValid() && selection.endTime.isValid()) {
+                    // Update start time label
+                    timespanStartLabel->setText(selection.startTime.toString("HH:mm:ss"));
+                    
+                    // Update end time label
+                    timespanEndLabel->setText(selection.endTime.toString("HH:mm:ss"));
+                    
+                    // Calculate and display duration using msecsTo which handles rollovers
+                    int durationMs = selection.startTime.msecsTo(selection.endTime);
+                    if (durationMs < 0) {
+                        durationMs += 24 * 3600 * 1000; // Add 24 hours if negative
+                    }
+                    int durationSeconds = durationMs / 1000;
+                    
+                    QTime duration = QTime(0, 0, 0).addSecs(durationSeconds);
+                    timespanDurationLabel->setText(duration.toString("HH:mm:ss"));
+                    
+                    qDebug() << "TimeScopeChanged - Start:" << selection.startTime.toString("HH:mm:ss")
+                             << "End:" << selection.endTime.toString("HH:mm:ss")
+                             << "Duration:" << duration.toString("HH:mm:ss");
+                }
+            });
+    
+    qDebug() << "TimelineView created in dedicated Timeline View tab";
+    qDebug() << "TimelineView geometry:" << testTimelineView->geometry();
+    qDebug() << "TimelineView visible:" << testTimelineView->isVisible();
 }
 
 void MainWindow::setupCustomGraphsTab()
