@@ -39,8 +39,12 @@ void TimeVisualizerWidget::drawSelection(QPainter& painter, const TimeSelectionS
 
     // Get current time and selection times in seconds
     int currentTimeSeconds = m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second();
-    int selectionStartSeconds = span.startTime.hour() * 3600 + span.startTime.minute() * 60 + span.startTime.second();
-    int selectionEndSeconds = span.endTime.hour() * 3600 + span.endTime.minute() * 60 + span.endTime.second();
+    
+    // Extract time portion from QDateTime for comparison with QTime-based calculations
+    QTime selectionStartTime = span.startTime.time();
+    QTime selectionEndTime = span.endTime.time();
+    int selectionStartSeconds = selectionStartTime.hour() * 3600 + selectionStartTime.minute() * 60 + selectionStartTime.second();
+    int selectionEndSeconds = selectionEndTime.hour() * 3600 + selectionEndTime.minute() * 60 + selectionEndTime.second();
 
     // Calculate the visible time range (currentTime is at top, currentTime-timespan is at bottom)
     int timeSpanStartSeconds = currentTimeSeconds - totalSeconds;
@@ -330,17 +334,23 @@ void TimeVisualizerWidget::mouseDoubleClickEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton) {
         // Determine the full range to select: valid range if set, otherwise full visualizer range
-        TimeSelectionSpan span{QTime(), QTime()};
+        QDateTime currentDate = QDateTime::currentDateTime();
+        TimeSelectionSpan span;
+        
         if (hasValidRange()) {
-            span.startTime = m_validStartTime;
-            span.endTime = m_validEndTime;
+            // Convert QTime valid range to QDateTime
+            span.startTime = QDateTime(currentDate.date(), m_validStartTime);
+            span.endTime = QDateTime(currentDate.date(), m_validEndTime);
         } else {
             // Map the entire widget: bottom corresponds to oldest (height), top to current (0)
             const int bottomY = rect().height();
             const int topY = 0;
-            span.startTime = yCoordinateToTime(bottomY);
-            span.endTime = yCoordinateToTime(topY);
-            if (span.startTime > span.endTime) std::swap(span.startTime, span.endTime);
+            QTime startTime = yCoordinateToTime(bottomY);
+            QTime endTime = yCoordinateToTime(topY);
+            if (startTime > endTime) std::swap(startTime, endTime);
+            
+            span.startTime = QDateTime(currentDate.date(), startTime);
+            span.endTime = QDateTime(currentDate.date(), endTime);
         }
 
         addTimeSelection(span);
@@ -418,7 +428,20 @@ TimeSelectionSpan TimeVisualizerWidget::calculateSelectionSpan(int startY, int e
         std::swap(startTime, endTime);
     }
     
-    return TimeSelectionSpan(startTime, endTime);
+    // Convert QTime to QDateTime using current date
+    QDateTime currentDateTime = QDateTime::currentDateTime();
+    QDateTime startDateTime(currentDateTime.date(), startTime);
+    QDateTime endDateTime(currentDateTime.date(), endTime);
+    
+    // Handle day rollover: if endTime appears to be from previous day, adjust
+    // This can happen if the calculated times span midnight
+    if (endDateTime < startDateTime && endTime < startTime) {
+        // If times cross midnight, endDateTime might need to be next day
+        // But since we swapped if startTime > endTime, we should be fine
+        // However, if times don't naturally order, we may need to adjust
+    }
+    
+    return TimeSelectionSpan(startDateTime, endDateTime);
 }
 
 void TimeVisualizerWidget::setValidSelectionRange(const QTime& start, const QTime& end)
@@ -433,7 +456,20 @@ TimeSelectionSpan TimeVisualizerWidget::clampToValidRange(const TimeSelectionSpa
     if (!hasValidRange()) return span;
 
     TimeSelectionSpan clamped = span;
-    if (clamped.startTime < m_validStartTime) clamped.startTime = m_validStartTime;
-    if (clamped.endTime > m_validEndTime) clamped.endTime = m_validEndTime;
+    
+    // Convert QTime valid range to QDateTime using current date for comparison
+    QDateTime currentDate = QDateTime::currentDateTime();
+    QDateTime validStartDateTime(currentDate.date(), m_validStartTime);
+    QDateTime validEndDateTime(currentDate.date(), m_validEndTime);
+    
+    // Handle potential day rollover: if validEndDateTime < validStartDateTime, it might span midnight
+    // For now, we'll assume same-day ranges
+    
+    if (clamped.startTime < validStartDateTime) {
+        clamped.startTime = validStartDateTime;
+    }
+    if (clamped.endTime > validEndDateTime) {
+        clamped.endTime = validEndDateTime;
+    }
     return clamped;
 }

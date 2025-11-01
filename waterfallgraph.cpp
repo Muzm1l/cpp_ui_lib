@@ -1080,8 +1080,8 @@ void WaterfallGraph::updateSelection(const QPointF &scenePos)
     if (dataSource && !dataSource->isEmpty())
     {
         // Convert Y coordinates to times to validate
-        QTime topTime = mapScreenToTime(rect.top());
-        QTime bottomTime = mapScreenToTime(rect.bottom());
+        QDateTime topTime = mapScreenToTime(rect.top());
+        QDateTime bottomTime = mapScreenToTime(rect.bottom());
 
         // If either time is invalid, clamp the rectangle to valid bounds
         if (!topTime.isValid() || !bottomTime.isValid())
@@ -1110,8 +1110,8 @@ void WaterfallGraph::endSelection()
     qreal maxY = qMax(selectionStartPos.y(), selectionEndPos.y());
 
     // Map to time: minY (bottom) = later time, maxY (top) = earlier time
-    QTime startTime = mapScreenToTime(maxY); // Earlier time (top of selection)
-    QTime endTime = mapScreenToTime(minY);   // Later time (bottom of selection)
+    QDateTime startTime = mapScreenToTime(maxY); // Earlier time (top of selection)
+    QDateTime endTime = mapScreenToTime(minY);   // Later time (bottom of selection)
 
     qDebug() << "Selection Y range: minY=" << minY << "maxY=" << maxY;
     qDebug() << "Time range: start=" << startTime.toString() << "end=" << endTime.toString();
@@ -1122,7 +1122,7 @@ void WaterfallGraph::endSelection()
         // Ensure start time is before end time
         if (startTime > endTime)
         {
-            QTime temp = startTime;
+            QDateTime temp = startTime;
             startTime = endTime;
             endTime = temp;
         }
@@ -1149,7 +1149,7 @@ void WaterfallGraph::clearSelection()
     }
 }
 
-QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
+QDateTime WaterfallGraph::mapScreenToTime(qreal yPos) const
 {
     if (!dataRangesValid || drawingArea.isEmpty() || !dataSource || dataSource->isEmpty())
     {
@@ -1157,7 +1157,7 @@ QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
                  << "drawingArea.isEmpty:" << drawingArea.isEmpty()
                  << "dataSource:" << (dataSource ? "exists" : "null")
                  << "dataSource->isEmpty:" << (dataSource ? dataSource->isEmpty() : true);
-        return QTime();
+        return QDateTime();
     }
 
     // Map y-coordinate to time
@@ -1176,10 +1176,10 @@ QTime WaterfallGraph::mapScreenToTime(qreal yPos) const
     {
         qDebug() << "mapScreenToTime: Selection time" << selectionTime.toString()
                  << "is outside valid data range";
-        return QTime();
+        return QDateTime();
     }
 
-    return selectionTime.time();
+    return selectionTime;
 }
 
 void WaterfallGraph::testSelectionRectangle()

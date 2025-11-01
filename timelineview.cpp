@@ -49,8 +49,8 @@ QPair<int, int> SliderGeometry::getSliderBounds(int widgetHeight, int sliderHeig
 int SliderGeometry::calculateSliderYFromTime(const TimeSelectionSpan& timeWindow,
                                             int widgetHeight)
 {
-    QTime now = QTime::currentTime();
-    QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
     int minutesFromStart = twelveHoursAgo.msecsTo(timeWindow.startTime) / 60000;
     minutesFromStart = qBound(0, minutesFromStart, TWELVE_HOURS_IN_MINUTES);
     double positionRatio = static_cast<double>(minutesFromStart) / static_cast<double>(TWELVE_HOURS_IN_MINUTES);
@@ -61,15 +61,15 @@ TimeSelectionSpan SliderGeometry::calculateTimeWindowFromY(int sliderY,
                                                            const QTime& timeInterval,
                                                            int widgetHeight)
 {
-    QTime now = QTime::currentTime();
-    QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
     
     double positionRatio = static_cast<double>(sliderY) / static_cast<double>(widgetHeight);
     int minutesFromStart = static_cast<int>(positionRatio * TWELVE_HOURS_IN_MINUTES);
-    QTime windowStart = twelveHoursAgo.addSecs(minutesFromStart * 60);
+    QDateTime windowStart = twelveHoursAgo.addSecs(minutesFromStart * 60);
     
     int intervalSeconds = timeInterval.hour() * 3600 + timeInterval.minute() * 60 + timeInterval.second();
-    QTime windowEnd = windowStart.addSecs(intervalSeconds);
+    QDateTime windowEnd = windowStart.addSecs(intervalSeconds);
     
     return TimeSelectionSpan(windowStart, windowEnd);
 }
@@ -82,8 +82,8 @@ SliderState::SliderState()
     : m_yPosition(0), m_isDragging(false), m_dragStartSliderY(0)
 {
     // Initialize with default time window (will be set by widget)
-    QTime now = QTime::currentTime();
-    QTime fifteenMinutesAgo = now.addSecs(-15 * 60);
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime fifteenMinutesAgo = now.addSecs(-15 * 60);
     m_timeWindow = TimeSelectionSpan(fifteenMinutesAgo, now);
 }
 
@@ -165,19 +165,19 @@ void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& inte
 {
     // Calculate time window based on Y position
     // Top (Y=0) should represent "now", bottom represents "12 hours ago"
-    QTime now = QTime::currentTime();
-    QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
     
     // Convert Y position to time ratio (inverted: Y=0 means endTime=now)
     double positionRatio = 1.0 - (static_cast<double>(m_yPosition) / static_cast<double>(widgetHeight));
     int minutesFromStart = static_cast<int>(positionRatio * SliderGeometry::getTwelveHoursInMinutes());
     
     // Calculate window end time (top edge of slider)
-    QTime windowEnd = twelveHoursAgo.addSecs(minutesFromStart * 60);
+    QDateTime windowEnd = twelveHoursAgo.addSecs(minutesFromStart * 60);
     
     // Calculate window start time based on interval
     int intervalSeconds = interval.hour() * 3600 + interval.minute() * 60 + interval.second();
-    QTime windowStart = windowEnd.addSecs(-intervalSeconds);
+    QDateTime windowStart = windowEnd.addSecs(-intervalSeconds);
     
     m_timeWindow = TimeSelectionSpan(windowStart, windowEnd);
 }
@@ -186,8 +186,8 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 {
     // Calculate position based on the END time (top represents "now")
     // Position slider so its top edge represents the end time of the window
-    QTime now = QTime::currentTime();
-    QTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
     
     // Calculate minutes from twelveHoursAgo to the window end time
     int minutesFromStart = twelveHoursAgo.msecsTo(m_timeWindow.endTime) / 60000;
@@ -229,9 +229,9 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
 
     // Initialize slider state: from "(now - interval)" to "now" (default 15 minutes)
     // Position slider at top (Y=0) representing the most recent time window
-    QTime now = QTime::currentTime();
+    QDateTime now = QDateTime::currentDateTime();
     int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
-    QTime startTime = now.addSecs(-intervalSeconds);
+    QDateTime startTime = now.addSecs(-intervalSeconds);
     TimeSelectionSpan initialWindow(startTime, now);
     
     // Set the time window (this will sync position to top since endTime = now)
@@ -273,7 +273,7 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // Keep the start time, adjust the end time
     TimeSelectionSpan currentWindow = m_sliderState.getTimeWindow();
     int intervalSeconds = newLength.hour() * 3600 + newLength.minute() * 60 + newLength.second();
-    QTime endTime = currentWindow.startTime.addSecs(intervalSeconds);
+    QDateTime endTime = currentWindow.startTime.addSecs(intervalSeconds);
     TimeSelectionSpan newWindow(currentWindow.startTime, endTime);
     m_sliderState.setTimeWindow(newWindow, rect().height(), newLength);
     

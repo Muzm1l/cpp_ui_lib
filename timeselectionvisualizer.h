@@ -7,6 +7,7 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QTime>
+#include <QDateTime>
 #include <QTimer>
 #include <QList>
 #include <QMouseEvent>
@@ -30,7 +31,7 @@ public:
 
     // Valid selection range
     void setValidSelectionRange(const QTime& start, const QTime& end);
-    void setValidSelectionRange(const TimeSelectionSpan& span) { setValidSelectionRange(span.startTime, span.endTime); }
+    void setValidSelectionRange(const TimeSelectionSpan& span) { setValidSelectionRange(span.startTime.time(), span.endTime.time()); }
 
     // Properties
     void setTimeLineLength(const QTime& length);

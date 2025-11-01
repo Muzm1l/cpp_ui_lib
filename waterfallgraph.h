@@ -169,7 +169,7 @@ protected:
     void updateSelection(const QPointF &scenePos);
     void endSelection();
     void clearSelection();
-    QTime mapScreenToTime(qreal yPos) const;
+    QDateTime mapScreenToTime(qreal yPos) const;
 
 public:
     // Mouse selection control

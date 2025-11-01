@@ -424,16 +424,16 @@ void MainWindow::setupTimelineView()
     connect(testTimelineView, &TimelineView::TimeScopeChanged, 
             [this](const TimeSelectionSpan& selection) {
                 if (selection.startTime.isValid() && selection.endTime.isValid()) {
-                    // Update start time label
+                    // Update start time label (QDateTime formatting)
                     timespanStartLabel->setText(selection.startTime.toString("HH:mm:ss"));
                     
-                    // Update end time label
+                    // Update end time label (QDateTime formatting)
                     timespanEndLabel->setText(selection.endTime.toString("HH:mm:ss"));
                     
-                    // Calculate and display duration using msecsTo which handles rollovers
+                    // Calculate and display duration using msecsTo
                     int durationMs = selection.startTime.msecsTo(selection.endTime);
                     if (durationMs < 0) {
-                        durationMs += 24 * 3600 * 1000; // Add 24 hours if negative
+                        durationMs = -durationMs; // Use absolute value
                     }
                     int durationSeconds = durationMs / 1000;
                     

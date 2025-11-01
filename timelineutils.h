@@ -3,6 +3,7 @@
 
 #include <QString>
 #include <QTime>
+#include <QDateTime>
 #include <vector>
 
 enum class TimeInterval
@@ -34,11 +35,11 @@ inline std::vector<TimeInterval> getValidTimeIntervals()
 
 struct TimeSelectionSpan
 {
-    QTime startTime;
-    QTime endTime;
+    QDateTime startTime;
+    QDateTime endTime;
 
     TimeSelectionSpan() = default;
-    TimeSelectionSpan(const QTime &start, const QTime &end) : startTime(start), endTime(end) {}
+    TimeSelectionSpan(const QDateTime &start, const QDateTime &end) : startTime(start), endTime(end) {}
 };
 
 // Utility function to convert TimeInterval enum to QTime
