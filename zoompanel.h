@@ -34,10 +34,13 @@ public:
     explicit ZoomPanel(QWidget *parent = nullptr);
     ~ZoomPanel();
 
-    // Label value setters
+    // Label value setters (updates display values)
     void setLeftLabelValue(const qreal value);
     void setCenterLabelValue(const qreal value);
     void setRightLabelValue(const qreal value);
+    
+    // Original range setters (sets and locks original values used for calculations)
+    void setOriginalRangeValues(const qreal leftValue, const qreal centerValue, const qreal rightValue);
 
     // Getter methods for label values
     const qreal getLeftLabelValue() const;
@@ -47,6 +50,12 @@ public:
     // User modification tracking
     bool hasUserModifiedBounds() const;
     void resetUserModifiedFlag();
+
+    // Rebase labels to the current bounds and reset indicator to [0,1]
+    void rebaseToCurrentBounds();
+    
+    // Reset indicator to full range [0.0, 1.0] without changing labels
+    void resetIndicatorToFullRange();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -63,10 +72,16 @@ private:
     QGraphicsTextItem *m_centerText;
     QGraphicsTextItem *m_rightText;
 
-    // Label values
-    qreal m_leftLabelValue = 0.0;   // Left reference value
-    qreal m_centerLabelValue = 0.5; // Center value
-    qreal m_rightLabelValue = 1.0;  // Range for upper bound
+    // Label values (display values shown to user)
+    qreal m_leftLabelValue = 0.0;   // Left reference value (display)
+    qreal m_centerLabelValue = 0.5; // Center value (display)
+    qreal m_rightLabelValue = 1.0;  // Range for upper bound (display)
+    
+    // Original range values (constant, used for all calculations)
+    qreal m_originalLeftLabelValue = 0.0;   // Original left reference value (constant)
+    qreal m_originalCenterLabelValue = 0.5; // Original center value (constant)
+    qreal m_originalRightLabelValue = 1.0;  // Original right reference value (constant)
+    bool m_originalValuesSet = false;  // Track if original values have been initialized
 
     // Mouse interaction state
     bool m_isDragging;
@@ -109,6 +124,9 @@ private:
 
     // Helper method to calculate interpolated bounds
     ZoomBounds calculateInterpolatedBounds() const;
+    
+    // Helper method to update display labels to reflect current selected range
+    void updateDisplayLabels();
 
     // Interpolation Ranges
     const qreal m_interpolationLowerBound = 0.0;

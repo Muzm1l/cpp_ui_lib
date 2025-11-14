@@ -193,4 +193,6 @@ private:
     QList<QRectF> getRotateRegions() const;
 };
 
+Q_DECLARE_METATYPE(InteractiveGraphicsItem*)
+
 #endif // INTERACTIVEGRAPHICSITEM_H

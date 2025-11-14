@@ -38,9 +38,6 @@ MainWindow::MainWindow(QWidget *parent)
     connect(timer, &QTimer::timeout, this, &MainWindow::updateSimulation);
     timer->start(1000); // 1000ms = 1 second
 
-    // // Set bulk data for all graphs (simulation disabled)
-    // setBulkDataForAllGraphs();
-
     // Set up timer for time updates (every 1 second) - this will be passed to GraphLayout
     timeUpdateTimer->setInterval(1000); // 1000ms = 1 second
     timeUpdateTimer->start();
@@ -91,7 +88,6 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->setHardRangeLimits(GraphType::RTW, 0.0, 50.0);  // Right Track Window
     // FTW: sim range 15.0-30.0, so limits 15.0-45.0
     graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
-    // graphgrid->setRangeLimits(GraphType::RTW, 36.0, 84.0);  // Right Track Window
     graphgrid->setHardRangeLimits(GraphType::FTW, 45.0, 90.0);  // Frequency Time Window
 
     ui->tsv->setData(
@@ -119,19 +115,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup TimelineView in controls tab for slider testing
     setupTimelineView();
 
-    // // Configure TimeSelectionVisualizer
-    // configureTimeVisualizer();
-
-    // // Configure TimelineView
-    // configureTimelineView();
-
     // Configure Zoom Panel test functionality
     configureZoomPanel();
-
-
-    // // Set up timer for current time updates (every second)
-    // connect(timeUpdateTimer, &QTimer::timeout, this, &MainWindow::updateCurrentTime);
-    // timeUpdateTimer->start(1000); // 1000ms = 1 second
 }
 
 MainWindow::~MainWindow()
@@ -158,7 +143,6 @@ MainWindow::~MainWindow()
 void MainWindow::updateSimulation()
 {
     this->simTick++;
-    // qDebug() << "Sim Tick: " << this->simTick;
 
     auto randPercent = [](int max)
     {
@@ -211,70 +195,6 @@ void MainWindow::updateSimulation()
     graphgrid->setChevronLabel3("End");
 }
 
-// void MainWindow::configureTimeVisualizer()
-// {
-//     // Set timeline length to 1 hour (60 minutes)
-//     ui->timeVisualizer->setTimeLineLength(QTime(1, 0, 0));
-
-//     // Set initial current time to system time
-//     ui->timeVisualizer->setCurrentTime(QTime::currentTime());
-
-//     // Add some sample time selections relative to current time
-//     QTime currentTime = QTime::currentTime();
-
-//     // Create selections that are within the visible range (last hour)
-//     // Selection 1: 5-10 minutes ago (should be visible)
-//     QTime start1 = currentTime.addSecs(-10 * 60); // 10 minutes ago
-//     QTime end1 = currentTime.addSecs(-5 * 60);   // 5 minutes ago
-//     TimeSelectionSpan span1(start1, end1);
-
-//     // Selection 2: 20-25 minutes ago (should be visible)
-//     QTime start2 = currentTime.addSecs(-25 * 60); // 25 minutes ago
-//     QTime end2 = currentTime.addSecs(-20 * 60);   // 20 minutes ago
-//     TimeSelectionSpan span2(start2, end2);
-
-//     // Selection 3: 35-45 minutes ago (should be visible)
-//     QTime start3 = currentTime.addSecs(-45 * 60); // 45 minutes ago
-//     QTime end3 = currentTime.addSecs(-35 * 60);   // 35 minutes ago
-//     TimeSelectionSpan span3(start3, end3);
-
-//     // Selection 4: 2-3 minutes ago (should be visible)
-//     QTime start4 = currentTime.addSecs(-3 * 60); // 3 minutes ago
-//     QTime end4 = currentTime.addSecs(-2 * 60);   // 2 minutes ago
-//     TimeSelectionSpan span4(start4, end4);
-
-//     ui->timeVisualizer->addTimeSelection(span1);
-//     ui->timeVisualizer->addTimeSelection(span2);
-//     ui->timeVisualizer->addTimeSelection(span3);
-//     ui->timeVisualizer->addTimeSelection(span4);
-
-// }
-
-// void MainWindow::configureTimelineView()
-// {
-//     ui->timelineView->setTimeLineLength(TimeInterval::FifteenMinutes); // 15 minutes
-//     ui->timelineView->setCurrentTime(QTime::currentTime());
-//     ui->timelineView->setNumberOfDivisions(15); // 15 segments
-
-//     // Create a new timer that fires every minute
-//     QTimer *timelineUpdateTimer = new QTimer(this);
-//     connect(timelineUpdateTimer, &QTimer::timeout, this, &MainWindow::updateTimeline);
-//     timelineUpdateTimer->start(60000); // 60000ms = 1 minute
-
-// }
-
-// void MainWindow::updateTimeline()
-// {
-//     ui->timelineView->setCurrentTime(QTime::currentTime());
-// }
-
-// void MainWindow::updateCurrentTime()
-// {
-//     // Update the current time to the system time
-//     ui->timeVisualizer->setCurrentTime(QTime::currentTime());
-//     ui->timelineView->setCurrentTime(QTime::currentTime());
-// }
-
 void MainWindow::configureZoomPanel()
 {
     // Initialize label values
@@ -304,6 +224,7 @@ void MainWindow::configureLayoutSelection()
     ui->layoutSelectionComboBox->addItem("2 Windows Vertical", static_cast<int>(LayoutType::GPW2WV));
     ui->layoutSelectionComboBox->addItem("2 Windows Horizontal", static_cast<int>(LayoutType::GPW2WH));
     ui->layoutSelectionComboBox->addItem("4 Windows Horizontal", static_cast<int>(LayoutType::GPW4WH));
+    ui->layoutSelectionComboBox->addItem("2 Windows Horizontal (no GPW)", static_cast<int>(LayoutType::NOGPW2WH));
     ui->layoutSelectionComboBox->addItem("Hidden", static_cast<int>(LayoutType::HIDDEN));
 
     // Set default selection to 1 Window

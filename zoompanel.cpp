@@ -206,6 +206,16 @@ void ZoomPanel::updateIndicator(double value)
 void ZoomPanel::setLeftLabelValue(const qreal value)
 {
     m_leftLabelValue = value;
+    // Store original value if not already set
+    if (!m_originalValuesSet)
+    {
+        m_originalLeftLabelValue = value;
+        m_originalCenterLabelValue = m_centerLabelValue;
+        m_originalRightLabelValue = m_rightLabelValue;
+        m_originalValuesSet = true;
+        qDebug() << "ZoomPanel: Original values initialized - Left:" << m_originalLeftLabelValue
+                 << "Center:" << m_originalCenterLabelValue << "Right:" << m_originalRightLabelValue;
+    }
     if (m_leftText)
     {
         m_leftText->setPlainText(QString::number(value, 'f', 2));
@@ -228,6 +238,16 @@ void ZoomPanel::setRightLabelValue(const qreal value)
     {
         m_rightText->setPlainText(QString::number(value, 'f', 2));
     }
+}
+
+void ZoomPanel::setOriginalRangeValues(const qreal leftValue, const qreal centerValue, const qreal rightValue)
+{
+    m_originalLeftLabelValue = leftValue;
+    m_originalCenterLabelValue = centerValue;
+    m_originalRightLabelValue = rightValue;
+    m_originalValuesSet = true;
+    qDebug() << "ZoomPanel: Original range values explicitly set - Left:" << m_originalLeftLabelValue
+             << "Center:" << m_originalCenterLabelValue << "Right:" << m_originalRightLabelValue;
 }
 
 const qreal ZoomPanel::getLeftLabelValue() const
@@ -295,8 +315,54 @@ void ZoomPanel::mousePressEvent(QMouseEvent *event)
         }
         else
         {
-            // Clicked outside indicator - no action
-            qDebug() << "Clicked outside indicator - no action";
+            // Clicked outside indicator - jump to that position (scrollbar-like behavior)
+            // Only if user has already customized (scrollbar mode)
+            if (m_userModifiedBounds)
+            {
+                QRect drawArea = this->rect();
+                int margin = qMax(2, drawArea.height() / 10);
+                int availableWidth = drawArea.width() - (2 * margin);
+                
+                // Convert mouse X position to a value between 0.0 and 1.0
+                qreal mouseValue = static_cast<qreal>(event->pos().x() - margin) / static_cast<qreal>(availableWidth);
+                mouseValue = qBound(0.0, mouseValue, 1.0);
+                
+                // Calculate current indicator size
+                qreal currentRange = m_indicatorUpperBoundValue - m_indicatorLowerBoundValue;
+                
+                // Center the indicator at the mouse position
+                qreal newLowerBound = mouseValue - (currentRange / 2.0);
+                qreal newUpperBound = mouseValue + (currentRange / 2.0);
+                
+                // Clamp to valid range
+                if (newLowerBound < 0.0)
+                {
+                    newLowerBound = 0.0;
+                    newUpperBound = currentRange;
+                }
+                if (newUpperBound > 1.0)
+                {
+                    newUpperBound = 1.0;
+                    newLowerBound = 1.0 - currentRange;
+                }
+                
+                m_indicatorLowerBoundValue = newLowerBound;
+                m_indicatorUpperBoundValue = newUpperBound;
+                updateIndicatorToBounds();
+                
+                // Update display labels to show current selected range (dynamic values)
+                updateDisplayLabels();
+                
+                // Emit bounds change
+                ZoomBounds bounds = calculateInterpolatedBounds();
+                emit valueChanged(bounds);
+                
+                qDebug() << "Jumped indicator to position:" << mouseValue << "(scrollbar behavior)";
+            }
+            else
+            {
+                qDebug() << "Clicked outside indicator - no action (not customized yet)";
+            }
         }
     }
 }
@@ -343,7 +409,8 @@ void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
         {
             m_isDragging = false;
             setCursor(Qt::ArrowCursor);
-            qDebug() << "Drag mode ended";
+            qDebug() << "Drag mode ended - indicator size and position preserved (scrollbar behavior)";
+            // Don't rebase - keep indicator size and position for scrollbar-like behavior
         }
 
         if (m_isExtending)
@@ -351,7 +418,8 @@ void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
             m_isExtending = false;
             m_extendMode = None;
             setCursor(Qt::ArrowCursor);
-            qDebug() << "Extend mode ended";
+            qDebug() << "Extend mode ended - indicator size preserved (scrollbar behavior)";
+            // Don't rebase - keep indicator size for scrollbar-like behavior
         }
     }
 }
@@ -418,6 +486,9 @@ void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
 
         // Update indicator position to reflect new bounds
         updateIndicatorToBounds();
+        
+        // Update display labels to show current selected range (dynamic values)
+        updateDisplayLabels();
 
         // Emit current actual bounds
         ZoomBounds bounds = calculateInterpolatedBounds();
@@ -453,9 +524,18 @@ void ZoomPanel::showEvent(QShowEvent *event)
     // Ensure the zoom panel is properly initialized when becoming visible
     if (m_scene && m_indicator)
     {
-        // Update indicator to current value to ensure proper visual state
-        updateIndicator(m_currentValue);
-        qDebug() << "ZoomPanel: Show event - updated indicator to value:" << m_currentValue;
+        // If user has customized, preserve bounds (scrollbar behavior)
+        // Otherwise, update to current value
+        if (m_userModifiedBounds)
+        {
+            updateIndicatorToBounds();
+            qDebug() << "ZoomPanel: Show event - preserved indicator bounds (scrollbar mode)";
+        }
+        else
+        {
+            updateIndicator(m_currentValue);
+            qDebug() << "ZoomPanel: Show event - updated indicator to value:" << m_currentValue;
+        }
     }
 }
 
@@ -463,6 +543,10 @@ void ZoomPanel::updateAllElements()
 {
     if (!m_scene)
         return;
+
+    // Store current indicator bounds before recreating
+    qreal savedLowerBound = m_indicatorLowerBoundValue;
+    qreal savedUpperBound = m_indicatorUpperBoundValue;
 
     // Remove existing items
     if (m_indicator)
@@ -494,8 +578,10 @@ void ZoomPanel::updateAllElements()
     createIndicator();
     createTextItems();
 
-    // Update indicator to current value
-    updateIndicator(m_currentValue);
+    // Restore indicator bounds (preserve custom size/position if customized)
+    m_indicatorLowerBoundValue = savedLowerBound;
+    m_indicatorUpperBoundValue = savedUpperBound;
+    updateIndicatorToBounds();
 }
 
 ZoomPanel::ExtendMode ZoomPanel::detectExtendMode(const QPoint &mousePos)
@@ -559,6 +645,9 @@ void ZoomPanel::updateExtentFromMousePosition(const QPoint &currentPos)
 
     // Update the indicator to span from leftLabelValue to rightLabelValue
     updateIndicatorToBounds();
+    
+    // Update display labels to show current selected range (dynamic values)
+    updateDisplayLabels();
 
     // Update bounds calculation and emit signal
     ZoomBounds bounds = calculateInterpolatedBounds();
@@ -598,9 +687,99 @@ void ZoomPanel::updateIndicatorToBounds()
 ZoomBounds ZoomPanel::calculateInterpolatedBounds() const
 {
     ZoomBounds bounds;
-    // Linear interpolation for lower indicator value: interpolate between min indicator (0.0) and left label
-    bounds.lowerbound = m_leftLabelValue + (m_indicatorLowerBoundValue) * (m_rightLabelValue - m_leftLabelValue);
-    // Linear interpolation for upper bound: interpolate between max indicator (1.0) and right label
-    bounds.upperbound = m_leftLabelValue + (m_indicatorUpperBoundValue) * (m_rightLabelValue - m_leftLabelValue);
+    // Always use original values for calculations (constant reference)
+    // Indicator position is relative to original range
+    qreal originalRange = m_originalRightLabelValue - m_originalLeftLabelValue;
+    
+    // Calculate bounds based on original range using indicator position
+    // This ensures calculations are always based on the constant original values
+    bounds.lowerbound = m_originalLeftLabelValue + (m_indicatorLowerBoundValue * originalRange);
+    bounds.upperbound = m_originalLeftLabelValue + (m_indicatorUpperBoundValue * originalRange);
+    
     return bounds;
+}
+
+void ZoomPanel::updateDisplayLabels()
+{
+    // Calculate current selected range from original values (dynamic values for display)
+    ZoomBounds current = calculateInterpolatedBounds();
+    
+    // Update display labels to show the selected range
+    // These are the "layered" dynamic values shown to the user
+    m_leftLabelValue = current.lowerbound;
+    m_rightLabelValue = current.upperbound;
+    m_centerLabelValue = current.lowerbound + (current.upperbound - current.lowerbound) * 0.5;
+    
+    // Update the text items to reflect the new display values
+    if (m_leftText)
+    {
+        m_leftText->setPlainText(QString::number(m_leftLabelValue, 'f', 2));
+    }
+    if (m_rightText)
+    {
+        m_rightText->setPlainText(QString::number(m_rightLabelValue, 'f', 2));
+    }
+    if (m_centerText)
+    {
+        m_centerText->setPlainText(QString::number(m_centerLabelValue, 'f', 2));
+    }
+    
+    qDebug() << "ZoomPanel: Display labels updated (dynamic) - Lower:" << m_leftLabelValue
+             << "Upper:" << m_rightLabelValue << "| Original (constant) - Lower:" << m_originalLeftLabelValue
+             << "Upper:" << m_originalRightLabelValue;
+}
+
+void ZoomPanel::rebaseToCurrentBounds()
+{
+    // Compute interpolated bounds for current indicator extents
+    ZoomBounds current = calculateInterpolatedBounds();
+
+    // Update only the display labels to reflect the selected range
+    // Original values remain constant (used for calculations)
+    m_leftLabelValue = current.lowerbound;
+    m_rightLabelValue = current.upperbound;
+    m_centerLabelValue = current.lowerbound + (current.upperbound - current.lowerbound) * 0.5;
+    
+    // Update display text items
+    if (m_leftText)
+    {
+        m_leftText->setPlainText(QString::number(m_leftLabelValue, 'f', 2));
+    }
+    if (m_rightText)
+    {
+        m_rightText->setPlainText(QString::number(m_rightLabelValue, 'f', 2));
+    }
+    if (m_centerText)
+    {
+        m_centerText->setPlainText(QString::number(m_centerLabelValue, 'f', 2));
+    }
+
+    // Reset indicator to full range [0.0, 1.0] so it spans the entire panel
+    // The display labels now represent the selected range, so full indicator = full selected range
+    // BUT preserve the user modified flag so future data updates don't reset the zoom
+    m_indicatorLowerBoundValue = 0.0;
+    m_indicatorUpperBoundValue = 1.0;
+    m_currentValue = 1.0;
+    updateIndicatorToBounds();
+    // DO NOT reset m_userModifiedBounds - keep it true to preserve customization
+    
+    qDebug() << "ZoomPanel: Display labels updated to selected bounds (original values unchanged) - Display Lower:" << m_leftLabelValue
+             << "Display Upper:" << m_rightLabelValue << "Original Lower:" << m_originalLeftLabelValue
+             << "Original Upper:" << m_originalRightLabelValue << "- User modification preserved";
+}
+
+void ZoomPanel::resetIndicatorToFullRange()
+{
+    // Reset indicator bounds to full range [0.0, 1.0]
+    m_indicatorLowerBoundValue = 0.0;
+    m_indicatorUpperBoundValue = 1.0;
+    m_currentValue = 1.0;
+    
+    // Update the indicator visual representation
+    updateIndicatorToBounds();
+    
+    // Reset user modified flag
+    m_userModifiedBounds = false;
+    
+    qDebug() << "ZoomPanel: Indicator reset to full range [0.0, 1.0]";
 }

@@ -8,7 +8,6 @@
 #include <QPaintEvent>
 #include <QResizeEvent>
 #include <QMouseEvent>
-#include <QEnterEvent>
 #include <QTime>
 #include <QList>
 #include <QObject>
@@ -148,7 +147,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
-    void enterEvent(QEnterEvent* event) override;
+    void enterEvent(QEvent* event) override;
 
 private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes

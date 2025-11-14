@@ -24,6 +24,11 @@ protected:
     // Override mouse event handlers if needed
     void onMouseClick(const QPointF &scenePos) override;
     void onMouseDrag(const QPointF &scenePos) override;
+    
+    // // Override mouse move to track cursor for crosshair
+    // void mouseMoveEvent(QMouseEvent *event) override;
+    // void enterEvent(QEvent *event) override;
+    // void leaveEvent(QEvent *event) override;
 
 private:
     // LTW-specific properties and methods can be added here

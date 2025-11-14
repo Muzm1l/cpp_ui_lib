@@ -21,8 +21,8 @@ enum class LayoutType
     GPW2WV = 2, // 2 windows in vertical line
     GPW2WH = 3, // 2 windows in horizontal line
     GPW4WH = 4, // 4 windows in horizontal line
-    HIDDEN = 5  // Hidden
-
+    NOGPW2WH = 5, // 2 windows in horizontal line, but take up whole screen
+    HIDDEN = 6  // Hidden
 };
 
 class GraphLayout : public QWidget

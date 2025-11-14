@@ -1,5 +1,6 @@
 #include "btwgraph.h"
 #include "btwinteractiveoverlay.h"
+#include "interactivegraphicsitem.h"
 #include <QDebug>
 #include <QRandomGenerator>
 

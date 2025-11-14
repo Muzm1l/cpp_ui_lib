@@ -424,6 +424,15 @@ void GraphContainer::setCurrentDataOption(const GraphType graphType)
         m_comboBox->setCurrentIndex(index);
     }
 
+    // Reset zoom panel state when graph changes - clear any previous customization
+    // This ensures the new graph's range is displayed, not the previous graph's zoom state
+    if (m_zoomPanel)
+    {
+        m_zoomPanel->resetUserModifiedFlag();
+        m_zoomPanel->resetIndicatorToFullRange();
+        qDebug() << "GraphContainer: Reset zoom panel state for new graph:" << title;
+    }
+
     // Initialize zoom panel limits for the new data source
     initializeZoomPanelLimits();
 
@@ -959,13 +968,26 @@ void GraphContainer::initializeZoomPanelLimits()
     // Calculate center value (linear interpolation)
     qreal centerValue = dataMin + (dataMax - dataMin) * 0.5;
 
-    // Set the zoom panel label values
-    m_zoomPanel->setLeftLabelValue(dataMin);
-    m_zoomPanel->setCenterLabelValue(centerValue);
-    m_zoomPanel->setRightLabelValue(dataMax);
-
-    qDebug() << "GraphContainer: Zoom panel limits initialized - Min:" << dataMin
-             << "Center:" << centerValue << "Max:" << dataMax << "- Zoom reset to 50%";
+    // Only update zoom panel if user hasn't customized
+    // If customized, preserve all values (original and display) - don't update anything
+    if (!m_zoomPanel->hasUserModifiedBounds())
+    {
+        // User hasn't customized - update original values to new data range
+        m_zoomPanel->setOriginalRangeValues(dataMin, centerValue, dataMax);
+        // Also update display values
+        m_zoomPanel->setLeftLabelValue(dataMin);
+        m_zoomPanel->setCenterLabelValue(centerValue);
+        m_zoomPanel->setRightLabelValue(dataMax);
+        
+        qDebug() << "GraphContainer: Zoom panel limits updated - Min:" << dataMin
+                 << "Center:" << centerValue << "Max:" << dataMax << "- User has not customized";
+    }
+    else
+    {
+        // User has customized - don't update anything (preserve all zoom state)
+        // Original values remain constant, display values remain unchanged
+        qDebug() << "GraphContainer: Zoom panel limits NOT updated - user has customized zoom - preserving state";
+    }
 }
 
 void GraphContainer::onDataChanged(GraphType graphType)
@@ -1138,9 +1160,15 @@ void GraphContainer::setGraphRangeLimits(const GraphType graphType, qreal yMin, 
         m_currentWaterfallGraph->setCustomYRange(yMin, yMax);
 
         // Update the zoom panel limits
+        qreal centerValue = yMin + (yMax - yMin) * 0.5;
+        // Set original values (used for calculations) and display values
+        m_zoomPanel->setOriginalRangeValues(yMin, centerValue, yMax);
         m_zoomPanel->setLeftLabelValue(yMin);
-        m_zoomPanel->setCenterLabelValue(yMin + (yMax - yMin) * 0.5);
+        m_zoomPanel->setCenterLabelValue(centerValue);
         m_zoomPanel->setRightLabelValue(yMax);
+        
+        // Reset indicator to full range to restore initial state
+        m_zoomPanel->resetIndicatorToFullRange();
 
         qDebug() << "GraphContainer: Applied stored range limits for" << graphTypeToString(graphType)
                  << "- Min:" << yMin << "Max:" << yMax << "- Auto-update disabled";
