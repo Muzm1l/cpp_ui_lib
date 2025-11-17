@@ -111,3 +111,4 @@ ui_*.h
 Thumbs.db
 
 .qtc_clangd/**
+ui-sandbox
