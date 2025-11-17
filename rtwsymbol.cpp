@@ -4,6 +4,7 @@
 #include <QPen>
 #include <QBrush>
 #include <QColor>
+#include <cmath>
 
 RTWSymbols::RTWSymbols(int baseSize)
     : size(baseSize)
@@ -191,28 +192,57 @@ QPixmap RTWSymbols::makeEllipsePP()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF e(4, 10, size-8, size-20);
+    QRectF ellipseRect(4, 10, size-8, size-20); // Ellipse: wider than tall
+    qreal centerX = ellipseRect.center().x();
+    qreal centerY = ellipseRect.center().y();
+    qreal radiusX = ellipseRect.width() / 2.0;  // Horizontal radius
+    qreal radiusY = ellipseRect.height() / 1.5; // Vertical radius
     
-    // Create a textured brush for the border
-    QPixmap texture(4, 4);
-    texture.fill(Qt::transparent);
-    QPainter texturePainter(&texture);
-    texturePainter.setPen(Qt::white);
-    // Create a simple dot pattern texture
-    texturePainter.drawPoint(0, 0);
-    texturePainter.drawPoint(2, 2);
-    texturePainter.drawPoint(1, 3);
-    texturePainter.drawPoint(3, 1);
+    p.setPen(QPen(Qt::green, 2));
     
-    QBrush texturedBrush(texture);
-    QPen texturedPen(texturedBrush, 2.0);
-    texturedPen.setStyle(Qt::SolidLine);
+    // Create a wavy/scalloped ellipse border
+    int numScallops = 14; // Number of up/down intervals
+    QPainterPath wavyPath;
     
-    p.setPen(texturedPen);
-    p.drawEllipse(e);
+    for (int i = 0; i <= numScallops; ++i) {
+        double angle1 = (i * 2.0 * M_PI) / numScallops;
+        double angle2 = ((i + 1) * 2.0 * M_PI) / numScallops;
+        
+        // Calculate outer point (normal ellipse)
+        qreal x1 = centerX + radiusX * cos(angle1);
+        qreal y1 = centerY + radiusY * sin(angle1);
+        qreal x2 = centerX + radiusX * cos(angle2);
+        qreal y2 = centerY + radiusY * sin(angle2);
+        
+        // Calculate inner point (indented for scallop)
+        double midAngle = (angle1 + angle2) / 2.0;
+        qreal indentRadiusX = radiusX * 0.85; // 15% indent
+        qreal indentRadiusY = radiusY * 0.85; // 15% indent
+        qreal xMid = centerX + indentRadiusX * cos(midAngle);
+        qreal yMid = centerY + indentRadiusY * sin(midAngle);
+        
+        if (i == 0) {
+            wavyPath.moveTo(x1, y1);
+        }
+        
+        // Draw curve from outer point, through indent, to next outer point
+        QPointF p1(x1, y1);
+        QPointF pMid(xMid, yMid);
+        QPointF p2(x2, y2);
+        
+        // Create a quadratic curve for smooth scallop
+        QPointF controlPoint = pMid;
+        wavyPath.quadTo(controlPoint, p2);
+    }
+    
+    wavyPath.closeSubpath();
+    p.drawPath(wavyPath);
 
-    p.setFont(makeFont());
-    p.drawText(e, Qt::AlignCenter, "PP");
+     // add a text in the center of the circle
+     QRectF textRect(4, 4, size-8, size-8);
+     p.setFont(makeFont());
+     p.drawText(textRect, Qt::AlignCenter, "PP");
+ 
 
     return pix;
 }
@@ -300,15 +330,62 @@ QPixmap RTWSymbols::makeCircleRYellow()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
-    p.setPen(Qt::yellow);
-    p.drawEllipse(box);
+    QRectF circleRect(4, 4, size-8, size-8);
+    qreal centerX = circleRect.center().x();
+    qreal centerY = circleRect.center().y();
+    qreal radius = circleRect.width() / 2.0;
     
+    p.setPen(QPen(Qt::yellow, 2));
+    
+    // Create a wavy/scalloped circle border
+    // We'll draw the circle with regular indentations (scallops)
+    int numScallops = 14; // Number of up/down intervals
+    QPainterPath wavyPath;
+    
+    for (int i = 0; i <= numScallops; ++i) {
+        double angle1 = (i * 2.0 * M_PI) / numScallops;
+        double angle2 = ((i + 1) * 2.0 * M_PI) / numScallops;
+        
+        // Calculate outer point (normal circle)
+        qreal x1 = centerX + radius * cos(angle1);
+        qreal y1 = centerY + radius * sin(angle1);
+        qreal x2 = centerX + radius * cos(angle2);
+        qreal y2 = centerY + radius * sin(angle2);
+        
+        // Calculate inner point (indented for scallop)
+        double midAngle = (angle1 + angle2) / 2.0;
+        qreal indentRadius = radius * 0.85; // 15% indent
+        qreal xMid = centerX + indentRadius * cos(midAngle);
+        qreal yMid = centerY + indentRadius * sin(midAngle);
+        
+        if (i == 0) {
+            wavyPath.moveTo(x1, y1);
+        }
+        
+        // Draw curve from outer point, through indent, to next outer point
+        QPointF p1(x1, y1);
+        QPointF pMid(xMid, yMid);
+        QPointF p2(x2, y2);
+        
+        // Create a quadratic curve for smooth scallop
+        QPointF controlPoint = pMid;
+        wavyPath.quadTo(controlPoint, p2);
+    }
+    
+    wavyPath.closeSubpath();
+    p.drawPath(wavyPath);
+
+    // p.setFont(makeFont());
+    // p.drawText(, Qt::AlignCenter, "PP");
+
+    // add a text in the center of the circle
+    QRectF textRect(4, 4, size-8, size-8);
     p.setFont(makeFont());
-    p.drawText(box, Qt::AlignCenter, "R");
+    p.drawText(textRect, Qt::AlignCenter, "R");
 
     return pix;
 }
+
 
 //  symbols: || in color yellow
 // Name : MIN/MAX Range

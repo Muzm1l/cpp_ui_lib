@@ -717,6 +717,7 @@ protected:
             RTWSymbols::SymbolType::BOTC,
             RTWSymbols::SymbolType::BOTF,
             RTWSymbols::SymbolType::BOTD
+            
         };
 
         QStringList symbolNames = {
@@ -738,7 +739,9 @@ protected:
             "BOT",
             "BOTC",
             "BFT",
-            "BRAT"
+            "BRAT",
+            "Wavy Circle (Green)",
+            "Scallop Ellipse (Green)"
         };
 
         for (int i = 0; i < symbolTypes.size(); ++i)
