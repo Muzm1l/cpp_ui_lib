@@ -31,6 +31,9 @@ public:
     // Interactive overlay access
     BTWInteractiveOverlay* getInteractiveOverlay() const;
 
+public slots:
+    void deleteInteractiveMarkers();
+
 protected:
     // Override the draw method to create scatterplots by default
     void draw() override;

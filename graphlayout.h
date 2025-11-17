@@ -79,6 +79,7 @@ public:
 
     // Set the current time
     void setCurrentTime(const QTime &time);
+    void deleteInteractiveMarkers();
 
     // Selection linking methods
     void linkHorizontalContainers();

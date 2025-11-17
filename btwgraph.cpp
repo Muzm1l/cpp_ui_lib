@@ -425,6 +425,17 @@ void BTWGraph::setupInteractiveOverlay()
     qDebug() << "BTWGraph: Interactive overlay setup complete";
 }
 
+void BTWGraph::deleteInteractiveMarkers()
+{
+    if (!m_interactiveOverlay) {
+        qDebug() << "BTWGraph: deleteInteractiveMarkers called but overlay not available";
+        return;
+    }
+
+    qDebug() << "BTWGraph: Clearing all interactive markers";
+    m_interactiveOverlay->clearAllMarkers();
+}
+
 
 void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
 {

@@ -907,6 +907,18 @@ void GraphLayout::setCurrentTime(const QTime &time)
     }
 }
 
+void GraphLayout::deleteInteractiveMarkers()
+{
+    qDebug() << "GraphLayout: deleteInteractiveMarkers invoked";
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->deleteInteractiveMarkers();
+        }
+    }
+}
+
 void GraphLayout::linkHorizontalContainers()
 {
     qDebug() << "GraphLayout: Linking horizontal containers for layout type:" << static_cast<int>(m_layoutType);

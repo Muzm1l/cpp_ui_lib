@@ -91,6 +91,7 @@ public:
 
     // Test method
     void testSelectionRectangle();
+    void deleteInteractiveMarkers();
 
     // Public method for external components to update zoom panel limits
     void initializeZoomPanelLimits();
@@ -155,6 +156,7 @@ signals:
     void TimeSelectionsCleared();
     void IntervalChanged(TimeInterval interval);
     void TimeScopeChanged(const TimeSelectionSpan &selection);
+    void DeleteInteractiveMarkers();
 
 private:
     QHBoxLayout *m_mainLayout;

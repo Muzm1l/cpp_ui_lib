@@ -669,6 +669,13 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
     for (const auto& colorPair : m_seriesColorsMap) {
         graph->setSeriesColor(colorPair.first, colorPair.second);
     }
+
+    // Connect DeleteInteractiveMarkers signal to BTWGraph
+    if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {
+        connect(this, &GraphContainer::DeleteInteractiveMarkers,
+                btwGraph, &BTWGraph::deleteInteractiveMarkers);
+        qDebug() << "GraphContainer: Connected DeleteInteractiveMarkers signal to BTWGraph";
+    }
 }
 
 void GraphContainer::initializeWaterfallGraph(GraphType graphType)
@@ -934,6 +941,12 @@ void GraphContainer::clearTimeSelectionsSilent()
     {
         qWarning() << "GraphContainer: Timeline selection view is null - cannot clear selections";
     }
+}
+
+void GraphContainer::deleteInteractiveMarkers()
+{
+    qDebug() << "GraphContainer: deleteInteractiveMarkers invoked";
+    emit DeleteInteractiveMarkers();
 }
 
 void GraphContainer::initializeZoomPanelLimits()
