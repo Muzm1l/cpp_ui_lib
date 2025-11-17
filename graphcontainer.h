@@ -158,7 +158,7 @@ signals:
 
 private:
     QHBoxLayout *m_mainLayout;
-    QVBoxLayout *m_leftLayout;
+    QVBoxLayout *m_waterfallLayout;
     QComboBox *m_comboBox;
     ZoomPanel *m_zoomPanel;
     WaterfallGraph *m_currentWaterfallGraph;

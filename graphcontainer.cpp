@@ -4,7 +4,15 @@
 #include <stdexcept>
 
 GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer, int containerWidth, int containerHeight)
-    : QWidget{parent}, m_showTimelineView(showTimelineView), m_timer(timer), m_ownsTimer(false), m_timelineWidth(80), m_graphViewSize(226, 300), currentDataOption(GraphType::BDW), m_seriesColorsMap(seriesColorsMap), m_updatingTimeInterval(false)
+    : QWidget{parent}, 
+    m_showTimelineView(showTimelineView), 
+    m_timer(timer), 
+    m_ownsTimer(false), 
+    m_timelineWidth(80), 
+    m_graphViewSize(226, 300), 
+    m_seriesColorsMap(seriesColorsMap), 
+    currentDataOption(GraphType::BDW), 
+    m_updatingTimeInterval(false)
 {
     // Set size policy to expand both horizontally and vertically
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -36,8 +44,8 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
 
     // Create left vertical layout with no margins
-    m_leftLayout = new QVBoxLayout();
-    m_leftLayout->setContentsMargins(0, 0, 0, 0);
+    m_waterfallLayout = new QVBoxLayout();
+    m_waterfallLayout->setContentsMargins(0, 0, 0, 0);
 
     // Create ComboBox
     m_comboBox = new QComboBox(this);
@@ -52,8 +60,8 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_zoomPanel->setMinimumHeight(comboboxHeight);
 
     // Add ComboBox and ZoomPanel to left layout first
-    m_leftLayout->addWidget(m_comboBox);
-    m_leftLayout->addWidget(m_zoomPanel);
+    m_waterfallLayout->addWidget(m_comboBox);
+    m_waterfallLayout->addWidget(m_zoomPanel);
 
     // Create all waterfall graph instances upfront
     createAllWaterfallGraphs();
@@ -61,8 +69,6 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     // Show the initial graph type
     setCurrentDataOption(currentDataOption);
 
-    // Add left layout to main layout with stretch factor
-    m_mainLayout->addLayout(m_leftLayout, 1); // Give stretch factor of 1 to left layout
 
     // Create TimelineSelectionView with timer
     // Calculate combined height of combobox and zoompanel for clear button height
@@ -91,6 +97,9 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
         qDebug() << "GraphContainer constructor: Not creating TimelineView, showTimelineView = false";
         m_timelineView = nullptr;
     }
+
+    // Add waterfall layout to main layout last (rightmost) with stretch factor
+    m_mainLayout->addLayout(m_waterfallLayout, 1); // Give stretch factor of 1 to waterfall layout
 
     // Set layout
     setLayout(m_mainLayout);
@@ -166,7 +175,8 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
         m_timelineView = new TimelineView(this, m_timer);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
-        m_mainLayout->addWidget(m_timelineView);
+        // Insert at position 0 (leftmost) to match the reversed layout order
+        m_mainLayout->insertWidget(0, m_timelineView);
         m_timelineView->setVisible(showTimelineView);
         qDebug() << "GraphContainer: New TimelineView visibility after setting:" << m_timelineView->isVisible();
         qDebug() << "GraphContainer: New TimelineView size:" << m_timelineView->size();
@@ -584,7 +594,7 @@ void GraphContainer::createAllWaterfallGraphs()
             // Add to layout (only add one initially, the rest will be added as needed)
             if (graphType == currentDataOption)
             {
-                m_leftLayout->addWidget(graph, 1);
+                m_waterfallLayout->addWidget(graph, 1);
                 m_currentWaterfallGraph = graph;
             }
             else
@@ -666,7 +676,7 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
     // Remove current graph from layout if it exists
     if (m_currentWaterfallGraph)
     {
-        m_leftLayout->removeWidget(m_currentWaterfallGraph);
+        m_waterfallLayout->removeWidget(m_currentWaterfallGraph);
         m_currentWaterfallGraph->hide();
         m_currentWaterfallGraph->setParent(this);
     }
@@ -710,7 +720,7 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
         m_currentWaterfallGraph = targetGraph;
         
         // Add the target graph to layout and show it
-        m_leftLayout->addWidget(targetGraph, 1);
+        m_waterfallLayout->addWidget(targetGraph, 1);
         targetGraph->setVisible(true);
         
         qDebug() << "GraphContainer: Switched to waterfall graph type:" << graphTypeToString(graphType);
