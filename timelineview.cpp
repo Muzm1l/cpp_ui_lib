@@ -1038,7 +1038,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
     QWidget::mouseReleaseEvent(event);
 }
 
-void TimelineVisualizerWidget::enterEvent(QEnterEvent* event)
+void TimelineVisualizerWidget::enterEvent(QEvent* event)
 {
     QWidget::enterEvent(event);
     // Cursor will be updated in mouseMoveEvent
