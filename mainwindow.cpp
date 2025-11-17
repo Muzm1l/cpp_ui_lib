@@ -3,6 +3,10 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QLabel>
+#include <QList>
+#include <QStringList>
+#include <QPainter>
+#include <QFont>
 #include <cmath>
 #include <algorithm>
 
@@ -114,6 +118,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Setup TimelineView in controls tab for slider testing
     setupTimelineView();
+
+    // Setup RTW Symbols test
+    setupRTWSymbolsTest();
 
     // Configure Zoom Panel test functionality
     configureZoomPanel();
@@ -652,4 +659,163 @@ void MainWindow::setBulkDataForAllGraphs()
     
     // Method moved to Simulator class
     simulator->generateBulkDataForWaterfallData(waterfallDataMap, 90);
+}
+
+/**
+ * @brief Simple widget class to display RTW symbols for testing
+ */
+class RTWSymbolsTestWidget : public QWidget
+{
+public:
+    RTWSymbolsTestWidget(QWidget* parent = nullptr) : QWidget(parent), symbols(40)
+    {
+        setMinimumSize(1200, 800);
+        // Set black background
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, Qt::black);
+        setPalette(pal);
+        setAutoFillBackground(true);
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        int symbolSize = 60;
+        int spacing = 120;
+        int startX = 50;
+        int startY = 80;
+        int currentX = startX;
+        int currentY = startY;
+
+        // Draw title
+        painter.setPen(Qt::white);
+        painter.setFont(QFont("Arial", 16, QFont::Bold));
+        painter.drawText(QRect(0, 10, width(), 30), Qt::AlignCenter, "RTW Symbols Test");
+
+        // Draw all symbol types
+        QList<RTWSymbols::SymbolType> symbolTypes = {
+            RTWSymbols::SymbolType::TM,
+            RTWSymbols::SymbolType::DP,
+            RTWSymbols::SymbolType::LY,
+            RTWSymbols::SymbolType::CircleI,
+            RTWSymbols::SymbolType::Triangle,
+            RTWSymbols::SymbolType::RectR,
+            RTWSymbols::SymbolType::EllipsePP,
+            RTWSymbols::SymbolType::RectX,
+            RTWSymbols::SymbolType::RectA,
+            RTWSymbols::SymbolType::RectAPurple,
+            RTWSymbols::SymbolType::RectK,
+            RTWSymbols::SymbolType::CircleRYellow,
+            RTWSymbols::SymbolType::DoubleBarYellow,
+            RTWSymbols::SymbolType::R,
+            RTWSymbols::SymbolType::L,
+            RTWSymbols::SymbolType::BOT,
+            RTWSymbols::SymbolType::BOTC,
+            RTWSymbols::SymbolType::BOTF,
+            RTWSymbols::SymbolType::BOTD
+        };
+
+        QStringList symbolNames = {
+            "TTM Range",
+            "DOPPLER Range",
+            "LLOYD Range",
+            "SONAR Range",
+            "INTERCEPTION SONAR",
+            "RADAR Range",
+            "RULER PIVOT Range",
+            "EXTERNAL Range",
+            "REAL TIME ADOPTION",
+            "PAST TIME ADOPTION",
+            "EKELUND Range",
+            "LATERAL Range",
+            "MIN/MAX Range",
+            "ATMA-ATMAF",
+            "BOPT",
+            "BOT",
+            "BOTC",
+            "BFT",
+            "BRAT"
+        };
+
+        for (int i = 0; i < symbolTypes.size(); ++i)
+        {
+            // Draw symbol label (with space above symbol)
+            painter.setPen(Qt::white);
+            painter.setFont(QFont("Arial", 10));
+            painter.drawText(QRect(currentX - symbolSize/2, currentY - 45, symbolSize, 20), 
+                           Qt::AlignCenter, symbolNames[i]);
+
+            // Draw the symbol (with space below label)
+            symbols.draw(&painter, QPointF(currentX, currentY), symbolTypes[i]);
+
+            // Move to next position
+            currentX += spacing;
+            if (currentX + spacing > width() - startX)
+            {
+                currentX = startX;
+                currentY += spacing + 20; // Extra spacing between rows
+            }
+        }
+    }
+
+private:
+    RTWSymbols symbols;
+};
+
+/**
+ * @brief Setup RTW Symbols test widget in a new tab
+ */
+void MainWindow::setupRTWSymbolsTest()
+{
+    qDebug() << "=== Setting up RTW Symbols Test ===";
+    
+    // Create a new tab for RTW symbols test
+    QWidget* rtwSymbolsTab = new QWidget();
+    rtwSymbolsTab->setObjectName("rtwSymbolsTab");
+    ui->tabWidget->addTab(rtwSymbolsTab, "RTW Symbols Test");
+    
+    // Create the RTW symbols test widget
+    rtwSymbolsTestWidget = new RTWSymbolsTestWidget(rtwSymbolsTab);
+    rtwSymbolsTestWidget->setObjectName("rtwSymbolsTestWidget");
+    rtwSymbolsTestWidget->setGeometry(QRect(10, 10, 1200, 800));
+    
+    // Add instructions label
+    QLabel* instructionsLabel = new QLabel(
+        "RTW Symbols Test\n"
+        "This widget displays all available RTW symbol types:\n\n"
+        "Range Types:\n"
+        "• TTM Range - TM\n"
+        "• DOPPLER Range - DP\n"
+        "• LLOYD Range - LY\n"
+        "• SONAR Range - CircleI\n"
+        "• RADAR Range - RectR\n"
+        "• RULER PIVOT Range - EllipsePP\n"
+        "• EXTERNAL Range - RectX\n"
+        "• EKELUND Range - RectK\n"
+        "• LATERAL Range - CircleRYellow\n"
+        "• MIN/MAX Range - DoubleBarYellow\n\n"
+        "Adoption Types:\n"
+        "• REAL TIME ADOPTION - RectA (Red)\n"
+        "• PAST TIME ADOPTION - RectAPurple\n\n"
+        "Methodology Types:\n"
+        "• ATMA-ATMAF - R (Orange)\n"
+        "• BOPT - L in Circle (Green)\n"
+        "• BOT - L in Rectangle (Green)\n"
+        "• BOTC - C (Green)\n"
+        "• BFT - F (Green)\n"
+        "• BRAT - D (Green)\n\n"
+        "Other:\n"
+        "• INTERCEPTION SONAR - Triangle",
+        rtwSymbolsTab);
+    instructionsLabel->setGeometry(QRect(1220, 10, 350, 750));
+    instructionsLabel->setStyleSheet("QLabel { color: white; font-size: 12px; background-color: rgba(0, 0, 0, 150); padding: 10px; border: 1px solid gray; border-radius: 4px; }");
+    instructionsLabel->setWordWrap(true);
+    
+    qDebug() << "RTW Symbols test widget created in new tab";
+    qDebug() << "RTW Symbols test widget geometry:" << rtwSymbolsTestWidget->geometry();
+    qDebug() << "RTW Symbols test widget visible:" << rtwSymbolsTestWidget->isVisible();
 }
