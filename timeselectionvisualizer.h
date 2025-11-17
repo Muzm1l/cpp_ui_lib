@@ -28,6 +28,8 @@ public:
     // Time selection management
     void addTimeSelection(TimeSelectionSpan span);
     void clearTimeSelections();
+    bool hasTimeSelections() const { return !m_timeSelections.isEmpty(); }
+    void createFullSelection();
 
     // Valid selection range
     void setValidSelectionRange(const QTime& start, const QTime& end);
@@ -85,6 +87,7 @@ public:
     // Delegate methods to the visualizer widget
     void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
+    bool hasTimeSelections() const { return m_visualizerWidget->hasTimeSelections(); }
     void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
     void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }

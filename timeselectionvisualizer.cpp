@@ -140,8 +140,9 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
         m_timeSelections.removeAt(idx);
     }
 
+    // Stop adding new selections once we reach the maximum (instead of FIFO)
     if (m_timeSelections.size() >= MAX_TIME_SELECTIONS) {
-        m_timeSelections.removeFirst();
+        return;
     }
 
     m_timeSelections.append(merged);
@@ -152,6 +153,33 @@ void TimeVisualizerWidget::clearTimeSelections()
 {
     m_timeSelections.clear();
     updateVisualization();
+}
+
+void TimeVisualizerWidget::createFullSelection()
+{
+    // Determine the full range to select: valid range if set, otherwise full visualizer range
+    QDateTime currentDate = QDateTime::currentDateTime();
+    TimeSelectionSpan span;
+    
+    if (hasValidRange()) {
+        // Convert QTime valid range to QDateTime
+        span.startTime = QDateTime(currentDate.date(), m_validStartTime);
+        span.endTime = QDateTime(currentDate.date(), m_validEndTime);
+    } else {
+        // Map the entire widget: bottom corresponds to oldest (height), top to current (0)
+        const int bottomY = rect().height();
+        const int topY = 0;
+        QTime startTime = yCoordinateToTime(bottomY);
+        QTime endTime = yCoordinateToTime(topY);
+        if (startTime > endTime) std::swap(startTime, endTime);
+        
+        span.startTime = QDateTime(currentDate.date(), startTime);
+        span.endTime = QDateTime(currentDate.date(), endTime);
+    }
+
+    addTimeSelection(span);
+    emit timeSelectionMade(span);
+    update();
 }
 
 void TimeVisualizerWidget::setTimeLineLength(const QTime& length)
@@ -275,9 +303,15 @@ void TimeSelectionVisualizer::onTimerTick()
 
 void TimeSelectionVisualizer::onButtonClicked()
 {
-    clearTimeSelections();
-    emit timeSelectionsCleared();
-    // qDebug() << "Time selections cleared and signal emitted!";
+    if (hasTimeSelections()) {
+        // If there are selections, clear them
+        clearTimeSelections();
+        emit timeSelectionsCleared();
+        // qDebug() << "Time selections cleared and signal emitted!";
+    } else {
+        // If there are no selections, create a full selection spanning the valid region
+        m_visualizerWidget->createFullSelection();
+    }
 }
 
 // Mouse event handlers for TimeVisualizerWidget
