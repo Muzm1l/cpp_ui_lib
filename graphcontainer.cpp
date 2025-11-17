@@ -83,6 +83,7 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_mainLayout->addWidget(m_timelineSelectionView);
     m_timelineSelectionView->setCurrentTime(QTime::currentTime());
     m_timelineSelectionView->setTimeLineLength(TimeInterval::FifteenMinutes);
+    m_timelineSelectionView->setVisible(m_showTimelineView);
 
     // Create TimelineView (conditionally based on showTimelineView) with timer
     if (m_showTimelineView)
@@ -185,6 +186,12 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
 
         // Re-establish event connections to include the new TimelineView
         setupEventConnections();
+    }
+
+    if (m_timelineSelectionView)
+    {
+        m_timelineSelectionView->setVisible(showTimelineView);
+        qDebug() << "GraphContainer: TimelineSelectionView visibility set to:" << showTimelineView;
     }
 
     // Update container size when timeline view visibility changes
