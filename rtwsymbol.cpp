@@ -1,9 +1,11 @@
 #include "rtwsymbols.h"
 #include <QFont>
+#include <QFontInfo>
 #include <QPainterPath>
 #include <QPen>
 #include <QBrush>
 #include <QColor>
+#include <QStringList>
 
 RTWSymbols::RTWSymbols(int baseSize)
     : size(baseSize)
@@ -58,9 +60,32 @@ QPixmap RTWSymbols::blank()
 
 static QFont makeFont()
 {
-    QFont f("Calisto MT");
+    // Try multiple possible font names for Calisto MT
+    QStringList fontNames = {"Calisto MT", "Calisto", "CalistoMT"};
+    QFont f;
+    bool fontFound = false;
+    
+    for (const QString& fontName : fontNames) {
+        f.setFamily(fontName);
+        QFontInfo fontInfo(f);
+        if (fontInfo.family() == fontName || fontInfo.family().contains("Calisto", Qt::CaseInsensitive)) {
+            fontFound = true;
+            break;
+        }
+    }
+    
+    // If font not found, use Calisto MT anyway (system will substitute)
+    if (!fontFound) {
+        f.setFamily("Calisto MT");
+    }
+    
     f.setBold(true);
-    f.setPixelSize(18);    // adjust
+    f.setPointSize(14);  // Use point size instead of pixel size for better scaling
+    // Improve font rendering to match Word appearance
+    f.setStyleStrategy(QFont::StyleStrategy(QFont::PreferAntialias | QFont::PreferQuality));
+    // Ensure we get the exact font, not a substitute
+    f.setStyleHint(QFont::Serif);
+    
     return f;
 }
 
