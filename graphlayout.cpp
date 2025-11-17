@@ -283,6 +283,8 @@ void GraphLayout::initializeContainers()
     }
     
     qDebug() << "GraphLayout: Connected all containers to time selection propagation";
+
+    registerCursorSyncCallbacks();
 }
 
 void GraphLayout::attachContainerDataSources()
@@ -1035,6 +1037,34 @@ void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan 
 
     // Emit the signal for external consumers
     emit TimeSelectionCreated(selection);
+}
+
+void GraphLayout::registerCursorSyncCallbacks()
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+        {
+            continue;
+        }
+
+        container->setCursorTimeChangedCallback([this](GraphContainer *source, const QDateTime &time) {
+            onContainerCursorTimeChanged(source, time);
+        });
+    }
+}
+
+void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container || container == source)
+        {
+            continue;
+        }
+
+        container->applySharedTimeAxisCursor(time);
+    }
 }
 
 void GraphLayout::onTimeSelectionsCleared()

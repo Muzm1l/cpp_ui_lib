@@ -12,7 +12,9 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_graphViewSize(226, 300), 
     m_seriesColorsMap(seriesColorsMap), 
     currentDataOption(GraphType::BDW), 
-    m_updatingTimeInterval(false)
+    m_updatingTimeInterval(false),
+    m_sharedCursorTime(QDateTime()),
+    m_hasSharedCursorTime(false)
 {
     // Set size policy to expand both horizontally and vertically
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -670,6 +672,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setSeriesColor(colorPair.first, colorPair.second);
     }
 
+    graph->setCursorTimeChangedCallback([this](const QDateTime &time) {
+        handleCursorTimeChanged(time);
+    });
+    applyCursorTimeToGraph(graph);
+
     // Connect DeleteInteractiveMarkers signal to BTWGraph
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {
         connect(this, &GraphContainer::DeleteInteractiveMarkers,
@@ -729,12 +736,46 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
         // Add the target graph to layout and show it
         m_waterfallLayout->addWidget(targetGraph, 1);
         targetGraph->setVisible(true);
+        applyCursorTimeToGraph(targetGraph);
         
         qDebug() << "GraphContainer: Switched to waterfall graph type:" << graphTypeToString(graphType);
     }
     else
     {
         qWarning() << "GraphContainer: Cannot initialize waterfall graph - graph type not found:" << graphTypeToString(graphType);
+    }
+}
+
+void GraphContainer::handleCursorTimeChanged(const QDateTime &time)
+{
+    m_sharedCursorTime = time;
+    m_hasSharedCursorTime = time.isValid();
+
+    for (auto &pair : m_waterfallGraphs)
+    {
+        applyCursorTimeToGraph(pair.second);
+    }
+
+    if (m_cursorTimeChangedCallback)
+    {
+        m_cursorTimeChangedCallback(this, time);
+    }
+}
+
+void GraphContainer::applyCursorTimeToGraph(WaterfallGraph *graph)
+{
+    if (!graph)
+    {
+        return;
+    }
+
+    if (m_hasSharedCursorTime)
+    {
+        graph->setTimeAxisCursor(m_sharedCursorTime);
+    }
+    else
+    {
+        graph->clearTimeAxisCursor();
     }
 }
 
@@ -890,6 +931,22 @@ void GraphContainer::setCurrentTime(const QTime &time)
     if (m_timelineView)
     {
         m_timelineView->setCurrentTime(time);
+    }
+}
+
+void GraphContainer::setCursorTimeChangedCallback(const std::function<void(GraphContainer *, const QDateTime &)> &callback)
+{
+    m_cursorTimeChangedCallback = callback;
+}
+
+void GraphContainer::applySharedTimeAxisCursor(const QDateTime &time)
+{
+    m_sharedCursorTime = time;
+    m_hasSharedCursorTime = time.isValid();
+
+    for (auto &pair : m_waterfallGraphs)
+    {
+        applyCursorTimeToGraph(pair.second);
     }
 }
 

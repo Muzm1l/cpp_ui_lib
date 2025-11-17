@@ -15,6 +15,12 @@ Simulator::Simulator(QObject *parent, QTimer *timer, GraphLayout *graphLayout)
     if (m_timer)
     {
         connect(m_timer, &QTimer::timeout, this, &Simulator::onTimerTick);
+        connect(m_timer, &QObject::destroyed, this, [this]()
+        {
+            qDebug() << "Simulator: Connected timer destroyed, clearing pointer";
+            m_timer = nullptr;
+            m_running = false; 
+        });
         qDebug() << "Simulator: Timer connected successfully";
     }
     else
@@ -26,7 +32,8 @@ Simulator::Simulator(QObject *parent, QTimer *timer, GraphLayout *graphLayout)
 Simulator::~Simulator()
 {
     // Disconnect from timer first to prevent signal emission during destruction
-    if (m_timer) {
+    if (m_timer)
+    {
         disconnect(m_timer, &QTimer::timeout, this, &Simulator::onTimerTick);
     }
     stop();
@@ -38,16 +45,22 @@ void Simulator::start()
     {
         // Check if the timer is still valid before calling start()
         // This prevents crashes when the timer has been deleted by Qt's object hierarchy
-        try {
+        try
+        {
             // Additional safety check: verify the timer object is still valid
-            if (m_timer->parent() != nullptr) {
+            if (m_timer->parent() != nullptr)
+            {
                 m_timer->start();
                 m_running = true;
                 qDebug() << "Simulator started successfully";
-            } else {
+            }
+            else
+            {
                 qDebug() << "Simulator start failed - timer parent is null";
             }
-        } catch (...) {
+        }
+        catch (...)
+        {
             qDebug() << "Simulator start failed - timer is invalid or being destroyed";
         }
     }
@@ -63,13 +76,17 @@ void Simulator::stop()
     {
         // Check if the timer is still valid before calling stop()
         // This prevents crashes when the timer has been deleted by Qt's object hierarchy
-        try {
+        try
+        {
             // Additional safety check: verify the timer object is still valid
             // Check if the timer's parent is still valid (not being destroyed)
-            if (m_timer->parent() != nullptr) {
+            if (m_timer->parent() != nullptr)
+            {
                 m_timer->stop();
             }
-        } catch (...) {
+        }
+        catch (...)
+        {
             // Timer was already deleted, just continue
         }
         m_running = false;
@@ -259,11 +276,11 @@ void Simulator::initializeConfigurations()
 {
     // Initialize configuration for each graph type (Start, End, Start, Delta)
     m_fdwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
-    m_bdwConfig = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};  // Bandwidth Domain Window: -30 to 30 range
+    m_bdwConfig = SimulatorConfig{-30.0, 30.0, 0.0, 6.0}; // Bandwidth Domain Window: -30 to 30 range
     m_brwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
     m_ltwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
     m_btwConfig = SimulatorConfig{5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
-    m_rtwConfig = SimulatorConfig{0.0, 25.0, 12.5, 2.5}; // Right Track Window: 0-25 range
+    m_rtwConfig = SimulatorConfig{0.0, 25.0, 12.5, 2.5};  // Right Track Window: 0-25 range
     m_ftwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Frequency Time Window: 10% of 15.0 range
 }
 

@@ -35,7 +35,6 @@ BTWInteractiveOverlay::BTWInteractiveOverlay(BTWGraph *btwGraph, QObject *parent
 
 BTWInteractiveOverlay::~BTWInteractiveOverlay()
 {
-    clearAllMarkers();
     qDebug() << "BTWInteractiveOverlay destroyed";
 }
 

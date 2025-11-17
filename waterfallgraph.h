@@ -19,6 +19,7 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPolygonF>
+#include <QEnterEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QTime>
@@ -27,6 +28,7 @@
 #include <QWidget>
 #include <map>
 #include <vector>
+#include <functional>
 
 class WaterfallGraph : public QWidget
 {
@@ -82,7 +84,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     // Override mouse move to track cursor for crosshair
-    void enterEvent(QEvent *event) override;
+    void enterEvent(QEnterEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
 
@@ -159,6 +161,15 @@ protected:
     QGraphicsLineItem *crosshairVertical;
     bool crosshairEnabled;
 
+    // Cursor callback helpers
+    void notifyCursorTimeChanged(const QDateTime &time);
+    std::function<void(const QDateTime &)> cursorTimeChangedCallback;
+    QDateTime lastNotifiedCursorTime;
+
+    // Time axis cursor functionality
+    QGraphicsLineItem *timeAxisCursor;
+    qreal mapTimeToY(const QDateTime &time) const;
+
     // Mouse selection functionality
     bool mouseSelectionEnabled;
     QPointF selectionStartPos;
@@ -183,6 +194,11 @@ public:
     // Crosshair control
     void setCrosshairEnabled(bool enabled);
     bool isCrosshairEnabled() const;
+    
+    // Time axis cursor control
+    void setTimeAxisCursor(const QDateTime &time);
+    void clearTimeAxisCursor();
+    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback);
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }

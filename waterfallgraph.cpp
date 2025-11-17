@@ -11,7 +11,35 @@
  * @param timeInterval Time interval for the waterfall display
  */
 WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : QWidget(parent), graphicsView(nullptr), graphicsScene(nullptr), overlayView(nullptr), overlayScene(nullptr), gridEnabled(enableGrid), gridDivisions(gridDivisions), yMin(0.0), yMax(0.0), timeMin(QDateTime()), timeMax(QDateTime()), dataRangesValid(false), rangeLimitingEnabled(true), customYMin(0.0), customYMax(0.0), customTimeRangeEnabled(false), customTimeMin(QDateTime()), customTimeMax(QDateTime()), timeInterval(timeInterval), dataSource(nullptr), isDragging(false), crosshairHorizontal(nullptr), crosshairVertical(nullptr), crosshairEnabled(true), mouseSelectionEnabled(false), selectionRect(nullptr), autoUpdateYRange(true)
+    : QWidget(parent), 
+    graphicsView(nullptr), 
+    graphicsScene(nullptr), 
+    overlayView(nullptr), 
+    overlayScene(nullptr), 
+    gridEnabled(enableGrid), 
+    gridDivisions(gridDivisions), 
+    yMin(0.0), 
+    yMax(0.0), 
+    timeMin(QDateTime()), 
+    timeMax(QDateTime()), 
+    dataRangesValid(false), 
+    rangeLimitingEnabled(true), 
+    customYMin(0.0), 
+    customYMax(0.0), 
+    customTimeRangeEnabled(false), 
+    customTimeMin(QDateTime()), 
+    customTimeMax(QDateTime()), 
+    timeInterval(timeInterval), 
+    dataSource(nullptr), 
+    isDragging(false), 
+    crosshairHorizontal(nullptr), 
+    crosshairVertical(nullptr), 
+    crosshairEnabled(true), 
+    timeAxisCursor(nullptr), 
+    mouseSelectionEnabled(false), 
+    selectionRect(nullptr), 
+    autoUpdateYRange(true),
+    lastNotifiedCursorTime(QDateTime())
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -106,6 +134,15 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     // Setup crosshair
     setupCrosshair();
 
+    // Setup time axis cursor
+    if (overlayScene) {
+        timeAxisCursor = new QGraphicsLineItem();
+        timeAxisCursor->setPen(QPen(Qt::cyan, 1.5, Qt::SolidLine)); // Cyan line for time cursor
+        timeAxisCursor->setZValue(999); // Just below crosshair but above other elements
+        timeAxisCursor->setVisible(false);
+        overlayScene->addItem(timeAxisCursor);
+    }
+
     // Debug: Print initial state
     qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
     qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
@@ -129,6 +166,12 @@ WaterfallGraph::~WaterfallGraph()
     if (crosshairVertical) {
         delete crosshairVertical;
         crosshairVertical = nullptr;
+    }
+    
+    // Clean up time axis cursor
+    if (timeAxisCursor) {
+        delete timeAxisCursor;
+        timeAxisCursor = nullptr;
     }
     
     // Note: graphicsView and graphicsScene are child widgets/scenes, so they will be automatically deleted by Qt's parent-child mechanism
@@ -708,6 +751,16 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
             showCrosshair();
         }
         updateCrosshair(scenePos);
+
+        if (drawingArea.contains(scenePos))
+        {
+            QDateTime cursorTime = mapScreenToTime(scenePos.y());
+            notifyCursorTimeChanged(cursorTime);
+        }
+        else
+        {
+            notifyCursorTimeChanged(QDateTime());
+        }
     }
 
     // Call parent implementation
@@ -719,7 +772,7 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
  *
  * @param event
  */
-void WaterfallGraph::enterEvent(QEvent *event)
+void WaterfallGraph::enterEvent(QEnterEvent *event)
 {
     QWidget::enterEvent(event);
     // Enable mouse tracking when mouse enters the widget
@@ -750,6 +803,7 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     {
         hideCrosshair();
     }
+    notifyCursorTimeChanged(QDateTime());
     qDebug() << "Mouse left WaterfallGraph widget";
 }
 
@@ -1175,14 +1229,6 @@ QDateTime WaterfallGraph::mapScreenToTime(qreal yPos) const
 
     // Convert to QTime using the data source's time range
     QDateTime selectionTime = timeMax.addMSecs(-timeOffsetMs);
-
-    // Validate that the selection time is within the available data range
-    if (dataSource && !dataSource->isValidSelectionTime(selectionTime))
-    {
-        qDebug() << "mapScreenToTime: Selection time" << selectionTime.toString()
-                 << "is outside valid data range";
-        return QDateTime();
-    }
 
     return selectionTime;
 }
@@ -2136,4 +2182,150 @@ void WaterfallGraph::setCrosshairEnabled(bool enabled)
 bool WaterfallGraph::isCrosshairEnabled() const
 {
     return crosshairEnabled;
+}
+
+// Time axis cursor functionality implementation
+
+/**
+ * @brief Map a time value to a Y coordinate on the screen
+ *
+ * @param time The time to map
+ * @return qreal The Y coordinate, or -1 if invalid
+ */
+qreal WaterfallGraph::mapTimeToY(const QDateTime &time) const
+{
+    if (!time.isValid())
+    {
+        qDebug() << "mapTimeToY: Invalid time provided";
+        return -1.0;
+    }
+
+    QRectF area = drawingArea;
+    if (area.isEmpty())
+    {
+        if (graphicsScene)
+        {
+            area = graphicsScene->sceneRect();
+        }
+        if (area.isEmpty())
+        {
+            qDebug() << "mapTimeToY: Drawing area unavailable";
+            return -1.0;
+        }
+    }
+
+    if (!timeMax.isValid())
+    {
+        qDebug() << "mapTimeToY: timeMax is invalid";
+        return -1.0;
+    }
+
+    qint64 intervalMs = getTimeIntervalMs();
+    if (intervalMs <= 0)
+    {
+        qDebug() << "mapTimeToY: Invalid interval" << intervalMs;
+        return -1.0;
+    }
+
+    qint64 timeOffsetMs = time.msecsTo(timeMax);
+    qreal normalizedY = timeOffsetMs / static_cast<qreal>(intervalMs);
+    normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+
+    return area.top() + normalizedY * area.height();
+}
+
+/**
+ * @brief Set the time axis cursor at a specific time
+ *
+ * @param time The time at which to display the horizontal cursor line
+ */
+void WaterfallGraph::setTimeAxisCursor(const QDateTime &time)
+{
+    if (!timeAxisCursor || !overlayScene)
+    {
+        qDebug() << "Time axis cursor not initialized";
+        return;
+    }
+
+    if (!time.isValid())
+    {
+        qDebug() << "Invalid time provided for time axis cursor";
+        clearTimeAxisCursor();
+        return;
+    }
+
+    // Map time to Y coordinate
+    qreal yPos = mapTimeToY(time);
+
+    if (yPos < 0)
+    {
+        qDebug() << "Could not map time to Y position - data ranges may not be valid";
+        clearTimeAxisCursor();
+        return;
+    }
+
+    // Get the scene rectangle
+    QRectF sceneRect = overlayScene->sceneRect();
+    
+    // If scene rect is empty, use widget dimensions
+    if (sceneRect.isEmpty()) {
+        sceneRect = QRectF(0, 0, this->width(), this->height());
+    }
+
+    // Update horizontal line (left to right) at the calculated Y position
+    timeAxisCursor->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
+    timeAxisCursor->setVisible(true);
+
+    qDebug() << "Time axis cursor set at time:" << time.toString() << "Y position:" << yPos;
+}
+
+/**
+ * @brief Clear/hide the time axis cursor
+ */
+void WaterfallGraph::clearTimeAxisCursor()
+{
+    if (timeAxisCursor)
+    {
+        timeAxisCursor->setVisible(false);
+        qDebug() << "Time axis cursor cleared";
+    }
+}
+
+/**
+ * @brief Set a callback to receive cursor time updates
+ *
+ * @param callback Function to invoke when cursor time changes
+ */
+void WaterfallGraph::setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback)
+{
+    cursorTimeChangedCallback = callback;
+}
+
+/**
+ * @brief Notify listeners about cursor time changes
+ *
+ * @param time Cursor time or invalid to clear
+ */
+void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time)
+{
+    if (!cursorTimeChangedCallback)
+    {
+        lastNotifiedCursorTime = time;
+        return;
+    }
+
+    if (time.isValid())
+    {
+        if (lastNotifiedCursorTime.isValid() && time == lastNotifiedCursorTime)
+        {
+            return;
+        }
+    }
+    else if (!lastNotifiedCursorTime.isValid())
+    {
+        return;
+    }
+
+    lastNotifiedCursorTime = time;
+    cursorTimeChangedCallback(time);
 }

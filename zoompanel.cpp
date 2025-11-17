@@ -250,17 +250,17 @@ void ZoomPanel::setOriginalRangeValues(const qreal leftValue, const qreal center
              << "Center:" << m_originalCenterLabelValue << "Right:" << m_originalRightLabelValue;
 }
 
-const qreal ZoomPanel::getLeftLabelValue() const
+qreal ZoomPanel::getLeftLabelValue() const
 {
     return m_leftLabelValue;
 }
 
-const qreal ZoomPanel::getCenterLabelValue() const
+qreal ZoomPanel::getCenterLabelValue() const
 {
     return m_centerLabelValue;
 }
 
-const qreal ZoomPanel::getRightLabelValue() const
+qreal ZoomPanel::getRightLabelValue() const
 {
     return m_rightLabelValue;
 }

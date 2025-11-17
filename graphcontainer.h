@@ -22,6 +22,7 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <functional>
 #include <map>
 #include <vector>
 
@@ -83,6 +84,10 @@ public:
 
     // Set the current time
     void setCurrentTime(const QTime &time);
+    
+    // Cursor synchronization
+    void setCursorTimeChangedCallback(const std::function<void(GraphContainer *, const QDateTime &)> &callback);
+    void applySharedTimeAxisCursor(const QDateTime &time);
 
     // Selection management methods
     void addTimeSelection(const TimeSelectionSpan &selection);
@@ -146,6 +151,8 @@ private:
     void createAllWaterfallGraphs();
     void setupWaterfallGraphProperties(WaterfallGraph *graph, GraphType graphType);
     void initializeWaterfallGraph(GraphType graphType);
+    void handleCursorTimeChanged(const QDateTime &time);
+    void applyCursorTimeToGraph(WaterfallGraph *graph);
     void setupTimer();
     void onTimerTick();
     void onClearTimeSelectionsButtonClicked();
@@ -194,6 +201,11 @@ private:
 
     // Flag to prevent TimeScopeChanged from interfering with interval updates
     bool m_updatingTimeInterval;
+
+    // Cursor sync state
+    std::function<void(GraphContainer *, const QDateTime &)> m_cursorTimeChangedCallback;
+    QDateTime m_sharedCursorTime;
+    bool m_hasSharedCursorTime;
 };
 
 #endif // GRAPHCONTAINER_H

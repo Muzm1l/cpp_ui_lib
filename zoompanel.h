@@ -43,9 +43,9 @@ public:
     void setOriginalRangeValues(const qreal leftValue, const qreal centerValue, const qreal rightValue);
 
     // Getter methods for label values
-    const qreal getLeftLabelValue() const;
-    const qreal getCenterLabelValue() const;
-    const qreal getRightLabelValue() const;
+    qreal getLeftLabelValue() const;
+    qreal getCenterLabelValue() const;
+    qreal getRightLabelValue() const;
 
     // User modification tracking
     bool hasUserModifiedBounds() const;

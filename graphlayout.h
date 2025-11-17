@@ -136,6 +136,8 @@ private:
     int getContainerIndex(const QString &containerLabel) const;
     void disconnectAllContainerConnections();
     void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
+    void registerCursorSyncCallbacks();
+    void onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time);
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
