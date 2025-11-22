@@ -506,6 +506,23 @@ void GraphContainer::setupEventConnections()
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
+        
+        // Connect crosshair position changes to update zoompanel label
+        pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
+            if (m_zoomPanel)
+            {
+                if (xPosition < 0)
+                {
+                    // Crosshair hidden
+                    m_zoomPanel->clearCrosshairLabel();
+                }
+                else
+                {
+                    // Update zoompanel label with crosshair X position
+                    m_zoomPanel->updateCrosshairLabel(xPosition);
+                }
+            }
+        });
     }
 
     // Connect ZoomPanel value changes
@@ -676,6 +693,23 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         handleCursorTimeChanged(time);
     });
     applyCursorTimeToGraph(graph);
+    
+    // Set up crosshair position callback to update zoompanel label
+    graph->setCrosshairPositionChangedCallback([this](qreal xPosition) {
+        if (m_zoomPanel)
+        {
+            if (xPosition < 0)
+            {
+                // Crosshair hidden
+                m_zoomPanel->clearCrosshairLabel();
+            }
+            else
+            {
+                // Update zoompanel label with crosshair X position
+                m_zoomPanel->updateCrosshairLabel(xPosition);
+            }
+        }
+    });
 
     // Connect DeleteInteractiveMarkers signal to BTWGraph
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {

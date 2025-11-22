@@ -2126,6 +2126,8 @@ void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
     // Update vertical line (top to bottom)
     crosshairVertical->setLine(mousePos.x(), sceneRect.top(), mousePos.x(), sceneRect.bottom());
     
+    // Notify listeners about crosshair position change
+    notifyCrosshairPositionChanged(mousePos.x());
 }
 
 /**
@@ -2148,6 +2150,9 @@ void WaterfallGraph::hideCrosshair()
         crosshairHorizontal->setVisible(false);
         crosshairVertical->setVisible(false);
     }
+    
+    // Notify that crosshair is hidden (clear label)
+    notifyCrosshairPositionChanged(-1.0); // Use -1 to indicate crosshair is hidden
 }
 
 /**
@@ -2276,6 +2281,11 @@ void WaterfallGraph::setTimeAxisCursor(const QDateTime &time)
     timeAxisCursor->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
     timeAxisCursor->setVisible(true);
 
+    // Force immediate repaint to clear any stale rendering and prevent trails
+    if (overlayView) {
+        overlayView->update();
+    }
+
     qDebug() << "Time axis cursor set at time:" << time.toString() << "Y position:" << yPos;
 }
 
@@ -2287,6 +2297,10 @@ void WaterfallGraph::clearTimeAxisCursor()
     if (timeAxisCursor)
     {
         timeAxisCursor->setVisible(false);
+        // Force immediate repaint to clear the cursor
+        if (overlayView) {
+            overlayView->update();
+        }
         qDebug() << "Time axis cursor cleared";
     }
 }
@@ -2299,6 +2313,16 @@ void WaterfallGraph::clearTimeAxisCursor()
 void WaterfallGraph::setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback)
 {
     cursorTimeChangedCallback = callback;
+}
+
+/**
+ * @brief Set a callback to receive crosshair position updates
+ *
+ * @param callback Function to invoke when crosshair X position changes
+ */
+void WaterfallGraph::setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback)
+{
+    crosshairPositionChangedCallback = callback;
 }
 
 /**
@@ -2328,4 +2352,17 @@ void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time)
 
     lastNotifiedCursorTime = time;
     cursorTimeChangedCallback(time);
+}
+
+/**
+ * @brief Notify listeners about crosshair position changes
+ *
+ * @param xPosition Crosshair X position in scene coordinates, or -1.0 to clear
+ */
+void WaterfallGraph::notifyCrosshairPositionChanged(qreal xPosition)
+{
+    if (crosshairPositionChangedCallback)
+    {
+        crosshairPositionChangedCallback(xPosition);
+    }
 }

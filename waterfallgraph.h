@@ -165,6 +165,10 @@ protected:
     void notifyCursorTimeChanged(const QDateTime &time);
     std::function<void(const QDateTime &)> cursorTimeChangedCallback;
     QDateTime lastNotifiedCursorTime;
+    
+    // Crosshair position callback
+    std::function<void(qreal xPosition)> crosshairPositionChangedCallback;
+    void notifyCrosshairPositionChanged(qreal xPosition);
 
     // Time axis cursor functionality
     QGraphicsLineItem *timeAxisCursor;
@@ -199,6 +203,9 @@ public:
     void setTimeAxisCursor(const QDateTime &time);
     void clearTimeAxisCursor();
     void setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback);
+    
+    // Crosshair position callback
+    void setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback);
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }
