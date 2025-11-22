@@ -162,9 +162,10 @@ protected:
     bool crosshairEnabled;
 
     // Cursor callback helpers
-    void notifyCursorTimeChanged(const QDateTime &time);
-    std::function<void(const QDateTime &)> cursorTimeChangedCallback;
+    void notifyCursorTimeChanged(const QDateTime &time, qreal yPosition = -1.0);
+    std::function<void(const QDateTime &, qreal)> cursorTimeChangedCallback;
     QDateTime lastNotifiedCursorTime;
+    qreal lastNotifiedYPosition;
     
     // Crosshair position callback
     std::function<void(qreal xPosition)> crosshairPositionChangedCallback;
@@ -202,7 +203,7 @@ public:
     // Time axis cursor control
     void setTimeAxisCursor(const QDateTime &time);
     void clearTimeAxisCursor();
-    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback);
+    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &, qreal)> &callback);
     
     // Crosshair position callback
     void setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback);

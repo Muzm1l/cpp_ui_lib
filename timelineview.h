@@ -10,6 +10,7 @@
 #include <QEvent>
 #include <QMouseEvent>
 #include <QTime>
+#include <QDateTime>
 #include <QList>
 #include <QObject>
 #include <QTimer>
@@ -141,6 +142,10 @@ public:
 
     // Slider visible window access
     TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
+    
+    // Crosshair timestamp label methods
+    void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void clearCrosshairTimestamp();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -181,6 +186,11 @@ private:
     // This will be removed and replaced by m_sliderState.getTimeWindow()
     TimeSelectionSpan m_sliderVisibleWindow;
     QGraphicsRectItem* m_sliderIndicator = nullptr; // Kept for now but may be removed
+    
+    // Crosshair timestamp label state
+    QDateTime m_crosshairTimestamp;
+    qreal m_crosshairYPosition;
+    bool m_showCrosshairTimestamp;
 
     void updateVisualization();
     double calculateTimeOffset();
@@ -233,6 +243,10 @@ public:
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
+    
+    // Crosshair timestamp label methods
+    void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void clearCrosshairTimestamp();
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);

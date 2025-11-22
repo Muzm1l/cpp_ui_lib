@@ -216,7 +216,7 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // ============================================================================
 
 TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_showCrosshairTimestamp(false), m_crosshairYPosition(0.0)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -733,6 +733,39 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     
     QColor sliderColor(255, 255, 255, 128); // 50% opacity white
     painter.fillRect(sliderRect, sliderColor);
+    
+    // Draw crosshair timestamp label if visible
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        // Check if Y position is within the timelineview bounds
+        if (m_crosshairYPosition >= 0 && m_crosshairYPosition <= rect().height())
+        {
+            // Format timestamp as HH:mm:ss
+            QString timestampText = m_crosshairTimestamp.time().toString("HH:mm:ss");
+            
+            // Calculate text metrics
+            QFont font = painter.font();
+            QFontMetrics fontMetrics(font);
+            int textWidth = fontMetrics.horizontalAdvance(timestampText);
+            int textHeight = fontMetrics.height();
+            
+            // Add padding for background
+            int padding = 2;
+            int bgX = rect().width() / 2 - textWidth / 2 - padding; // Center horizontally
+            int bgY = static_cast<int>(m_crosshairYPosition) - textHeight / 2 - padding;
+            int bgWidth = textWidth + (2 * padding);
+            int bgHeight = textHeight + (2 * padding);
+            
+            // Draw black background rectangle
+            painter.fillRect(bgX, bgY, bgWidth, bgHeight, QColor(0, 0, 0));
+            
+            // Draw white text
+            painter.setPen(QPen(QColor(255, 255, 255), 1));
+            int textX = bgX + padding;
+            int textY = bgY + padding + textHeight;
+            painter.drawText(QPoint(textX, textY), timestampText);
+        }
+    }
 }
 
 void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
@@ -929,9 +962,21 @@ void TimelineVisualizerWidget::updateSliderFromMousePosition(const QPoint& curre
     
     // Trigger immediate repaint to show updated slider position
     repaint();
-    
-    // Emit signal during drag
-    emitTimeScopeChanged();
+}
+
+void TimelineVisualizerWidget::updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition)
+{
+    m_crosshairTimestamp = timestamp;
+    m_crosshairYPosition = yPosition;
+    m_showCrosshairTimestamp = timestamp.isValid();
+    update(); // Trigger repaint
+}
+
+void TimelineVisualizerWidget::clearCrosshairTimestamp()
+{
+    m_showCrosshairTimestamp = false;
+    m_crosshairTimestamp = QDateTime();
+    update(); // Trigger repaint
 }
 
 void TimelineVisualizerWidget::emitTimeScopeChanged()
@@ -1219,5 +1264,21 @@ void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection
     if (selection.startTime.isValid() && selection.endTime.isValid())
     {
         emit TimeScopeChanged(selection);
+    }
+}
+
+void TimelineView::updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->updateCrosshairTimestamp(timestamp, yPosition);
+    }
+}
+
+void TimelineView::clearCrosshairTimestamp()
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->clearCrosshairTimestamp();
     }
 }

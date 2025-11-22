@@ -689,8 +689,18 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setSeriesColor(colorPair.first, colorPair.second);
     }
 
-    graph->setCursorTimeChangedCallback([this](const QDateTime &time) {
+    graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal yPosition) {
         handleCursorTimeChanged(time);
+        
+        // Update timelineview with crosshair timestamp
+        if (m_timelineView && time.isValid() && yPosition >= 0)
+        {
+            m_timelineView->updateCrosshairTimestamp(time, yPosition);
+        }
+        else if (m_timelineView)
+        {
+            m_timelineView->clearCrosshairTimestamp();
+        }
     });
     applyCursorTimeToGraph(graph);
     

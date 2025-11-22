@@ -39,7 +39,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     mouseSelectionEnabled(false), 
     selectionRect(nullptr), 
     autoUpdateYRange(true),
-    lastNotifiedCursorTime(QDateTime())
+    lastNotifiedCursorTime(QDateTime()),
+    lastNotifiedYPosition(-1.0)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -755,11 +756,11 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
         if (drawingArea.contains(scenePos))
         {
             QDateTime cursorTime = mapScreenToTime(scenePos.y());
-            notifyCursorTimeChanged(cursorTime);
+            notifyCursorTimeChanged(cursorTime, scenePos.y());
         }
         else
         {
-            notifyCursorTimeChanged(QDateTime());
+            notifyCursorTimeChanged(QDateTime(), -1.0);
         }
     }
 
@@ -803,7 +804,7 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     {
         hideCrosshair();
     }
-    notifyCursorTimeChanged(QDateTime());
+    notifyCursorTimeChanged(QDateTime(), -1.0);
     qDebug() << "Mouse left WaterfallGraph widget";
 }
 
@@ -2310,7 +2311,7 @@ void WaterfallGraph::clearTimeAxisCursor()
  *
  * @param callback Function to invoke when cursor time changes
  */
-void WaterfallGraph::setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback)
+void WaterfallGraph::setCursorTimeChangedCallback(const std::function<void(const QDateTime &, qreal)> &callback)
 {
     cursorTimeChangedCallback = callback;
 }
@@ -2329,29 +2330,41 @@ void WaterfallGraph::setCrosshairPositionChangedCallback(const std::function<voi
  * @brief Notify listeners about cursor time changes
  *
  * @param time Cursor time or invalid to clear
+ * @param yPosition Y position in scene coordinates, or -1.0 if not available
  */
-void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time)
+void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time, qreal yPosition)
 {
     if (!cursorTimeChangedCallback)
     {
         lastNotifiedCursorTime = time;
+        lastNotifiedYPosition = yPosition;
         return;
     }
 
+    // Check if both time and Y position are the same (skip update if unchanged)
     if (time.isValid())
     {
         if (lastNotifiedCursorTime.isValid() && time == lastNotifiedCursorTime)
         {
+            // Time is the same, check if Y position changed significantly (more than 1 pixel)
+            if (qAbs(yPosition - lastNotifiedYPosition) < 1.0)
+            {
+                return; // Both time and position are essentially the same
+            }
+        }
+    }
+    else if (!lastNotifiedCursorTime.isValid() && yPosition < 0)
+    {
+        // Both are invalid/cleared, skip if we already notified this state
+        if (lastNotifiedYPosition < 0)
+        {
             return;
         }
     }
-    else if (!lastNotifiedCursorTime.isValid())
-    {
-        return;
-    }
 
     lastNotifiedCursorTime = time;
-    cursorTimeChangedCallback(time);
+    lastNotifiedYPosition = yPosition;
+    cursorTimeChangedCallback(time, yPosition);
 }
 
 /**
