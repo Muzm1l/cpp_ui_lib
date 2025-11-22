@@ -31,6 +31,7 @@ protected:
 private:
     // FDW-specific properties and methods can be added here
     void drawFDWScatterplot();
+    void drawZeroAxis();
 };
 
 #endif // FDWGRAPH_H

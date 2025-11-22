@@ -24,13 +24,11 @@ protected:
     // Override mouse event handlers if needed
     void onMouseClick(const QPointF &scenePos) override;
     void onMouseDrag(const QPointF &scenePos) override;
-    
-    // Override drawDataLine to use dashed lines
-    void drawDataLine(const QString &seriesLabel, bool plotPoints = true) override;
 
 private:
     // BRW-specific properties and methods can be added here
     void drawBRWScatterplot();
+    void drawZeroAxis();
 };
 
 #endif // BRWGRAPH_H

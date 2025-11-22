@@ -207,6 +207,19 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         break;
     }
 
+    // Reset container sizes before recalculating to prevent size carryover from previous layout
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            // Remove fixed size constraints to allow recalculation
+            container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        }
+    }
+    
+    // Remove fixed width constraint from GraphLayout to allow recalculation based on new layout
+    setMaximumWidth(QWIDGETSIZE_MAX);
+    
     // Update sizing after layout changes
     updateLayoutSizing();
 
@@ -388,7 +401,59 @@ void GraphLayout::updateLayoutSizing()
         // Formula: totalWidth = N_Columns * container_width + 80
         // So: container_width = (totalWidth - 80) / N_Columns
         int availableWidth = currentSize.width();
-        containerWidth = (availableWidth - 80) / numColumns;
+        
+        // If the current width seems too large (likely from a previous layout with more columns),
+        // try using parent widget's available space or container's graph view size as a base
+        if (!m_graphContainers.empty() && m_graphContainers[0])
+        {
+            QSize graphViewSize = m_graphContainers[0]->getGraphViewSize();
+            int baseContainerWidth = graphViewSize.width();
+            
+            // Check if current width calculation would result in an unreasonably wide container
+            // (more than 2x the base width suggests we're using the wrong base width)
+            int calculatedWidth = (availableWidth - 80) / numColumns;
+            if (calculatedWidth > baseContainerWidth * 2)
+            {
+                // Try to use parent widget's available space if available
+                QWidget *parent = parentWidget();
+                if (parent)
+                {
+                    int parentWidth = parent->width();
+                    if (parentWidth > 0)
+                    {
+                        int parentBasedWidth = (parentWidth - 80) / numColumns;
+                        // Use parent-based width if it's more reasonable
+                        if (parentBasedWidth <= baseContainerWidth * 2 && parentBasedWidth >= baseContainerWidth)
+                        {
+                            containerWidth = parentBasedWidth;
+                        }
+                        else
+                        {
+                            // Fall back to base container width from graph view size
+                            containerWidth = baseContainerWidth;
+                        }
+                    }
+                    else
+                    {
+                        // Use the base container width from graph view size
+                        containerWidth = baseContainerWidth;
+                    }
+                }
+                else
+                {
+                    // Use the base container width from graph view size
+                    containerWidth = baseContainerWidth;
+                }
+            }
+            else
+            {
+                containerWidth = calculatedWidth;
+            }
+        }
+        else
+        {
+            containerWidth = (availableWidth - 80) / numColumns;
+        }
         
         // Ensure minimum width
         containerWidth = qMax(containerWidth, 200);
