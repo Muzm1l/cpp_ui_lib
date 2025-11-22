@@ -26,7 +26,7 @@
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
-#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 80
+#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 64
 
 // Forward declarations
 class TimelineVisualizerWidget;

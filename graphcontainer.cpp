@@ -8,8 +8,8 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_showTimelineView(showTimelineView), 
     m_timer(timer), 
     m_ownsTimer(false), 
-    m_timelineWidth(80), 
-    m_graphViewSize(300, 300), 
+    m_timelineWidth(64), 
+    m_graphViewSize(226, 300), 
     m_seriesColorsMap(seriesColorsMap), 
     currentDataOption(GraphType::BDW), 
     m_updatingTimeInterval(false),
@@ -248,7 +248,7 @@ QSize GraphContainer::getTotalContainerSize() const
     int totalHeight = m_graphViewSize.height();
 
     // Add timeline selection view width (fixed width)
-    totalWidth += 50; // Timeline selection view width
+    totalWidth += 32; // Timeline selection view width
 
     // Add timeline view width if enabled
     if (m_showTimelineView)
