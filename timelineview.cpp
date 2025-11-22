@@ -979,6 +979,26 @@ void TimelineVisualizerWidget::clearCrosshairTimestamp()
     update(); // Trigger repaint
 }
 
+void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &window)
+{
+    if (!window.startTime.isValid() || !window.endTime.isValid())
+    {
+        return;
+    }
+    
+    // Update the slider state with the new time window
+    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
+    
+    // Keep legacy member in sync
+    m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Update the visualization to reflect the new slider position
+    updateVisualization();
+    
+    // Note: We don't emit visibleTimeWindowChanged here to avoid feedback loops
+    // when syncing from another timeline view
+}
+
 void TimelineVisualizerWidget::emitTimeScopeChanged()
 {
     // Get time window from state manager and ensure it's valid before emitting
@@ -1280,5 +1300,13 @@ void TimelineView::clearCrosshairTimestamp()
     if (m_visualizerWidget)
     {
         m_visualizerWidget->clearCrosshairTimestamp();
+    }
+}
+
+void TimelineView::setVisibleTimeWindow(const TimeSelectionSpan &window)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setVisibleTimeWindow(window);
     }
 }

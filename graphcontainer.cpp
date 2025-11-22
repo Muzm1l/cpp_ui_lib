@@ -196,6 +196,11 @@ bool GraphContainer::getShowTimelineView()
     return m_showTimelineView;
 }
 
+TimelineView *GraphContainer::getTimelineView() const
+{
+    return m_timelineView;
+}
+
 void GraphContainer::setShowTimeSelectionVisualizer(bool show)
 {
     if (m_timelineSelectionView)

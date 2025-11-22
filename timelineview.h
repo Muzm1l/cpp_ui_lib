@@ -142,6 +142,7 @@ public:
 
     // Slider visible window access
     TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
+    void setVisibleTimeWindow(const TimeSelectionSpan &window);
     
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
@@ -247,6 +248,9 @@ public:
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
     void clearCrosshairTimestamp();
+    
+    // Time window control for syncing
+    void setVisibleTimeWindow(const TimeSelectionSpan &window);
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
