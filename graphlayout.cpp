@@ -87,10 +87,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         }
     }
 
-    // First, make all containers visible
+    // First, make all containers visible and show their time selection visualizers
     for (auto *container : m_graphContainers)
     {
         container->setVisible(true);
+        container->setShowTimeSelectionVisualizer(true); // Reset to visible by default
     }
 
     switch (m_layoutType)
@@ -108,15 +109,19 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         // Add graph containers to row 1
         m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
-        // Hide timeline view for the second graph container
-        m_graphContainers[0]->setShowTimelineView(true);
-        m_graphContainers[1]->setShowTimelineView(false);
+        // Hide timeline view for first container in top row, show for second container
+        m_graphContainers[0]->setShowTimelineView(false);
+        m_graphContainers[1]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container in top row (container 0)
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
         // Add graph containers to row 2
         m_graphContainersRow2Layout->addWidget(m_graphContainers[2]);
         m_graphContainersRow2Layout->addWidget(m_graphContainers[3]);
-        // Hide timeline view for fourth graph containers
-        m_graphContainers[2]->setShowTimelineView(true);
-        m_graphContainers[3]->setShowTimelineView(false);
+        // Hide timeline view for first container in bottom row, show for second container
+        m_graphContainers[2]->setShowTimelineView(false);
+        m_graphContainers[3]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container in bottom row (container 2)
+        m_graphContainers[2]->setShowTimeSelectionVisualizer(false);
 
         // Connect the interval change handler of containers 1 to the event of 0 and the 3 to the event of 2
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);

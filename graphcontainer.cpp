@@ -196,6 +196,14 @@ bool GraphContainer::getShowTimelineView()
     return m_showTimelineView;
 }
 
+void GraphContainer::setShowTimeSelectionVisualizer(bool show)
+{
+    if (m_timelineSelectionView)
+    {
+        m_timelineSelectionView->setVisible(show);
+    }
+}
+
 int GraphContainer::getTimelineWidth() const
 {
     return m_timelineWidth;
