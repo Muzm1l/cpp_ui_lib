@@ -147,9 +147,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         // Add 2 graph containers to row 1
         m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
-        // Hide timeline view for the second graph container
-        m_graphContainers[0]->setShowTimelineView(true);
-        m_graphContainers[1]->setShowTimelineView(false);
+        // Hide timeline view for first container, show for second container
+        m_graphContainers[0]->setShowTimelineView(false);
+        m_graphContainers[1]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
         // Hide the other containers
         m_graphContainers[2]->setVisible(false);
         m_graphContainers[3]->setVisible(false);
@@ -189,9 +191,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
         
-        // Show timeline only for the first container
-        m_graphContainers[0]->setShowTimelineView(true);
-        m_graphContainers[1]->setShowTimelineView(false);
+        // Hide timeline view for first container, show for second container
+        m_graphContainers[0]->setShowTimelineView(false);
+        m_graphContainers[1]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
         
         // Hide the other containers
         m_graphContainers[2]->setVisible(false);
@@ -475,9 +479,9 @@ void GraphLayout::updateLayoutSizing()
             for (int i = 0; i < 2; ++i) {
                 if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
                     if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
-                    } else {
                         m_graphContainers[i]->setContainerWidth(containerWidth);
+                    } else {
+                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
                     }
                 }
             }
@@ -486,9 +490,9 @@ void GraphLayout::updateLayoutSizing()
             for (int i = 0; i < 2; ++i) {
                 if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
                     if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
-                    } else {
                         m_graphContainers[i]->setContainerWidth(containerWidth);
+                    } else {
+                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
                     }
                 }
             }
