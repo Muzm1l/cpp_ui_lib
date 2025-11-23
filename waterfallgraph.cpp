@@ -772,7 +772,7 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
  *
  * @param event
  */
-void WaterfallGraph::enterEvent(QEvent *event)
+void WaterfallGraph::enterEvent(QEnterEvent *event)
 {
     QWidget::enterEvent(event);
     // Enable mouse tracking when mouse enters the widget
