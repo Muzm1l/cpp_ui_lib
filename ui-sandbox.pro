@@ -43,6 +43,7 @@ SOURCES += \
     ftwgraph.cpp \
     ltwgraph.cpp \
     rtwgraph.cpp \
+    rtwsymbol.cpp \
     simulator.cpp \
     interactivegraphicsitem.cpp \
     btwinteractiveoverlay.cpp 
@@ -69,6 +70,7 @@ HEADERS += \
     ftwgraph.h \
     ltwgraph.h \
     rtwgraph.h \
+    rtwsymbols.h \
     simulator.h \
     interactivegraphicsitem.h \
     btwinteractiveoverlay.h 

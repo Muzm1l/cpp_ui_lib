@@ -19,7 +19,7 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPolygonF>
-#include <QEnterEvent>
+#include <QEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QTime>
@@ -84,7 +84,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     // Override mouse move to track cursor for crosshair
-    void enterEvent(QEnterEvent *event) override;
+    void enterEvent(QEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
 
@@ -162,9 +162,14 @@ protected:
     bool crosshairEnabled;
 
     // Cursor callback helpers
-    void notifyCursorTimeChanged(const QDateTime &time);
-    std::function<void(const QDateTime &)> cursorTimeChangedCallback;
+    void notifyCursorTimeChanged(const QDateTime &time, qreal yPosition = -1.0);
+    std::function<void(const QDateTime &, qreal)> cursorTimeChangedCallback;
     QDateTime lastNotifiedCursorTime;
+    qreal lastNotifiedYPosition;
+    
+    // Crosshair position callback
+    std::function<void(qreal xPosition)> crosshairPositionChangedCallback;
+    void notifyCrosshairPositionChanged(qreal xPosition);
 
     // Time axis cursor functionality
     QGraphicsLineItem *timeAxisCursor;
@@ -198,7 +203,10 @@ public:
     // Time axis cursor control
     void setTimeAxisCursor(const QDateTime &time);
     void clearTimeAxisCursor();
-    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback);
+    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &, qreal)> &callback);
+    
+    // Crosshair position callback
+    void setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback);
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }

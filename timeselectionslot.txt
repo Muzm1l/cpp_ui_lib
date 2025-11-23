@@ -1,0 +1,29 @@
+void onTimeSelectionMade(const TimeSelectionSpan &selection);
+
+
+cpp void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
+{
+    qDebug() << "GraphContainer: Time selection made from" 
+             << selection.startTime.toString() 
+             << "to" << selection.endTime.toString();
+
+    // Emit the TimeSelectionCreated signal for external components
+    emit TimeSelectionCreated(selection);
+}
+
+
+connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionMade,
+        this, &GraphContainer::onTimeSelectionMade);
+
+
+   QDateTime start = selection.startTime;
+   QDateTime end = selection.endTime;
+
+
+   void YourClass::yourSlotName(const TimeSelectionSpan &selection)
+{
+    // Access timestamps:
+    QDateTime startTime = selection.startTime;
+    QDateTime endTime = selection.endTime;
+    // ... your code here
+}

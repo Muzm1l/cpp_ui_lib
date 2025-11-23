@@ -34,6 +34,8 @@ public:
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
+    TimelineView *getTimelineView() const;
+    void setShowTimeSelectionVisualizer(bool show);
 
     // Sizing methods
     int getTimelineWidth() const;
