@@ -972,6 +972,62 @@ void TimelineVisualizerWidget::updateCrosshairTimestamp(const QDateTime &timesta
     update(); // Trigger repaint
 }
 
+void TimelineVisualizerWidget::updateCrosshairTimestampFromTime(const QDateTime &timestamp)
+{
+    if (!timestamp.isValid())
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Get the visible time window from the slider state
+    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
+    
+    if (!visibleWindow.startTime.isValid() || !visibleWindow.endTime.isValid())
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Check if the timestamp is within the visible time window
+    // The timeline view shows time from endTime (top, Y=0) to startTime (bottom, Y=height)
+    QDateTime windowStart = visibleWindow.startTime;
+    QDateTime windowEnd = visibleWindow.endTime;
+    
+    // Ensure windowStart < windowEnd (start is older, end is newer)
+    if (windowStart > windowEnd)
+    {
+        std::swap(windowStart, windowEnd);
+    }
+    
+    // If timestamp is outside the visible window, don't show it
+    if (timestamp < windowStart || timestamp > windowEnd)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Calculate Y position: endTime is at top (Y=0), startTime is at bottom (Y=height)
+    qint64 totalWindowMs = windowStart.msecsTo(windowEnd);
+    if (totalWindowMs <= 0 || rect().height() <= 0)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Calculate how far the timestamp is from the end (top)
+    qint64 timeFromEndMs = timestamp.msecsTo(windowEnd);
+    
+    // Normalize: 0.0 at top (endTime), 1.0 at bottom (startTime)
+    qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(totalWindowMs);
+    normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+    
+    // Map to widget height: top is 0, bottom is height
+    qreal yPosition = normalizedY * rect().height();
+    
+    updateCrosshairTimestamp(timestamp, yPosition);
+}
+
 void TimelineVisualizerWidget::clearCrosshairTimestamp()
 {
     m_showCrosshairTimestamp = false;
@@ -1292,6 +1348,14 @@ void TimelineView::updateCrosshairTimestamp(const QDateTime &timestamp, qreal yP
     if (m_visualizerWidget)
     {
         m_visualizerWidget->updateCrosshairTimestamp(timestamp, yPosition);
+    }
+}
+
+void TimelineView::updateCrosshairTimestampFromTime(const QDateTime &timestamp)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->updateCrosshairTimestampFromTime(timestamp);
     }
 }
 

@@ -1247,6 +1247,7 @@ void GraphLayout::registerCursorSyncCallbacks()
 
 void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time)
 {
+    // Update all containers' graphs with the shared cursor time
     for (auto *container : m_graphContainers)
     {
         if (!container || container == source)
@@ -1255,6 +1256,32 @@ void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDa
         }
 
         container->applySharedTimeAxisCursor(time);
+    }
+    
+    // Update all timeline views with the cursor timestamp label
+    // This shows the timestamp when the horizontal cursor line intersects the timeline view
+    for (auto *container : m_graphContainers)
+    {
+        if (!container || !container->isVisible())
+        {
+            continue;
+        }
+        
+        if (container->getShowTimelineView())
+        {
+            TimelineView *timelineView = container->getTimelineView();
+            if (timelineView)
+            {
+                if (time.isValid())
+                {
+                    timelineView->updateCrosshairTimestampFromTime(time);
+                }
+                else
+                {
+                    timelineView->clearCrosshairTimestamp();
+                }
+            }
+        }
     }
 }
 

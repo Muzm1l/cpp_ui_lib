@@ -146,6 +146,7 @@ public:
     
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
     void clearCrosshairTimestamp();
 
 protected:
@@ -247,6 +248,7 @@ public:
     
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
     void clearCrosshairTimestamp();
     
     // Time window control for syncing
