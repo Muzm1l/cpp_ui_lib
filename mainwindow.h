@@ -15,8 +15,10 @@
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
 #include "zoompanel.h"
+#include "rtwsymbols.h"
 #include <QMainWindow>
 #include <QTimer>
+#include <QPaintEvent>
 #include <cstdlib>
 #include <ctime>
 
@@ -71,6 +73,9 @@ private:
     QLabel* timespanStartLabel; ///< Label to display start time
     QLabel* timespanEndLabel; ///< Label to display end time
     QLabel* timespanDurationLabel; ///< Label to display duration
+    
+    // RTW Symbols test widget
+    QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
 
     // void configureTimeVisualizer();
     // void configureTimelineView();
@@ -84,6 +89,7 @@ private:
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
+    void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
 
     long simTick;
 

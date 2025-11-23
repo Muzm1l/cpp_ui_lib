@@ -7,9 +7,10 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QResizeEvent>
-#include <QEnterEvent>
+#include <QEvent>
 #include <QMouseEvent>
 #include <QTime>
+#include <QDateTime>
 #include <QList>
 #include <QObject>
 #include <QTimer>
@@ -25,7 +26,7 @@
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
-#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 80
+#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 64
 
 // Forward declarations
 class TimelineVisualizerWidget;
@@ -141,6 +142,12 @@ public:
 
     // Slider visible window access
     TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
+    void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    
+    // Crosshair timestamp label methods
+    void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
+    void clearCrosshairTimestamp();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -148,7 +155,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
-    void enterEvent(QEnterEvent* event) override;
+    void enterEvent(QEvent* event) override;
 
 private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes
@@ -181,6 +188,11 @@ private:
     // This will be removed and replaced by m_sliderState.getTimeWindow()
     TimeSelectionSpan m_sliderVisibleWindow;
     QGraphicsRectItem* m_sliderIndicator = nullptr; // Kept for now but may be removed
+    
+    // Crosshair timestamp label state
+    QDateTime m_crosshairTimestamp;
+    qreal m_crosshairYPosition;
+    bool m_showCrosshairTimestamp;
 
     void updateVisualization();
     double calculateTimeOffset();
@@ -233,6 +245,14 @@ public:
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
+    
+    // Crosshair timestamp label methods
+    void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
+    void clearCrosshairTimestamp();
+    
+    // Time window control for syncing
+    void setVisibleTimeWindow(const TimeSelectionSpan &window);
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);

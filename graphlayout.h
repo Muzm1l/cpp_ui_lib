@@ -83,6 +83,9 @@ public:
 
     // Selection linking methods
     void linkHorizontalContainers();
+    
+    // Timeline view syncing methods
+    void syncAllTimelineViews();
 
     // Chevron label control methods - operate on all visible containers
     void setChevronLabel1(const QString &label);

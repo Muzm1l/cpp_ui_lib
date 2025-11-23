@@ -8,7 +8,7 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_showTimelineView(showTimelineView), 
     m_timer(timer), 
     m_ownsTimer(false), 
-    m_timelineWidth(80), 
+    m_timelineWidth(64), 
     m_graphViewSize(226, 300), 
     m_seriesColorsMap(seriesColorsMap), 
     currentDataOption(GraphType::BDW), 
@@ -83,6 +83,7 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_mainLayout->addWidget(m_timelineSelectionView);
     m_timelineSelectionView->setCurrentTime(QTime::currentTime());
     m_timelineSelectionView->setTimeLineLength(TimeInterval::FifteenMinutes);
+    m_timelineSelectionView->setVisible(m_showTimelineView);
 
     // Create TimelineView (conditionally based on showTimelineView) with timer
     if (m_showTimelineView)
@@ -187,6 +188,12 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
         setupEventConnections();
     }
 
+    if (m_timelineSelectionView)
+    {
+        m_timelineSelectionView->setVisible(showTimelineView);
+        qDebug() << "GraphContainer: TimelineSelectionView visibility set to:" << showTimelineView;
+    }
+
     // Update container size when timeline view visibility changes
     updateTotalContainerSize();
 }
@@ -194,6 +201,19 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
 bool GraphContainer::getShowTimelineView()
 {
     return m_showTimelineView;
+}
+
+TimelineView *GraphContainer::getTimelineView() const
+{
+    return m_timelineView;
+}
+
+void GraphContainer::setShowTimeSelectionVisualizer(bool show)
+{
+    if (m_timelineSelectionView)
+    {
+        m_timelineSelectionView->setVisible(show);
+    }
 }
 
 int GraphContainer::getTimelineWidth() const
@@ -240,7 +260,7 @@ QSize GraphContainer::getTotalContainerSize() const
     int totalHeight = m_graphViewSize.height();
 
     // Add timeline selection view width (fixed width)
-    totalWidth += 50; // Timeline selection view width
+    totalWidth += 32; // Timeline selection view width
 
     // Add timeline view width if enabled
     if (m_showTimelineView)
@@ -506,6 +526,23 @@ void GraphContainer::setupEventConnections()
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
+        
+        // Connect crosshair position changes to update zoompanel label
+        pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
+            if (m_zoomPanel)
+            {
+                if (xPosition < 0)
+                {
+                    // Crosshair hidden
+                    m_zoomPanel->clearCrosshairLabel();
+                }
+                else
+                {
+                    // Update zoompanel label with crosshair X position
+                    m_zoomPanel->updateCrosshairLabel(xPosition);
+                }
+            }
+        });
     }
 
     // Connect ZoomPanel value changes
@@ -672,10 +709,37 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setSeriesColor(colorPair.first, colorPair.second);
     }
 
-    graph->setCursorTimeChangedCallback([this](const QDateTime &time) {
+    graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal yPosition) {
         handleCursorTimeChanged(time);
+        
+        // Update timelineview with crosshair timestamp
+        if (m_timelineView && time.isValid() && yPosition >= 0)
+        {
+            m_timelineView->updateCrosshairTimestamp(time, yPosition);
+        }
+        else if (m_timelineView)
+        {
+            m_timelineView->clearCrosshairTimestamp();
+        }
     });
     applyCursorTimeToGraph(graph);
+    
+    // Set up crosshair position callback to update zoompanel label
+    graph->setCrosshairPositionChangedCallback([this](qreal xPosition) {
+        if (m_zoomPanel)
+        {
+            if (xPosition < 0)
+            {
+                // Crosshair hidden
+                m_zoomPanel->clearCrosshairLabel();
+            }
+            else
+            {
+                // Update zoompanel label with crosshair X position
+                m_zoomPanel->updateCrosshairLabel(xPosition);
+            }
+        }
+    });
 
     // Connect DeleteInteractiveMarkers signal to BTWGraph
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {

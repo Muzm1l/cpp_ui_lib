@@ -274,10 +274,10 @@ void Simulator::onTimerTick()
 
 void Simulator::initializeConfigurations()
 {
-    // Initialize configuration for each graph type (Start, End, Start, Delta)
-    m_fdwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Frequency Domain Window: 10% of 22.0 range
+    // Initialize configuration for each graph type (minValue, maxValue, startValue, deltaValue)
+    m_fdwConfig = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};  // Frequency Domain Window: -30 to 30 range
     m_bdwConfig = SimulatorConfig{-30.0, 30.0, 0.0, 6.0}; // Bandwidth Domain Window: -30 to 30 range
-    m_brwConfig = SimulatorConfig{8.0, 30.0, 19.0, 2.2};  // Bit Rate Window: 10% of 22.0 range
+    m_brwConfig = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};  // Bit Rate Window: -30 to 30 range
     m_ltwConfig = SimulatorConfig{15.0, 30.0, 22.5, 1.5}; // Left Track Window: 10% of 15.0 range
     m_btwConfig = SimulatorConfig{5.0, 40.0, 22.5, 3.5};  // Bottom Track Window: 10% of 35.0 range
     m_rtwConfig = SimulatorConfig{0.0, 25.0, 12.5, 2.5};  // Right Track Window: 0-25 range
@@ -287,9 +287,9 @@ void Simulator::initializeConfigurations()
 void Simulator::initializeCurrentValues()
 {
     // Initialize current values to middle of their respective ranges
-    m_currentFDWValue = m_fdwConfig.startValue; // Middle of 8.0-30.0 range
+    m_currentFDWValue = m_fdwConfig.startValue; // Middle of -30.0-30.0 range (0.0)
     m_currentBDWValue = m_bdwConfig.startValue; // Middle of -30.0-30.0 range (0.0)
-    m_currentBRWValue = m_brwConfig.startValue; // Middle of 8.0-30.0 range
+    m_currentBRWValue = m_brwConfig.startValue; // Middle of -30.0-30.0 range (0.0)
     m_currentLTWValue = m_ltwConfig.startValue; // Middle of 15.0-30.0 range
     m_currentBTWValue = m_btwConfig.startValue; // Middle of 5.0-40.0 range
     m_currentRTWValue = m_rtwConfig.startValue; // Middle of 0.0-25.0 range

@@ -41,6 +41,9 @@ void BRWGraph::draw()
         drawGrid();
     }
 
+    // Draw dashed white horizontal line at 0 value
+    drawZeroAxis();
+
     if (dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
@@ -102,4 +105,32 @@ void BRWGraph::drawBRWScatterplot()
     drawScatterplot(QString("BRW-1"), Qt::yellow, 4.0, Qt::black);
 
     qDebug() << "BRW scatterplot drawn";
+}
+
+/**
+ * @brief Draw dashed white vertical line at 0 value
+ *
+ */
+void BRWGraph::drawZeroAxis()
+{
+    if (!graphicsScene) {
+        return;
+    }
+
+    // Map 0 value to screen coordinates using current time as timestamp
+    QDateTime currentTime = QDateTime::currentDateTime();
+    QPointF zeroPoint = mapDataToScreen(0.0, currentTime);
+    
+    // Create vertical line from top to bottom of drawing area at x = 0
+    QPointF topPoint(zeroPoint.x(), drawingArea.top());
+    QPointF bottomPoint(zeroPoint.x(), drawingArea.bottom());
+    
+    // Create dashed white pen
+    QPen zeroAxisPen(QColor(255, 255, 255), 1.0, Qt::DashLine); // White dashed line
+    zeroAxisPen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
+    
+    // Draw the vertical line
+    graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
+    
+    qDebug() << "BRW zero axis drawn at x:" << zeroPoint.x();
 }

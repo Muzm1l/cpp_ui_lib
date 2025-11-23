@@ -87,10 +87,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         }
     }
 
-    // First, make all containers visible
+    // First, make all containers visible and show their time selection visualizers
     for (auto *container : m_graphContainers)
     {
         container->setVisible(true);
+        container->setShowTimeSelectionVisualizer(true); // Reset to visible by default
     }
 
     switch (m_layoutType)
@@ -108,15 +109,19 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         // Add graph containers to row 1
         m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
-        // Hide timeline view for the second graph container
-        m_graphContainers[0]->setShowTimelineView(true);
-        m_graphContainers[1]->setShowTimelineView(false);
+        // Hide timeline view for first container in top row, show for second container
+        m_graphContainers[0]->setShowTimelineView(false);
+        m_graphContainers[1]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container in top row (container 0)
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
         // Add graph containers to row 2
         m_graphContainersRow2Layout->addWidget(m_graphContainers[2]);
         m_graphContainersRow2Layout->addWidget(m_graphContainers[3]);
-        // Hide timeline view for fourth graph containers
-        m_graphContainers[2]->setShowTimelineView(true);
-        m_graphContainers[3]->setShowTimelineView(false);
+        // Hide timeline view for first container in bottom row, show for second container
+        m_graphContainers[2]->setShowTimelineView(false);
+        m_graphContainers[3]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container in bottom row (container 2)
+        m_graphContainers[2]->setShowTimeSelectionVisualizer(false);
 
         // Connect the interval change handler of containers 1 to the event of 0 and the 3 to the event of 2
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
@@ -142,9 +147,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         // Add 2 graph containers to row 1
         m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
-        // Hide timeline view for the second graph container
-        m_graphContainers[0]->setShowTimelineView(true);
-        m_graphContainers[1]->setShowTimelineView(false);
+        // Hide timeline view for first container, show for second container
+        m_graphContainers[0]->setShowTimelineView(false);
+        m_graphContainers[1]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
         // Hide the other containers
         m_graphContainers[2]->setVisible(false);
         m_graphContainers[3]->setVisible(false);
@@ -162,21 +169,25 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[2]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[3]);
-        // Only show the timeline for the first graph container
-        m_graphContainers[0]->setShowTimelineView(true);
+        // Hide timeline view for first container, show for third container
+        m_graphContainers[0]->setShowTimelineView(false);
         m_graphContainers[1]->setShowTimelineView(false);
-        m_graphContainers[2]->setShowTimelineView(false);
+        m_graphContainers[2]->setShowTimelineView(true);
         m_graphContainers[3]->setShowTimelineView(false);
+        // Hide time selection visualizer for 1st, 2nd, and 4th containers
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
+        m_graphContainers[1]->setShowTimeSelectionVisualizer(false);
+        m_graphContainers[3]->setShowTimeSelectionVisualizer(false);
 
-        // Connect the interval change handlers of containers 1,2,3 to the event of 0
-        connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
-        connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[2], &GraphContainer::onTimeIntervalChanged);
-        connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
+        // Connect the interval change handlers of containers 0,1,3 to the event of 2 (container 2 has timeline view)
+        connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[0], &GraphContainer::onTimeIntervalChanged);
+        connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+        connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
         
-        // Connect the time scope change handlers of containers 1,2,3 to the event of 0
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[2], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+        // Connect the time scope change handlers of containers 0,1,3 to the event of 2 (container 2 has timeline view)
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[0], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
         break;
     // Layout 2W: two graph container side by side, but take up whole screen. this is similar 2WH
     case LayoutType::NOGPW2WH:
@@ -184,9 +195,11 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         m_graphContainersRow1Layout->addWidget(m_graphContainers[0]);
         m_graphContainersRow1Layout->addWidget(m_graphContainers[1]);
         
-        // Show timeline only for the first container
-        m_graphContainers[0]->setShowTimelineView(true);
-        m_graphContainers[1]->setShowTimelineView(false);
+        // Hide timeline view for first container, show for second container
+        m_graphContainers[0]->setShowTimelineView(false);
+        m_graphContainers[1]->setShowTimelineView(true);
+        // Hide time selection visualizer for first container
+        m_graphContainers[0]->setShowTimeSelectionVisualizer(false);
         
         // Hide the other containers
         m_graphContainers[2]->setVisible(false);
@@ -207,11 +220,27 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         break;
     }
 
+    // Reset container sizes before recalculating to prevent size carryover from previous layout
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            // Remove fixed size constraints to allow recalculation
+            container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        }
+    }
+    
+    // Remove fixed width constraint from GraphLayout to allow recalculation based on new layout
+    setMaximumWidth(QWIDGETSIZE_MAX);
+    
     // Update sizing after layout changes
     updateLayoutSizing();
 
     // Link horizontal containers for selection events
     linkHorizontalContainers();
+
+    // Sync all timeline views to keep them in sync
+    syncAllTimelineViews();
 
     // Reconnect container -> layout selection signals after disconnects
     for (auto *container : m_graphContainers)
@@ -354,9 +383,11 @@ void GraphLayout::updateLayoutSizing()
         }
     }
     
-    // Calculate widths based on formula: totalWidth = N_Columns * container_width + 80
+    // Calculate widths based on formula: totalWidth = N_Columns * container_width + 64
+    // (64 is the timeline view width)
     int numColumns = 0;
     int containerWidth = 0;
+    const int timelineViewWidth = 64; // Timeline view width
     
     switch (m_layoutType)
     {
@@ -385,10 +416,62 @@ void GraphLayout::updateLayoutSizing()
     
     if (numColumns > 0) {
         // Calculate container width from available space
-        // Formula: totalWidth = N_Columns * container_width + 80
-        // So: container_width = (totalWidth - 80) / N_Columns
+        // Formula: totalWidth = N_Columns * container_width + timelineViewWidth
+        // So: container_width = (totalWidth - timelineViewWidth) / N_Columns
         int availableWidth = currentSize.width();
-        containerWidth = (availableWidth - 80) / numColumns;
+        
+        // If the current width seems too large (likely from a previous layout with more columns),
+        // try using parent widget's available space or container's graph view size as a base
+        if (!m_graphContainers.empty() && m_graphContainers[0])
+        {
+            QSize graphViewSize = m_graphContainers[0]->getGraphViewSize();
+            int baseContainerWidth = graphViewSize.width();
+            
+            // Check if current width calculation would result in an unreasonably wide container
+            // (more than 2x the base width suggests we're using the wrong base width)
+            int calculatedWidth = (availableWidth - timelineViewWidth) / numColumns;
+            if (calculatedWidth > baseContainerWidth * 2)
+            {
+                // Try to use parent widget's available space if available
+                QWidget *parent = parentWidget();
+                if (parent)
+                {
+                    int parentWidth = parent->width();
+                    if (parentWidth > 0)
+                    {
+                        int parentBasedWidth = (parentWidth - timelineViewWidth) / numColumns;
+                        // Use parent-based width if it's more reasonable
+                        if (parentBasedWidth <= baseContainerWidth * 2 && parentBasedWidth >= baseContainerWidth)
+                        {
+                            containerWidth = parentBasedWidth;
+                        }
+                        else
+                        {
+                            // Fall back to base container width from graph view size
+                            containerWidth = baseContainerWidth;
+                        }
+                    }
+                    else
+                    {
+                        // Use the base container width from graph view size
+                        containerWidth = baseContainerWidth;
+                    }
+                }
+                else
+                {
+                    // Use the base container width from graph view size
+                    containerWidth = baseContainerWidth;
+                }
+            }
+            else
+            {
+                containerWidth = calculatedWidth;
+            }
+        }
+        else
+        {
+            containerWidth = (availableWidth - timelineViewWidth) / numColumns;
+        }
         
         // Ensure minimum width
         containerWidth = qMax(containerWidth, 200);
@@ -398,16 +481,16 @@ void GraphLayout::updateLayoutSizing()
         {
         case LayoutType::GPW1W:
             if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
-                m_graphContainers[0]->setContainerWidth(containerWidth + 80);
+                m_graphContainers[0]->setContainerWidth(containerWidth + timelineViewWidth);
             }
             break;
         case LayoutType::GPW2WH:
             for (int i = 0; i < 2; ++i) {
                 if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
                     if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
-                    } else {
                         m_graphContainers[i]->setContainerWidth(containerWidth);
+                    } else {
+                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
                     }
                 }
             }
@@ -416,9 +499,9 @@ void GraphLayout::updateLayoutSizing()
             for (int i = 0; i < 2; ++i) {
                 if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
                     if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
-                    } else {
                         m_graphContainers[i]->setContainerWidth(containerWidth);
+                    } else {
+                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
                     }
                 }
             }
@@ -426,8 +509,9 @@ void GraphLayout::updateLayoutSizing()
         case LayoutType::GPW4WH:
             for (int i = 0; i < 4; ++i) {
                 if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
+                    if (i == 2) {
+                        // Third container (index 2) has timeline view, so gets extra width
+                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
                     } else {
                         m_graphContainers[i]->setContainerWidth(containerWidth);
                     }
@@ -438,21 +522,21 @@ void GraphLayout::updateLayoutSizing()
             // For vertical stacking, both containers should have the same width
             // Containers 0 and 2 are used in GPW2WV layout
             if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
-                m_graphContainers[0]->setContainerWidth(containerWidth + 80);
+                m_graphContainers[0]->setContainerWidth(containerWidth + timelineViewWidth);
             }
             if (m_graphContainers[2] && m_graphContainers[2]->isVisible()) {
-                m_graphContainers[2]->setContainerWidth(containerWidth + 80);
+                m_graphContainers[2]->setContainerWidth(containerWidth + timelineViewWidth);
             }
             break;
         case LayoutType::GPW4W:
-            // For 2x2 grid, first container in each row gets extra width
+            // For 2x2 grid, second container in each row has timeline view, so gets extra width
             for (int i = 0; i < 4; ++i) {
                 if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 0 || i == 2) {
-                        // First container in each row gets extra 80px for timeline view
-                        m_graphContainers[i]->setContainerWidth(containerWidth + 80);
+                    if (i == 1 || i == 3) {
+                        // Second container in each row has timeline view, so gets extra width
+                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
                     } else {
-                        // Second container in each row gets standard width
+                        // First container in each row gets standard width (no timeline view)
                         m_graphContainers[i]->setContainerWidth(containerWidth);
                     }
                 }
@@ -467,23 +551,26 @@ void GraphLayout::updateLayoutSizing()
         switch (m_layoutType)
         {
         case LayoutType::GPW1W:
-            totalWidth = containerWidth + 80;
+            totalWidth = containerWidth + timelineViewWidth;
             break;
         case LayoutType::GPW2WH:
-            totalWidth = (containerWidth + 80) + containerWidth;
+            // Container 0: no timeline view, Container 1: has timeline view
+            totalWidth = containerWidth + (containerWidth + timelineViewWidth);
             break;
         case LayoutType::NOGPW2WH:
-            totalWidth = (containerWidth + 80) + containerWidth;
+            // Container 0: no timeline view, Container 1: has timeline view
+            totalWidth = containerWidth + (containerWidth + timelineViewWidth);
             break;
         case LayoutType::GPW4WH:
-            totalWidth = (containerWidth + 80) + containerWidth + containerWidth + containerWidth;
+            // Container 2 (3rd container) has timeline view, so gets extra width
+            totalWidth = containerWidth + containerWidth + (containerWidth + timelineViewWidth) + containerWidth;
             break;
         case LayoutType::GPW2WV:
-            totalWidth = containerWidth + 80; // Both containers have same width with timeline view
+            totalWidth = containerWidth + timelineViewWidth; // Both containers have same width with timeline view
             break;
         case LayoutType::GPW4W:
-            // 2x2 grid: first container in each row gets +80px
-            totalWidth = (containerWidth + 80) + containerWidth; // Row 1
+            // 2x2 grid: second container in each row has timeline view, so gets extra width
+            totalWidth = containerWidth + (containerWidth + timelineViewWidth); // Row 1: standard + (standard + timelineViewWidth)
             break;
         case LayoutType::HIDDEN:
             totalWidth = 0;
@@ -963,20 +1050,20 @@ void GraphLayout::linkHorizontalContainers()
         break;
 
     case LayoutType::GPW4WH:
-        // Link horizontal: container 0 -> containers 1, 2, 3 (interval change)
-        connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+        // Link horizontal: container 2 (has timeline view) -> containers 0, 1, 3 (interval change)
+        connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
+                m_graphContainers[0], &GraphContainer::onTimeIntervalChanged);
+        connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
                 m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
-        connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
-                m_graphContainers[2], &GraphContainer::onTimeIntervalChanged);
-        connect(m_graphContainers[0], &GraphContainer::IntervalChanged,
+        connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
                 m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
-
-        // Link horizontal: container 0 -> containers 1, 2, 3 (time scope change)
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+        
+        // Link horizontal: container 2 (has timeline view) -> containers 0, 1, 3 (time scope change)
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
+                m_graphContainers[0], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
                 m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[2], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
                 m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
 
         qDebug() << "GraphLayout: Linked containers for GPW4WH layout";
@@ -993,6 +1080,110 @@ void GraphLayout::linkHorizontalContainers()
         qWarning() << "GraphLayout: Unknown layout type for horizontal linking:" << static_cast<int>(m_layoutType);
         break;
     }
+}
+
+void GraphLayout::syncAllTimelineViews()
+{
+    qDebug() << "GraphLayout: Syncing all timeline views for layout type:" << static_cast<int>(m_layoutType);
+    
+    // Collect all visible TimelineView instances with their containers
+    std::vector<std::pair<GraphContainer*, TimelineView*>> timelineViewPairs;
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible() && container->getShowTimelineView())
+        {
+            TimelineView *timelineView = container->getTimelineView();
+            if (timelineView)
+            {
+                timelineViewPairs.push_back({container, timelineView});
+            }
+        }
+    }
+    
+    if (timelineViewPairs.size() <= 1)
+    {
+        qDebug() << "GraphLayout: Less than 2 timeline views found, no syncing needed";
+        return;
+    }
+    
+    qDebug() << "GraphLayout: Found" << timelineViewPairs.size() << "timeline views to sync";
+    
+    // Disconnect any existing TimelineView connections to avoid duplicates
+    for (const auto &pair : timelineViewPairs)
+    {
+        if (pair.second)
+        {
+            pair.second->disconnect(SIGNAL(TimeIntervalChanged(TimeInterval)));
+            pair.second->disconnect(SIGNAL(TimeScopeChanged(TimeSelectionSpan)));
+        }
+    }
+    
+    // Connect all timeline views to each other for interval changes
+    // When one timeline view's interval changes, update all others directly
+    for (size_t i = 0; i < timelineViewPairs.size(); ++i)
+    {
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
+        {
+            if (i != j && timelineViewPairs[i].second && timelineViewPairs[j].second)
+            {
+                // Connect TimeIntervalChanged signal to setTimeLineLength
+                // This ensures all timeline views stay in sync when interval changes
+                connect(timelineViewPairs[i].second, &TimelineView::TimeIntervalChanged,
+                        timelineViewPairs[j].second, &TimelineView::setTimeLineLength);
+            }
+        }
+    }
+    
+    // Reconnect each TimelineView to its own container (restore internal connections)
+    // This is needed because we disconnected all connections above
+    for (const auto &pair : timelineViewPairs)
+    {
+        if (pair.first && pair.second)
+        {
+            // Restore the internal connection: TimelineView -> its own container
+            connect(pair.second, &TimelineView::TimeIntervalChanged,
+                    pair.first, &GraphContainer::onTimeIntervalChanged);
+            connect(pair.second, &TimelineView::TimeScopeChanged,
+                    pair.first, &GraphContainer::onTimeScopeChanged);
+        }
+    }
+    
+    // Connect timeline views for scope changes - sync slider positions directly
+    // When one timeline view's scope changes, update all other timeline views' sliders
+    // and update ALL containers (including those without timeline views)
+    for (size_t i = 0; i < timelineViewPairs.size(); ++i)
+    {
+        TimelineView *sourceTimelineView = timelineViewPairs[i].second;
+        if (!sourceTimelineView)
+            continue;
+        
+        // Connect source timeline view's TimeScopeChanged to all other timeline views
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
+        {
+            if (i != j && timelineViewPairs[j].second)
+            {
+                // Connect to setVisibleTimeWindow to sync slider positions
+                // This ensures all timeline views' sliders stay in sync
+                connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
+                        timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindow);
+            }
+        }
+        
+        // Connect source timeline view's TimeScopeChanged to ALL visible containers
+        // This ensures ALL graphs (including those without timeline views) stay in sync
+        for (auto *container : m_graphContainers)
+        {
+            if (container && container->isVisible())
+            {
+                // Connect to the container's onTimeScopeChanged to update the graph
+                // This ensures all graphs stay in sync with the timeline views
+                connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
+                        container, &GraphContainer::onTimeScopeChanged);
+            }
+        }
+    }
+    
+    qDebug() << "GraphLayout: Timeline views synced successfully";
 }
 
 void GraphLayout::onTimerTick()
@@ -1056,6 +1247,7 @@ void GraphLayout::registerCursorSyncCallbacks()
 
 void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time)
 {
+    // Update all containers' graphs with the shared cursor time
     for (auto *container : m_graphContainers)
     {
         if (!container || container == source)
@@ -1064,6 +1256,32 @@ void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDa
         }
 
         container->applySharedTimeAxisCursor(time);
+    }
+    
+    // Update all timeline views with the cursor timestamp label
+    // This shows the timestamp when the horizontal cursor line intersects the timeline view
+    for (auto *container : m_graphContainers)
+    {
+        if (!container || !container->isVisible())
+        {
+            continue;
+        }
+        
+        if (container->getShowTimelineView())
+        {
+            TimelineView *timelineView = container->getTimelineView();
+            if (timelineView)
+            {
+                if (time.isValid())
+                {
+                    timelineView->updateCrosshairTimestampFromTime(time);
+                }
+                else
+                {
+                    timelineView->clearCrosshairTimestamp();
+                }
+            }
+        }
     }
 }
 

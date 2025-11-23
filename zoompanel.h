@@ -56,6 +56,10 @@ public:
     
     // Reset indicator to full range [0.0, 1.0] without changing labels
     void resetIndicatorToFullRange();
+    
+    // Crosshair label methods
+    void updateCrosshairLabel(qreal xPosition);
+    void clearCrosshairLabel();
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -71,6 +75,8 @@ private:
     QGraphicsTextItem *m_leftText;
     QGraphicsTextItem *m_centerText;
     QGraphicsTextItem *m_rightText;
+    QGraphicsTextItem *m_crosshairLabel;
+    QGraphicsRectItem *m_crosshairLabelBackground;
 
     // Label values (display values shown to user)
     qreal m_leftLabelValue = 0.0;   // Left reference value (display)
@@ -109,6 +115,7 @@ private:
     void setupGraphicsView();
     void createIndicator();
     void createTextItems();
+    void createCrosshairLabel();
     void updateIndicator(double value);
     void updateValueFromMousePosition(const QPoint &currentPos);
     void updateAllElements();
