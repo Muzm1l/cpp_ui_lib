@@ -27,3 +27,11 @@ connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionMade,
     QDateTime endTime = selection.endTime;
     // ... your code here
 }
+
+----------------------------------
+
+  
+    // Test: Add a RTW symbol to the graph
+    QDateTime testTimestamp = QDateTime::currentDateTime();
+    rtwGraph->addRTWSymbol("TM", testTimestamp, 12.5);
+    qDebug() << "RTW: Test symbol 'TM' added at timestamp" << testTimestamp.toString() << "with range 12.5";

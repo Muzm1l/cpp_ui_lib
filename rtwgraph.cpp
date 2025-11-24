@@ -1,6 +1,7 @@
 #include "rtwgraph.h"
 #include <QDebug>
 #include <QGraphicsTextItem>
+#include <QGraphicsPixmapItem>
 #include <QFont>
 #include <QTime>
 #include <QtMath>
@@ -14,7 +15,7 @@
  * @param timeInterval Time interval for the waterfall display
  */
 RTWGraph::RTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
+    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval), symbols(40)
 {
     // Set hard limits for RTW graph: 0 to 25
     setCustomYRange(0.0, 25.0);
@@ -98,6 +99,9 @@ void RTWGraph::draw()
     {
         qDebug() << "RTW: draw() - no dataSource or dataSource is empty";
     }
+
+    // Draw RTW symbols
+    drawRTWSymbols();
 }
 
 /**
@@ -265,4 +269,116 @@ void RTWGraph::drawRTWScatterplot()
     drawScatterplot(QString("RTW-1"), Qt::blue, 4.0, Qt::white);
 
     qDebug() << "RTW scatterplot drawn";
+}
+
+/**
+ * @brief Add an RTW symbol to the graph
+ *
+ * @param symbolName Name of the symbol (e.g., "TM", "DP", "LY", "CircleI", etc.)
+ * @param timestamp Timestamp when the symbol should be displayed
+ * @param range Range value (Y-axis position) where the symbol should be displayed
+ */
+void RTWGraph::addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
+{
+    RTWSymbolData symbolData;
+    symbolData.symbolName = symbolName;
+    symbolData.timestamp = timestamp;
+    symbolData.range = range;
+    
+    rtwSymbols.push_back(symbolData);
+    
+    qDebug() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    
+    // Trigger a redraw to show the new symbol
+    draw();
+}
+
+/**
+ * @brief Convert symbol name string to SymbolType enum
+ *
+ * @param symbolName The symbol name string
+ * @return RTWSymbols::SymbolType The corresponding SymbolType enum value
+ */
+RTWSymbols::SymbolType RTWGraph::symbolNameToType(const QString &symbolName) const
+{
+    QString name = symbolName.toUpper().trimmed();
+    
+    // Map common symbol names to SymbolType enum
+    if (name == "TM") return RTWSymbols::SymbolType::TM;
+    if (name == "DP") return RTWSymbols::SymbolType::DP;
+    if (name == "LY") return RTWSymbols::SymbolType::LY;
+    if (name == "CIRCLEI" || name == "CIRCLE_I") return RTWSymbols::SymbolType::CircleI;
+    if (name == "TRIANGLE") return RTWSymbols::SymbolType::Triangle;
+    if (name == "RECTR" || name == "RECT_R") return RTWSymbols::SymbolType::RectR;
+    if (name == "ELLIPSEPP" || name == "ELLIPSE_PP") return RTWSymbols::SymbolType::EllipsePP;
+    if (name == "RECTX" || name == "RECT_X") return RTWSymbols::SymbolType::RectX;
+    if (name == "RECTA" || name == "RECT_A") return RTWSymbols::SymbolType::RectA;
+    if (name == "RECTAPURPLE" || name == "RECT_A_PURPLE") return RTWSymbols::SymbolType::RectAPurple;
+    if (name == "RECTK" || name == "RECT_K") return RTWSymbols::SymbolType::RectK;
+    if (name == "CIRCLERYELLOW" || name == "CIRCLE_R_YELLOW") return RTWSymbols::SymbolType::CircleRYellow;
+    if (name == "DOUBLEBARYELLOW" || name == "DOUBLE_BAR_YELLOW") return RTWSymbols::SymbolType::DoubleBarYellow;
+    if (name == "R") return RTWSymbols::SymbolType::R;
+    if (name == "L") return RTWSymbols::SymbolType::L;
+    if (name == "BOT") return RTWSymbols::SymbolType::BOT;
+    if (name == "BOTC") return RTWSymbols::SymbolType::BOTC;
+    if (name == "BOTF") return RTWSymbols::SymbolType::BOTF;
+    if (name == "BOTD") return RTWSymbols::SymbolType::BOTD;
+    
+    // Default to R if symbol name is not recognized
+    qDebug() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";
+    return RTWSymbols::SymbolType::R;
+}
+
+/**
+ * @brief Draw all stored RTW symbols on the graph
+ *
+ */
+void RTWGraph::drawRTWSymbols()
+{
+    if (!graphicsScene || rtwSymbols.empty() || !dataRangesValid)
+    {
+        return;
+    }
+    
+    int symbolsDrawn = 0;
+    for (const auto& symbolData : rtwSymbols)
+    {
+        // Check if symbol is within visible time range
+        if (symbolData.timestamp < timeMin || symbolData.timestamp > timeMax)
+        {
+            continue;
+        }
+        
+        // Map symbol position to screen coordinates
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
+        
+        // Check if symbol is within visible drawing area
+        if (!drawingArea.contains(screenPos))
+        {
+            continue;
+        }
+        
+        // Convert symbol name to SymbolType
+        RTWSymbols::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
+        
+        // Get the pixmap for this symbol type
+        const QPixmap& symbolPixmap = symbols.get(symbolType);
+        
+        // Create a graphics pixmap item and add it to the scene
+        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
+        
+        // Center the symbol on the data point
+        QRectF pixmapRect = pixmapItem->boundingRect();
+        pixmapItem->setPos(screenPos.x() - pixmapRect.width() / 2, 
+                          screenPos.y() - pixmapRect.height() / 2);
+        pixmapItem->setZValue(1000); // High z-value to ensure visibility above other elements
+        
+        graphicsScene->addItem(pixmapItem);
+        symbolsDrawn++;
+    }
+    
+    if (symbolsDrawn > 0)
+    {
+        qDebug() << "RTW: Drew" << symbolsDrawn << "RTW symbols out of" << rtwSymbols.size() << "total";
+    }
 }

@@ -465,6 +465,11 @@ void MainWindow::setupCustomGraphsTab()
     rtwGraph->setSeriesColor("RTW-2", QColor(Qt::green));
     rtwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "RTW Graph connected to data source and colors set";
+    
+    // Test: Add a RTW symbol to the graph
+    QDateTime testTimestamp = QDateTime::currentDateTime();
+    rtwGraph->addRTWSymbol("TM", testTimestamp, 12.5);
+    qDebug() << "RTW: Test symbol 'TM' added at timestamp" << testTimestamp.toString() << "with range 12.5";
 
     // FTW Graph - Frequency Time Waterfall
     ftwGraph = new FTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
