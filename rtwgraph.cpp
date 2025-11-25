@@ -289,44 +289,48 @@ void RTWGraph::addRTWSymbol(const QString &symbolName, const QDateTime &timestam
     
     qDebug() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
     
-    // Trigger a redraw to show the new symbol
-    draw();
+    // Only trigger a redraw if the widget is visible and graphics scene is ready
+    // Otherwise, the symbol will be drawn when draw() is called naturally
+    if (graphicsScene && isVisible() && size().width() > 0 && size().height() > 0)
+    {
+        draw();
+    }
 }
 
 /**
  * @brief Convert symbol name string to SymbolType enum
  *
  * @param symbolName The symbol name string
- * @return RTWSymbols::SymbolType The corresponding SymbolType enum value
+ * @return RTWSymbolDrawing::SymbolType The corresponding SymbolType enum value
  */
-RTWSymbols::SymbolType RTWGraph::symbolNameToType(const QString &symbolName) const
+RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolName) const
 {
     QString name = symbolName.toUpper().trimmed();
     
     // Map common symbol names to SymbolType enum
-    if (name == "TM") return RTWSymbols::SymbolType::TM;
-    if (name == "DP") return RTWSymbols::SymbolType::DP;
-    if (name == "LY") return RTWSymbols::SymbolType::LY;
-    if (name == "CIRCLEI" || name == "CIRCLE_I") return RTWSymbols::SymbolType::CircleI;
-    if (name == "TRIANGLE") return RTWSymbols::SymbolType::Triangle;
-    if (name == "RECTR" || name == "RECT_R") return RTWSymbols::SymbolType::RectR;
-    if (name == "ELLIPSEPP" || name == "ELLIPSE_PP") return RTWSymbols::SymbolType::EllipsePP;
-    if (name == "RECTX" || name == "RECT_X") return RTWSymbols::SymbolType::RectX;
-    if (name == "RECTA" || name == "RECT_A") return RTWSymbols::SymbolType::RectA;
-    if (name == "RECTAPURPLE" || name == "RECT_A_PURPLE") return RTWSymbols::SymbolType::RectAPurple;
-    if (name == "RECTK" || name == "RECT_K") return RTWSymbols::SymbolType::RectK;
-    if (name == "CIRCLERYELLOW" || name == "CIRCLE_R_YELLOW") return RTWSymbols::SymbolType::CircleRYellow;
-    if (name == "DOUBLEBARYELLOW" || name == "DOUBLE_BAR_YELLOW") return RTWSymbols::SymbolType::DoubleBarYellow;
-    if (name == "R") return RTWSymbols::SymbolType::R;
-    if (name == "L") return RTWSymbols::SymbolType::L;
-    if (name == "BOT") return RTWSymbols::SymbolType::BOT;
-    if (name == "BOTC") return RTWSymbols::SymbolType::BOTC;
-    if (name == "BOTF") return RTWSymbols::SymbolType::BOTF;
-    if (name == "BOTD") return RTWSymbols::SymbolType::BOTD;
+    if (name == "TM") return RTWSymbolDrawing::SymbolType::TM;
+    if (name == "DP") return RTWSymbolDrawing::SymbolType::DP;
+    if (name == "LY") return RTWSymbolDrawing::SymbolType::LY;
+    if (name == "CIRCLEI" || name == "CIRCLE_I") return RTWSymbolDrawing::SymbolType::CircleI;
+    if (name == "TRIANGLE") return RTWSymbolDrawing::SymbolType::Triangle;
+    if (name == "RECTR" || name == "RECT_R") return RTWSymbolDrawing::SymbolType::RectR;
+    if (name == "ELLIPSEPP" || name == "ELLIPSE_PP") return RTWSymbolDrawing::SymbolType::EllipsePP;
+    if (name == "RECTX" || name == "RECT_X") return RTWSymbolDrawing::SymbolType::RectX;
+    if (name == "RECTA" || name == "RECT_A") return RTWSymbolDrawing::SymbolType::RectA;
+    if (name == "RECTAPURPLE" || name == "RECT_A_PURPLE") return RTWSymbolDrawing::SymbolType::RectAPurple;
+    if (name == "RECTK" || name == "RECT_K") return RTWSymbolDrawing::SymbolType::RectK;
+    if (name == "CIRCLERYELLOW" || name == "CIRCLE_R_YELLOW") return RTWSymbolDrawing::SymbolType::CircleRYellow;
+    if (name == "DOUBLEBARYELLOW" || name == "DOUBLE_BAR_YELLOW") return RTWSymbolDrawing::SymbolType::DoubleBarYellow;
+    if (name == "R") return RTWSymbolDrawing::SymbolType::R;
+    if (name == "L") return RTWSymbolDrawing::SymbolType::L;
+    if (name == "BOT") return RTWSymbolDrawing::SymbolType::BOT;
+    if (name == "BOTC") return RTWSymbolDrawing::SymbolType::BOTC;
+    if (name == "BOTF") return RTWSymbolDrawing::SymbolType::BOTF;
+    if (name == "BOTD") return RTWSymbolDrawing::SymbolType::BOTD;
     
     // Default to R if symbol name is not recognized
     qDebug() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";
-    return RTWSymbols::SymbolType::R;
+    return RTWSymbolDrawing::SymbolType::R;
 }
 
 /**
@@ -359,7 +363,7 @@ void RTWGraph::drawRTWSymbols()
         }
         
         // Convert symbol name to SymbolType
-        RTWSymbols::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
+        RTWSymbolDrawing::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
         
         // Get the pixmap for this symbol type
         const QPixmap& symbolPixmap = symbols.get(symbolType);

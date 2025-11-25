@@ -6,13 +6,13 @@
 #include <QColor>
 #include <cmath>
 
-RTWSymbols::RTWSymbols(int baseSize)
+RTWSymbolDrawing::RTWSymbolDrawing(int baseSize)
     : size(baseSize)
 {
     generateAll();
 }
 
-void RTWSymbols::draw(QPainter* p, QPointF pos, SymbolType type)
+void RTWSymbolDrawing::draw(QPainter* p, QPointF pos, SymbolType type)
 {
     const QPixmap& pix = cache[type];
     p->drawPixmap(pos.x() - pix.width()/2,
@@ -20,12 +20,12 @@ void RTWSymbols::draw(QPainter* p, QPointF pos, SymbolType type)
                   pix);
 }
 
-const QPixmap& RTWSymbols::get(SymbolType type) const
+const QPixmap& RTWSymbolDrawing::get(SymbolType type) const
 {
     return cache[type];
 }
 
-void RTWSymbols::generateAll()
+void RTWSymbolDrawing::generateAll()
 {
     cache[SymbolType::TM]        = makeTM();
     cache[SymbolType::DP]        = makeDP();
@@ -50,7 +50,7 @@ void RTWSymbols::generateAll()
 
 /* ----------------- Helpers ----------------- */
 
-QPixmap RTWSymbols::blank()
+QPixmap RTWSymbolDrawing::blank()
 {
     QPixmap pix(size, size);
     pix.fill(Qt::transparent);
@@ -73,7 +73,7 @@ static QFont makeFont()
 
 // rectangle with letter TM in centre, font calisto MT
 // Name : TTM Range
-QPixmap RTWSymbols::makeTM()
+QPixmap RTWSymbolDrawing::makeTM()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -91,7 +91,7 @@ QPixmap RTWSymbols::makeTM()
 
 // rectangle with letter DP in centre, font calisto MT
 // Name : DOPPLER Range
-QPixmap RTWSymbols::makeDP()
+QPixmap RTWSymbolDrawing::makeDP()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -109,7 +109,7 @@ QPixmap RTWSymbols::makeDP()
 
 // rectangle with letter LY in centre, font calisto MT
 // Name : LLOYD Range
-QPixmap RTWSymbols::makeLY()
+QPixmap RTWSymbolDrawing::makeLY()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -127,7 +127,7 @@ QPixmap RTWSymbols::makeLY()
 
 // circle with letter I in centre, font calisto MT
 // Name : SONAR Range (DEPENDING N THE LEVEL)
-QPixmap RTWSymbols::makeCircleI()
+QPixmap RTWSymbolDrawing::makeCircleI()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -146,7 +146,7 @@ QPixmap RTWSymbols::makeCircleI()
 
 // solid triangle of white color
 // Name : INTECEPTION SONAR LEVEL MEASURE
-QPixmap RTWSymbols::makeTriangle()
+QPixmap RTWSymbolDrawing::makeTriangle()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -168,7 +168,7 @@ QPixmap RTWSymbols::makeTriangle()
 
 // rectangle with letter R in centre, font calisto MT
 // Name : RADAR Range
-QPixmap RTWSymbols::makeRectR()
+QPixmap RTWSymbolDrawing::makeRectR()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -186,7 +186,7 @@ QPixmap RTWSymbols::makeRectR()
 
 // ellipse with letter PP in centre, font calisto MT
 // Name : RULER PIVOT Range
-QPixmap RTWSymbols::makeEllipsePP()
+QPixmap RTWSymbolDrawing::makeEllipsePP()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -249,7 +249,7 @@ QPixmap RTWSymbols::makeEllipsePP()
 
 //make a rectangle with a X in centre
 // Name : EXTERNAL Range
-QPixmap RTWSymbols::makeRectX()
+QPixmap RTWSymbolDrawing::makeRectX()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -267,7 +267,7 @@ QPixmap RTWSymbols::makeRectX()
 
 //  symbols: rectangle with letter A in centre, color red
 // Name : REAL TIME ADPTION
-QPixmap RTWSymbols::makeRectA()
+QPixmap RTWSymbolDrawing::makeRectA()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -286,7 +286,7 @@ QPixmap RTWSymbols::makeRectA()
 
 //  symbols: rectangle with letter A in centre color purple
 // Name : PAST TIME ADPTION
-QPixmap RTWSymbols::makeRectAPurple()
+QPixmap RTWSymbolDrawing::makeRectAPurple()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -306,7 +306,7 @@ QPixmap RTWSymbols::makeRectAPurple()
 
 //  symbols: rectangle with letter K in centre color CYAN
 // Name : EKELUND Range
-QPixmap RTWSymbols::makeRectK()
+QPixmap RTWSymbolDrawing::makeRectK()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -324,7 +324,7 @@ QPixmap RTWSymbols::makeRectK()
 
 //  symbols: circle with letter R in centre color yellow
 // Name : LATERAL Range
-QPixmap RTWSymbols::makeCircleRYellow()
+QPixmap RTWSymbolDrawing::makeCircleRYellow()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -389,7 +389,7 @@ QPixmap RTWSymbols::makeCircleRYellow()
 
 //  symbols: || in color yellow
 // Name : MIN/MAX Range
-QPixmap RTWSymbols::makeDoubleBarYellow()
+QPixmap RTWSymbolDrawing::makeDoubleBarYellow()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -411,7 +411,7 @@ QPixmap RTWSymbols::makeDoubleBarYellow()
 
 // symbol: letter R in orange color, no circle
 // Name: ATMA-ATMAF
-QPixmap RTWSymbols::R(){
+QPixmap RTWSymbolDrawing::R(){
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
@@ -429,7 +429,7 @@ QPixmap RTWSymbols::R(){
 
 // Letter L in a circle , color green
 // Name: BOPT
-QPixmap RTWSymbols::L(){
+QPixmap RTWSymbolDrawing::L(){
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
@@ -446,7 +446,7 @@ QPixmap RTWSymbols::L(){
 
 // Letter L in a RECTANGLE , color green
 // Name: BOT
-QPixmap RTWSymbols::BOT(){
+QPixmap RTWSymbolDrawing::BOT(){
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
@@ -463,7 +463,7 @@ QPixmap RTWSymbols::BOT(){
 
 // Letter C , color green
 // Name: BOTC
-QPixmap RTWSymbols::BOTC(){
+QPixmap RTWSymbolDrawing::BOTC(){
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
@@ -479,7 +479,7 @@ QPixmap RTWSymbols::BOTC(){
 
 // Letter F, color green
 // Name: BFT
-QPixmap RTWSymbols::BOTF(){
+QPixmap RTWSymbolDrawing::BOTF(){
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
@@ -497,7 +497,7 @@ QPixmap RTWSymbols::BOTF(){
 
 // Letter D, color green
 // Name: BRAT
-QPixmap RTWSymbols::BOTD(){
+QPixmap RTWSymbolDrawing::BOTD(){
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);

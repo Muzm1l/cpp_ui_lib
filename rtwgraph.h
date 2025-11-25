@@ -52,11 +52,11 @@ private:
     void drawRTWScatterplot();
     void drawCustomRMarkers(const QString &seriesLabel);
     void drawRTWSymbols();
-    RTWSymbols::SymbolType symbolNameToType(const QString &symbolName) const;
+    RTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
 
     // Storage for RTW symbols
     std::vector<RTWSymbolData> rtwSymbols;
-    RTWSymbols symbols;
+    RTWSymbolDrawing symbols;
 };
 
 #endif // RTWGRAPH_H

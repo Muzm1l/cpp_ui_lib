@@ -466,10 +466,15 @@ void MainWindow::setupCustomGraphsTab()
     rtwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "RTW Graph connected to data source and colors set";
     
-    // Test: Add a RTW symbol to the graph
-    QDateTime testTimestamp = QDateTime::currentDateTime();
-    rtwGraph->addRTWSymbol("TM", testTimestamp, 12.5);
-    qDebug() << "RTW: Test symbol 'TM' added at timestamp" << testTimestamp.toString() << "with range 12.5";
+    // Test: Add a RTW symbol to the graph (delayed to ensure widget is fully initialized)
+    // The symbol will be drawn automatically when the graph is next redrawn
+    QTimer::singleShot(100, this, [this]() {
+        QDateTime testTimestamp = QDateTime::currentDateTime();
+        if (rtwGraph) {
+            rtwGraph->addRTWSymbol("TM", testTimestamp, 12.5);
+            qDebug() << "RTW: Test symbol 'TM' added at timestamp" << testTimestamp.toString() << "with range 12.5";
+        }
+    });
 
     // FTW Graph - Frequency Time Waterfall
     ftwGraph = new FTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -702,26 +707,26 @@ protected:
         painter.drawText(QRect(0, 10, width(), 30), Qt::AlignCenter, "RTW Symbols Test");
 
         // Draw all symbol types
-        QList<RTWSymbols::SymbolType> symbolTypes = {
-            RTWSymbols::SymbolType::TM,
-            RTWSymbols::SymbolType::DP,
-            RTWSymbols::SymbolType::LY,
-            RTWSymbols::SymbolType::CircleI,
-            RTWSymbols::SymbolType::Triangle,
-            RTWSymbols::SymbolType::RectR,
-            RTWSymbols::SymbolType::EllipsePP,
-            RTWSymbols::SymbolType::RectX,
-            RTWSymbols::SymbolType::RectA,
-            RTWSymbols::SymbolType::RectAPurple,
-            RTWSymbols::SymbolType::RectK,
-            RTWSymbols::SymbolType::CircleRYellow,
-            RTWSymbols::SymbolType::DoubleBarYellow,
-            RTWSymbols::SymbolType::R,
-            RTWSymbols::SymbolType::L,
-            RTWSymbols::SymbolType::BOT,
-            RTWSymbols::SymbolType::BOTC,
-            RTWSymbols::SymbolType::BOTF,
-            RTWSymbols::SymbolType::BOTD
+        QList<RTWSymbolDrawing::SymbolType> symbolTypes = {
+            RTWSymbolDrawing::SymbolType::TM,
+            RTWSymbolDrawing::SymbolType::DP,
+            RTWSymbolDrawing::SymbolType::LY,
+            RTWSymbolDrawing::SymbolType::CircleI,
+            RTWSymbolDrawing::SymbolType::Triangle,
+            RTWSymbolDrawing::SymbolType::RectR,
+            RTWSymbolDrawing::SymbolType::EllipsePP,
+            RTWSymbolDrawing::SymbolType::RectX,
+            RTWSymbolDrawing::SymbolType::RectA,
+            RTWSymbolDrawing::SymbolType::RectAPurple,
+            RTWSymbolDrawing::SymbolType::RectK,
+            RTWSymbolDrawing::SymbolType::CircleRYellow,
+            RTWSymbolDrawing::SymbolType::DoubleBarYellow,
+            RTWSymbolDrawing::SymbolType::R,
+            RTWSymbolDrawing::SymbolType::L,
+            RTWSymbolDrawing::SymbolType::BOT,
+            RTWSymbolDrawing::SymbolType::BOTC,
+            RTWSymbolDrawing::SymbolType::BOTF,
+            RTWSymbolDrawing::SymbolType::BOTD
             
         };
 
@@ -771,7 +776,7 @@ protected:
     }
 
 private:
-    RTWSymbols symbols;
+    RTWSymbolDrawing symbols;
 };
 
 /**

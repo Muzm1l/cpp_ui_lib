@@ -5,7 +5,7 @@
 #include <QPixmap>
 #include <QMap>
 
-class RTWSymbols
+class RTWSymbolDrawing
 {
 public:
     enum class SymbolType {
@@ -28,7 +28,7 @@ public:
         BOTD
     };
 
-    RTWSymbols(int baseSize = 40);  // size in pixels
+    RTWSymbolDrawing(int baseSize = 40);  // size in pixels
 
     void draw(QPainter* p, QPointF pos, SymbolType type);
     const QPixmap& get(SymbolType type) const;
