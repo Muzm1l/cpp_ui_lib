@@ -980,50 +980,38 @@ void TimelineVisualizerWidget::updateCrosshairTimestampFromTime(const QDateTime 
         return;
     }
     
-    // Get the visible time window from the slider state
-    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
-    
-    if (!visibleWindow.startTime.isValid() || !visibleWindow.endTime.isValid())
+    if (rect().height() <= 0)
     {
         clearCrosshairTimestamp();
         return;
     }
     
-    // Check if the timestamp is within the visible time window
-    // The timeline view shows time from endTime (top, Y=0) to startTime (bottom, Y=height)
-    QDateTime windowStart = visibleWindow.startTime;
-    QDateTime windowEnd = visibleWindow.endTime;
+    // The timeline view displays a 12-hour range:
+    // Top (Y=0) = now (current time)
+    // Bottom (Y=height) = 12 hours ago
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
     
-    // Ensure windowStart < windowEnd (start is older, end is newer)
-    if (windowStart > windowEnd)
-    {
-        std::swap(windowStart, windowEnd);
-    }
-    
-    // If timestamp is outside the visible window, don't show it
-    if (timestamp < windowStart || timestamp > windowEnd)
+    // Check if timestamp is within the 12-hour range
+    if (timestamp < twelveHoursAgo || timestamp > now)
     {
         clearCrosshairTimestamp();
         return;
     }
     
-    // Calculate Y position: endTime is at top (Y=0), startTime is at bottom (Y=height)
-    qint64 totalWindowMs = windowStart.msecsTo(windowEnd);
-    if (totalWindowMs <= 0 || rect().height() <= 0)
-    {
-        clearCrosshairTimestamp();
-        return;
-    }
+    // Calculate Y position based on the full 12-hour range
+    // The timeline view shows: top (Y=0) = now, bottom (Y=height) = 12 hours ago
+    qint64 minutesFromStart = twelveHoursAgo.msecsTo(timestamp) / 60000;
+    minutesFromStart = qBound(0, minutesFromStart, SliderGeometry::getTwelveHoursInMinutes());
     
-    // Calculate how far the timestamp is from the end (top)
-    qint64 timeFromEndMs = timestamp.msecsTo(windowEnd);
+    // Convert to position ratio: 0.0 = 12 hours ago, 1.0 = now
+    double positionRatio = static_cast<double>(minutesFromStart) / static_cast<double>(SliderGeometry::getTwelveHoursInMinutes());
     
-    // Normalize: 0.0 at top (endTime), 1.0 at bottom (startTime)
-    qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(totalWindowMs);
-    normalizedY = qMax(0.0, qMin(1.0, normalizedY));
-    
-    // Map to widget height: top is 0, bottom is height
-    qreal yPosition = normalizedY * rect().height();
+    // Invert to map to Y: top (now) = Y=0, bottom (12 hours ago) = Y=height
+    // If timestamp = now: positionRatio = 1.0, Y = 0
+    // If timestamp = 12 hours ago: positionRatio = 0.0, Y = height
+    qreal yPosition = static_cast<qreal>((1.0 - positionRatio) * rect().height());
+    yPosition = qMax(0.0, qMin(static_cast<qreal>(rect().height()), yPosition));
     
     updateCrosshairTimestamp(timestamp, yPosition);
 }

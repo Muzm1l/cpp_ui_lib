@@ -718,9 +718,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         handleCursorTimeChanged(time);
         
         // Update timelineview with crosshair timestamp
-        if (m_timelineView && time.isValid() && yPosition >= 0)
+        // Use timestamp-based calculation instead of Y coordinate to ensure consistency
+        // This prevents the cursor timestamp from showing at wrong position when layout becomes unstable
+        if (m_timelineView && time.isValid())
         {
-            m_timelineView->updateCrosshairTimestamp(time, yPosition);
+            m_timelineView->updateCrosshairTimestampFromTime(time);
         }
         else if (m_timelineView)
         {

@@ -1260,9 +1260,10 @@ void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDa
     
     // Update all timeline views with the cursor timestamp label
     // This shows the timestamp when the horizontal cursor line intersects the timeline view
+    // Skip the source container since it updates its own timeline view locally
     for (auto *container : m_graphContainers)
     {
-        if (!container || !container->isVisible())
+        if (!container || container == source || !container->isVisible())
         {
             continue;
         }
