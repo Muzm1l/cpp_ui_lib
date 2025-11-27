@@ -66,6 +66,9 @@ public:
 
     // Graph redraw method
     void redrawWaterfallGraph();
+    
+    // Get the current waterfall graph
+    WaterfallGraph* getCurrentWaterfallGraph() const;
 
     // Data options management
     void addDataOption(const GraphType graphType, WaterfallData &dataSource);

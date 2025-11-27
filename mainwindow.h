@@ -6,6 +6,7 @@
 #include "btwgraph.h"
 #include "fdwgraph.h"
 #include "ftwgraph.h"
+#include "graphcontainer.h"
 #include "graphlayout.h"
 #include "ltwgraph.h"
 #include "rtwgraph.h"
@@ -76,7 +77,7 @@ private:
     
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
-
+    
     // void configureTimeVisualizer();
     // void configureTimelineView();
     void configureZoomPanel();

@@ -183,7 +183,7 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
              << "- Total data:" << totalDataSize 
              << "- Binned data:" << binnedData.size()
              << "- Visible binned data:" << visibleBinnedData.size()
-             << "- Sampling interval:" << samplingIntervalMs << "ms)";
+             << "- Sampling interval:" << samplingIntervalMs << "ms";
 
     if (visibleBinnedData.empty()) {
         qDebug() << "RTW: No visible binned data available for series" << seriesLabel;
@@ -280,21 +280,22 @@ void RTWGraph::drawRTWScatterplot()
  */
 void RTWGraph::addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
 {
-    RTWSymbolData symbolData;
-    symbolData.symbolName = symbolName;
-    symbolData.timestamp = timestamp;
-    symbolData.range = range;
-    
-    rtwSymbols.push_back(symbolData);
-    
-    qDebug() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
-    
-    // Only trigger a redraw if the widget is visible and graphics scene is ready
-    // Otherwise, the symbol will be drawn when draw() is called naturally
-    if (graphicsScene && isVisible() && size().width() > 0 && size().height() > 0)
+    // Store symbol in dataSource (WaterfallData) so it persists with track data
+    // This follows the same pattern as R markers - symbols are part of the data source
+    // R markers are drawn from dataSource in drawCustomRMarkers(), symbols are drawn from dataSource in drawRTWSymbols()
+    if (!dataSource)
     {
-        draw();
+        qDebug() << "RTW: Cannot add symbol - no data source set";
+        return;
     }
+    
+    dataSource->addRTWSymbol(symbolName, timestamp, range);
+    
+    qDebug() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "to data source";
+    
+    // Trigger redraw - same pattern as when data is added via setData()
+    // The symbol will be drawn in drawRTWSymbols() which is called from draw()
+    draw();
 }
 
 /**
@@ -339,26 +340,94 @@ RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolNam
  */
 void RTWGraph::drawRTWSymbols()
 {
-    if (!graphicsScene || rtwSymbols.empty() || !dataRangesValid)
+    // Follow the same pattern as R markers - read symbols from dataSource
+    // This ensures symbols persist with track changes and zoom customization
+    if (!graphicsScene || !dataSource)
     {
         return;
     }
     
-    int symbolsDrawn = 0;
-    for (const auto& symbolData : rtwSymbols)
+    // Get symbols from dataSource (same pattern as R markers get data from dataSource)
+    std::vector<RTWSymbolData> rtwSymbols = dataSource->getRTWSymbols();
+    
+    qDebug() << "RTW: drawRTWSymbols() - dataSource pointer:" << dataSource;
+    qDebug() << "RTW: drawRTWSymbols() - symbols count from dataSource:" << rtwSymbols.size();
+    
+    if (rtwSymbols.empty())
     {
-        // Check if symbol is within visible time range
-        if (symbolData.timestamp < timeMin || symbolData.timestamp > timeMax)
+        qDebug() << "RTW: No symbols in dataSource (dataSource pointer:" << dataSource << ")";
+        return;
+    }
+    
+    // Check if time range is valid - if not, use symbol timestamps to set range
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    
+    // Filter symbols to only include those within the visible time range (same as R markers)
+    // If time range is not valid, draw all symbols (they will set the time range)
+    std::vector<RTWSymbolData> visibleSymbols;
+    if (timeRangeValid)
+    {
+        for (const auto& symbolData : rtwSymbols)
         {
-            continue;
+            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
+            {
+                visibleSymbols.push_back(symbolData);
+            }
         }
+    }
+    else
+    {
+        // No valid time range - include all symbols and update time range from symbols
+        qDebug() << "RTW: No valid time range, using all symbols and updating time range";
+        visibleSymbols = rtwSymbols;
         
-        // Map symbol position to screen coordinates
+        // Update time range from symbols if we have any
+        if (!rtwSymbols.empty())
+        {
+            QDateTime symbolTimeMin = rtwSymbols[0].timestamp;
+            QDateTime symbolTimeMax = rtwSymbols[0].timestamp;
+            for (const auto& symbolData : rtwSymbols)
+            {
+                if (symbolData.timestamp < symbolTimeMin) symbolTimeMin = symbolData.timestamp;
+                if (symbolData.timestamp > symbolTimeMax) symbolTimeMax = symbolData.timestamp;
+            }
+            
+            // Set time range to include all symbols with some padding
+            timeMax = symbolTimeMax.addSecs(60); // Add 1 minute padding
+            timeMin = symbolTimeMin.addSecs(-60); // Subtract 1 minute padding
+            qDebug() << "RTW: Updated time range from symbols:" << timeMin.toString() << "to" << timeMax.toString();
+        }
+    }
+    
+    qDebug() << "RTW: Time range filtering - Total symbols:" << rtwSymbols.size() 
+             << "- Visible symbols:" << visibleSymbols.size()
+             << "- Time range:" << timeMin.toString() << "to" << timeMax.toString()
+             << "- Time range valid:" << timeRangeValid;
+    
+    if (visibleSymbols.empty())
+    {
+        qDebug() << "RTW: No visible symbols after filtering";
+        return;
+    }
+    
+    // Draw symbols (same approach as R markers)
+    int symbolsDrawn = 0;
+    qDebug() << "RTW: Drawing area:" << drawingArea;
+    for (const auto& symbolData : visibleSymbols)
+    {
+        // Map symbol position to screen coordinates (same as R markers)
         QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
         
-        // Check if symbol is within visible drawing area
+        // Debug all symbols to diagnose issues
+        qDebug() << "RTW: Processing symbol" << symbolsDrawn << "- Name:" << symbolData.symbolName 
+                 << "Range:" << symbolData.range << "Time:" << symbolData.timestamp.toString() 
+                 << "Screen:" << screenPos << "In area:" << drawingArea.contains(screenPos)
+                 << "Drawing area:" << drawingArea;
+        
+        // Check if point is within visible area (same check as R markers use)
         if (!drawingArea.contains(screenPos))
         {
+            qDebug() << "RTW: Symbol" << symbolData.symbolName << "outside drawing area, skipping";
             continue;
         }
         
@@ -368,11 +437,32 @@ void RTWGraph::drawRTWSymbols()
         // Get the pixmap for this symbol type
         const QPixmap& symbolPixmap = symbols.get(symbolType);
         
+        // Validate pixmap before using it
+        if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
+        {
+            qDebug() << "RTW: Invalid pixmap for symbol" << symbolData.symbolName << "type" << static_cast<int>(symbolType) << "- skipping";
+            continue;
+        }
+        
         // Create a graphics pixmap item and add it to the scene
         QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
         
+        // Validate pixmap item was created successfully
+        if (!pixmapItem)
+        {
+            qDebug() << "RTW: Failed to create pixmap item for symbol" << symbolData.symbolName << "- skipping";
+            continue;
+        }
+        
         // Center the symbol on the data point
         QRectF pixmapRect = pixmapItem->boundingRect();
+        if (pixmapRect.width() <= 0 || pixmapRect.height() <= 0)
+        {
+            qDebug() << "RTW: Invalid pixmap rect for symbol" << symbolData.symbolName << "- skipping";
+            delete pixmapItem;
+            continue;
+        }
+        
         pixmapItem->setPos(screenPos.x() - pixmapRect.width() / 2, 
                           screenPos.y() - pixmapRect.height() / 2);
         pixmapItem->setZValue(1000); // High z-value to ensure visibility above other elements

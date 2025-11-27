@@ -7,6 +7,9 @@
 #include <QStringList>
 #include <QPainter>
 #include <QFont>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QTimer>
 #include <cmath>
 #include <algorithm>
 
@@ -466,14 +469,114 @@ void MainWindow::setupCustomGraphsTab()
     rtwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "RTW Graph connected to data source and colors set";
     
-    // Test: Add a RTW symbol to the graph (delayed to ensure widget is fully initialized)
-    // The symbol will be drawn automatically when the graph is next redrawn
-    QTimer::singleShot(100, this, [this]() {
-        QDateTime testTimestamp = QDateTime::currentDateTime();
-        if (rtwGraph) {
-            rtwGraph->addRTWSymbol("TM", testTimestamp, 12.5);
-            qDebug() << "RTW: Test symbol 'TM' added at timestamp" << testTimestamp.toString() << "with range 12.5";
+    // Test: Add RTW symbols to the overview tab (GraphLayout) RTW graph
+    // The overview tab uses GraphLayout's data sources, not the standalone rtwData
+    // Strategy: Temporarily set RTW as current in one container, get the graph, add symbols, then restore
+    QTimer::singleShot(3000, this, [this]() {
+        qDebug() << "RTW: ===== Timer callback fired - attempting to add test symbols to overview tab =====";
+        
+        if (!graphgrid) {
+            qDebug() << "RTW: ERROR - graphgrid (GraphLayout) is null!";
+            return;
         }
+        
+        // Get RTW data source from GraphLayout (this is what the overview tab uses)
+        WaterfallData* overviewRTWData = graphgrid->getDataSource(GraphType::RTW);
+        if (!overviewRTWData) {
+            qDebug() << "RTW: ERROR - GraphLayout RTW data source is null!";
+            return;
+        }
+        
+        qDebug() << "RTW: GraphLayout RTW data source pointer:" << overviewRTWData;
+        qDebug() << "RTW: Current symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
+        
+        // Find RTW graphs in the GraphLayout widget tree using Qt's findChildren
+        // This allows us to get RTW graph instances without accessing private members
+        QList<RTWGraph*> rtwGraphs = graphgrid->findChildren<RTWGraph*>();
+        qDebug() << "RTW: Found" << rtwGraphs.size() << "RTW graph(s) in GraphLayout";
+        
+        RTWGraph* rtwGraphToUse = nullptr;
+        
+        // Find an RTW graph that uses the GraphLayout's RTW data source
+        for (RTWGraph* rtwGraph : rtwGraphs) {
+            if (!rtwGraph) continue;
+            
+            WaterfallData* graphDataSource = rtwGraph->getDataSource();
+            if (graphDataSource == overviewRTWData) {
+                rtwGraphToUse = rtwGraph;
+                qDebug() << "RTW: Found RTW graph using GraphLayout RTW data source";
+                break;
+            }
+        }
+        
+        // Get the current time range from the RTW graph to add symbols within visible range
+        QDateTime symbolTimeMin, symbolTimeMax;
+        bool timeRangeValid = false;
+        
+        if (rtwGraphToUse) {
+            auto timeRange = rtwGraphToUse->getTimeRange();
+            symbolTimeMin = timeRange.first;
+            symbolTimeMax = timeRange.second;
+            timeRangeValid = symbolTimeMin.isValid() && symbolTimeMax.isValid() && symbolTimeMin < symbolTimeMax;
+            qDebug() << "RTW: Current graph time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
+        }
+        
+        // If graph time range is invalid, try data source time range
+        if (!timeRangeValid) {
+            if (!overviewRTWData->isEmpty()) {
+                auto timeRange = overviewRTWData->getCombinedTimeRange();
+                symbolTimeMin = timeRange.first;
+                symbolTimeMax = timeRange.second;
+                timeRangeValid = symbolTimeMin.isValid() && symbolTimeMax.isValid() && symbolTimeMin < symbolTimeMax;
+                qDebug() << "RTW: Using data source time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
+            }
+        }
+        
+        // If still invalid, use current time with a window
+        if (!timeRangeValid) {
+            symbolTimeMax = QDateTime::currentDateTime();
+            symbolTimeMin = symbolTimeMax.addSecs(-150); // 2.5 minutes window
+            qDebug() << "RTW: No valid time range available, using default:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
+        }
+        
+        // Calculate symbol timestamps with 10 second intervals
+        // Start from symbolTimeMin and add 0, 10, 20, 30, 40 seconds
+        QDateTime symbol1Time = symbolTimeMin.addSecs(0);
+        QDateTime symbol2Time = symbolTimeMin.addSecs(50);
+        QDateTime symbol3Time = symbolTimeMin.addSecs(100);
+        QDateTime symbol4Time = symbolTimeMin.addSecs(150);
+        QDateTime symbol5Time = symbolTimeMin.addSecs(200);
+        
+        qDebug() << "RTW: Symbol timestamps:";
+        qDebug() << "  Symbol1 (TM):" << symbol1Time.toString();
+        qDebug() << "  Symbol2 (DP):" << symbol2Time.toString();
+        qDebug() << "  Symbol3 (LY):" << symbol3Time.toString();
+        qDebug() << "  Symbol4 (CircleI):" << symbol4Time.toString();
+        qDebug() << "  Symbol5 (Triangle):" << symbol5Time.toString();
+        qDebug() << "RTW: Time range for filtering:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
+        
+        if (rtwGraphToUse) {
+            // Use rtwGraphToUse->addRTWSymbol() which adds to dataSource AND calls draw() automatically
+            qDebug() << "RTW: Adding test symbols via RTW graph->addRTWSymbol() within time range";
+            rtwGraphToUse->addRTWSymbol("TM", symbol1Time, 10.0);
+            rtwGraphToUse->addRTWSymbol("DP", symbol2Time, 15.0);
+            rtwGraphToUse->addRTWSymbol("LY", symbol3Time, 20.0);
+            rtwGraphToUse->addRTWSymbol("CircleI", symbol4Time, 8.0);
+            rtwGraphToUse->addRTWSymbol("Triangle", symbol5Time, 12.0);
+        } else {
+            // Fallback: add directly to data source (symbols will appear on next redraw)
+            qDebug() << "RTW: WARNING - No RTW graph found using GraphLayout RTW data source";
+            qDebug() << "RTW: Adding symbols directly to data source (will appear on next redraw)";
+            overviewRTWData->addRTWSymbol("TM", symbol1Time, 10.0);
+            overviewRTWData->addRTWSymbol("DP", symbol2Time, 15.0);
+            overviewRTWData->addRTWSymbol("LY", symbol3Time, 20.0);
+            overviewRTWData->addRTWSymbol("CircleI", symbol4Time, 8.0);
+            overviewRTWData->addRTWSymbol("Triangle", symbol5Time, 12.0);
+        }
+        
+        // Verify symbols were added
+        qDebug() << "RTW: After adding - symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
+        qDebug() << "RTW: ===== Finished adding 5 test symbols to overview tab RTW graph =====";
     });
 
     // FTW Graph - Frequency Time Waterfall
@@ -832,3 +935,11 @@ void MainWindow::setupRTWSymbolsTest()
     qDebug() << "RTW Symbols test widget geometry:" << rtwSymbolsTestWidget->geometry();
     qDebug() << "RTW Symbols test widget visible:" << rtwSymbolsTestWidget->isVisible();
 }
+
+/**
+ * @brief Setup RTW Symbol Test Tab with GraphContainer
+ * 
+ * Creates a new tab with a GraphContainer containing an RTW graph.
+ * Adds test data and symbols to verify symbol persistence through
+ * track changes and zoom customization.
+ */

@@ -4,6 +4,7 @@
 #include <QPen>
 #include <QBrush>
 #include <QColor>
+#include <QDebug>
 #include <cmath>
 
 RTWSymbolDrawing::RTWSymbolDrawing(int baseSize)
@@ -22,7 +23,18 @@ void RTWSymbolDrawing::draw(QPainter* p, QPointF pos, SymbolType type)
 
 const QPixmap& RTWSymbolDrawing::get(SymbolType type) const
 {
-    return cache[type];
+    // Use constFind to safely access the cache without creating default entries
+    auto it = cache.constFind(type);
+    if (it != cache.constEnd())
+    {
+        return it.value();
+    }
+    
+    // If not found, return a reference to a static empty pixmap
+    // This should never happen if generateAll() was called properly
+    static QPixmap emptyPixmap;
+    qDebug() << "RTWSymbolDrawing::get - Symbol type" << static_cast<int>(type) << "not found in cache!";
+    return emptyPixmap;
 }
 
 void RTWSymbolDrawing::generateAll()

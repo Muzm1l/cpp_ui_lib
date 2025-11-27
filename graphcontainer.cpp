@@ -372,6 +372,11 @@ void GraphContainer::redrawWaterfallGraph()
     }
 }
 
+WaterfallGraph* GraphContainer::getCurrentWaterfallGraph() const
+{
+    return m_currentWaterfallGraph;
+}
+
 // Data options management implementation
 
 void GraphContainer::addDataOption(const GraphType graphType, WaterfallData &dataSource)

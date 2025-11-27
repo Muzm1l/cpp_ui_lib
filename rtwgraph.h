@@ -3,18 +3,9 @@
 
 #include "waterfallgraph.h"
 #include "rtwsymbols.h"
+#include "waterfalldata.h"  // For RTWSymbolData
 #include <QDateTime>
 #include <vector>
-
-/**
- * @brief Structure to store RTW symbol data
- */
-struct RTWSymbolData
-{
-    QString symbolName;
-    QDateTime timestamp;
-    qreal range;
-};
 
 /**
  * @brief RTW Graph component that inherits from waterfallgraph
@@ -54,8 +45,7 @@ private:
     void drawRTWSymbols();
     RTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
 
-    // Storage for RTW symbols
-    std::vector<RTWSymbolData> rtwSymbols;
+    // RTW symbol drawing utility (symbols are stored in WaterfallData)
     RTWSymbolDrawing symbols;
 };
 
