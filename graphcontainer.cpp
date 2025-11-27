@@ -1230,6 +1230,13 @@ void GraphContainer::onDataChanged(GraphType graphType)
         // Force redraw of the waterfall graph
         // This is critical - ensure graph redraws when new data arrives, even after time range changes
         redrawWaterfallGraph();
+        
+        // Ensure timer is running to continue animation after data update
+        if (m_timer && !m_timer->isActive())
+        {
+            m_timer->start();
+            qDebug() << "GraphContainer: Timer restarted after data change to continue animation";
+        }
 
         // Update valid time range in TimeSelectionVisualizer from available data
         if (m_timelineSelectionView)
