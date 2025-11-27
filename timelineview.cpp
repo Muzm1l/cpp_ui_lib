@@ -279,6 +279,13 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Recalculate cursor timestamp label position if there's a current cursor timestamp
+    // This ensures the label stays aligned with the cursor when interval changes
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+    }
 
     // Recreate all drawing objects with new parameters
     // This will automatically calculate optimal divisions based on current area
@@ -986,31 +993,52 @@ void TimelineVisualizerWidget::updateCrosshairTimestampFromTime(const QDateTime 
         return;
     }
     
-    // The timeline view displays a 12-hour range:
-    // Top (Y=0) = now (current time)
-    // Bottom (Y=height) = 12 hours ago
-    QDateTime now = QDateTime::currentDateTime();
-    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    // Get the visible time window from the slider state
+    // This matches what the waterfall graph uses (timeMax = window.endTime, timeMin = window.startTime)
+    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
     
-    // Check if timestamp is within the 12-hour range
-    if (timestamp < twelveHoursAgo || timestamp > now)
+    if (!visibleWindow.startTime.isValid() || !visibleWindow.endTime.isValid())
     {
         clearCrosshairTimestamp();
         return;
     }
     
-    // Calculate Y position based on the full 12-hour range
-    // The timeline view shows: top (Y=0) = now, bottom (Y=height) = 12 hours ago
-    qint64 minutesFromStart = twelveHoursAgo.msecsTo(timestamp) / 60000;
-    minutesFromStart = qBound(0, minutesFromStart, SliderGeometry::getTwelveHoursInMinutes());
+    // Use the slider window's time range to match waterfall graph alignment
+    // The timeline view shows: top (Y=0) = window.endTime, bottom (Y=height) = window.startTime
+    QDateTime windowStart = visibleWindow.startTime;
+    QDateTime windowEnd = visibleWindow.endTime;
     
-    // Convert to position ratio: 0.0 = 12 hours ago, 1.0 = now
-    double positionRatio = static_cast<double>(minutesFromStart) / static_cast<double>(SliderGeometry::getTwelveHoursInMinutes());
+    // Ensure windowStart < windowEnd (start is older, end is newer)
+    if (windowStart > windowEnd)
+    {
+        std::swap(windowStart, windowEnd);
+    }
     
-    // Invert to map to Y: top (now) = Y=0, bottom (12 hours ago) = Y=height
-    // If timestamp = now: positionRatio = 1.0, Y = 0
-    // If timestamp = 12 hours ago: positionRatio = 0.0, Y = height
-    qreal yPosition = static_cast<qreal>((1.0 - positionRatio) * rect().height());
+    // Check if timestamp is within the visible window
+    if (timestamp < windowStart || timestamp > windowEnd)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Calculate Y position: windowEnd is at top (Y=0), windowStart is at bottom (Y=height)
+    // This matches how waterfall graph maps time: timeMax (top) to timeMin (bottom)
+    qint64 totalWindowMs = windowStart.msecsTo(windowEnd);
+    if (totalWindowMs <= 0)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Calculate how far the timestamp is from the end (top)
+    qint64 timeFromEndMs = timestamp.msecsTo(windowEnd);
+    
+    // Normalize: 0.0 at top (windowEnd), 1.0 at bottom (windowStart)
+    qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(totalWindowMs);
+    normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+    
+    // Map to widget height: top (windowEnd) is Y=0, bottom (windowStart) is Y=height
+    qreal yPosition = normalizedY * rect().height();
     yPosition = qMax(0.0, qMin(static_cast<qreal>(rect().height()), yPosition));
     
     updateCrosshairTimestamp(timestamp, yPosition);
@@ -1030,11 +1058,47 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
         return;
     }
     
-    // Update the slider state with the new time window
+    // Calculate the interval from the window size to ensure we use the correct interval
+    // This is important because TimeScopeChanged might arrive before TimeIntervalChanged
+    qint64 windowDurationMs = window.startTime.msecsTo(window.endTime);
+    if (windowDurationMs > 0)
+    {
+        // Calculate the interval in minutes from the window duration
+        int windowDurationMinutes = static_cast<int>(windowDurationMs / 60000);
+        // Find the closest matching interval
+        static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+        TimeInterval calculatedInterval = m_timeInterval; // Default to current
+        for (TimeInterval interval : intervals)
+        {
+            int intervalMinutes = static_cast<int>(interval);
+            if (abs(intervalMinutes - windowDurationMinutes) < abs(static_cast<int>(calculatedInterval) - windowDurationMinutes))
+            {
+                calculatedInterval = interval;
+            }
+        }
+        
+        // If the calculated interval differs from current, update it
+        // This handles the case where TimeScopeChanged arrives before TimeIntervalChanged
+        if (calculatedInterval != m_timeInterval)
+        {
+            QTime newLength = timeIntervalToQTime(calculatedInterval);
+            m_timeLineLength = newLength;
+            m_timeInterval = calculatedInterval;
+        }
+    }
+    
+    // Update the slider state with the new time window using the correct interval length
     m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Recalculate cursor timestamp label position if there's a current cursor timestamp
+    // This ensures the label stays aligned with the cursor when the window changes
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+    }
     
     // Update the visualization to reflect the new slider position
     updateVisualization();
@@ -1100,6 +1164,13 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
         
+        // Recalculate cursor timestamp label position if there's a current cursor timestamp
+        // This ensures the label stays aligned with the cursor during drag
+        if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+        {
+            updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+        }
+        
         // Trigger immediate repaint for smooth dragging
         repaint();
         
@@ -1132,6 +1203,13 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+        
+        // Recalculate cursor timestamp label position after drag ends
+        // This ensures the label is correctly positioned with the final window
+        if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+        {
+            updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+        }
         
         setCursor(Qt::ArrowCursor);
         
@@ -1297,9 +1375,8 @@ void TimelineView::onIntervalButtonClicked()
 {
     // Cycle through valid time intervals on each button click
     static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
-    static int intervalIndex = 0;
 
-    // Advance to next interval
+    // Advance to next interval using member variable (not static) for per-instance state
     intervalIndex = (intervalIndex + 1) % intervals.size();
     TimeInterval nextInterval = intervals[intervalIndex];
     m_visualizerWidget->setTimeInterval(nextInterval);

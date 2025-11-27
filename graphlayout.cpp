@@ -207,6 +207,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
 
         // Connect the interval change handler of container 1 to the event of 0
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
+        
+        // Connect the time scope change handler of container 1 to the event of 0
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
         break;
     case LayoutType::HIDDEN:
         // Hide all containers
@@ -1086,7 +1089,14 @@ void GraphLayout::syncAllTimelineViews()
 {
     qDebug() << "GraphLayout: Syncing all timeline views for layout type:" << static_cast<int>(m_layoutType);
     
+    // This function ensures all timeline views in the layout are properly synchronized:
+    // 1. Timeline views are connected to each other for interval and scope changes
+    // 2. Timeline views are connected to all visible containers (including those without timeline views)
+    // 3. Internal connections (TimelineView -> its own container) are preserved
+    // 4. Works for all layout types: GPW1W, GPW2WV, GPW4W, GPW2WH, GPW4WH, NOGPW2WH
+    
     // Collect all visible TimelineView instances with their containers
+    // This includes timeline views from all visible containers, regardless of layout
     std::vector<std::pair<GraphContainer*, TimelineView*>> timelineViewPairs;
     for (auto *container : m_graphContainers)
     {
@@ -1096,25 +1106,90 @@ void GraphLayout::syncAllTimelineViews()
             if (timelineView)
             {
                 timelineViewPairs.push_back({container, timelineView});
+                qDebug() << "GraphLayout: Found timeline view in container";
+            }
+            else
+            {
+                qWarning() << "GraphLayout: Container has showTimelineView=true but timelineView is null";
             }
         }
     }
     
     if (timelineViewPairs.size() <= 1)
     {
-        qDebug() << "GraphLayout: Less than 2 timeline views found, no syncing needed";
+        if (timelineViewPairs.size() == 1)
+        {
+            qDebug() << "GraphLayout: Only 1 timeline view found, ensuring internal connections are set up";
+            // Even with 1 timeline view, ensure internal connections are properly set up
+            const auto &pair = timelineViewPairs[0];
+            if (pair.first && pair.second)
+            {
+                connect(pair.second, &TimelineView::TimeIntervalChanged,
+                        pair.first, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
+                connect(pair.second, &TimelineView::TimeScopeChanged,
+                        pair.first, &GraphContainer::onTimeScopeChanged, Qt::UniqueConnection);
+            }
+        }
+        else
+        {
+            qDebug() << "GraphLayout: No timeline views found";
+        }
         return;
     }
     
     qDebug() << "GraphLayout: Found" << timelineViewPairs.size() << "timeline views to sync";
     
-    // Disconnect any existing TimelineView connections to avoid duplicates
-    for (const auto &pair : timelineViewPairs)
+    // Disconnect only the specific external sync connections to avoid duplicates
+    // We must be specific to preserve internal connections (like timer, visualizer widget, etc.)
+    for (size_t i = 0; i < timelineViewPairs.size(); ++i)
     {
-        if (pair.second)
+        TimelineView *sourceTimelineView = timelineViewPairs[i].second;
+        if (!sourceTimelineView)
+            continue;
+        
+        // Disconnect TimeIntervalChanged connections to other timeline views
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
         {
-            pair.second->disconnect(SIGNAL(TimeIntervalChanged(TimeInterval)));
-            pair.second->disconnect(SIGNAL(TimeScopeChanged(TimeSelectionSpan)));
+            if (i != j && timelineViewPairs[j].second)
+            {
+                disconnect(sourceTimelineView, &TimelineView::TimeIntervalChanged,
+                          timelineViewPairs[j].second, &TimelineView::setTimeLineLength);
+            }
+        }
+        
+        // Disconnect TimeScopeChanged connections to other timeline views
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
+        {
+            if (i != j && timelineViewPairs[j].second)
+            {
+                disconnect(sourceTimelineView, &TimelineView::TimeScopeChanged,
+                          timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindow);
+            }
+        }
+        
+        // Disconnect TimeScopeChanged connections to containers (external sync only)
+        for (auto *container : m_graphContainers)
+        {
+            if (container && container->isVisible())
+            {
+                // Only disconnect if this is NOT the timeline view's own container
+                // (we want to preserve the internal connection)
+                bool isOwnContainer = false;
+                for (const auto &pair : timelineViewPairs)
+                {
+                    if (pair.first == container && pair.second == sourceTimelineView)
+                    {
+                        isOwnContainer = true;
+                        break;
+                    }
+                }
+                
+                if (!isOwnContainer)
+                {
+                    disconnect(sourceTimelineView, &TimelineView::TimeScopeChanged,
+                              container, &GraphContainer::onTimeScopeChanged);
+                }
+            }
         }
     }
     
@@ -1134,17 +1209,18 @@ void GraphLayout::syncAllTimelineViews()
         }
     }
     
-    // Reconnect each TimelineView to its own container (restore internal connections)
-    // This is needed because we disconnected all connections above
+    // Ensure each TimelineView is connected to its own container (internal connections)
+    // These should already exist, but we ensure they're there
     for (const auto &pair : timelineViewPairs)
     {
         if (pair.first && pair.second)
         {
-            // Restore the internal connection: TimelineView -> its own container
+            // Ensure the internal connection: TimelineView -> its own container
+            // Use QOverload to ensure we connect to the right slot signature
             connect(pair.second, &TimelineView::TimeIntervalChanged,
-                    pair.first, &GraphContainer::onTimeIntervalChanged);
+                    pair.first, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
             connect(pair.second, &TimelineView::TimeScopeChanged,
-                    pair.first, &GraphContainer::onTimeScopeChanged);
+                    pair.first, &GraphContainer::onTimeScopeChanged, Qt::UniqueConnection);
         }
     }
     
@@ -1175,10 +1251,25 @@ void GraphLayout::syncAllTimelineViews()
         {
             if (container && container->isVisible())
             {
-                // Connect to the container's onTimeScopeChanged to update the graph
-                // This ensures all graphs stay in sync with the timeline views
-                connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                        container, &GraphContainer::onTimeScopeChanged);
+                // Only connect to containers that are NOT the source timeline view's own container
+                // (the internal connection is already handled above)
+                bool isOwnContainer = false;
+                for (const auto &pair : timelineViewPairs)
+                {
+                    if (pair.first == container && pair.second == sourceTimelineView)
+                    {
+                        isOwnContainer = true;
+                        break;
+                    }
+                }
+                
+                if (!isOwnContainer)
+                {
+                    // Connect to the container's onTimeScopeChanged to update the graph
+                    // This ensures all graphs stay in sync with the timeline views
+                    connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
+                            container, &GraphContainer::onTimeScopeChanged);
+                }
             }
         }
     }

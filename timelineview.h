@@ -229,6 +229,18 @@ public:
 
     // No time selection methods needed for TimelineView
     void setTimeLineLength(TimeInterval interval) {
+        // Update the interval index to match the new interval
+        // This ensures button state stays in sync when interval is changed via signal
+        static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+        for (size_t i = 0; i < intervals.size(); ++i)
+        {
+            if (intervals[i] == interval)
+            {
+                intervalIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        
         m_visualizerWidget->setTimeInterval(interval);
         updateButtonText(interval);
     }
