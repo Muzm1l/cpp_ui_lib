@@ -40,7 +40,11 @@ void BTWGraph::draw()
     if (!graphicsScene)
         return;
 
+    // Clear existing items - ensure complete clearing before drawing
+    // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    
     setupDrawingArea();
 
     if (gridEnabled)
@@ -93,9 +97,11 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     qDebug() << "BTWGraph mouse clicked at scene position:" << scenePos;
     
     // Check if we clicked on an existing interactive marker in the overlay scene
+    // The overlay scene and graphics scene share the same coordinate system
     if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
         QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
-        if (itemAtPos) {
+        // Filter out crosshair items - they should not prevent marker creation
+        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
             qDebug() << "BTWGraph: Clicked on existing interactive item:" << itemAtPos << "letting it handle the event";
             // Don't add a new marker, let the interactive item handle the click
             return;
@@ -467,7 +473,28 @@ void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
 
 void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(position);
-    qDebug() << "BTWGraph: Marker clicked at:" << position;
+    if (!marker) {
+        qDebug() << "BTWGraph: Marker clicked - NULL marker";
+        return;
+    }
+    
+    // Get the marker's scene position (Y coordinate)
+    QPointF scenePos = marker->scenePos();
+    qreal yPos = scenePos.y();
+    
+    // Convert Y position to timestamp using mapScreenToTime
+    QDateTime timestamp = mapScreenToTime(yPos);
+    
+    if (timestamp.isValid()) {
+        qDebug() << "========================================";
+        qDebug() << "BTW MARKER SELECTED - TIMESTAMP RETURNED";
+        qDebug() << "========================================";
+        qDebug() << "BTWGraph: Marker clicked at position:" << position;
+        qDebug() << "BTWGraph: Marker scene position:" << scenePos;
+        qDebug() << "BTWGraph: Marker Y position:" << yPos;
+        qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+        qDebug() << "========================================";
+    } else {
+        qDebug() << "BTWGraph: Marker clicked at:" << position << "- Could not determine timestamp (invalid)";
+    }
 }

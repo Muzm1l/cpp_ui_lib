@@ -32,6 +32,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     timeInterval(timeInterval), 
     dataSource(nullptr), 
     isDragging(false), 
+    isDrawing(false),
     crosshairHorizontal(nullptr), 
     crosshairVertical(nullptr), 
     crosshairEnabled(true), 
@@ -530,9 +531,18 @@ void WaterfallGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "WaterfallGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
-    // Clear existing items
+    // Clear existing items - ensure complete clearing before drawing
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
 
     // Update the drawing area
     setupDrawingArea();
@@ -553,6 +563,8 @@ void WaterfallGraph::draw()
         }
         drawAllDataSeries();
     }
+    
+    isDrawing = false;
 }
 
 /**
@@ -664,17 +676,22 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
         {
-            // First, try to forward the mouse event to the overlay view
+            // First, try to forward the mouse event to the overlay view if we clicked on an interactive item
+            // This allows interactive markers (like BTW markers) to handle their own events
+            // RTW R markers are in graphicsScene and will be handled in RTWGraph::onMouseClick
             if (overlayView && overlayScene) {
                 QPointF overlayScenePos = overlayView->mapToScene(event->pos());
                 QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-                if (itemAtPos) {
+                // Filter out crosshair items - they should not intercept mouse events
+                // Only forward if we clicked on an actual interactive item (not crosshair, not empty)
+                if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
                     qDebug() << "WaterfallGraph: Found interactive item at overlay position:" << overlayScenePos << "item:" << itemAtPos;
-                    // Forward the mouse event to the overlay view
+                    // Forward the mouse event to the overlay view so the interactive item can handle it
                     QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
                     QApplication::postEvent(overlayView, overlayEvent);
                     return; // Don't process further, let the overlay handle it
                 }
+                // If no interactive item found, continue to onMouseClick to allow adding new markers
             }
 
             isDragging = true;
@@ -714,7 +731,8 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
     if (isDragging && overlayView && overlayScene) {
         QPointF overlayScenePos = overlayView->mapToScene(event->pos());
         QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-        if (itemAtPos) {
+        // Filter out crosshair items - they should not intercept mouse events
+        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
             qDebug() << "WaterfallGraph: Forwarding mouse move to overlay item:" << itemAtPos;
             // Forward the mouse event to the overlay view
             QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
@@ -2092,6 +2110,9 @@ void WaterfallGraph::setupCrosshair()
     crosshairHorizontal->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
     crosshairHorizontal->setZValue(1000); // High z-value to appear on top
     crosshairHorizontal->setVisible(false);
+    // Make crosshair not accept mouse events so it doesn't block marker selection or cause duplication
+    crosshairHorizontal->setAcceptedMouseButtons(Qt::NoButton);
+    crosshairHorizontal->setAcceptHoverEvents(false);
     overlayScene->addItem(crosshairHorizontal);
     
     // Create vertical crosshair line
@@ -2099,6 +2120,9 @@ void WaterfallGraph::setupCrosshair()
     crosshairVertical->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
     crosshairVertical->setZValue(1000); // High z-value to appear on top
     crosshairVertical->setVisible(false);
+    // Make crosshair not accept mouse events so it doesn't block marker selection or cause duplication
+    crosshairVertical->setAcceptedMouseButtons(Qt::NoButton);
+    crosshairVertical->setAcceptHoverEvents(false);
     overlayScene->addItem(crosshairVertical);
 }
 

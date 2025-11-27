@@ -46,7 +46,10 @@ void RTWGraph::draw()
         return;
     }
 
+    // Clear existing items - ensure complete clearing before drawing
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    
     setupDrawingArea();
 
     if (gridEnabled)
@@ -112,7 +115,46 @@ void RTWGraph::draw()
 void RTWGraph::onMouseClick(const QPointF &scenePos)
 {
     qDebug() << "RTWGraph mouse clicked at scene position:" << scenePos;
-    // Call parent implementation
+    
+    // Check if we clicked on an R marker (QGraphicsTextItem with text "R") in graphicsScene
+    if (graphicsScene) {
+        QGraphicsItem *itemAtPos = graphicsScene->itemAt(scenePos, QTransform());
+        qDebug() << "RTWGraph: itemAtPos:" << itemAtPos << "at scene position:" << scenePos;
+        if (itemAtPos) {
+            QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(itemAtPos);
+            qDebug() << "RTWGraph: textItem:" << textItem;
+            if (textItem) {
+                QString text = textItem->toPlainText();
+                qDebug() << "RTWGraph: Text item text:" << text;
+                if (text == "R") {
+                    // This is an R marker - calculate timestamp from Y position
+                    qreal yPos = scenePos.y();
+                    QDateTime timestamp = mapScreenToTime(yPos);
+                    
+                    if (timestamp.isValid()) {
+                        qDebug() << "========================================";
+                        qDebug() << "RTW R MARKER SELECTED - TIMESTAMP RETURNED";
+                        qDebug() << "========================================";
+                        qDebug() << "RTWGraph: R marker clicked at scene position:" << scenePos;
+                        qDebug() << "RTWGraph: Marker Y position:" << yPos;
+                        qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                        qDebug() << "========================================";
+                    } else {
+                        qDebug() << "RTWGraph: R marker clicked at:" << scenePos << "- Could not determine timestamp (invalid)";
+                    }
+                    // Don't call parent - we've handled the R marker click
+                    return;
+                }
+            }
+        } else {
+            qDebug() << "RTWGraph: No item found at scene position:" << scenePos;
+            qDebug() << "RTWGraph: Graphics scene items count:" << graphicsScene->items().size();
+        }
+    } else {
+        qDebug() << "RTWGraph: graphicsScene is null!";
+    }
+    
+    // Call parent implementation for other clicks
     WaterfallGraph::onMouseClick(scenePos);
 }
 

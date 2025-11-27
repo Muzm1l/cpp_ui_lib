@@ -542,7 +542,7 @@ void MainWindow::setupCustomGraphsTab()
         // Calculate symbol timestamps with 10 second intervals
         // Start from symbolTimeMin and add 0, 10, 20, 30, 40 seconds
         QDateTime symbol1Time = symbolTimeMin.addSecs(0);
-        QDateTime symbol2Time = symbolTimeMin.addSecs(50);
+        QDateTime symbol2Time = symbolTimeMin.addSecs(250);
         QDateTime symbol3Time = symbolTimeMin.addSecs(100);
         QDateTime symbol4Time = symbolTimeMin.addSecs(150);
         QDateTime symbol5Time = symbolTimeMin.addSecs(200);

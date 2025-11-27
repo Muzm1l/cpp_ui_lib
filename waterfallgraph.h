@@ -151,6 +151,9 @@ protected:
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;
+    
+    // Drawing guard to prevent concurrent draws
+    bool isDrawing;
 
     // Crosshair functionality
     void setupCrosshair();
