@@ -1203,8 +1203,9 @@ void GraphLayout::syncAllTimelineViews()
             {
                 // Connect TimeIntervalChanged signal to setTimeLineLength
                 // This ensures all timeline views stay in sync when interval changes
+                // Use Qt::UniqueConnection to prevent duplicate connections
                 connect(timelineViewPairs[i].second, &TimelineView::TimeIntervalChanged,
-                        timelineViewPairs[j].second, &TimelineView::setTimeLineLength);
+                        timelineViewPairs[j].second, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
             }
         }
     }

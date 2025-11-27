@@ -124,11 +124,15 @@ void GraphContainer::setupTimer()
         m_timer->setInterval(1000); // 1 second
     }
 
-    // Connect timer to our tick handler
-    connect(m_timer, &QTimer::timeout, this, &GraphContainer::onTimerTick);
+    // Connect timer to our tick handler with UniqueConnection to prevent duplicates
+    // This ensures the animation continues even after timeline view customization
+    connect(m_timer, &QTimer::timeout, this, &GraphContainer::onTimerTick, Qt::UniqueConnection);
 
-    // Start the timer
-    m_timer->start();
+    // Ensure timer is started (in case it was stopped during customization)
+    if (!m_timer->isActive())
+    {
+        m_timer->start();
+    }
 
     qDebug() << "GraphContainer: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
@@ -714,7 +718,7 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setSeriesColor(colorPair.first, colorPair.second);
     }
 
-    graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal yPosition) {
+    graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal /* yPosition */) {
         handleCursorTimeChanged(time);
         
         // Update timelineview with crosshair timestamp
@@ -902,6 +906,13 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         qDebug() << "TimelineView updated with interval:" << timeIntervalToString(interval);
     }
 
+    // Ensure timer is still running after interval change to keep animation active
+    if (m_timer && !m_timer->isActive())
+    {
+        m_timer->start();
+        qDebug() << "GraphContainer: Timer restarted after interval change";
+    }
+
     // Reset flag after a short delay to allow signals to propagate
     // Use QTimer::singleShot to reset the flag after the current event loop
     QTimer::singleShot(0, this, [this]() {
@@ -956,6 +967,7 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     qDebug() << "GraphContainer: Time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     // Update the waterfall graph's time range to match the visible scope
+    // This sets a custom time range, but the graph will still redraw when new data arrives
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
 
     // Emit the signal so other containers in the row can update
@@ -1152,10 +1164,71 @@ void GraphContainer::onDataChanged(GraphType graphType)
     // If this is the currently displayed graph, update UI components
     if (getCurrentDataOption() == graphType)
     {
+        // Initialize or update the graph's time range from timeline view
+        // This ensures the graph starts drawing immediately when data arrives
+        if (m_currentWaterfallGraph && m_timelineView)
+        {
+            TimelineView *timelineView = m_timelineView;
+            auto timeRange = m_currentWaterfallGraph->getTimeRange();
+            
+            // Check if graph has a valid time range
+            bool hasValidTimeRange = timeRange.first.isValid() && timeRange.second.isValid() && 
+                                     timeRange.first < timeRange.second;
+            
+            // If graph doesn't have a valid time range, initialize it from timeline view
+            if (!hasValidTimeRange)
+            {
+                TimeSelectionSpan timelineWindow = timelineView->getVisibleTimeWindow();
+                if (timelineWindow.startTime.isValid() && timelineWindow.endTime.isValid())
+                {
+                    // Initialize graph time range from timeline view's current window
+                    m_currentWaterfallGraph->setTimeRange(timelineWindow.startTime, timelineWindow.endTime);
+                    qDebug() << "GraphContainer: Initialized graph time range from timeline view -" 
+                             << timelineWindow.startTime.toString() << "to" << timelineWindow.endTime.toString();
+                }
+            }
+            else
+            {
+                // Graph has a valid time range - check if we need to update it for new data
+                QDateTime currentTime = QDateTime::currentDateTime();
+                qint64 timeDiffMs = timeRange.second.msecsTo(currentTime);
+                
+                // If timeMax is within 1 minute of current time, we're showing recent data
+                // Update the time range to include new data points
+                if (timeDiffMs >= 0 && timeDiffMs < 60000) // Within 1 minute
+                {
+                    // Get the latest data time
+                    if (m_currentWaterfallGraph->getDataSource())
+                    {
+                        QDateTime latestDataTime = m_currentWaterfallGraph->getDataSource()->getLatestTime();
+                        if (latestDataTime.isValid() && latestDataTime > timeRange.second)
+                        {
+                            // New data is after current timeMax, update the range
+                            // Keep the same interval but shift the window forward
+                            qint64 intervalMs = timeRange.first.msecsTo(timeRange.second);
+                            QDateTime newTimeMin = latestDataTime.addMSecs(-intervalMs);
+                            QDateTime newTimeMax = latestDataTime;
+                            
+                            // Update the graph's time range
+                            m_currentWaterfallGraph->setTimeRange(newTimeMin, newTimeMax);
+                            
+                            // Also update the timeline view to match
+                            TimeSelectionSpan newWindow(newTimeMin, newTimeMax);
+                            timelineView->setVisibleTimeWindow(newWindow);
+                            
+                            qDebug() << "GraphContainer: Updated time range to show new data -" 
+                                     << newTimeMin.toString() << "to" << newTimeMax.toString();
+                        }
+                    }
+                }
+            }
+        }
+        
         // Update zoom panel limits to reflect new data ranges
         initializeZoomPanelLimits();
 
         // Force redraw of the waterfall graph
+        // This is critical - ensure graph redraws when new data arrives, even after time range changes
         redrawWaterfallGraph();
 
         // Update valid time range in TimeSelectionVisualizer from available data

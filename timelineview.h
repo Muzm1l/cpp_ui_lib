@@ -243,7 +243,14 @@ public:
         
         m_visualizerWidget->setTimeInterval(interval);
         updateButtonText(interval);
+        
+        // Ensure timer is still running after interval change to keep animation active
+        // This is critical - restart timer explicitly to resume animation
+        ensureTimerRunning();
     }
+    
+    // Ensure timer is running - call this after operations that might stop animation
+    void ensureTimerRunning();
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
     void setNumberOfDivisions(int divisions) { m_visualizerWidget->setNumberOfDivisions(divisions); }
 
@@ -265,6 +272,7 @@ public:
     
     // Time window control for syncing
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    TimeSelectionSpan getVisibleTimeWindow() const;
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);

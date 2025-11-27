@@ -291,6 +291,10 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // This will automatically calculate optimal divisions based on current area
     createDrawingObjects();
 
+    // Force an update to ensure animation continues after interval change
+    // This is critical to resume the animation after interval customization
+    updateVisualization();
+
     // Emit signal for the updated time window
     emitTimeScopeChanged();
 
@@ -1219,8 +1223,9 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
                  << m_sliderVisibleWindow.startTime.toString("HH:mm:ss") 
                  << "to" << m_sliderVisibleWindow.endTime.toString("HH:mm:ss");
         
-        // Trigger repaint to show final position
-        update();
+        // Force visualization update to resume animation after drag ends
+        // This is critical - we need to explicitly resume the animation
+        updateVisualization();
     }
     QWidget::mouseReleaseEvent(event);
 }
@@ -1314,6 +1319,10 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
 
     // Set the default time interval to be 15 minutes
+    // Initialize intervalIndex to 0 (FifteenMinutes is the first interval)
+    static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+    intervalIndex = 0; // FifteenMinutes is the first interval in the list
+    
     m_visualizerWidget->setTimeInterval(TimeInterval::FifteenMinutes);
 
     // Initialize button text with default interval
@@ -1341,11 +1350,15 @@ void TimelineView::setupTimer()
         m_timer->setInterval(1000); // 1 second
     }
 
-    // Connect timer to our tick handler
-    connect(m_timer, &QTimer::timeout, this, &TimelineView::onTimerTick);
+    // Connect timer to our tick handler with UniqueConnection to prevent duplicates
+    // This ensures the animation continues even after timeline view customization
+    connect(m_timer, &QTimer::timeout, this, &TimelineView::onTimerTick, Qt::UniqueConnection);
 
-    // Start the timer
-    m_timer->start();
+    // Ensure timer is started (in case it was stopped during customization)
+    if (!m_timer->isActive())
+    {
+        m_timer->start();
+    }
 
     // qDebug() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
@@ -1361,6 +1374,15 @@ void TimelineView::onTimerTick()
     }
 
     // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
+}
+
+void TimelineView::ensureTimerRunning()
+{
+    if (m_timer && !m_timer->isActive())
+    {
+        m_timer->start();
+        qDebug() << "TimelineView: Timer restarted to resume animation";
+    }
 }
 
 void TimelineView::updateButtonText(TimeInterval interval)
@@ -1406,6 +1428,10 @@ void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection
     {
         emit TimeScopeChanged(selection);
     }
+    
+    // Ensure timer is running after window changes (e.g., after slider drag)
+    // This is critical to resume animation after user interactions
+    ensureTimerRunning();
 }
 
 void TimelineView::updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition)
@@ -1438,4 +1464,13 @@ void TimelineView::setVisibleTimeWindow(const TimeSelectionSpan &window)
     {
         m_visualizerWidget->setVisibleTimeWindow(window);
     }
+}
+
+TimeSelectionSpan TimelineView::getVisibleTimeWindow() const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->getVisibleTimeWindow();
+    }
+    return TimeSelectionSpan();
 }
