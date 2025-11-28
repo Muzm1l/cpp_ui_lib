@@ -2,7 +2,7 @@
 #define RTWGRAPH_H
 
 #include "waterfallgraph.h"
-#include "rtwsymbols.h"
+#include "rtwsymboldrawing.h"
 #include "waterfalldata.h"  // For RTWSymbolData
 #include <QDateTime>
 #include <vector>

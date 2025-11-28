@@ -1,5 +1,5 @@
-#ifndef RTWSYMBOLS_H
-#define RTWSYMBOLS_H
+#ifndef RTWSYMBOLDRAWING_H
+#define RTWSYMBOLDRAWING_H
 
 #include <QPainter>
 #include <QPixmap>

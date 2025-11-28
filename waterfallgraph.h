@@ -118,6 +118,7 @@ protected:
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
+    void drawBTWSymbols();
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
     void updateDataRanges();
     void updateYRange();

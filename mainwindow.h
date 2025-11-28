@@ -16,7 +16,7 @@
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
 #include "zoompanel.h"
-#include "rtwsymbols.h"
+#include "rtwsymboldrawing.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <QPaintEvent>

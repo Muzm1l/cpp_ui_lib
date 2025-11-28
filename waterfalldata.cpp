@@ -30,6 +30,7 @@ WaterfallData::~WaterfallData()
     dataSeriesYData.clear();
     dataSeriesTimestamps.clear();
     rtwSymbols.clear();
+    btwSymbols.clear();
 }
 
 void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -765,4 +766,33 @@ std::vector<RTWSymbolData> WaterfallData::getRTWSymbols() const
 size_t WaterfallData::getRTWSymbolsCount() const
 {
     return rtwSymbols.size();
+}
+
+// BTW Symbol management methods
+void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+{
+    BTWSymbolData symbolData;
+    symbolData.symbolName = symbolName;
+    symbolData.timestamp = timestamp;
+    symbolData.range = range;
+    
+    btwSymbols.push_back(symbolData);
+    
+    qDebug() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearBTWSymbols()
+{
+    btwSymbols.clear();
+    qDebug() << "WaterfallData: Cleared all BTW symbols";
+}
+
+std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
+{
+    return btwSymbols;
+}
+
+size_t WaterfallData::getBTWSymbolsCount() const
+{
+    return btwSymbols.size();
 }

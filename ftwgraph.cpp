@@ -66,6 +66,9 @@ void FTWGraph::draw()
             }
         }
     }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    drawBTWSymbols();
 }
 
 /**

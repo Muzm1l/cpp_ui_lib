@@ -1,4 +1,5 @@
 #include "waterfallgraph.h"
+#include "waterfalldata.h"  // For BTWSymbolData
 #include <QApplication>
 #include <QPointF>
 
@@ -564,7 +565,73 @@ void WaterfallGraph::draw()
         drawAllDataSeries();
     }
     
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    drawBTWSymbols();
+    
     isDrawing = false;
+}
+
+/**
+ * @brief Draw BTW symbols (magenta circles) from data source
+ *
+ */
+void WaterfallGraph::drawBTWSymbols()
+{
+    // Follow the same pattern as RTW symbols - read symbols from dataSource
+    if (!graphicsScene || !dataSource)
+    {
+        return;
+    }
+    
+    // Get symbols from dataSource
+    std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
+    
+    if (btwSymbols.empty())
+    {
+        return;
+    }
+    
+    // Filter symbols to only include those within the visible time range
+    std::vector<BTWSymbolData> visibleSymbols;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    
+    if (timeRangeValid)
+    {
+        for (const auto& symbolData : btwSymbols)
+        {
+            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
+            {
+                visibleSymbols.push_back(symbolData);
+            }
+        }
+    }
+    else
+    {
+        visibleSymbols = btwSymbols;
+    }
+    
+    // Draw symbols using a simple magenta circle (we'll create it inline since BTWSymbolDrawing is BTW-specific)
+    for (const auto& symbolData : visibleSymbols)
+    {
+        // Map symbol position to screen coordinates
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
+        
+        // Check if point is within visible area
+        if (!drawingArea.contains(screenPos))
+        {
+            continue;
+        }
+        
+        // Draw a simple magenta circle
+        QGraphicsEllipseItem *magentaCircle = new QGraphicsEllipseItem();
+        qreal circleSize = 8.0; // Small circle, 8 pixels diameter
+        magentaCircle->setRect(screenPos.x() - circleSize/2, screenPos.y() - circleSize/2, circleSize, circleSize);
+        magentaCircle->setPen(QPen(QColor(255, 0, 255), 2)); // Magenta color
+        magentaCircle->setBrush(QBrush(QColor(255, 0, 255))); // Filled magenta
+        magentaCircle->setZValue(1003); // Above markers but below interactive items
+        
+        graphicsScene->addItem(magentaCircle);
+    }
 }
 
 /**

@@ -1,4 +1,4 @@
-#include "rtwsymbols.h"
+#include "rtwsymboldrawing.h"
 #include <QFont>
 #include <QPainterPath>
 #include <QPen>

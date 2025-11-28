@@ -227,8 +227,22 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
              << "- Visible binned data:" << visibleBinnedData.size()
              << "- Sampling interval:" << samplingIntervalMs << "ms";
 
+    // Check if time range is valid before drawing markers
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    if (!timeRangeValid) {
+        qDebug() << "RTW: Time range is invalid - skipping marker drawing until time range is set";
+        qDebug() << "RTW: timeMin valid:" << timeMin.isValid() << "timeMax valid:" << timeMax.isValid();
+        return;
+    }
+
     if (visibleBinnedData.empty()) {
         qDebug() << "RTW: No visible binned data available for series" << seriesLabel;
+        qDebug() << "RTW: Time range is valid but no data points within range - skipping marker drawing";
+        return;
+        
+        // REMOVED FALLBACK: Don't draw markers when time range is not properly set
+        // This prevents duplicate markers at startup
+        /*
         qDebug() << "RTW: Trying fallback - drawing markers for raw data";
         
         // Fallback: draw markers for raw data if binning produces no visible results
@@ -259,6 +273,7 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
         }
         qDebug() << "RTW: Fallback drew" << fallbackMarkersDrawn << "red R markers";
         return;
+        */
     }
 
     // Draw yellow "R" markers for each visible binned point

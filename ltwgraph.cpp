@@ -86,10 +86,13 @@ void LTWGraph::draw()
                     // Draw custom markers for other series with adaptive sampling
                     qDebug() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
                     drawCustomMarkers(seriesLabel, seriesColor);
-                }
             }
         }
     }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    drawBTWSymbols();
+}
     else
     {
         qDebug() << "LTW: draw() - no dataSource or dataSource is empty";
