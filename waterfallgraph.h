@@ -234,6 +234,9 @@ public:
     std::pair<QDateTime, QDateTime> getTimeRange() const;
     void setTimeRangeFromData();
     void setTimeRangeFromDataWithInterval(qint64 intervalMs);
+    
+    // Helper to check if time range is valid and reasonable for drawing
+    bool isTimeRangeValidForDrawing() const;
     void unsetCustomTimeRange();
 
     // Public draw method for external redraw triggers

@@ -44,6 +44,14 @@ void BTWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "BTWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
     // Clear existing items - ensure complete clearing before drawing
     // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
@@ -94,6 +102,8 @@ void BTWGraph::draw()
     
     // Draw BTW symbols (magenta circles from other graphs)
     drawBTWSymbols();
+    
+    isDrawing = false;
 }
 
 /**
@@ -250,11 +260,13 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
              << "- Visible binned data:" << visibleBinnedData.size()
              << "- Sampling interval:" << samplingIntervalMs << "ms";
 
-    // Check if time range is valid before drawing markers
-    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
-    if (!timeRangeValid) {
-        qDebug() << "BTW: Time range is invalid - skipping marker drawing until time range is set";
-        qDebug() << "BTW: timeMin valid:" << timeMin.isValid() << "timeMax valid:" << timeMax.isValid();
+    // Check if time range is valid and reasonable before drawing markers
+    // Use the robust helper function that checks validity, range size, and reasonableness
+    if (!isTimeRangeValidForDrawing()) {
+        qDebug() << "BTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
+        qDebug() << "BTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
+        qDebug() << "BTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
+        qDebug() << "BTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
         return;
     }
 

@@ -45,6 +45,14 @@ void RTWGraph::draw()
         qDebug() << "RTW: draw() early return - no graphicsScene";
         return;
     }
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "RTWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
     // Clear existing items - ensure complete clearing before drawing
     graphicsScene->clear();
@@ -105,6 +113,8 @@ void RTWGraph::draw()
 
     // Draw RTW symbols
     drawRTWSymbols();
+    
+    isDrawing = false;
 }
 
 /**
@@ -227,11 +237,13 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
              << "- Visible binned data:" << visibleBinnedData.size()
              << "- Sampling interval:" << samplingIntervalMs << "ms";
 
-    // Check if time range is valid before drawing markers
-    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
-    if (!timeRangeValid) {
-        qDebug() << "RTW: Time range is invalid - skipping marker drawing until time range is set";
-        qDebug() << "RTW: timeMin valid:" << timeMin.isValid() << "timeMax valid:" << timeMax.isValid();
+    // Check if time range is valid and reasonable before drawing markers
+    // Use the robust helper function that checks validity, range size, and reasonableness
+    if (!isTimeRangeValidForDrawing()) {
+        qDebug() << "RTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
+        qDebug() << "RTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
+        qDebug() << "RTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
+        qDebug() << "RTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
         return;
     }
 

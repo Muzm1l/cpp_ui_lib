@@ -2142,6 +2142,76 @@ void WaterfallGraph::setTimeRangeFromDataWithInterval(qint64 intervalMs)
 }
 
 /**
+ * @brief Check if time range is valid and reasonable for drawing markers
+ * 
+ * This performs a more robust check than just isValid():
+ * - Both timeMin and timeMax must be valid
+ * - timeMin must be strictly less than timeMax
+ * - The range should be reasonable (not too large, not in the distant future)
+ * - Either customTimeRangeEnabled is true (explicitly set) OR the range is within reasonable bounds
+ * 
+ * @return true if time range is valid for drawing, false otherwise
+ */
+bool WaterfallGraph::isTimeRangeValidForDrawing() const
+{
+    // Basic validity check
+    if (!timeMin.isValid() || !timeMax.isValid())
+    {
+        return false;
+    }
+    
+    // timeMin must be strictly less than timeMax
+    if (timeMin >= timeMax)
+    {
+        return false;
+    }
+    
+    // Check if range is reasonable (not too large - max 24 hours)
+    qint64 rangeMs = timeMin.msecsTo(timeMax);
+    const qint64 maxReasonableRangeMs = 24 * 60 * 60 * 1000; // 24 hours
+    if (rangeMs > maxReasonableRangeMs)
+    {
+        qDebug() << "WaterfallGraph: Time range too large:" << rangeMs << "ms (max:" << maxReasonableRangeMs << "ms)";
+        return false;
+    }
+    
+    // Check if range is not too small (at least 1 second)
+    const qint64 minReasonableRangeMs = 1000; // 1 second
+    if (rangeMs < minReasonableRangeMs)
+    {
+        qDebug() << "WaterfallGraph: Time range too small:" << rangeMs << "ms (min:" << minReasonableRangeMs << "ms)";
+        return false;
+    }
+    
+    // If custom time range is enabled, it means it was explicitly set - trust it
+    if (customTimeRangeEnabled)
+    {
+        return true;
+    }
+    
+    // For non-custom ranges, check if timeMax is not too far in the future (max 1 hour)
+    QDateTime currentTime = QDateTime::currentDateTime();
+    qint64 futureDiffMs = currentTime.msecsTo(timeMax);
+    const qint64 maxFutureMs = 60 * 60 * 1000; // 1 hour
+    if (futureDiffMs > maxFutureMs)
+    {
+        qDebug() << "WaterfallGraph: timeMax too far in future:" << futureDiffMs << "ms (max:" << maxFutureMs << "ms)";
+        return false;
+    }
+    
+    // Check if timeMin is not too far in the past (max 48 hours)
+    qint64 pastDiffMs = timeMin.msecsTo(currentTime);
+    const qint64 maxPastMs = 48 * 60 * 60 * 1000; // 48 hours
+    if (pastDiffMs > maxPastMs)
+    {
+        qDebug() << "WaterfallGraph: timeMin too far in past:" << pastDiffMs << "ms (max:" << maxPastMs << "ms)";
+        return false;
+    }
+    
+    return true;
+}
+
+/**
  * @brief Unset the custom time range and revert to using data-based time range.
  *
  */
