@@ -50,8 +50,17 @@ void LTWGraph::draw()
         qDebug() << "LTW: draw() early return - no graphicsScene";
         return;
     }
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "LTWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
     setupDrawingArea();
 
     if (gridEnabled)
@@ -86,17 +95,19 @@ void LTWGraph::draw()
                     // Draw custom markers for other series with adaptive sampling
                     qDebug() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
                     drawCustomMarkers(seriesLabel, seriesColor);
+                }
             }
         }
     }
-    
-    // Draw BTW symbols (magenta circles) if any exist in data source
-    drawBTWSymbols();
-}
     else
     {
         qDebug() << "LTW: draw() - no dataSource or dataSource is empty";
     }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    drawBTWSymbols();
+    
+    isDrawing = false;
 }
 
 /**
@@ -187,8 +198,19 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
              << "- Visible binned data:" << visibleBinnedData.size()
              << "- Bin duration:" << samplingIntervalMs << "ms";
 
+    // Check if time range is valid and reasonable before drawing markers
+    // Use the robust helper function that checks validity, range size, and reasonableness
+    if (!isTimeRangeValidForDrawing()) {
+        qDebug() << "LTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
+        qDebug() << "LTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
+        qDebug() << "LTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
+        qDebug() << "LTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
+        return;
+    }
+
     if (visibleBinnedData.empty()) {
         qDebug() << "LTW: No visible binned data available for series" << seriesLabel;
+        qDebug() << "LTW: Time range is valid but no data points within range - skipping marker drawing";
         return;
     }
 

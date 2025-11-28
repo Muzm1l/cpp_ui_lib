@@ -2175,24 +2175,28 @@ bool WaterfallGraph::isTimeRangeValidForDrawing() const
         return false;
     }
     
-    // Check if range is not too small (at least 1 second)
-    const qint64 minReasonableRangeMs = 1000; // 1 second
+    // Check if range is not too small (at least 100ms - very small but valid)
+    // This allows for very short intervals like 15 minutes
+    const qint64 minReasonableRangeMs = 100; // 100ms - very small but valid
     if (rangeMs < minReasonableRangeMs)
     {
         qDebug() << "WaterfallGraph: Time range too small:" << rangeMs << "ms (min:" << minReasonableRangeMs << "ms)";
         return false;
     }
     
-    // If custom time range is enabled, it means it was explicitly set - trust it
+    // If custom time range is enabled, it means it was explicitly set - trust it completely
     if (customTimeRangeEnabled)
     {
         return true;
     }
     
-    // For non-custom ranges, check if timeMax is not too far in the future (max 1 hour)
+    // For non-custom ranges, perform additional reasonableness checks
+    // But be more lenient - allow ranges that are set by setTimeInterval() or setTimeRangeFromData()
     QDateTime currentTime = QDateTime::currentDateTime();
+    
+    // Check if timeMax is not too far in the future (max 2 hours - more lenient)
     qint64 futureDiffMs = currentTime.msecsTo(timeMax);
-    const qint64 maxFutureMs = 60 * 60 * 1000; // 1 hour
+    const qint64 maxFutureMs = 2 * 60 * 60 * 1000; // 2 hours (more lenient)
     if (futureDiffMs > maxFutureMs)
     {
         qDebug() << "WaterfallGraph: timeMax too far in future:" << futureDiffMs << "ms (max:" << maxFutureMs << "ms)";
@@ -2208,7 +2212,44 @@ bool WaterfallGraph::isTimeRangeValidForDrawing() const
         return false;
     }
     
-    return true;
+    // Additional check: if the range is within reasonable bounds relative to current time,
+    // and the range size matches a known interval (15min, 30min, 1hr, etc.), trust it
+    // This handles cases where setTimeInterval() was called and set a valid range
+    qint64 interval15Min = 15 * 60 * 1000;
+    qint64 interval30Min = 30 * 60 * 1000;
+    qint64 interval1Hr = 60 * 60 * 1000;
+    qint64 interval2Hr = 2 * 60 * 60 * 1000;
+    qint64 interval3Hr = 3 * 60 * 60 * 1000;
+    qint64 interval6Hr = 6 * 60 * 60 * 1000;
+    qint64 interval12Hr = 12 * 60 * 60 * 1000;
+    
+    // Check if range matches a known interval (within 1% tolerance)
+    bool matchesKnownInterval = false;
+    qreal tolerance = 0.01; // 1% tolerance
+    if (qAbs(rangeMs - interval15Min) < interval15Min * tolerance ||
+        qAbs(rangeMs - interval30Min) < interval30Min * tolerance ||
+        qAbs(rangeMs - interval1Hr) < interval1Hr * tolerance ||
+        qAbs(rangeMs - interval2Hr) < interval2Hr * tolerance ||
+        qAbs(rangeMs - interval3Hr) < interval3Hr * tolerance ||
+        qAbs(rangeMs - interval6Hr) < interval6Hr * tolerance ||
+        qAbs(rangeMs - interval12Hr) < interval12Hr * tolerance)
+    {
+        matchesKnownInterval = true;
+    }
+    
+    // If it matches a known interval and timeMax is within 2 hours of now, it's valid
+    if (matchesKnownInterval && futureDiffMs <= maxFutureMs && pastDiffMs <= maxPastMs)
+    {
+        return true;
+    }
+    
+    // Final check: if timeMax is close to current time (within 5 minutes) and range is reasonable, trust it
+    if (futureDiffMs >= -300000 && futureDiffMs <= 300000 && rangeMs <= maxReasonableRangeMs) // Within 5 minutes
+    {
+        return true;
+    }
+    
+    return true; // Default to true if all basic checks pass
 }
 
 /**

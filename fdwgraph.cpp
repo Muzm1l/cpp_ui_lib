@@ -32,8 +32,17 @@ void FDWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "FDWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
     setupDrawingArea();
 
     if (gridEnabled)
@@ -72,6 +81,8 @@ void FDWGraph::draw()
     
     // Draw BTW symbols (magenta circles) if any exist in data source
     drawBTWSymbols();
+    
+    isDrawing = false;
 }
 
 /**
