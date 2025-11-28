@@ -757,6 +757,20 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(this, &GraphContainer::DeleteInteractiveMarkers,
                 btwGraph, &BTWGraph::deleteInteractiveMarkers);
         qDebug() << "GraphContainer: Connected DeleteInteractiveMarkers signal to BTWGraph";
+        
+        // Connect BTW marker signals
+        connect(btwGraph, &BTWGraph::manualMarkerPlaced,
+                this, &GraphContainer::onBTWManualMarkerPlaced);
+        connect(btwGraph, &BTWGraph::manualMarkerClicked,
+                this, &GraphContainer::onBTWManualMarkerClicked);
+        qDebug() << "GraphContainer: Connected BTW marker timestamp signals";
+    }
+    
+    // Connect RTW R marker signal
+    if (auto rtwGraph = qobject_cast<RTWGraph*>(graph)) {
+        connect(rtwGraph, &RTWGraph::rMarkerTimestampCaptured,
+                this, &GraphContainer::onRTWRMarkerTimestampCaptured);
+        qDebug() << "GraphContainer: Connected RTW R marker timestamp signal";
     }
 }
 
@@ -1297,6 +1311,25 @@ void GraphContainer::onClearTimeSelectionsButtonClicked()
 {
     qDebug() << "GraphContainer: Clear time selections button clicked";
     clearTimeSelections();
+}
+
+// Marker timestamp slot implementations
+void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphContainer: RTW R marker timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit RTWRMarkerTimestampCaptured(timestamp, position);
+}
+
+void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphContainer: BTW manual marker placed:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BTWManualMarkerPlaced(timestamp, position);
+}
+
+void GraphContainer::onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BTWManualMarkerClicked(timestamp, position);
 }
 
 // Chevron label control methods implementation

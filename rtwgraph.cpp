@@ -149,6 +149,9 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                         qDebug() << "RTWGraph: Marker Y position:" << yPos;
                         qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
                         qDebug() << "========================================";
+                        
+                        // Emit signal for external integration
+                        emit rMarkerTimestampCaptured(timestamp, scenePos);
                     } else {
                         qDebug() << "RTWGraph: R marker clicked at:" << scenePos << "- Could not determine timestamp (invalid)";
                     }

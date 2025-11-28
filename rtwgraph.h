@@ -47,6 +47,14 @@ private:
 
     // RTW symbol drawing utility (symbols are stored in WaterfallData)
     RTWSymbolDrawing symbols;
+
+signals:
+    /**
+     * @brief Emitted when an R marker is clicked
+     * @param timestamp The timestamp of the clicked R marker
+     * @param position The scene position where the marker was clicked
+     */
+    void rMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
 };
 
 #endif // RTWGRAPH_H

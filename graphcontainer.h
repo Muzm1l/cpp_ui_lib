@@ -145,6 +145,11 @@ public slots:
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
     void onTimeScopeChanged(const TimeSelectionSpan &selection);
+    
+    // Marker timestamp slots
+    void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
 
 private:
     void updateTotalContainerSize();
@@ -169,6 +174,11 @@ signals:
     void IntervalChanged(TimeInterval interval);
     void TimeScopeChanged(const TimeSelectionSpan &selection);
     void DeleteInteractiveMarkers();
+    
+    // Marker timestamp signals
+    void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
 
 private:
     QHBoxLayout *m_mainLayout;

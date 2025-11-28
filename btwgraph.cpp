@@ -140,14 +140,21 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         // Convert scene position to overlay coordinates
         QPointF overlayPos = scenePos;
         
-        // Add a data point marker at the clicked position
-        QDateTime timestamp = QDateTime::currentDateTime();
+        // Calculate timestamp from Y position (this represents the time at that position on the graph)
+        QDateTime timestamp = mapScreenToTime(scenePos.y());
+        
+        // If timestamp is invalid, fallback to current time
+        if (!timestamp.isValid()) {
+            timestamp = QDateTime::currentDateTime();
+            qDebug() << "BTWGraph: Could not map Y position to timestamp, using current time";
+        }
+        
         qreal value = 50.0; // Default value
         QString seriesLabel = "BTW-Click";
         
         m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
         
-        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos;
+        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos << "with timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
     
     // Call parent implementation
@@ -526,9 +533,38 @@ void BTWGraph::deleteInteractiveMarkers()
 
 void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(type);
-    qDebug() << "BTWGraph: Marker added, type:" << type;
+    if (!marker) {
+        qDebug() << "BTWGraph: Marker added - NULL marker, type:" << type;
+        return;
+    }
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    if (timestamp.isValid()) {
+        qDebug() << "========================================";
+        qDebug() << "BTW MANUAL MARKER PLACED - TIMESTAMP RETURNED";
+        qDebug() << "========================================";
+        qDebug() << "BTWGraph: Marker added, type:" << type;
+        qDebug() << "BTWGraph: Marker scene position:" << marker->scenePos();
+        qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+        qDebug() << "========================================";
+        
+        // Emit signal for external integration
+        emit manualMarkerPlaced(timestamp, marker->scenePos());
+    } else {
+        qDebug() << "BTWGraph: Marker added, type:" << type << "- Could not determine timestamp (invalid)";
+    }
 }
 
 void BTWGraph::onMarkerRemoved(InteractiveGraphicsItem *marker, int type)
@@ -559,22 +595,30 @@ void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &p
         return;
     }
     
-    // Get the marker's scene position (Y coordinate)
-    QPointF scenePos = marker->scenePos();
-    qreal yPos = scenePos.y();
+    // First try to get timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
     
-    // Convert Y position to timestamp using mapScreenToTime
-    QDateTime timestamp = mapScreenToTime(yPos);
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
     
     if (timestamp.isValid()) {
         qDebug() << "========================================";
-        qDebug() << "BTW MARKER SELECTED - TIMESTAMP RETURNED";
+        qDebug() << "BTW MANUAL MARKER CLICKED - TIMESTAMP RETURNED";
         qDebug() << "========================================";
         qDebug() << "BTWGraph: Marker clicked at position:" << position;
-        qDebug() << "BTWGraph: Marker scene position:" << scenePos;
-        qDebug() << "BTWGraph: Marker Y position:" << yPos;
+        qDebug() << "BTWGraph: Marker scene position:" << marker->scenePos();
         qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
         qDebug() << "========================================";
+        
+        // Emit signal for external integration
+        emit manualMarkerClicked(timestamp, marker->scenePos());
     } else {
         qDebug() << "BTWGraph: Marker clicked at:" << position << "- Could not determine timestamp (invalid)";
     }

@@ -90,6 +90,21 @@ private:
     
     // Store timestamps from automatic markers
     std::vector<QDateTime> m_automaticMarkerTimestamps;
+
+signals:
+    /**
+     * @brief Emitted when a manual marker is placed
+     * @param timestamp The timestamp of the placed marker
+     * @param position The scene position where the marker was placed
+     */
+    void manualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a manual marker is clicked
+     * @param timestamp The timestamp of the clicked marker
+     * @param position The scene position where the marker was clicked
+     */
+    void manualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
 };
 
 #endif // BTWGRAPH_H
