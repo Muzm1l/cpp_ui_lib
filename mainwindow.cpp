@@ -35,18 +35,6 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
 
-    // For testing: restrict overview GraphLayout to only BTW and RTW graphs
-    // Remove all existing data options and re-add only BTW and RTW as selectable graph types
-    graphgrid->clearDataOptions();
-    if (auto *btwData = graphgrid->getDataSource(GraphType::BTW))
-    {
-        graphgrid->addDataOption(GraphType::BTW, *btwData);
-    }
-    if (auto *rtwData = graphgrid->getDataSource(GraphType::RTW))
-    {
-        graphgrid->addDataOption(GraphType::RTW, *rtwData);
-    }
-
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
 
@@ -140,149 +128,42 @@ MainWindow::MainWindow(QWidget *parent)
     // Configure Zoom Panel test functionality
     configureZoomPanel();
     
-    // Setup RTW R marker indicator button
-    setupRTWMarkerIndicator();
-    
-    // Setup BTW manual marker indicator button
-    setupBTWMarkerIndicator();
+    // Setup time selection history storage
+    setupTimeSelectionHistory();
 }
 
-void MainWindow::setupRTWMarkerIndicator()
+void MainWindow::setupTimeSelectionHistory()
 {
-    // Create the indicator button on the overview tab
-    rtwMarkerIndicatorButton = new QPushButton("R Marker", ui->originalTab);
-    rtwMarkerIndicatorButton->setObjectName("rtwMarkerIndicatorButton");
-    rtwMarkerIndicatorButton->setGeometry(QRect(10, 30, 100, 30));
+    // Connect time selection signal to store timestamps
+    connect(graphgrid, &GraphLayout::TimeSelectionCreated,
+            this, &MainWindow::onTimeSelectionCreated);
     
-    // Set initial style (normal state - gray/dark)
-    rtwMarkerIndicatorButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: #333333;"
-        "    color: white;"
-        "    border: 2px solid #555555;"
-        "    border-radius: 5px;"
-        "    font-weight: bold;"
-        "    padding: 5px;"
-        "}"
-    );
-    
-    // Create timer to turn off the indicator after 2 seconds
-    rtwMarkerIndicatorTimer = new QTimer(this);
-    rtwMarkerIndicatorTimer->setSingleShot(true);
-    rtwMarkerIndicatorTimer->setInterval(2000); // 2 seconds
-    connect(rtwMarkerIndicatorTimer, &QTimer::timeout, this, &MainWindow::turnOffRTWMarkerIndicator);
-    
-    // Connect RTW marker click signal to our handler
-    connect(graphgrid, &GraphLayout::RTWRMarkerTimestampCaptured,
-            this, &MainWindow::onRTWRMarkerClicked);
-    
-    qDebug() << "RTW R marker indicator button created and connected";
+    qDebug() << "Time selection history storage initialized (max 5 selections)";
 }
 
-void MainWindow::onRTWRMarkerClicked(const QDateTime &timestamp, const QPointF &position)
+void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
 {
-    qDebug() << "MainWindow: RTW R marker clicked - timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    qDebug() << "MainWindow: Time selection created - start:" << selection.startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+             << "end:" << selection.endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     
-    // Light up the button with a bright color (yellow/green)
-    rtwMarkerIndicatorButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: #00ff00;"
-        "    color: black;"
-        "    border: 2px solid #00cc00;"
-        "    border-radius: 5px;"
-        "    font-weight: bold;"
-        "    padding: 5px;"
-        "}"
-    );
+    // Store the selection timestamps (both start and end)
+    // If we already have 5, remove the oldest (FIFO)
+    if (timeSelectionHistory.size() >= 5)
+    {
+        timeSelectionHistory.erase(timeSelectionHistory.begin());
+        qDebug() << "Time selection history full, removed oldest entry";
+    }
     
-    // Restart the timer to turn off after 2 seconds
-    rtwMarkerIndicatorTimer->start();
-}
-
-void MainWindow::turnOffRTWMarkerIndicator()
-{
-    // Reset button to normal state
-    rtwMarkerIndicatorButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: #333333;"
-        "    color: white;"
-        "    border: 2px solid #555555;"
-        "    border-radius: 5px;"
-        "    font-weight: bold;"
-        "    padding: 5px;"
-        "}"
-    );
+    // Add the new selection to the end
+    timeSelectionHistory.push_back(selection);
     
-    qDebug() << "RTW marker indicator turned off";
-}
-
-void MainWindow::setupBTWMarkerIndicator()
-{
-    // Create the indicator button on the overview tab (positioned next to RTW button)
-    btwMarkerIndicatorButton = new QPushButton("BTW Marker", ui->originalTab);
-    btwMarkerIndicatorButton->setObjectName("btwMarkerIndicatorButton");
-    btwMarkerIndicatorButton->setGeometry(QRect(120, 30, 100, 30));
-    
-    // Set initial style (normal state - gray/dark)
-    btwMarkerIndicatorButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: #333333;"
-        "    color: white;"
-        "    border: 2px solid #555555;"
-        "    border-radius: 5px;"
-        "    font-weight: bold;"
-        "    padding: 5px;"
-        "}"
-    );
-    
-    // Create timer to turn off the indicator after 2 seconds
-    btwMarkerIndicatorTimer = new QTimer(this);
-    btwMarkerIndicatorTimer->setSingleShot(true);
-    btwMarkerIndicatorTimer->setInterval(2000); // 2 seconds
-    connect(btwMarkerIndicatorTimer, &QTimer::timeout, this, &MainWindow::turnOffBTWMarkerIndicator);
-    
-    // Connect BTW marker click signal to our handler
-    connect(graphgrid, &GraphLayout::BTWManualMarkerClicked,
-            this, &MainWindow::onBTWManualMarkerClicked);
-    
-    qDebug() << "BTW manual marker indicator button created and connected";
-}
-
-void MainWindow::onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position)
-{
-    qDebug() << "MainWindow: BTW manual marker clicked - timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-    
-    // Light up the button with a bright color (cyan/blue to differentiate from RTW)
-    btwMarkerIndicatorButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: #00ffff;"
-        "    color: black;"
-        "    border: 2px solid #00cccc;"
-        "    border-radius: 5px;"
-        "    font-weight: bold;"
-        "    padding: 5px;"
-        "}"
-    );
-    
-    // Restart the timer to turn off after 2 seconds
-    btwMarkerIndicatorTimer->start();
-}
-
-void MainWindow::turnOffBTWMarkerIndicator()
-{
-    // Reset button to normal state
-    btwMarkerIndicatorButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: #333333;"
-        "    color: white;"
-        "    border: 2px solid #555555;"
-        "    border-radius: 5px;"
-        "    font-weight: bold;"
-        "    padding: 5px;"
-        "}"
-    );
-    
-    qDebug() << "BTW marker indicator turned off";
+    qDebug() << "Time selection stored. History size:" << timeSelectionHistory.size();
+    qDebug() << "All stored selections:";
+    for (size_t i = 0; i < timeSelectionHistory.size(); ++i)
+    {
+        qDebug() << "  [" << i << "] Start:" << timeSelectionHistory[i].startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                 << "End:" << timeSelectionHistory[i].endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    }
 }
 
 MainWindow::~MainWindow()

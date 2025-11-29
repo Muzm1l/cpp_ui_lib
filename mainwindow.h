@@ -21,6 +21,7 @@
 #include <QTimer>
 #include <QPaintEvent>
 #include <QPushButton>
+#include <vector>
 #include <cstdlib>
 #include <ctime>
 
@@ -79,13 +80,8 @@ private:
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
     
-    // RTW R marker indicator button
-    QPushButton* rtwMarkerIndicatorButton; ///< Button that lights up when R marker is clicked
-    QTimer* rtwMarkerIndicatorTimer; ///< Timer to turn off the indicator after a few seconds
-    
-    // BTW manual marker indicator button
-    QPushButton* btwMarkerIndicatorButton; ///< Button that lights up when BTW manual marker is clicked
-    QTimer* btwMarkerIndicatorTimer; ///< Timer to turn off the indicator after a few seconds
+    // Time selection history storage (max 5 selections)
+    std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
     
     // void configureTimeVisualizer();
     // void configureTimelineView();
@@ -100,8 +96,7 @@ private:
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
-    void setupRTWMarkerIndicator(); ///< Setup RTW R marker indicator button
-    void setupBTWMarkerIndicator(); ///< Setup BTW manual marker indicator button
+    void setupTimeSelectionHistory(); ///< Setup time selection history storage
 
     long simTick;
 
@@ -154,32 +149,12 @@ private slots:
     void onLayoutTypeChanged(int index);
     
     /**
-     * @brief Handles RTW R marker click events
+     * @brief Handles time selection created events
      *
-     * Called when an R marker is clicked on an RTW graph.
+     * Called when a time selection is created on the timeline.
+     * Stores the selection timestamps in history (max 5).
      */
-    void onRTWRMarkerClicked(const QDateTime &timestamp, const QPointF &position);
-    
-    /**
-     * @brief Turns off the RTW marker indicator button
-     *
-     * Called by timer to reset the button after it lights up.
-     */
-    void turnOffRTWMarkerIndicator();
-    
-    /**
-     * @brief Handles BTW manual marker click events
-     *
-     * Called when a BTW manual marker is clicked on a BTW graph.
-     */
-    void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
-    
-    /**
-     * @brief Turns off the BTW marker indicator button
-     *
-     * Called by timer to reset the button after it lights up.
-     */
-    void turnOffBTWMarkerIndicator();
+    void onTimeSelectionCreated(const TimeSelectionSpan &selection);
 
     // /**
     //  * @brief Updates the current time in the time visualizer
