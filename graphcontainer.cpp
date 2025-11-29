@@ -152,6 +152,50 @@ void GraphContainer::onTimerTick()
         m_timelineView->setCurrentTime(currentTime);
     }
 
+    // Continuously update graph if showing recent data (within 1 minute of current time)
+    // This ensures data point animation continues after setDataToDataSource is called
+    if (m_currentWaterfallGraph && m_timelineView)
+    {
+        auto timeRange = m_currentWaterfallGraph->getTimeRange();
+        if (timeRange.first.isValid() && timeRange.second.isValid())
+        {
+            QDateTime currentDateTime = QDateTime::currentDateTime();
+            qint64 timeDiffMs = timeRange.second.msecsTo(currentDateTime);
+            
+            // If showing recent data (within 1 minute), update time range and redraw
+            if (timeDiffMs >= 0 && timeDiffMs < 60000)
+            {
+                // Check if we have new data to show
+                if (m_currentWaterfallGraph->getDataSource())
+                {
+                    QDateTime latestDataTime = m_currentWaterfallGraph->getDataSource()->getLatestTime();
+                    if (latestDataTime.isValid() && latestDataTime > timeRange.second)
+                    {
+                        // Update time range to include new data
+                        qint64 intervalMs = timeRange.first.msecsTo(timeRange.second);
+                        QDateTime newTimeMin = latestDataTime.addMSecs(-intervalMs);
+                        QDateTime newTimeMax = latestDataTime;
+                        
+                        m_currentWaterfallGraph->setTimeRange(newTimeMin, newTimeMax);
+                        
+                        // Update timeline view to match
+                        TimeSelectionSpan newWindow(newTimeMin, newTimeMax);
+                        m_timelineView->setVisibleTimeWindow(newWindow);
+                        
+                        // Redraw graph to show updated data
+                        redrawWaterfallGraph();
+                    }
+                    else
+                    {
+                        // Even if no new data, redraw to keep animation smooth
+                        // This ensures the graph continues updating as time progresses
+                        redrawWaterfallGraph();
+                    }
+                }
+            }
+        }
+    }
+
     // qDebug() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
 }
 
