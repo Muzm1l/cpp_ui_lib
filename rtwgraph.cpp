@@ -128,7 +128,32 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
     
     // Check if we clicked on an R marker (QGraphicsTextItem with text "R") in graphicsScene
     if (graphicsScene) {
+        // Use a more robust detection method: check all items at the position
+        // and also check items within a small bounding box around the click
+        // This handles cases where the click is slightly off the text bounding box
+        
+        // First, try the exact position
         QGraphicsItem *itemAtPos = graphicsScene->itemAt(scenePos, QTransform());
+        
+        // If no item found at exact position, try a small bounding box search
+        // This helps when clicking near but not exactly on the text
+        if (!itemAtPos) {
+            const qreal searchRadius = 10.0; // Search within 10 pixels
+            QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
+                           searchRadius * 2, searchRadius * 2);
+            QList<QGraphicsItem*> itemsInArea = graphicsScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
+            
+            // Look for R markers in the nearby items
+            for (QGraphicsItem *item : itemsInArea) {
+                QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item);
+                if (textItem && textItem->toPlainText() == "R") {
+                    itemAtPos = item;
+                    qDebug() << "RTWGraph: Found R marker using bounding box search";
+                    break;
+                }
+            }
+        }
+        
         qDebug() << "RTWGraph: itemAtPos:" << itemAtPos << "at scene position:" << scenePos;
         if (itemAtPos) {
             QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(itemAtPos);
@@ -138,7 +163,8 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                 qDebug() << "RTWGraph: Text item text:" << text;
                 if (text == "R") {
                     // This is an R marker - calculate timestamp from Y position
-                    qreal yPos = scenePos.y();
+                    // Use the marker's actual Y position for more accuracy
+                    qreal yPos = textItem->scenePos().y() + textItem->boundingRect().height() / 2.0;
                     QDateTime timestamp = mapScreenToTime(yPos);
                     
                     if (timestamp.isValid()) {
@@ -322,6 +348,10 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
             QRectF textRect = rMarker->boundingRect();
             rMarker->setPos(screenPos.x() - textRect.width()/2, screenPos.y() - textRect.height()/2);
             rMarker->setZValue(1000); // Very high z-value to ensure visibility
+            
+            // Make marker explicitly accept mouse events for reliable clicking
+            rMarker->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
+            rMarker->setAcceptHoverEvents(true);
             
             graphicsScene->addItem(rMarker);
             markersDrawn++;

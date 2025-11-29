@@ -20,6 +20,7 @@
 #include <QMainWindow>
 #include <QTimer>
 #include <QPaintEvent>
+#include <QPushButton>
 #include <cstdlib>
 #include <ctime>
 
@@ -78,6 +79,14 @@ private:
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
     
+    // RTW R marker indicator button
+    QPushButton* rtwMarkerIndicatorButton; ///< Button that lights up when R marker is clicked
+    QTimer* rtwMarkerIndicatorTimer; ///< Timer to turn off the indicator after a few seconds
+    
+    // BTW manual marker indicator button
+    QPushButton* btwMarkerIndicatorButton; ///< Button that lights up when BTW manual marker is clicked
+    QTimer* btwMarkerIndicatorTimer; ///< Timer to turn off the indicator after a few seconds
+    
     // void configureTimeVisualizer();
     // void configureTimelineView();
     void configureZoomPanel();
@@ -91,6 +100,8 @@ private:
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
+    void setupRTWMarkerIndicator(); ///< Setup RTW R marker indicator button
+    void setupBTWMarkerIndicator(); ///< Setup BTW manual marker indicator button
 
     long simTick;
 
@@ -141,6 +152,34 @@ private slots:
      * Called when user selects a different layout type from the combobox.
      */
     void onLayoutTypeChanged(int index);
+    
+    /**
+     * @brief Handles RTW R marker click events
+     *
+     * Called when an R marker is clicked on an RTW graph.
+     */
+    void onRTWRMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Turns off the RTW marker indicator button
+     *
+     * Called by timer to reset the button after it lights up.
+     */
+    void turnOffRTWMarkerIndicator();
+    
+    /**
+     * @brief Handles BTW manual marker click events
+     *
+     * Called when a BTW manual marker is clicked on a BTW graph.
+     */
+    void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Turns off the BTW marker indicator button
+     *
+     * Called by timer to reset the button after it lights up.
+     */
+    void turnOffBTWMarkerIndicator();
 
     // /**
     //  * @brief Updates the current time in the time visualizer
