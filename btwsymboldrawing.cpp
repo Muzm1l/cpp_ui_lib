@@ -66,13 +66,18 @@ QPixmap BTWSymbolDrawing::makeMagentaCircle()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    // Draw a small filled magenta circle
+    // Draw a small hollow magenta circle
     QColor magentaColor(255, 0, 255); // Magenta color
-    p.setPen(QPen(magentaColor, 2));
-    p.setBrush(QBrush(magentaColor));
+
+    // Use a cosmetic pen so the outline stays 1–2 px regardless of zoom
+    QPen pen(magentaColor);
+    pen.setWidthF(1.5);      // Thin outline
+    pen.setCosmetic(true);   // Width in screen pixels, not scene units
+    p.setPen(pen);
+    p.setBrush(Qt::NoBrush); // Hollow circle - no fill
     
-    // Make it smaller than RTW symbols - about 8 pixels diameter
-    qreal circleSize = 8.0;
+    // Keep it smaller than RTW symbols, but large enough to see the hole
+    qreal circleSize = 10.0; // Slightly larger than 8px so the ring is visible
     qreal offset = (size - circleSize) / 2.0;
     p.drawEllipse(QRectF(offset, offset, circleSize, circleSize));
 
