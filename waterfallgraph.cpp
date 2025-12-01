@@ -1070,18 +1070,21 @@ void WaterfallGraph::enterEvent(QEnterEvent *event)
     setMouseTracking(true);
     
     // Show crosshair when mouse enters if enabled
-    if (crosshairEnabled && m_cursorLayerEnabled)
+    if (crosshairEnabled)
     {
-        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(true);
-        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(true);
-    }
-    else if (crosshairEnabled)
-    {
-        showCrosshair();
+        if (m_cursorLayerEnabled)
+        {
+            cursorCrosshairHorizontal->setVisible(true);
+            cursorCrosshairVertical->setVisible(true);
+        }
+        else
+        {
+            showCrosshair();
+        }
     }
     
     // Ensure cursor layer timer is running
-    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
+    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
     {
         cursorUpdateTimer->start();
     }
@@ -1105,14 +1108,17 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     }
     
     // Hide crosshair when mouse leaves (but keep time axis cursor if valid)
-    if (m_cursorLayerEnabled)
+    if (crosshairEnabled)
     {
-        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
-        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
-    }
-    else if (crosshairEnabled)
-    {
-        hideCrosshair();
+        if (m_cursorLayerEnabled)
+        {
+            cursorCrosshairHorizontal->setVisible(false);
+            cursorCrosshairVertical->setVisible(false);
+        }
+        else
+        {
+            hideCrosshair();
+        }
     }
     
     // Clear mouse position
@@ -1246,7 +1252,7 @@ void WaterfallGraph::showEvent(QShowEvent *event)
     }
 
     // Start cursor update timer if cursor layer is enabled
-    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
+    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
     {
         cursorUpdateTimer->start();
     }
@@ -2517,31 +2523,25 @@ void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
         // Convert scene position to widget position for m_lastMousePos
         if (overlayView)
         {
-            QPoint widgetPos = overlayView->mapFromScene(mousePos);
-            m_lastMousePos = widgetPos;
+            m_lastMousePos = overlayView->mapFromScene(mousePos);
         }
         return;
     }
 
     // Legacy overlay mode: update crosshair directly
-    if (!crosshairHorizontal || !crosshairVertical || !overlayScene) {
+    if (!overlayScene) {
         return;
     }
     
     // Get the scene rectangle
     QRectF sceneRect = overlayScene->sceneRect();
-    
-    // If scene rect is empty, use widget dimensions
     if (sceneRect.isEmpty()) {
         sceneRect = QRectF(0, 0, this->width(), this->height());
     }
     
-    // Update horizontal line (left to right)
+    // Update horizontal and vertical lines
     crosshairHorizontal->setLine(sceneRect.left(), mousePos.y(), sceneRect.right(), mousePos.y());
-    
-    // Update vertical line (top to bottom)
     crosshairVertical->setLine(mousePos.x(), sceneRect.top(), mousePos.x(), sceneRect.bottom());
-    
 }
 
 /**
@@ -2551,17 +2551,13 @@ void WaterfallGraph::showCrosshair()
 {
     if (m_cursorLayerEnabled)
     {
-        // Cursor layer mode: show cursor layer items
-        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(true);
-        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(true);
+        cursorCrosshairHorizontal->setVisible(true);
+        cursorCrosshairVertical->setVisible(true);
     }
     else
     {
-        // Legacy overlay mode: show overlay items
-        if (crosshairHorizontal && crosshairVertical) {
-            crosshairHorizontal->setVisible(true);
-            crosshairVertical->setVisible(true);
-        }
+        crosshairHorizontal->setVisible(true);
+        crosshairVertical->setVisible(true);
     }
 }
 
@@ -2572,17 +2568,13 @@ void WaterfallGraph::hideCrosshair()
 {
     if (m_cursorLayerEnabled)
     {
-        // Cursor layer mode: hide cursor layer items
-        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
-        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
+        cursorCrosshairHorizontal->setVisible(false);
+        cursorCrosshairVertical->setVisible(false);
     }
     else
     {
-        // Legacy overlay mode: hide overlay items
-        if (crosshairHorizontal && crosshairVertical) {
-            crosshairHorizontal->setVisible(false);
-            crosshairVertical->setVisible(false);
-        }
+        crosshairHorizontal->setVisible(false);
+        crosshairVertical->setVisible(false);
     }
 }
 
@@ -2630,7 +2622,7 @@ void WaterfallGraph::updateCursorLayer()
         return;
     }
 
-    // Get the scene rectangle
+    // Get the scene rectangle (cache it to avoid recalculation)
     QRectF sceneRect = cursorScene->sceneRect();
     if (sceneRect.isEmpty())
     {
@@ -2638,51 +2630,53 @@ void WaterfallGraph::updateCursorLayer()
         cursorScene->setSceneRect(sceneRect);
     }
 
+    bool needsUpdate = false;
+
     // Update time axis cursor from shared state
+    bool timeAxisVisible = false;
     if (m_cursorSyncState && m_cursorSyncState->hasCursorTime && m_cursorSyncState->cursorTime.isValid())
     {
         qreal yPos = mapTimeToY(m_cursorSyncState->cursorTime);
-        if (yPos >= 0 && cursorTimeAxisLine)
+        if (yPos >= 0)
         {
             cursorTimeAxisLine->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
-            cursorTimeAxisLine->setVisible(true);
-        }
-        else if (cursorTimeAxisLine)
-        {
-            cursorTimeAxisLine->setVisible(false);
+            timeAxisVisible = true;
+            needsUpdate = true;
         }
     }
-    else if (cursorTimeAxisLine)
+    
+    if (cursorTimeAxisLine->isVisible() != timeAxisVisible)
     {
-        cursorTimeAxisLine->setVisible(false);
+        cursorTimeAxisLine->setVisible(timeAxisVisible);
+        needsUpdate = true;
     }
 
     // Update crosshair from last mouse position
-    if (crosshairEnabled && !m_lastMousePos.isNull() && 
-        m_lastMousePos.x() >= 0 && m_lastMousePos.y() >= 0 &&
-        m_lastMousePos.x() < this->width() && m_lastMousePos.y() < this->height())
+    bool crosshairVisible = crosshairEnabled && !m_lastMousePos.isNull() && 
+                            m_lastMousePos.x() >= 0 && m_lastMousePos.y() >= 0 &&
+                            m_lastMousePos.x() < this->width() && m_lastMousePos.y() < this->height();
+    
+    if (crosshairVisible)
     {
-        if (cursorCrosshairHorizontal)
-        {
-            cursorCrosshairHorizontal->setLine(sceneRect.left(), m_lastMousePos.y(), 
-                                               sceneRect.right(), m_lastMousePos.y());
-            cursorCrosshairHorizontal->setVisible(true);
-        }
-        if (cursorCrosshairVertical)
-        {
-            cursorCrosshairVertical->setLine(m_lastMousePos.x(), sceneRect.top(), 
-                                             m_lastMousePos.x(), sceneRect.bottom());
-            cursorCrosshairVertical->setVisible(true);
-        }
+        cursorCrosshairHorizontal->setLine(sceneRect.left(), m_lastMousePos.y(), 
+                                           sceneRect.right(), m_lastMousePos.y());
+        cursorCrosshairVertical->setLine(m_lastMousePos.x(), sceneRect.top(), 
+                                         m_lastMousePos.x(), sceneRect.bottom());
+        needsUpdate = true;
     }
-    else
+    
+    if (cursorCrosshairHorizontal->isVisible() != crosshairVisible)
     {
-        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
-        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
+        cursorCrosshairHorizontal->setVisible(crosshairVisible);
+        cursorCrosshairVertical->setVisible(crosshairVisible);
+        needsUpdate = true;
     }
 
-    // Trigger repaint
-    cursorView->update();
+    // Only trigger repaint if something changed
+    if (needsUpdate)
+    {
+        cursorView->update();
+    }
 }
 
 /**
@@ -2709,28 +2703,21 @@ void WaterfallGraph::setCursorLayerEnabled(bool enabled)
 
         if (enabled)
         {
-            // Start timer if not already running
-            if (cursorUpdateTimer && !cursorUpdateTimer->isActive())
+            if (!cursorUpdateTimer->isActive())
             {
                 cursorUpdateTimer->start();
-            }
-            // Show cursor items if they should be visible
-            if (m_cursorSyncState && m_cursorSyncState->hasCursorTime && cursorTimeAxisLine)
-            {
-                cursorTimeAxisLine->setVisible(true);
             }
         }
         else
         {
-            // Stop timer
-            if (cursorUpdateTimer && cursorUpdateTimer->isActive())
+            if (cursorUpdateTimer->isActive())
             {
                 cursorUpdateTimer->stop();
             }
             // Hide all cursor items
-            if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
-            if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
-            if (cursorTimeAxisLine) cursorTimeAxisLine->setVisible(false);
+            cursorCrosshairHorizontal->setVisible(false);
+            cursorCrosshairVertical->setVisible(false);
+            cursorTimeAxisLine->setVisible(false);
         }
     }
 }
