@@ -1098,15 +1098,19 @@ void GraphLayout::registerCursorSyncCallbacks()
 
 void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time)
 {
-    for (auto *container : m_graphContainers)
+    // Update shared sync state
+    if (time.isValid())
     {
-        if (!container || container == source)
-        {
-            continue;
-        }
-
-        container->applySharedTimeAxisCursor(time);
+        m_syncState.cursorTime = time;
+        m_syncState.hasCursorTime = true;
     }
+    else
+    {
+        m_syncState.hasCursorTime = false;
+    }
+
+    // All containers now read from sync state via timer, so no need to call applySharedTimeAxisCursor
+    // The cursor layer in each WaterfallGraph will automatically read from m_syncState
 }
 
 void GraphLayout::onTimeSelectionsCleared()
