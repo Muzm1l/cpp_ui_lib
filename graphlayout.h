@@ -13,6 +13,7 @@
 #include <QWidget>
 #include <map>
 #include <vector>
+#include "sharedsyncstate.h"
 
 enum class LayoutType
 {
@@ -115,6 +116,9 @@ public slots:
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
     void onTimeSelectionsCleared();
 
+public slots:
+    void onContainerIntervalChanged(TimeInterval interval);
+
 private:
     LayoutType m_layoutType;
     QTimer *m_timer;
@@ -138,6 +142,10 @@ private:
     void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
     void registerCursorSyncCallbacks();
     void onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time);
+    void onContainerTimeScopeChanged(const TimeSelectionSpan &selection);
+
+    // Container synchronization state
+    GraphContainerSyncState m_syncState;
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);

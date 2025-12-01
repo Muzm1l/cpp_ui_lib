@@ -25,12 +25,21 @@
 #include <functional>
 #include <map>
 #include <vector>
+#include "sharedsyncstate.h"
+
 
 class GraphContainer : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), QTimer *timer = nullptr, int containerWidth = 0, int containerHeight = 0);
+    explicit GraphContainer(QWidget *parent = nullptr, 
+        bool showTimelineView = true, 
+        std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), 
+        QTimer *timer = nullptr, 
+        int containerWidth = 0, 
+        int containerHeight = 0, 
+        GraphContainerSyncState *syncState = nullptr
+    );
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
@@ -104,8 +113,12 @@ public:
     // Public method for external components to update time interval
     void updateTimeInterval(TimeInterval interval);
 
-    // Unified data change notification handler
-    void onDataChanged(GraphType graphType);
+    // API to set time interval without emitting signals (for centralized sync)
+    void setTimeInterval(TimeInterval interval);
+    
+    // API to set time scope without emitting signals (for centralized sync from GraphLayout hub)
+    void setTimeScope(const TimeSelectionSpan &selection);
+
 
     // Chevron label control methods
     void setChevronLabel1(const QString &label);
@@ -140,6 +153,9 @@ public slots:
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
     void onTimeScopeChanged(const TimeSelectionSpan &selection);
+    void onGraphContainerInFollowModeChanged(bool isInFollowMode);
+    // Unified data change notification handler
+    void onDataChanged(GraphType graphType);
 
 private:
     void updateTotalContainerSize();
@@ -206,6 +222,16 @@ private:
     std::function<void(GraphContainer *, const QDateTime &)> m_cursorTimeChangedCallback;
     QDateTime m_sharedCursorTime;
     bool m_hasSharedCursorTime;
+
+    // Graph container in follow mode
+    bool m_isInFollowMode = true;
+
+    // Shared synchronization state pointer
+    GraphContainerSyncState *m_syncState;
+    
+    // Track last known time scope from sync state to detect changes
+    TimeSelectionSpan m_lastSyncedTimeScope;
+    bool m_hasLastSyncedTimeScope;
 };
 
 #endif // GRAPHCONTAINER_H

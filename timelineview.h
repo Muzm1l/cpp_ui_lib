@@ -27,6 +27,13 @@
 #define TIMELINE_VIEW_BUTTON_SIZE 64
 #define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 80
 
+// Enum describing the follow mode of the timeline view
+enum class TimelineViewMode
+{
+    FOLLOW_MODE = 0,
+    FROZEN_MODE = 1,
+};
+
 // Forward declarations
 class TimelineVisualizerWidget;
 
@@ -142,6 +149,13 @@ public:
     // Slider visible window access
     TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
 
+    // Mode control
+    void setTimelineViewMode(TimelineViewMode mode);
+    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
+    
+    // Set time window without emitting signals (for external synchronization)
+    void setTimeWindowSilent(const TimeSelectionSpan& window);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -182,6 +196,9 @@ private:
     TimeSelectionSpan m_sliderVisibleWindow;
     QGraphicsRectItem* m_sliderIndicator = nullptr; // Kept for now but may be removed
 
+    // Timeline view mode
+    TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -203,6 +220,7 @@ private:
 
 signals:
     void visibleTimeWindowChanged(const TimeSelectionSpan& selection);
+    void timelineViewModeChanged(TimelineViewMode mode);
 
 };
 
@@ -234,9 +252,17 @@ public:
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
 
+    // Mode control
+    void setTimelineViewMode(TimelineViewMode mode);
+    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
+    
+    // Set time window without emitting signals (for external synchronization)
+    void setTimeWindowSilent(const TimeSelectionSpan& window);
+
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
     void TimeScopeChanged(const TimeSelectionSpan& selection);
+    void GraphContainerInFollowModeChanged(bool isInFollowMode);
 
 private:
     QPushButton* m_intervalChangeButton;
@@ -254,6 +280,11 @@ private:
     void updateTimeModeButtonText(bool isAbsoluteTime);
     void setupTimer();
     void onVisibleTimeWindowChanged(const TimeSelectionSpan& selection);
+    void onTimelineViewModeChanged(TimelineViewMode mode);
+    void handleModeTransitionLogic(TimelineViewMode newMode);
+
+    // Timeline view mode
+    TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
 
 private slots:
     void onIntervalButtonClicked();

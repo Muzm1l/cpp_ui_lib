@@ -3,7 +3,7 @@
 #include <QTimer>
 #include <stdexcept>
 
-GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer, int containerWidth, int containerHeight)
+GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<QString, QColor> seriesColorsMap, QTimer *timer, int containerWidth, int containerHeight, GraphContainerSyncState *syncState)
     : QWidget{parent}, 
     m_showTimelineView(showTimelineView), 
     m_timer(timer), 
@@ -14,7 +14,10 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     currentDataOption(GraphType::BDW), 
     m_updatingTimeInterval(false),
     m_sharedCursorTime(QDateTime()),
-    m_hasSharedCursorTime(false)
+    m_hasSharedCursorTime(false),
+    m_isInFollowMode(true),
+    m_syncState(syncState),
+    m_hasLastSyncedTimeScope(false)
 {
     // Set size policy to expand both horizontally and vertically
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -145,8 +148,26 @@ void GraphContainer::onTimerTick()
 
     if (m_timelineView)
     {
+        // Update mode from sync state if available and mode has changed
+        if (m_syncState)
+        {
+            TimelineViewMode newMode = m_syncState->isGraphContainerInFollowMode 
+                ? TimelineViewMode::FOLLOW_MODE 
+                : TimelineViewMode::FROZEN_MODE;
+            
+            // Only update mode if it has actually changed to avoid resetting slider unnecessarily
+            if (m_timelineView->getTimelineViewMode() != newMode)
+            {
+                m_timelineView->setTimelineViewMode(newMode);
+            }
+        }
+        
+        // TimelineView will decide whether to update slider based on its current mode
         m_timelineView->setCurrentTime(currentTime);
     }
+
+    // Note: Time scope synchronization is now handled by GraphLayout hub
+    // GraphLayout propagates changes directly via setTimeScope() method
 
     // qDebug() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
 }
@@ -527,6 +548,9 @@ void GraphContainer::setupEventConnections()
         
         connect(m_timelineView, &TimelineView::TimeScopeChanged,
                 this, &GraphContainer::onTimeScopeChanged);
+        
+        connect(m_timelineView, &TimelineView::GraphContainerInFollowModeChanged,
+                this, &GraphContainer::onGraphContainerInFollowModeChanged);
     }
 
     // Connect TimeSelectionVisualizer clear button events
@@ -802,13 +826,27 @@ void GraphContainer::subscribeToIntervalChange(QObject *subscriber, const char *
 
 void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Handling emitted signal - Time interval changed to" << timeIntervalToString(interval);
+    qDebug() << "GraphContainer: Handling time interval change to" << timeIntervalToString(interval);
 
-    // Update the time interval for the waterfall graph and time selection visualizer
+    // Update the time interval locally
     updateTimeInterval(interval);
 
-    // Emit the signal to notify other components
+    // Emit the signal so GraphLayout can propagate to all other containers
+    // This won't cause loops because setTimeInterval() (used by GraphLayout) doesn't emit signals
     emit IntervalChanged(interval);
+}
+
+void GraphContainer::onGraphContainerInFollowModeChanged(bool isInFollowMode)
+{
+    m_isInFollowMode = isInFollowMode;
+    
+    // Update sync state so other containers can be synchronized
+    if (m_syncState)
+    {
+        m_syncState->isGraphContainerInFollowMode = isInFollowMode;
+    }
+    
+    qDebug() << "GraphContainer: Graph container in follow mode changed to" << isInFollowMode;
 }
 
 void GraphContainer::updateTimeInterval(TimeInterval interval)
@@ -818,10 +856,24 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
     // Set flag to prevent TimeScopeChanged from interfering
     m_updatingTimeInterval = true;
 
-    // Update the waterfall graph time interval
+    // Update ALL waterfall graphs' time interval (not just current one)
+    // This ensures all graphs have the correct interval when switching between them
+    // setTimeInterval() updates the interval, recalculates time ranges, and triggers a redraw
+    for (auto &pair : m_waterfallGraphs)
+    {
+        if (pair.second)
+        {
+            pair.second->setTimeInterval(interval);
+            qDebug() << "GraphContainer: Updated interval for graph type:" << graphTypeToString(pair.first);
+        }
+    }
+
+    // Explicitly redraw the current waterfall graph to ensure visual update
+    // (setTimeInterval already calls draw(), but this ensures it's definitely updated)
     if (m_currentWaterfallGraph)
     {
-        m_currentWaterfallGraph->setTimeInterval(interval);
+        m_currentWaterfallGraph->draw();
+        qDebug() << "GraphContainer: Explicitly redrew current waterfall graph after interval update";
     }
 
     // Update the time selection visualizer time interval
@@ -844,6 +896,17 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         m_updatingTimeInterval = false;
         qDebug() << "GraphContainer: Time interval update complete, TimeScopeChanged handler re-enabled";
     });
+}
+
+void GraphContainer::setTimeInterval(TimeInterval interval)
+{
+    qDebug() << "GraphContainer: Setting time interval to" << timeIntervalToString(interval) << "(no signal emission)";
+    
+    // Update the interval without emitting signals (for centralized sync from GraphLayout)
+    updateTimeInterval(interval);
+    
+    // Note: This method does NOT emit IntervalChanged signal to avoid event loops
+    // when GraphLayout is synchronizing intervals across containers
 }
 
 void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
@@ -894,10 +957,49 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     // Update the waterfall graph's time range to match the visible scope
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
 
-    // Emit the signal so other containers in the row can update
+    // Update shared sync state so other containers can be synchronized
+    if (m_syncState)
+    {
+        m_syncState->currentTimeScope = selection;
+        m_syncState->hasTimeScope = true;
+        m_lastSyncedTimeScope = selection;
+        m_hasLastSyncedTimeScope = true;
+    }
+
+    // Emit the signal so GraphLayout hub can propagate to other containers
     emit TimeScopeChanged(selection);
 
     qDebug() << "GraphContainer: Waterfall graph time range updated and signal emitted";
+}
+
+void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
+{
+    // This method is called by GraphLayout hub to update time scope without triggering signals
+    // Skip processing if we're in the middle of updating the time interval
+    if (m_updatingTimeInterval)
+    {
+        return;
+    }
+
+    if (!m_currentWaterfallGraph)
+    {
+        return;
+    }
+
+    // Update the waterfall graph's time range to match the visible scope
+    m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
+
+    // Update timeline view slider position to match the time scope
+    if (m_timelineView)
+    {
+        m_timelineView->setTimeWindowSilent(selection);
+    }
+
+    // Update local tracking
+    m_lastSyncedTimeScope = selection;
+    m_hasLastSyncedTimeScope = true;
+
+    qDebug() << "GraphContainer: Time scope set (silent) from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)
@@ -937,6 +1039,21 @@ void GraphContainer::setCurrentTime(const QTime &time)
 
     if (m_timelineView)
     {
+        // Update mode from sync state if available and mode has changed
+        if (m_syncState)
+        {
+            TimelineViewMode newMode = m_syncState->isGraphContainerInFollowMode 
+                ? TimelineViewMode::FOLLOW_MODE 
+                : TimelineViewMode::FROZEN_MODE;
+            
+            // Only update mode if it has actually changed to avoid resetting slider unnecessarily
+            if (m_timelineView->getTimelineViewMode() != newMode)
+            {
+                m_timelineView->setTimelineViewMode(newMode);
+            }
+        }
+        
+        // TimelineView will decide whether to update slider based on its current mode
         m_timelineView->setCurrentTime(time);
     }
 }

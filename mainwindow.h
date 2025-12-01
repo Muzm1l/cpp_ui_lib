@@ -71,6 +71,7 @@ private:
     QLabel* timespanStartLabel; ///< Label to display start time
     QLabel* timespanEndLabel; ///< Label to display end time
     QLabel* timespanDurationLabel; ///< Label to display duration
+    QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
 
     // void configureTimeVisualizer();
     // void configureTimelineView();

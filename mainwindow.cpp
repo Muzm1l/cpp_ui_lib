@@ -329,6 +329,28 @@ void MainWindow::setupTimelineView()
     timespanDurationLabel->setGeometry(QRect(280, 170, 200, 25));
     timespanDurationLabel->setStyleSheet("QLabel { color: cyan; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 1px solid gray; border-radius: 3px; }");
     
+    QLabel* modeTitleLabel = new QLabel("Mode:", timelineViewTab);
+    modeTitleLabel->setGeometry(QRect(150, 205, 120, 25));
+    modeTitleLabel->setStyleSheet("QLabel { color: white; font-size: 13px; font-weight: bold; }");
+    
+    timelineModeLabel = new QLabel("FOLLOW_MODE", timelineViewTab);
+    timelineModeLabel->setGeometry(QRect(280, 205, 200, 25));
+    timelineModeLabel->setStyleSheet("QLabel { color: lime; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 2px solid lime; border-radius: 3px; }");
+    
+    // Connect mode change signal to update mode label
+    connect(testTimelineView, &TimelineView::GraphContainerInFollowModeChanged,
+            [this](bool isInFollowMode) {
+                if (timelineModeLabel) {
+                    if (isInFollowMode) {
+                        timelineModeLabel->setText("FOLLOW_MODE");
+                        timelineModeLabel->setStyleSheet("QLabel { color: lime; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 2px solid lime; border-radius: 3px; }");
+                    } else {
+                        timelineModeLabel->setText("FROZEN_MODE");
+                        timelineModeLabel->setStyleSheet("QLabel { color: red; font-size: 13px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 4px; border: 2px solid red; border-radius: 3px; }");
+                    }
+                }
+            });
+    
     // Add instructions label
     QLabel* instructionsLabel = new QLabel(
         "Instructions:\n"

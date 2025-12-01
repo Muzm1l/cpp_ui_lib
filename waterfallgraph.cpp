@@ -428,6 +428,13 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     // Force redraw regardless of data presence to update grid and layout
     draw();
 
+    // Explicitly update the graphics view to ensure repaint
+    if (graphicsView)
+    {
+        graphicsView->update();
+        graphicsView->viewport()->update();
+    }
+
     qDebug() << "Time interval set to:" << timeIntervalToString(interval);
 }
 
