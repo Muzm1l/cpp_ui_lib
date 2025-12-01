@@ -122,6 +122,19 @@ protected:
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
+
+    // State machine for rendering
+    enum class RenderState {
+        CLEAN,
+        RANGE_UPDATE_ONLY,
+        INCREMENTAL_UPDATE,
+        FULL_REDRAW
+    };
+    void setRenderState(RenderState newState);
+    void markSeriesDirty(const QString &seriesLabel);
+    void markAllSeriesDirty();
+    void markRangeUpdateNeeded();
+    void transitionToAppropriateState();
     void updateDataRanges();
     void updateYRange();
     void updateYRangeFromData();
@@ -152,9 +165,8 @@ protected:
     std::map<QString, bool> seriesVisibility;
 
     // Incremental rendering support
-    bool m_needsFullRedraw;
-    bool m_dataDirty;
-    bool m_rangeDirty;
+    RenderState m_renderState;
+    bool m_rangeUpdateNeeded;
     std::set<QString> m_dirtySeries;
     std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
     std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;

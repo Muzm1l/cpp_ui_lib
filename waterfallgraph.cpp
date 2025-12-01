@@ -40,9 +40,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     selectionRect(nullptr), 
     autoUpdateYRange(true),
     lastNotifiedCursorTime(QDateTime()),
-    m_needsFullRedraw(true),
-    m_dataDirty(false),
-    m_rangeDirty(false)
+    m_renderState(RenderState::FULL_REDRAW),
+    m_rangeUpdateNeeded(false)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -188,16 +187,8 @@ WaterfallGraph::~WaterfallGraph()
 void WaterfallGraph::setDataSource(WaterfallData &dataSource)
 {
     this->dataSource = &dataSource;
-    // New data source requires full redraw
-    m_needsFullRedraw = true;
-    if (this->dataSource && !this->dataSource->isEmpty())
-    {
-        std::vector<QString> allSeries = this->dataSource->getDataSeriesLabels();
-        for (const QString &seriesLabel : allSeries)
-        {
-            m_dirtySeries.insert(seriesLabel);
-        }
-    }
+    // New data source requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
     draw(); // Trigger redraw with new data source
     qDebug() << "Data source set successfully";
 }
@@ -300,10 +291,9 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, cons
 
     qDebug() << "Data point added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark series as dirty for incremental rendering
-    m_dirtySeries.insert(seriesLabel);
-    m_dataDirty = true;
-    m_rangeDirty = true;
+    // Mark series as dirty and range update needed
+    markSeriesDirty(seriesLabel);
+    markRangeUpdateNeeded();
     dataRangesValid = false;
 
     // Use incremental draw instead of full redraw
@@ -328,10 +318,9 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
 
     qDebug() << "Data points added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark series as dirty for incremental rendering
-    m_dirtySeries.insert(seriesLabel);
-    m_dataDirty = true;
-    m_rangeDirty = true;
+    // Mark series as dirty and range update needed
+    markSeriesDirty(seriesLabel);
+    markRangeUpdateNeeded();
     dataRangesValid = false;
 
     // Use incremental draw instead of full redraw
@@ -487,7 +476,7 @@ void WaterfallGraph::setGridEnabled(bool enabled)
     if (gridEnabled != enabled)
     {
         gridEnabled = enabled;
-        m_needsFullRedraw = true; // Grid change requires full redraw
+        setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
         draw(); // Redraw to show/hide grid
         qDebug() << "Grid" << (enabled ? "enabled" : "disabled");
     }
@@ -515,7 +504,7 @@ void WaterfallGraph::setGridDivisions(int divisions)
         gridDivisions = divisions;
         if (gridEnabled)
         {
-            m_needsFullRedraw = true; // Grid change requires full redraw
+            setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
             draw(); // Redraw to update grid divisions
         }
         qDebug() << "Grid divisions set to:" << divisions;
@@ -558,20 +547,10 @@ void WaterfallGraph::draw()
     if (!graphicsScene)
         return;
 
-    // Mark for full redraw and mark all series as dirty
-    m_needsFullRedraw = true;
-    if (dataSource && !dataSource->isEmpty())
-    {
-        std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-        for (const QString &seriesLabel : allSeries)
-        {
-            m_dirtySeries.insert(seriesLabel);
-        }
-    }
-    m_rangeDirty = true;
-    m_dataDirty = true;
+    // Mark for full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
 
-    // Use incremental draw which will handle the full redraw flag
+    // Use incremental draw which will handle the full redraw state
     drawIncremental();
 }
 
@@ -584,72 +563,179 @@ void WaterfallGraph::drawIncremental()
     if (!graphicsScene)
         return;
 
-    // If full redraw is needed, clear the scene and redraw everything
-    if (m_needsFullRedraw)
+    switch (m_renderState)
     {
-        // Clear existing items
-        graphicsScene->clear();
-        
-        // Clear graphics item tracking maps since we're starting fresh
-        m_seriesPathItems.clear();
-        for (auto &pair : m_seriesPointItems)
-        {
-            pair.second.clear();
-        }
-        m_seriesPointItems.clear();
+        case RenderState::CLEAN:
+            return; // Nothing to do
 
-        // Update the drawing area
-        setupDrawingArea();
-
-        // Draw grid if enabled
-        if (gridEnabled)
-        {
-            drawGrid();
-        }
-    }
-
-    // Update ranges if needed
-    if (m_rangeDirty || !dataRangesValid)
-    {
-        if (dataSource && !dataSource->isEmpty())
-        {
-            updateDataRanges();
-        }
-        m_rangeDirty = false;
-    }
-
-    // Draw series - if full redraw, draw all visible series; otherwise only dirty ones
-    if (dataSource && !dataSource->isEmpty() && dataRangesValid)
-    {
-        if (m_needsFullRedraw)
-        {
-            // On full redraw, draw all visible series
-            std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-            for (const QString &seriesLabel : allSeries)
+        case RenderState::RANGE_UPDATE_ONLY:
+            // Update ranges only
+            if (dataSource && !dataSource->isEmpty())
             {
-                if (isSeriesVisible(seriesLabel))
+                updateDataRanges();
+            }
+            m_rangeUpdateNeeded = false;
+            m_renderState = RenderState::CLEAN;
+            break;
+
+        case RenderState::INCREMENTAL_UPDATE:
+            // Update ranges if needed
+            if (m_rangeUpdateNeeded || !dataRangesValid)
+            {
+                if (dataSource && !dataSource->isEmpty())
                 {
-                    drawDataSeries(seriesLabel);
+                    updateDataRanges();
+                }
+                m_rangeUpdateNeeded = false;
+            }
+
+            // Redraw only dirty series
+            if (dataSource && !dataSource->isEmpty() && dataRangesValid)
+            {
+                for (const QString &seriesLabel : m_dirtySeries)
+                {
+                    if (isSeriesVisible(seriesLabel))
+                    {
+                        drawDataSeries(seriesLabel);
+                    }
                 }
             }
-        }
-        else
-        {
-            // On incremental update, draw only dirty series
-            for (const QString &seriesLabel : m_dirtySeries)
+
+            m_dirtySeries.clear();
+            m_renderState = RenderState::CLEAN;
+            break;
+
+        case RenderState::FULL_REDRAW:
+            // Clear scene and graphics item maps
+            graphicsScene->clear();
+            m_seriesPathItems.clear();
+            for (auto &pair : m_seriesPointItems)
             {
-                if (isSeriesVisible(seriesLabel))
+                pair.second.clear();
+            }
+            m_seriesPointItems.clear();
+
+            // Update drawing area and grid
+            setupDrawingArea();
+            if (gridEnabled)
+            {
+                drawGrid();
+            }
+
+            // Update ranges
+            if (dataSource && !dataSource->isEmpty())
+            {
+                updateDataRanges();
+            }
+            m_rangeUpdateNeeded = false;
+
+            // Redraw all series
+            if (dataSource && !dataSource->isEmpty() && dataRangesValid)
+            {
+                std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
+                for (const QString &seriesLabel : allSeries)
                 {
-                    drawDataSeries(seriesLabel);
+                    if (isSeriesVisible(seriesLabel))
+                    {
+                        drawDataSeries(seriesLabel);
+                    }
                 }
             }
-        }
+
+            m_dirtySeries.clear();
+            m_renderState = RenderState::CLEAN;
+            break;
+    }
+}
+
+/**
+ * @brief Transition to the appropriate state based on current conditions.
+ *
+ */
+void WaterfallGraph::transitionToAppropriateState()
+{
+    // FULL_REDRAW takes precedence - don't downgrade from it
+    if (m_renderState == RenderState::FULL_REDRAW)
+    {
+        return;
     }
 
-    // Clear dirty flags after processing
-    m_dirtySeries.clear();
-    m_dataDirty = false;
-    m_needsFullRedraw = false;
+    // If series are dirty, need incremental update
+    if (!m_dirtySeries.empty())
+    {
+        m_renderState = RenderState::INCREMENTAL_UPDATE;
+        return;
+    }
+
+    // If only ranges need update
+    if (m_rangeUpdateNeeded || !dataRangesValid)
+    {
+        m_renderState = RenderState::RANGE_UPDATE_ONLY;
+        return;
+    }
+
+    // Otherwise clean
+    m_renderState = RenderState::CLEAN;
+}
+
+/**
+ * @brief Set the render state, with FULL_REDRAW taking precedence.
+ *
+ */
+void WaterfallGraph::setRenderState(RenderState newState)
+{
+    // FULL_REDRAW can only be set explicitly, never downgraded
+    if (m_renderState == RenderState::FULL_REDRAW && newState != RenderState::FULL_REDRAW)
+    {
+        return; // Don't downgrade from FULL_REDRAW
+    }
+
+    // FULL_REDRAW always supersedes
+    if (newState == RenderState::FULL_REDRAW)
+    {
+        m_renderState = RenderState::FULL_REDRAW;
+        markAllSeriesDirty();
+        return;
+    }
+
+    m_renderState = newState;
+}
+
+/**
+ * @brief Mark a specific series as dirty.
+ *
+ */
+void WaterfallGraph::markSeriesDirty(const QString &seriesLabel)
+{
+    m_dirtySeries.insert(seriesLabel);
+    transitionToAppropriateState();
+}
+
+/**
+ * @brief Mark all series as dirty and set state to FULL_REDRAW.
+ *
+ */
+void WaterfallGraph::markAllSeriesDirty()
+{
+    if (dataSource && !dataSource->isEmpty())
+    {
+        std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
+        for (const QString &seriesLabel : allSeries)
+        {
+            m_dirtySeries.insert(seriesLabel);
+        }
+    }
+    m_renderState = RenderState::FULL_REDRAW;
+}
+
+/**
+ * @brief Mark that ranges need updating.
+ *
+ */
+void WaterfallGraph::markRangeUpdateNeeded()
+{
+    m_rangeUpdateNeeded = true;
+    transitionToAppropriateState();
 }
 
 /**
@@ -1409,18 +1495,14 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     // Always update Y range immediately when custom range is set
     updateYRange();
 
-    // Y range change significantly requires full redraw and all series need updating
+    // Y range change significantly requires full redraw, otherwise just range update
     if (significantChange)
     {
-        m_needsFullRedraw = true;
-        if (dataSource && !dataSource->isEmpty())
-        {
-            std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-            for (const QString &seriesLabel : allSeries)
-            {
-                m_dirtySeries.insert(seriesLabel);
-            }
-        }
+        setRenderState(RenderState::FULL_REDRAW);
+    }
+    else
+    {
+        markRangeUpdateNeeded();
     }
 
     // Force redraw to show new range
@@ -2069,16 +2151,8 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
     this->timeMin = timeMin;
     this->timeMax = timeMax;
 
-    // Time range change requires full redraw and all series need updating
-    m_needsFullRedraw = true;
-    if (dataSource && !dataSource->isEmpty())
-    {
-        std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-        for (const QString &seriesLabel : allSeries)
-        {
-            m_dirtySeries.insert(seriesLabel);
-        }
-    }
+    // Time range change requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
 
     // Force redraw to show new time range
     draw();
@@ -2104,16 +2178,8 @@ void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
         setTimeRangeFromData();
     }
 
-    // Time range change requires full redraw and all series need updating
-    m_needsFullRedraw = true;
-    if (dataSource && !dataSource->isEmpty())
-    {
-        std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-        for (const QString &seriesLabel : allSeries)
-        {
-            m_dirtySeries.insert(seriesLabel);
-        }
-    }
+    // Time range change requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
 
     // Force redraw to show new time range
     draw();
@@ -2139,16 +2205,8 @@ void WaterfallGraph::setTimeMin(const QDateTime &timeMin)
         setTimeRangeFromData();
     }
 
-    // Time range change requires full redraw and all series need updating
-    m_needsFullRedraw = true;
-    if (dataSource && !dataSource->isEmpty())
-    {
-        std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
-        for (const QString &seriesLabel : allSeries)
-        {
-            m_dirtySeries.insert(seriesLabel);
-        }
-    }
+    // Time range change requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
 
     // Force redraw to show new time range
     draw();
