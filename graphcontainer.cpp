@@ -88,11 +88,11 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_timelineSelectionView->setTimeLineLength(TimeInterval::FifteenMinutes);
     m_timelineSelectionView->setVisible(m_showTimelineView);
 
-    // Create TimelineView (conditionally based on showTimelineView) with timer
+    // Create TimelineView (conditionally based on showTimelineView) with timer and sync state
     if (m_showTimelineView)
     {
         qDebug() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
-        m_timelineView = new TimelineView(this, m_timer);
+        m_timelineView = new TimelineView(this, m_timer, m_syncState);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
@@ -196,7 +196,7 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     else
     {
         qDebug() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
-        m_timelineView = new TimelineView(this, m_timer);
+        m_timelineView = new TimelineView(this, m_timer, m_syncState);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         // Insert at position 0 (leftmost) to match the reversed layout order

@@ -45,7 +45,8 @@ SOURCES += \
     rtwgraph.cpp \
     simulator.cpp \
     interactivegraphicsitem.cpp \
-    btwinteractiveoverlay.cpp 
+    btwinteractiveoverlay.cpp \
+    navtimeutils.cpp 
 
 HEADERS += \
     graphcontainer.h \
@@ -71,7 +72,8 @@ HEADERS += \
     rtwgraph.h \
     simulator.h \
     interactivegraphicsitem.h \
-    btwinteractiveoverlay.h 
+    btwinteractiveoverlay.h \
+    navtimeutils.h 
 
 FORMS += \
     mainwindow.ui
