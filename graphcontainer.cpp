@@ -706,6 +706,13 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
     graph->setCursorTimeChangedCallback([this](const QDateTime &time) {
         handleCursorTimeChanged(time);
     });
+    
+    // Set shared sync state for cursor layer
+    if (m_syncState)
+    {
+        graph->setCursorSyncState(m_syncState);
+    }
+    
     applyCursorTimeToGraph(graph);
 
     // Connect DeleteInteractiveMarkers signal to BTWGraph

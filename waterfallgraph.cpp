@@ -15,7 +15,16 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     graphicsView(nullptr), 
     graphicsScene(nullptr), 
     overlayView(nullptr), 
-    overlayScene(nullptr), 
+    overlayScene(nullptr),
+    cursorView(nullptr),
+    cursorScene(nullptr),
+    cursorUpdateTimer(nullptr),
+    cursorCrosshairHorizontal(nullptr),
+    cursorCrosshairVertical(nullptr),
+    cursorTimeAxisLine(nullptr),
+    m_cursorSyncState(nullptr),
+    m_lastMousePos(QPointF()),
+    m_cursorLayerEnabled(true), 
     gridEnabled(enableGrid), 
     gridDivisions(gridDivisions), 
     yMin(0.0), 
@@ -145,6 +154,65 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
         overlayScene->addItem(timeAxisCursor);
     }
 
+    // Initialize cursor layer
+    cursorScene = new QGraphicsScene(this);
+    cursorScene->setBackgroundBrush(QBrush(Qt::transparent)); // Transparent background
+
+    // Create cursor graphics view
+    cursorView = new QGraphicsView(cursorScene, this);
+    cursorView->setRenderHint(QPainter::Antialiasing);
+    cursorView->setDragMode(QGraphicsView::NoDrag);
+    cursorView->setMouseTracking(true);
+    // Make cursor view transparent to mouse events so WaterfallGraph receives them
+    cursorView->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+
+    // Set transparent background for cursor view
+    cursorView->setBackgroundBrush(QBrush(Qt::transparent));
+    cursorView->setStyleSheet("background: transparent;");
+
+    // Disable scrollbars for cursor view
+    cursorView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    cursorView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+
+    // Ensure the cursor view fits the scene exactly
+    cursorView->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    cursorView->setFrameStyle(QFrame::NoFrame);
+
+    // Set size policy for cursor view to fill the widget
+    cursorView->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+
+    // Make the cursor view completely transparent
+    cursorView->setAttribute(Qt::WA_TranslucentBackground, true);
+
+    // Position cursor view on top of overlay view using absolute positioning
+    cursorView->setParent(this);
+    cursorView->setGeometry(QRect(0, 0, 100, 100)); // Initial size, will be resized in resizeEvent
+    cursorView->raise(); // Ensure it's above overlayView
+
+    // Create cursor graphics items
+    cursorCrosshairHorizontal = new QGraphicsLineItem();
+    cursorCrosshairHorizontal->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Cyan solid line to match legacy crosshair
+    cursorCrosshairHorizontal->setZValue(2000); // Above overlay (overlay is 1000)
+    cursorCrosshairHorizontal->setVisible(false);
+    cursorScene->addItem(cursorCrosshairHorizontal);
+
+    cursorCrosshairVertical = new QGraphicsLineItem();
+    cursorCrosshairVertical->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Cyan solid line to match legacy crosshair
+    cursorCrosshairVertical->setZValue(2000);
+    cursorCrosshairVertical->setVisible(false);
+    cursorScene->addItem(cursorCrosshairVertical);
+
+    cursorTimeAxisLine = new QGraphicsLineItem();
+    cursorTimeAxisLine->setPen(QPen(Qt::cyan, 1.5, Qt::SolidLine));
+    cursorTimeAxisLine->setZValue(1999); // Just below crosshair but above overlay
+    cursorTimeAxisLine->setVisible(false);
+    cursorScene->addItem(cursorTimeAxisLine);
+
+    // Create cursor update timer (60fps = ~16ms)
+    cursorUpdateTimer = new QTimer(this);
+    cursorUpdateTimer->setInterval(16); // 60fps
+    connect(cursorUpdateTimer, &QTimer::timeout, this, &WaterfallGraph::updateCursorLayer);
+
     // Debug: Print initial state
     qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
     qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
@@ -174,6 +242,33 @@ WaterfallGraph::~WaterfallGraph()
     if (timeAxisCursor) {
         delete timeAxisCursor;
         timeAxisCursor = nullptr;
+    }
+
+    // Clean up cursor layer
+    if (cursorUpdateTimer) {
+        cursorUpdateTimer->stop();
+        delete cursorUpdateTimer;
+        cursorUpdateTimer = nullptr;
+    }
+    if (cursorCrosshairHorizontal) {
+        delete cursorCrosshairHorizontal;
+        cursorCrosshairHorizontal = nullptr;
+    }
+    if (cursorCrosshairVertical) {
+        delete cursorCrosshairVertical;
+        cursorCrosshairVertical = nullptr;
+    }
+    if (cursorTimeAxisLine) {
+        delete cursorTimeAxisLine;
+        cursorTimeAxisLine = nullptr;
+    }
+    if (cursorScene) {
+        delete cursorScene;
+        cursorScene = nullptr;
+    }
+    if (cursorView) {
+        delete cursorView;
+        cursorView = nullptr;
     }
     
     // Note: graphicsView and graphicsScene are child widgets/scenes, so they will be automatically deleted by Qt's parent-child mechanism
@@ -925,8 +1020,11 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
         }
     }
 
-    // Update crosshair if enabled
-    if (crosshairEnabled && overlayScene && overlayView)
+    // Store mouse position for cursor layer (timer will handle rendering)
+    m_lastMousePos = event->pos();
+
+    // Update crosshair if enabled (legacy overlay mode)
+    if (crosshairEnabled && !m_cursorLayerEnabled && overlayScene && overlayView)
     {
         QPointF scenePos = overlayView->mapToScene(event->pos());
         // Show crosshair if not already visible
@@ -935,7 +1033,12 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
             showCrosshair();
         }
         updateCrosshair(scenePos);
+    }
 
+    // Update cursor time notification
+    if (overlayView)
+    {
+        QPointF scenePos = overlayView->mapToScene(event->pos());
         if (drawingArea.contains(scenePos))
         {
             QDateTime cursorTime = mapScreenToTime(scenePos.y());
@@ -959,13 +1062,30 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
 void WaterfallGraph::enterEvent(QEnterEvent *event)
 {
     QWidget::enterEvent(event);
+    
+    // Get mouse position from enter event
+    m_lastMousePos = event->pos();
+    
     // Enable mouse tracking when mouse enters the widget
     setMouseTracking(true);
+    
     // Show crosshair when mouse enters if enabled
-    if (crosshairEnabled)
+    if (crosshairEnabled && m_cursorLayerEnabled)
+    {
+        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(true);
+        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(true);
+    }
+    else if (crosshairEnabled)
     {
         showCrosshair();
     }
+    
+    // Ensure cursor layer timer is running
+    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
+    {
+        cursorUpdateTimer->start();
+    }
+    
     qDebug() << "Mouse entered WaterfallGraph widget";
 }
 
@@ -977,17 +1097,30 @@ void WaterfallGraph::enterEvent(QEnterEvent *event)
 void WaterfallGraph::leaveEvent(QEvent *event)
 {
     QWidget::leaveEvent(event);
+    
     // Clear any ongoing selection when mouse leaves
     if (mouseSelectionEnabled)
     {
         clearSelection();
     }
-    // Hide crosshair when mouse leaves if enabled
-    if (crosshairEnabled)
+    
+    // Hide crosshair when mouse leaves (but keep time axis cursor if valid)
+    if (m_cursorLayerEnabled)
+    {
+        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
+        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
+    }
+    else if (crosshairEnabled)
     {
         hideCrosshair();
     }
+    
+    // Clear mouse position
+    m_lastMousePos = QPointF();
+    
+    // Notify cursor time cleared
     notifyCursorTimeChanged(QDateTime());
+    
     qDebug() << "Mouse left WaterfallGraph widget";
 }
 
@@ -1047,6 +1180,19 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
         overlayView->raise();
     }
 
+    // Ensure cursor view also fits the widget exactly and is positioned on top
+    if (cursorView)
+    {
+        cursorView->setGeometry(QRect(0, 0, event->size().width(), event->size().height()));
+        cursorView->raise(); // Ensure it's above overlayView
+    }
+
+    // Update cursor scene rect to match widget dimensions
+    if (cursorScene)
+    {
+        cursorScene->setSceneRect(0, 0, event->size().width(), event->size().height());
+    }
+
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
 
@@ -1081,6 +1227,28 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         overlayView->show();
         overlayView->update(); // Force a repaint
         qDebug() << "showEvent - Overlay view geometry:" << overlayView->geometry() << "visible:" << overlayView->isVisible();
+    }
+
+    // Ensure cursor view also fits the widget exactly and is positioned on top
+    if (cursorView)
+    {
+        cursorView->setGeometry(QRect(0, 0, this->size().width(), this->size().height()));
+        cursorView->raise(); // Ensure it's above overlayView
+        cursorView->show();
+        cursorView->update();
+        qDebug() << "showEvent - Cursor view geometry:" << cursorView->geometry() << "visible:" << cursorView->isVisible();
+    }
+
+    // Update cursor scene rect to match widget dimensions
+    if (cursorScene)
+    {
+        cursorScene->setSceneRect(0, 0, this->size().width(), this->size().height());
+    }
+
+    // Start cursor update timer if cursor layer is enabled
+    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
+    {
+        cursorUpdateTimer->start();
     }
 
     // Update graphics dimensions now that we're visible
@@ -2343,6 +2511,19 @@ void WaterfallGraph::setupCrosshair()
  */
 void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
 {
+    // If cursor layer is enabled, just update position (timer will handle rendering)
+    if (m_cursorLayerEnabled)
+    {
+        // Convert scene position to widget position for m_lastMousePos
+        if (overlayView)
+        {
+            QPoint widgetPos = overlayView->mapFromScene(mousePos);
+            m_lastMousePos = widgetPos;
+        }
+        return;
+    }
+
+    // Legacy overlay mode: update crosshair directly
     if (!crosshairHorizontal || !crosshairVertical || !overlayScene) {
         return;
     }
@@ -2368,9 +2549,19 @@ void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
  */
 void WaterfallGraph::showCrosshair()
 {
-    if (crosshairHorizontal && crosshairVertical) {
-        crosshairHorizontal->setVisible(true);
-        crosshairVertical->setVisible(true);
+    if (m_cursorLayerEnabled)
+    {
+        // Cursor layer mode: show cursor layer items
+        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(true);
+        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(true);
+    }
+    else
+    {
+        // Legacy overlay mode: show overlay items
+        if (crosshairHorizontal && crosshairVertical) {
+            crosshairHorizontal->setVisible(true);
+            crosshairVertical->setVisible(true);
+        }
     }
 }
 
@@ -2379,9 +2570,19 @@ void WaterfallGraph::showCrosshair()
  */
 void WaterfallGraph::hideCrosshair()
 {
-    if (crosshairHorizontal && crosshairVertical) {
-        crosshairHorizontal->setVisible(false);
-        crosshairVertical->setVisible(false);
+    if (m_cursorLayerEnabled)
+    {
+        // Cursor layer mode: hide cursor layer items
+        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
+        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
+    }
+    else
+    {
+        // Legacy overlay mode: hide overlay items
+        if (crosshairHorizontal && crosshairVertical) {
+            crosshairHorizontal->setVisible(false);
+            crosshairVertical->setVisible(false);
+        }
     }
 }
 
@@ -2417,6 +2618,131 @@ void WaterfallGraph::setCrosshairEnabled(bool enabled)
 bool WaterfallGraph::isCrosshairEnabled() const
 {
     return crosshairEnabled;
+}
+
+/**
+ * @brief Update the cursor layer - called by timer at fixed rate (60fps)
+ */
+void WaterfallGraph::updateCursorLayer()
+{
+    if (!cursorScene || !cursorView || !m_cursorLayerEnabled)
+    {
+        return;
+    }
+
+    // Get the scene rectangle
+    QRectF sceneRect = cursorScene->sceneRect();
+    if (sceneRect.isEmpty())
+    {
+        sceneRect = QRectF(0, 0, this->width(), this->height());
+        cursorScene->setSceneRect(sceneRect);
+    }
+
+    // Update time axis cursor from shared state
+    if (m_cursorSyncState && m_cursorSyncState->hasCursorTime && m_cursorSyncState->cursorTime.isValid())
+    {
+        qreal yPos = mapTimeToY(m_cursorSyncState->cursorTime);
+        if (yPos >= 0 && cursorTimeAxisLine)
+        {
+            cursorTimeAxisLine->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
+            cursorTimeAxisLine->setVisible(true);
+        }
+        else if (cursorTimeAxisLine)
+        {
+            cursorTimeAxisLine->setVisible(false);
+        }
+    }
+    else if (cursorTimeAxisLine)
+    {
+        cursorTimeAxisLine->setVisible(false);
+    }
+
+    // Update crosshair from last mouse position
+    if (crosshairEnabled && !m_lastMousePos.isNull() && 
+        m_lastMousePos.x() >= 0 && m_lastMousePos.y() >= 0 &&
+        m_lastMousePos.x() < this->width() && m_lastMousePos.y() < this->height())
+    {
+        if (cursorCrosshairHorizontal)
+        {
+            cursorCrosshairHorizontal->setLine(sceneRect.left(), m_lastMousePos.y(), 
+                                               sceneRect.right(), m_lastMousePos.y());
+            cursorCrosshairHorizontal->setVisible(true);
+        }
+        if (cursorCrosshairVertical)
+        {
+            cursorCrosshairVertical->setLine(m_lastMousePos.x(), sceneRect.top(), 
+                                             m_lastMousePos.x(), sceneRect.bottom());
+            cursorCrosshairVertical->setVisible(true);
+        }
+    }
+    else
+    {
+        if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
+        if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
+    }
+
+    // Trigger repaint
+    cursorView->update();
+}
+
+/**
+ * @brief Set the shared sync state pointer for cursor synchronization
+ *
+ * @param syncState Pointer to the shared sync state
+ */
+void WaterfallGraph::setCursorSyncState(GraphContainerSyncState *syncState)
+{
+    m_cursorSyncState = syncState;
+    // Timer will automatically read from sync state when it fires
+}
+
+/**
+ * @brief Enable or disable the cursor layer
+ *
+ * @param enabled True to enable cursor layer, false to disable
+ */
+void WaterfallGraph::setCursorLayerEnabled(bool enabled)
+{
+    if (m_cursorLayerEnabled != enabled)
+    {
+        m_cursorLayerEnabled = enabled;
+
+        if (enabled)
+        {
+            // Start timer if not already running
+            if (cursorUpdateTimer && !cursorUpdateTimer->isActive())
+            {
+                cursorUpdateTimer->start();
+            }
+            // Show cursor items if they should be visible
+            if (m_cursorSyncState && m_cursorSyncState->hasCursorTime && cursorTimeAxisLine)
+            {
+                cursorTimeAxisLine->setVisible(true);
+            }
+        }
+        else
+        {
+            // Stop timer
+            if (cursorUpdateTimer && cursorUpdateTimer->isActive())
+            {
+                cursorUpdateTimer->stop();
+            }
+            // Hide all cursor items
+            if (cursorCrosshairHorizontal) cursorCrosshairHorizontal->setVisible(false);
+            if (cursorCrosshairVertical) cursorCrosshairVertical->setVisible(false);
+            if (cursorTimeAxisLine) cursorTimeAxisLine->setVisible(false);
+        }
+    }
+}
+
+/**
+ * @brief Check if cursor layer is currently enabled
+ *
+ * @return bool True if cursor layer is enabled, false otherwise
+ */
+bool WaterfallGraph::isCursorLayerEnabled() const
+{
+    return m_cursorLayerEnabled;
 }
 
 // Time axis cursor functionality implementation
@@ -2476,42 +2802,65 @@ qreal WaterfallGraph::mapTimeToY(const QDateTime &time) const
  */
 void WaterfallGraph::setTimeAxisCursor(const QDateTime &time)
 {
-    if (!timeAxisCursor || !overlayScene)
+    // Update shared sync state if available (cursor layer will read from it)
+    if (m_cursorSyncState)
     {
-        qDebug() << "Time axis cursor not initialized";
-        return;
+        if (time.isValid())
+        {
+            m_cursorSyncState->cursorTime = time;
+            m_cursorSyncState->hasCursorTime = true;
+        }
+        else
+        {
+            m_cursorSyncState->hasCursorTime = false;
+        }
     }
 
-    if (!time.isValid())
+    // Legacy overlay mode: update timeAxisCursor directly if cursor layer is disabled
+    if (!m_cursorLayerEnabled)
     {
-        qDebug() << "Invalid time provided for time axis cursor";
-        clearTimeAxisCursor();
-        return;
+        if (!timeAxisCursor || !overlayScene)
+        {
+            qDebug() << "Time axis cursor not initialized";
+            return;
+        }
+
+        if (!time.isValid())
+        {
+            qDebug() << "Invalid time provided for time axis cursor";
+            clearTimeAxisCursor();
+            return;
+        }
+
+        // Map time to Y coordinate
+        qreal yPos = mapTimeToY(time);
+
+        if (yPos < 0)
+        {
+            qDebug() << "Could not map time to Y position - data ranges may not be valid";
+            clearTimeAxisCursor();
+            return;
+        }
+
+        // Get the scene rectangle
+        QRectF sceneRect = overlayScene->sceneRect();
+        
+        // If scene rect is empty, use widget dimensions
+        if (sceneRect.isEmpty()) {
+            sceneRect = QRectF(0, 0, this->width(), this->height());
+        }
+
+        // Update horizontal line (left to right) at the calculated Y position
+        timeAxisCursor->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
+        timeAxisCursor->setVisible(true);
+
+        qDebug() << "Time axis cursor set at time:" << time.toString() << "Y position:" << yPos;
     }
-
-    // Map time to Y coordinate
-    qreal yPos = mapTimeToY(time);
-
-    if (yPos < 0)
+    else
     {
-        qDebug() << "Could not map time to Y position - data ranges may not be valid";
-        clearTimeAxisCursor();
-        return;
+        // Cursor layer mode: timer will handle rendering from sync state
+        qDebug() << "Time axis cursor set at time:" << time.toString() << "(cursor layer will render)";
     }
-
-    // Get the scene rectangle
-    QRectF sceneRect = overlayScene->sceneRect();
-    
-    // If scene rect is empty, use widget dimensions
-    if (sceneRect.isEmpty()) {
-        sceneRect = QRectF(0, 0, this->width(), this->height());
-    }
-
-    // Update horizontal line (left to right) at the calculated Y position
-    timeAxisCursor->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
-    timeAxisCursor->setVisible(true);
-
-    qDebug() << "Time axis cursor set at time:" << time.toString() << "Y position:" << yPos;
 }
 
 /**
@@ -2519,10 +2868,22 @@ void WaterfallGraph::setTimeAxisCursor(const QDateTime &time)
  */
 void WaterfallGraph::clearTimeAxisCursor()
 {
-    if (timeAxisCursor)
+    // Update shared sync state if available
+    if (m_cursorSyncState)
+    {
+        m_cursorSyncState->hasCursorTime = false;
+    }
+
+    // Legacy overlay mode: hide timeAxisCursor directly if cursor layer is disabled
+    if (!m_cursorLayerEnabled && timeAxisCursor)
     {
         timeAxisCursor->setVisible(false);
         qDebug() << "Time axis cursor cleared";
+    }
+    else
+    {
+        // Cursor layer mode: timer will handle hiding from sync state
+        qDebug() << "Time axis cursor cleared (cursor layer will handle)";
     }
 }
 

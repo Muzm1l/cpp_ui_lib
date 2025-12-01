@@ -27,10 +27,12 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCursor>
 #include <map>
 #include <set>
 #include <vector>
 #include <functional>
+#include "sharedsyncstate.h"
 
 class WaterfallGraph : public QWidget
 {
@@ -107,6 +109,17 @@ protected:
     // Overlay scene for interactive elements
     QGraphicsView *overlayView;
     QGraphicsScene *overlayScene;
+
+    // Cursor layer for dedicated cursor rendering
+    QGraphicsView *cursorView;
+    QGraphicsScene *cursorScene;
+    QTimer *cursorUpdateTimer;
+    QGraphicsLineItem *cursorCrosshairHorizontal;
+    QGraphicsLineItem *cursorCrosshairVertical;
+    QGraphicsLineItem *cursorTimeAxisLine;
+    GraphContainerSyncState *m_cursorSyncState;
+    QPointF m_lastMousePos;
+    bool m_cursorLayerEnabled;
 
     // Drawing area and grid
     QRectF drawingArea;
@@ -206,6 +219,10 @@ protected:
     void clearSelection();
     QDateTime mapScreenToTime(qreal yPos) const;
 
+private slots:
+    // Cursor layer update method
+    void updateCursorLayer();
+
 public:
     // Mouse selection control
     void setMouseSelectionEnabled(bool enabled);
@@ -222,6 +239,11 @@ public:
     void setTimeAxisCursor(const QDateTime &time);
     void clearTimeAxisCursor();
     void setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback);
+    
+    // Cursor layer control
+    void setCursorSyncState(GraphContainerSyncState *syncState);
+    void setCursorLayerEnabled(bool enabled);
+    bool isCursorLayerEnabled() const;
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }
