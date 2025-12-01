@@ -9,6 +9,7 @@
 #include <QFont>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
+#include <QGraphicsPathItem>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
@@ -27,6 +28,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <map>
+#include <set>
 #include <vector>
 #include <functional>
 
@@ -118,6 +120,7 @@ protected:
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
+    void drawIncremental();
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
     void updateDataRanges();
     void updateYRange();
@@ -147,6 +150,14 @@ protected:
     // Multi-series support
     std::map<QString, QColor> seriesColors;
     std::map<QString, bool> seriesVisibility;
+
+    // Incremental rendering support
+    bool m_needsFullRedraw;
+    bool m_dataDirty;
+    bool m_rangeDirty;
+    std::set<QString> m_dirtySeries;
+    std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
+    std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;
 
     // Mouse tracking
     bool isDragging;
