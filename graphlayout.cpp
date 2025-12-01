@@ -1,4 +1,5 @@
 #include "graphlayout.h"
+#include "navtimeutils.h"
 #include <QDebug>
 
 GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
@@ -980,6 +981,12 @@ void GraphLayout::linkHorizontalContainers()
 void GraphLayout::onTimerTick()
 {
     setCurrentTime(QTime::currentTime());
+    
+    // Update current navtime in sync state
+    NavTimeUtils navTimeUtils;
+    QDateTime currentSystemTime = QDateTime::currentDateTime();
+    m_syncState.currentNavTime = navTimeUtils.covertSystemTimeToNavTime(currentSystemTime);
+    m_syncState.hasCurrentNavTime = true;
 }
 
 void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
