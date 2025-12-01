@@ -39,7 +39,9 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     mouseSelectionEnabled(false), 
     selectionRect(nullptr), 
     autoUpdateYRange(true),
-    lastNotifiedCursorTime(QDateTime())
+    lastNotifiedCursorTime(QDateTime()),
+    m_renderState(RenderState::FULL_REDRAW),
+    m_rangeUpdateNeeded(false)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -185,6 +187,8 @@ WaterfallGraph::~WaterfallGraph()
 void WaterfallGraph::setDataSource(WaterfallData &dataSource)
 {
     this->dataSource = &dataSource;
+    // New data source requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
     draw(); // Trigger redraw with new data source
     qDebug() << "Data source set successfully";
 }
@@ -287,11 +291,13 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, cons
 
     qDebug() << "Data point added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark ranges as invalid so they'll be recalculated
+    // Mark series as dirty and range update needed
+    markSeriesDirty(seriesLabel);
+    markRangeUpdateNeeded();
     dataRangesValid = false;
 
-    // Redraw the graph with the new data
-    draw();
+    // Use incremental draw instead of full redraw
+    drawIncremental();
 }
 
 /**
@@ -312,11 +318,13 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
 
     qDebug() << "Data points added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark ranges as invalid so they'll be recalculated
+    // Mark series as dirty and range update needed
+    markSeriesDirty(seriesLabel);
+    markRangeUpdateNeeded();
     dataRangesValid = false;
 
-    // Redraw the graph with the new data
-    draw();
+    // Use incremental draw instead of full redraw
+    drawIncremental();
 }
 
 /**
@@ -468,6 +476,7 @@ void WaterfallGraph::setGridEnabled(bool enabled)
     if (gridEnabled != enabled)
     {
         gridEnabled = enabled;
+        setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
         draw(); // Redraw to show/hide grid
         qDebug() << "Grid" << (enabled ? "enabled" : "disabled");
     }
@@ -495,6 +504,7 @@ void WaterfallGraph::setGridDivisions(int divisions)
         gridDivisions = divisions;
         if (gridEnabled)
         {
+            setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
             draw(); // Redraw to update grid divisions
         }
         qDebug() << "Grid divisions set to:" << divisions;
@@ -537,28 +547,195 @@ void WaterfallGraph::draw()
     if (!graphicsScene)
         return;
 
-    // Clear existing items
-    graphicsScene->clear();
+    // Mark for full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
 
-    // Update the drawing area
-    setupDrawingArea();
+    // Use incremental draw which will handle the full redraw state
+    drawIncremental();
+}
 
-    // Draw grid if enabled
-    if (gridEnabled)
+/**
+ * @brief Incremental draw method that only redraws dirty series.
+ *
+ */
+void WaterfallGraph::drawIncremental()
+{
+    if (!graphicsScene)
+        return;
+
+    switch (m_renderState)
     {
-        drawGrid();
+        case RenderState::CLEAN:
+            return; // Nothing to do
+
+        case RenderState::RANGE_UPDATE_ONLY:
+            // Update ranges only
+            if (dataSource && !dataSource->isEmpty())
+            {
+                updateDataRanges();
+            }
+            m_rangeUpdateNeeded = false;
+            m_renderState = RenderState::CLEAN;
+            break;
+
+        case RenderState::INCREMENTAL_UPDATE:
+            // Update ranges if needed
+            if (m_rangeUpdateNeeded || !dataRangesValid)
+            {
+                if (dataSource && !dataSource->isEmpty())
+                {
+                    updateDataRanges();
+                }
+                m_rangeUpdateNeeded = false;
+            }
+
+            // Redraw only dirty series
+            if (dataSource && !dataSource->isEmpty() && dataRangesValid)
+            {
+                for (const QString &seriesLabel : m_dirtySeries)
+                {
+                    if (isSeriesVisible(seriesLabel))
+                    {
+                        drawDataSeries(seriesLabel);
+                    }
+                }
+            }
+
+            m_dirtySeries.clear();
+            m_renderState = RenderState::CLEAN;
+            break;
+
+        case RenderState::FULL_REDRAW:
+            // Clear scene and graphics item maps
+            graphicsScene->clear();
+            m_seriesPathItems.clear();
+            for (auto &pair : m_seriesPointItems)
+            {
+                pair.second.clear();
+            }
+            m_seriesPointItems.clear();
+
+            // Update drawing area and grid
+            setupDrawingArea();
+            if (gridEnabled)
+            {
+                drawGrid();
+            }
+
+            // Update ranges
+            if (dataSource && !dataSource->isEmpty())
+            {
+                updateDataRanges();
+            }
+            m_rangeUpdateNeeded = false;
+
+            // Redraw all series
+            if (dataSource && !dataSource->isEmpty() && dataRangesValid)
+            {
+                std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
+                for (const QString &seriesLabel : allSeries)
+                {
+                    if (isSeriesVisible(seriesLabel))
+                    {
+                        drawDataSeries(seriesLabel);
+                    }
+                }
+            }
+
+            m_dirtySeries.clear();
+            m_renderState = RenderState::CLEAN;
+            break;
+    }
+}
+
+/**
+ * @brief Transition to the appropriate state based on current conditions.
+ *
+ */
+void WaterfallGraph::transitionToAppropriateState()
+{
+    // FULL_REDRAW takes precedence - don't downgrade from it
+    if (m_renderState == RenderState::FULL_REDRAW)
+    {
+        return;
     }
 
-    // Draw the actual data if we have data
+    // If series are dirty, need incremental update
+    if (!m_dirtySeries.empty())
+    {
+        m_renderState = RenderState::INCREMENTAL_UPDATE;
+        return;
+    }
+
+    // If only ranges need update
+    if (m_rangeUpdateNeeded || !dataRangesValid)
+    {
+        m_renderState = RenderState::RANGE_UPDATE_ONLY;
+        return;
+    }
+
+    // Otherwise clean
+    m_renderState = RenderState::CLEAN;
+}
+
+/**
+ * @brief Set the render state, with FULL_REDRAW taking precedence.
+ *
+ */
+void WaterfallGraph::setRenderState(RenderState newState)
+{
+    // FULL_REDRAW can only be set explicitly, never downgraded
+    if (m_renderState == RenderState::FULL_REDRAW && newState != RenderState::FULL_REDRAW)
+    {
+        return; // Don't downgrade from FULL_REDRAW
+    }
+
+    // FULL_REDRAW always supersedes
+    if (newState == RenderState::FULL_REDRAW)
+    {
+        m_renderState = RenderState::FULL_REDRAW;
+        markAllSeriesDirty();
+        return;
+    }
+
+    m_renderState = newState;
+}
+
+/**
+ * @brief Mark a specific series as dirty.
+ *
+ */
+void WaterfallGraph::markSeriesDirty(const QString &seriesLabel)
+{
+    m_dirtySeries.insert(seriesLabel);
+    transitionToAppropriateState();
+}
+
+/**
+ * @brief Mark all series as dirty and set state to FULL_REDRAW.
+ *
+ */
+void WaterfallGraph::markAllSeriesDirty()
+{
     if (dataSource && !dataSource->isEmpty())
     {
-        // Only update ranges if they're not valid, otherwise just draw
-        if (!dataRangesValid)
+        std::vector<QString> allSeries = dataSource->getDataSeriesLabels();
+        for (const QString &seriesLabel : allSeries)
         {
-            updateDataRanges();
+            m_dirtySeries.insert(seriesLabel);
         }
-        drawAllDataSeries();
     }
+    m_renderState = RenderState::FULL_REDRAW;
+}
+
+/**
+ * @brief Mark that ranges need updating.
+ *
+ */
+void WaterfallGraph::markRangeUpdateNeeded()
+{
+    m_rangeUpdateNeeded = true;
+    transitionToAppropriateState();
 }
 
 /**
@@ -1308,11 +1485,25 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
         return;
     }
 
+    // Check if range changed significantly (more than 10% difference)
+    bool significantChange = (qAbs(customYMin - yMin) > (customYMax - customYMin) * 0.1) ||
+                             (qAbs(customYMax - yMax) > (customYMax - customYMin) * 0.1);
+
     customYMin = yMin;
     customYMax = yMax;
 
     // Always update Y range immediately when custom range is set
     updateYRange();
+
+    // Y range change significantly requires full redraw, otherwise just range update
+    if (significantChange)
+    {
+        setRenderState(RenderState::FULL_REDRAW);
+    }
+    else
+    {
+        markRangeUpdateNeeded();
+    }
 
     // Force redraw to show new range
     draw();
@@ -1619,6 +1810,29 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         return;
     }
 
+    // Remove existing graphics items for this series if they exist (for incremental updates)
+    auto pathIt = m_seriesPathItems.find(seriesLabel);
+    if (pathIt != m_seriesPathItems.end() && pathIt->second)
+    {
+        graphicsScene->removeItem(pathIt->second);
+        delete pathIt->second;
+        m_seriesPathItems.erase(pathIt);
+    }
+
+    auto pointIt = m_seriesPointItems.find(seriesLabel);
+    if (pointIt != m_seriesPointItems.end())
+    {
+        for (QGraphicsEllipseItem *item : pointIt->second)
+        {
+            if (item)
+            {
+                graphicsScene->removeItem(item);
+                delete item;
+            }
+        }
+        pointIt->second.clear();
+    }
+
     const auto &yData = dataSource->getYDataSeries(seriesLabel);
     const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
@@ -1657,7 +1871,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         // Draw a single point if we only have one data point
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        m_seriesPointItems[seriesLabel].push_back(pointItem);
         qDebug() << "Data series" << seriesLabel << "drawn with 1 visible point";
         return;
     }
@@ -1674,16 +1889,20 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         path.lineTo(point);
     }
 
-    // Draw the line
+    // Draw the line and store reference
     QPen linePen(seriesColor, 2);
-    graphicsScene->addPath(path, linePen);
+    QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
+    m_seriesPathItems[seriesLabel] = pathItem;
 
-    // Draw data points
+    // Draw data points and store references
     QPen pointPen(seriesColor, 0); // No stroke (width 0)
+    std::vector<QGraphicsEllipseItem*> &pointItems = m_seriesPointItems[seriesLabel];
+    pointItems.reserve(visibleData.size());
     for (size_t i = 0; i < visibleData.size(); ++i)
     {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+        QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+        pointItems.push_back(pointItem);
     }
 
     qDebug() << "Data series" << seriesLabel << "drawn with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
@@ -1932,6 +2151,9 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
     this->timeMin = timeMin;
     this->timeMax = timeMax;
 
+    // Time range change requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
+
     // Force redraw to show new time range
     draw();
 
@@ -1956,6 +2178,9 @@ void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
         setTimeRangeFromData();
     }
 
+    // Time range change requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
+
     // Force redraw to show new time range
     draw();
 
@@ -1979,6 +2204,9 @@ void WaterfallGraph::setTimeMin(const QDateTime &timeMin)
         // If not using custom range, set it based on data
         setTimeRangeFromData();
     }
+
+    // Time range change requires full redraw (automatically marks all series dirty)
+    setRenderState(RenderState::FULL_REDRAW);
 
     // Force redraw to show new time range
     draw();
@@ -2336,3 +2564,4 @@ void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time)
     lastNotifiedCursorTime = time;
     cursorTimeChangedCallback(time);
 }
+
