@@ -194,6 +194,7 @@ protected:
 
 public:
     // Mouse selection control
+    qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
     void setMouseSelectionEnabled(bool enabled);
     bool isMouseSelectionEnabled() const;
 

@@ -434,7 +434,18 @@ void GraphContainer::redrawWaterfallGraph()
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->draw();
-        qDebug() << "GraphContainer: Triggered waterfall graph redraw";
+        qDebug() << "GraphContainer: Triggered waterfall graph redraw for current graph type" << static_cast<int>(currentDataOption);
+    }
+}
+
+void GraphContainer::redrawWaterfallGraph(GraphType graphType)
+{
+    // Redraw a specific graph type, even if it's not currently displayed
+    auto it = m_waterfallGraphs.find(graphType);
+    if (it != m_waterfallGraphs.end() && it->second)
+    {
+        it->second->draw();
+        qDebug() << "GraphContainer: Triggered waterfall graph redraw for graph type" << static_cast<int>(graphType);
     }
 }
 

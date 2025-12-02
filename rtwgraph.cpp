@@ -1,4 +1,5 @@
 #include "rtwgraph.h"
+#include "waterfalldata.h"  // For RTWRMarkerData
 #include <QDebug>
 #include <QGraphicsTextItem>
 #include <QGraphicsPixmapItem>
@@ -99,9 +100,9 @@ void RTWGraph::draw()
                 }
                 else
                 {
-                    // Draw custom yellow "R" markers with 1/5 interval sampling for other series
-                    qDebug() << "RTW: draw() - drawing custom R markers for series:" << seriesLabel;
-                    drawCustomRMarkers(seriesLabel);
+                    // RTW R markers are now manually placed through data source - no automatic generation
+                    // Draw data as scatterplot for other series
+                    drawScatterplot(seriesLabel, getSeriesColor(seriesLabel), 3.0, Qt::black);
                 }
             }
         }
@@ -111,6 +112,9 @@ void RTWGraph::draw()
         qDebug() << "RTW: draw() - no dataSource or dataSource is empty";
     }
 
+    // Draw manually placed RTW R markers from data source
+    drawCustomRMarkers();
+    
     // Draw RTW symbols
     drawRTWSymbols();
     
@@ -210,125 +214,51 @@ void RTWGraph::onMouseDrag(const QPointF &scenePos)
 }
 
 /**
- * @brief Draw custom yellow "R" markers for RTW graph with 1/5 interval sampling
- *
- * @param seriesLabel The series label to draw markers for
+ * @brief Draw manually placed RTW R markers from data source
  */
-void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
+void RTWGraph::drawCustomRMarkers()
 {
     if (!dataSource || !graphicsScene) {
         qDebug() << "RTW: drawCustomRMarkers early return - no dataSource or graphicsScene";
         return;
     }
 
-    // Get total data size for comparison
-    size_t totalDataSize = dataSource->getDataSeriesSize(seriesLabel);
-    qDebug() << "RTW: drawCustomRMarkers called for series" << seriesLabel << "with total data size:" << totalDataSize;
-
-    if (totalDataSize == 0) {
-        qDebug() << "RTW: No data available for series" << seriesLabel;
+    // Get manually placed markers from data source
+    std::vector<RTWRMarkerData> rMarkers = dataSource->getRTWRMarkers();
+    
+    if (rMarkers.empty()) {
+        qDebug() << "RTW: No manually placed R markers in data source";
         return;
     }
 
-    // Use the static binning method to sample data
-    qint64 samplingIntervalMs = 300000; // 3 seconds
-
-    // Convert to QTime for the binning method
-    QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
+    // Filter markers to only include those within the visible time range
+    std::vector<RTWRMarkerData> visibleMarkers;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
-    // Get raw data and use static binning method
-    const std::vector<qreal>& yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<QDateTime>& timestamps = dataSource->getTimestampsSeries(seriesLabel);
-    
-    // Debug: Show sample raw data
-    if (!yData.empty()) {
-        qDebug() << "RTW: Raw data sample - First value:" << yData[0] << "Last value:" << yData.back();
-        qDebug() << "RTW: Raw data range:" << *std::min_element(yData.begin(), yData.end()) << "to" << *std::max_element(yData.begin(), yData.end());
-    }
-    
-    std::vector<std::pair<qreal, QDateTime>> binnedData = WaterfallData::binDataByTime(yData, timestamps, binDuration);
-    
-    // Filter binned data to only include points within the visible time range
-    std::vector<std::pair<qreal, QDateTime>> visibleBinnedData;
-    for (const auto& point : binnedData) {
-        if (point.second >= timeMin && point.second <= timeMax) {
-            visibleBinnedData.push_back(point);
-        }
-    }
-    
-    qDebug() << "RTW: Time range filtering - Total binned:" << binnedData.size() 
-             << "- Visible binned:" << visibleBinnedData.size()
-             << "- Time range:" << timeMin.toString() << "to" << timeMax.toString();
-
-    qDebug() << "RTW: Binning completed for series" << seriesLabel 
-             << "- Total data:" << totalDataSize 
-             << "- Binned data:" << binnedData.size()
-             << "- Visible binned data:" << visibleBinnedData.size()
-             << "- Sampling interval:" << samplingIntervalMs << "ms";
-
-    // Check if time range is valid and reasonable before drawing markers
-    // Use the robust helper function that checks validity, range size, and reasonableness
-    if (!isTimeRangeValidForDrawing()) {
-        qDebug() << "RTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
-        qDebug() << "RTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
-        qDebug() << "RTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
-        qDebug() << "RTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
-        return;
-    }
-
-    if (visibleBinnedData.empty()) {
-        qDebug() << "RTW: No visible binned data available for series" << seriesLabel;
-        qDebug() << "RTW: Time range is valid but no data points within range - skipping marker drawing";
-        return;
-        
-        // REMOVED FALLBACK: Don't draw markers when time range is not properly set
-        // This prevents duplicate markers at startup
-        /*
-        qDebug() << "RTW: Trying fallback - drawing markers for raw data";
-        
-        // Fallback: draw markers for raw data if binning produces no visible results
-        int fallbackMarkersDrawn = 0;
-        for (size_t i = 0; i < yData.size() && i < 10; ++i) { // Limit to first 10 points
-            qreal yValue = yData[i];
-            QDateTime timestamp = timestamps[i];
-            QPointF screenPos = mapDataToScreen(yValue, timestamp);
-            
-            if (drawingArea.contains(screenPos)) {
-                QSize windowSize = this->size();
-                qreal markerSize = std::min(0.08 * windowSize.width(), 24.0);
-                
-                QGraphicsTextItem *rMarker = new QGraphicsTextItem("R");
-                QFont font = rMarker->font();
-                font.setPointSizeF(markerSize);
-                font.setBold(true);
-                rMarker->setFont(font);
-                rMarker->setDefaultTextColor(Qt::red); // Use red for fallback markers
-                
-                QRectF textRect = rMarker->boundingRect();
-                rMarker->setPos(screenPos.x() - textRect.width()/2, screenPos.y() - textRect.height()/2);
-                rMarker->setZValue(1000);
-                
-                graphicsScene->addItem(rMarker);
-                fallbackMarkersDrawn++;
+    if (timeRangeValid) {
+        for (const auto& markerData : rMarkers) {
+            if (markerData.timestamp >= timeMin && markerData.timestamp <= timeMax) {
+                visibleMarkers.push_back(markerData);
             }
         }
-        qDebug() << "RTW: Fallback drew" << fallbackMarkersDrawn << "red R markers";
-        return;
-        */
+    } else {
+        visibleMarkers = rMarkers;
     }
 
-    // Draw yellow "R" markers for each visible binned point
+    if (visibleMarkers.empty()) {
+        qDebug() << "RTW: No visible R markers within time range";
+        return;
+    }
+
+    // Draw yellow "R" markers for each visible marker
     int markersDrawn = 0;
-    qDebug() << "RTW: Drawing area:" << drawingArea;
-    for (const auto& point : visibleBinnedData) {
-        qreal yValue = point.first;
-        QDateTime timestamp = point.second;
-        QPointF screenPos = mapDataToScreen(yValue, timestamp);
+    qDebug() << "RTW: Drawing" << visibleMarkers.size() << "manually placed R markers";
+    
+    for (const auto& markerData : visibleMarkers) {
+        QDateTime timestamp = markerData.timestamp;
+        qreal range = markerData.range;
         
-        // Only debug first few points to avoid spam
-        if (markersDrawn < 3) {
-            qDebug() << "RTW: Point" << markersDrawn << "- Y:" << yValue << "Time:" << timestamp.toString() << "Screen:" << screenPos << "In area:" << drawingArea.contains(screenPos);
-        }
+        QPointF screenPos = mapDataToScreen(range, timestamp);
         
         // Check if point is within visible area
         if (drawingArea.contains(screenPos)) {
@@ -358,7 +288,7 @@ void RTWGraph::drawCustomRMarkers(const QString &seriesLabel)
         }
     }
     
-    qDebug() << "RTW: Successfully drew" << markersDrawn << "yellow R markers for series" << seriesLabel;
+    qDebug() << "RTW: Successfully drew" << markersDrawn << "manually placed yellow R markers";
 }
 
 /**

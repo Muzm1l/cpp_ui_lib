@@ -587,11 +587,14 @@ void WaterfallGraph::drawBTWSymbols()
     // Follow the same pattern as RTW symbols - read symbols from dataSource
     if (!graphicsScene || !dataSource)
     {
+        qDebug() << "WaterfallGraph: drawBTWSymbols - no graphicsScene or dataSource";
         return;
     }
     
     // Get symbols from dataSource
     std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
+    
+    qDebug() << "WaterfallGraph: drawBTWSymbols - found" << btwSymbols.size() << "BTW symbols in data source";
     
     if (btwSymbols.empty())
     {
@@ -602,6 +605,10 @@ void WaterfallGraph::drawBTWSymbols()
     std::vector<BTWSymbolData> visibleSymbols;
     bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
+    qDebug() << "WaterfallGraph: drawBTWSymbols - timeRangeValid:" << timeRangeValid 
+             << "timeMin:" << (timeMin.isValid() ? timeMin.toString() : "invalid")
+             << "timeMax:" << (timeMax.isValid() ? timeMax.toString() : "invalid");
+    
     if (timeRangeValid)
     {
         for (const auto& symbolData : btwSymbols)
@@ -610,22 +617,37 @@ void WaterfallGraph::drawBTWSymbols()
             {
                 visibleSymbols.push_back(symbolData);
             }
+            else
+            {
+                qDebug() << "WaterfallGraph: Symbol filtered out - timestamp" << symbolData.timestamp.toString() 
+                         << "not in range [" << timeMin.toString() << "," << timeMax.toString() << "]";
+            }
         }
     }
     else
     {
+        // If time range is not valid, show all symbols (they might be needed for initialization)
         visibleSymbols = btwSymbols;
+        qDebug() << "WaterfallGraph: Time range not valid, showing all" << visibleSymbols.size() << "symbols";
     }
     
+    qDebug() << "WaterfallGraph: drawBTWSymbols - drawing" << visibleSymbols.size() << "visible symbols";
+    
+    int symbolsDrawn = 0;
     // Draw symbols using a simple magenta circle (we'll create it inline since BTWSymbolDrawing is BTW-specific)
     for (const auto& symbolData : visibleSymbols)
     {
         // Map symbol position to screen coordinates
         QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
         
+        qDebug() << "WaterfallGraph: Symbol at timestamp" << symbolData.timestamp.toString() 
+                 << "range" << symbolData.range << "mapped to screen position" << screenPos;
+        
         // Check if point is within visible area
         if (!drawingArea.contains(screenPos))
         {
+            qDebug() << "WaterfallGraph: Symbol filtered out - screen position" << screenPos 
+                     << "not in drawing area" << drawingArea;
             continue;
         }
         
@@ -638,7 +660,11 @@ void WaterfallGraph::drawBTWSymbols()
         magentaCircle->setZValue(1003); // Above markers but below interactive items
         
         graphicsScene->addItem(magentaCircle);
+        symbolsDrawn++;
+        qDebug() << "WaterfallGraph: Drew magenta circle at" << screenPos;
     }
+    
+    qDebug() << "WaterfallGraph: drawBTWSymbols - drew" << symbolsDrawn << "magenta circles";
 }
 
 /**
@@ -1101,6 +1127,28 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
     qreal y = drawingArea.top() + (timeOffset / (qreal)getTimeIntervalMs()) * drawingArea.height();
 
     return QPointF(x, y);
+}
+
+/**
+ * @brief Map screen X coordinate to data range value (inverse of mapDataToScreen X mapping)
+ *
+ * @param xPos Screen X position
+ * @return qreal Range value, or 0.0 if invalid
+ */
+qreal WaterfallGraph::mapScreenXToRange(qreal xPos) const
+{
+    if (!dataRangesValid || drawingArea.isEmpty() || (yMax - yMin) <= 0.0)
+    {
+        return 0.0;
+    }
+    
+    // Reverse the X mapping: x = drawingArea.left() + ((yValue - yMin) / (yMax - yMin)) * drawingArea.width()
+    // So: yValue = yMin + ((x - drawingArea.left()) / drawingArea.width()) * (yMax - yMin)
+    qreal normalizedX = (xPos - drawingArea.left()) / drawingArea.width();
+    normalizedX = qMax(0.0, qMin(1.0, normalizedX)); // Clamp to [0,1]
+    
+    qreal range = yMin + normalizedX * (yMax - yMin);
+    return range;
 }
 
 /**

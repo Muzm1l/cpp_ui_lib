@@ -74,7 +74,7 @@ private slots:
 private:
     // BTW-specific properties and methods can be added here
     void drawBTWScatterplot();
-    void drawCustomCircleMarkers(const QString &seriesLabel);
+    void drawCustomCircleMarkers();
     void drawBTWSymbols();
     BTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
     void addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue);

@@ -257,6 +257,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
                 this, &GraphLayout::RTWRMarkerTimestampCaptured);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
+                this, &GraphLayout::onBTWManualMarkerPlaced);
+        // Also forward the signal for external integration
+        connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::BTWManualMarkerPlaced);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked);
@@ -328,6 +331,9 @@ void GraphLayout::initializeContainers()
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
                 this, &GraphLayout::RTWRMarkerTimestampCaptured);
+        connect(container, &GraphContainer::BTWManualMarkerPlaced,
+                this, &GraphLayout::onBTWManualMarkerPlaced);
+        // Also forward the signal for external integration
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::BTWManualMarkerPlaced);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
@@ -1473,6 +1479,75 @@ void GraphLayout::onTimeSelectionsCleared()
     emit TimeSelectionsCleared();
 }
 
+void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphLayout: BTW manual marker placed at timestamp" << timestamp.toString() << "position" << position;
+    
+    // Find the BTW graph to get the range value from the X position
+    qreal range = 0.0;
+    bool foundRange = false;
+    
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+            
+        // Check if this container has BTW as current option
+        if (container->getCurrentDataOption() == GraphType::BTW)
+        {
+            WaterfallGraph *graph = container->getCurrentWaterfallGraph();
+            if (graph)
+            {
+                // Convert X position to range value
+                range = graph->mapScreenXToRange(position.x());
+                foundRange = true;
+                qDebug() << "GraphLayout: Calculated range" << range << "from X position" << position.x();
+                break;
+            }
+        }
+    }
+    
+    // If we couldn't find the range, try to get it from BTW data source
+    if (!foundRange)
+    {
+        WaterfallData *btwDataSource = getDataSource(GraphType::BTW);
+        if (btwDataSource && !btwDataSource->isEmpty())
+        {
+            // Try to find a data point near this timestamp
+            std::vector<QString> seriesLabels = btwDataSource->getDataSeriesLabels();
+            for (const QString &seriesLabel : seriesLabels)
+            {
+                const std::vector<QDateTime> &timestamps = btwDataSource->getTimestampsSeries(seriesLabel);
+                const std::vector<qreal> &yData = btwDataSource->getYDataSeries(seriesLabel);
+                
+                for (size_t i = 0; i < timestamps.size(); ++i)
+                {
+                    qint64 timeDiff = qAbs(timestamps[i].msecsTo(timestamp));
+                    if (timeDiff < 1000) // Within 1 second
+                    {
+                        range = yData[i];
+                        foundRange = true;
+                        qDebug() << "GraphLayout: Found range" << range << "from data at timestamp";
+                        break;
+                    }
+                }
+                if (foundRange) break;
+            }
+        }
+    }
+    
+    // If still no range found, use a default value
+    if (!foundRange)
+    {
+        range = 50.0; // Default range value
+        qDebug() << "GraphLayout: Using default range" << range << "for BTW marker";
+    }
+    
+    // Add magenta circle (BTW symbol) to all graphs at this timestamp
+    // The range parameter is not needed - we'll find the data point at this timestamp in each graph
+    addBTWSymbolToAllGraphs(timestamp, 0.0); // Range parameter is ignored, we find it from data points
+}
+
 // Chevron label control methods implementation - operate on all visible containers
 void GraphLayout::setChevronLabel1(const QString &label)
 {
@@ -1667,6 +1742,334 @@ void GraphLayout::clearAllHardRangeLimits()
     {
         container->clearAllGraphRangeLimits();
     }
+}
+
+void GraphLayout::clearAllGraphs()
+{
+    qDebug() << "GraphLayout: clearAllGraphs() - clearing all data, markers, and symbols from all graphs";
+    
+    // Clear all data sources
+    for (auto &pair : m_dataSources)
+    {
+        WaterfallData *dataSource = pair.second;
+        if (dataSource)
+        {
+            // Clear all data series
+            dataSource->clearAllDataSeries();
+            
+            // Clear all markers and symbols
+            dataSource->clearRTWSymbols();
+            dataSource->clearBTWSymbols();
+            dataSource->clearBTWMarkers();
+            dataSource->clearRTWRMarkers();
+            
+            qDebug() << "GraphLayout: Cleared data for graph type:" << static_cast<int>(pair.first);
+        }
+    }
+    
+    // Trigger redraws on all containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->redrawWaterfallGraph();
+            qDebug() << "GraphLayout: Triggered redraw for container";
+        }
+    }
+    
+    qDebug() << "GraphLayout: clearAllGraphs() completed";
+}
+
+// Marker and symbol management methods implementation
+
+void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->addRTWSymbol(symbolName, timestamp, range);
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Added RTW symbol" << symbolName << "to graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot add RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->addBTWSymbol(symbolName, timestamp, range);
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Added BTW symbol" << symbolName << "to graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot add BTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal delta)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->addBTWMarker(timestamp, range, delta);
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Added BTW marker to graph type" << static_cast<int>(graphType);
+        
+        // Add magenta circle (BTW symbol) to all other graphs at this timestamp
+        addBTWSymbolToAllGraphs(timestamp, range);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot add BTW marker - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->addRTWRMarker(timestamp, range);
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Added RTW R marker to graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot add RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        bool removed = it->second->removeBTWMarker(timestamp, range, toleranceMs, rangeTolerance);
+        if (removed)
+        {
+            redrawGraph(graphType);
+            qDebug() << "GraphLayout: Removed BTW marker from graph type" << static_cast<int>(graphType);
+        }
+        return removed;
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot remove BTW marker - data source not found for graph type" << static_cast<int>(graphType);
+        return false;
+    }
+}
+
+bool GraphLayout::removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        bool removed = it->second->removeRTWRMarker(timestamp, range, toleranceMs, rangeTolerance);
+        if (removed)
+        {
+            redrawGraph(graphType);
+            qDebug() << "GraphLayout: Removed RTW R marker from graph type" << static_cast<int>(graphType);
+        }
+        return removed;
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot remove RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
+        return false;
+    }
+}
+
+void GraphLayout::clearRTWSymbols(const GraphType &graphType)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->clearRTWSymbols();
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Cleared RTW symbols for graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot clear RTW symbols - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::clearBTWSymbols(const GraphType &graphType)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->clearBTWSymbols();
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Cleared BTW symbols for graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot clear BTW symbols - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::clearBTWMarkers(const GraphType &graphType)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->clearBTWMarkers();
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Cleared BTW markers for graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot clear BTW markers - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        it->second->clearRTWRMarkers();
+        redrawGraph(graphType);
+        qDebug() << "GraphLayout: Cleared RTW R markers for graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot clear RTW R markers - data source not found for graph type" << static_cast<int>(graphType);
+    }
+}
+
+void GraphLayout::redrawGraph(const GraphType &graphType)
+{
+    // Redraw all containers that have this graph type available (not just currently displayed)
+    // This ensures symbols/markers appear even if the graph type isn't currently visible
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            // Redraw the specific graph type in this container
+            container->redrawWaterfallGraph(graphType);
+            qDebug() << "GraphLayout: Redrew graph type" << static_cast<int>(graphType) << "in container";
+        }
+    }
+}
+
+void GraphLayout::redrawAllGraphs()
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->redrawWaterfallGraph();
+        }
+    }
+    qDebug() << "GraphLayout: Redrew all graphs";
+}
+
+void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* unusedRange */)
+{
+    qDebug() << "GraphLayout: Adding BTW symbol (magenta circle) to all graphs at timestamp" << timestamp.toString();
+    
+    // Get all graph types
+    std::vector<GraphType> allGraphTypes = getDataSourceLabels();
+    
+    for (GraphType graphType : allGraphTypes)
+    {
+        // Skip BTW graphs (they already have the marker)
+        if (graphType == GraphType::BTW)
+        {
+            continue;
+        }
+        
+        // Get data source for this graph type
+        WaterfallData *dataSource = getDataSource(graphType);
+        if (!dataSource || dataSource->isEmpty())
+        {
+            qDebug() << "GraphLayout: Skipping graph type" << static_cast<int>(graphType) << "- no data source or empty";
+            continue;
+        }
+        
+        // Find the data point at this timestamp in this graph's data
+        // We need to find the range (Y value) of the data point at this timestamp
+        qreal dataPointRange = 0.0;
+        bool foundDataPoint = false;
+        
+        // Get all series labels for this data source
+        std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+        
+        // Try to find a data point at the given timestamp (within tolerance)
+        const qint64 timeToleranceMs = 1000; // 1 second tolerance
+        qint64 closestTimeDiff = timeToleranceMs;
+        
+        for (const QString &seriesLabel : seriesLabels)
+        {
+            const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+            const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
+            
+            // Find the closest data point to the target timestamp
+            for (size_t i = 0; i < timestamps.size(); ++i)
+            {
+                qint64 timeDiff = qAbs(timestamps[i].msecsTo(timestamp));
+                if (timeDiff < closestTimeDiff)
+                {
+                    closestTimeDiff = timeDiff;
+                    dataPointRange = yData[i];
+                    foundDataPoint = true;
+                }
+            }
+        }
+        
+        if (!foundDataPoint)
+        {
+            qDebug() << "GraphLayout: No data point found at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "- skipping";
+            continue;
+        }
+        
+        qDebug() << "GraphLayout: Found data point at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "with range" << dataPointRange;
+        
+        // Check if symbol already exists at this timestamp (deduplication)
+        std::vector<BTWSymbolData> existingSymbols = dataSource->getBTWSymbols();
+        bool symbolExists = false;
+        for (const auto& existingSymbol : existingSymbols)
+        {
+            // Check if symbol exists at the same timestamp (within 100ms tolerance)
+            qint64 timeDiff = qAbs(existingSymbol.timestamp.msecsTo(timestamp));
+            if (timeDiff < 100 && existingSymbol.symbolName == "MagentaCircle")
+            {
+                symbolExists = true;
+                break;
+            }
+        }
+        
+        if (symbolExists)
+        {
+            qDebug() << "GraphLayout: BTW symbol already exists in" << static_cast<int>(graphType) << "at this timestamp, skipping";
+            continue;
+        }
+        
+        // Add magenta circle symbol to this graph's data source
+        // Use the range value from the data point at this timestamp (not the BTW marker's range)
+        dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange);
+        qDebug() << "GraphLayout: Added BTW symbol to graph type" << static_cast<int>(graphType) << "at timestamp" << timestamp.toString() << "with range" << dataPointRange << "(from data point)";
+        
+        // Verify the symbol was added
+        size_t symbolCount = dataSource->getBTWSymbolsCount();
+        qDebug() << "GraphLayout: Verified - graph type" << static_cast<int>(graphType) << "now has" << symbolCount << "BTW symbols";
+        
+        // Trigger redraw of this graph - redraw all containers that might show this graph type
+        redrawGraph(graphType);
+    }
+    
+    // Redraw all graphs once to ensure symbols appear in all containers
+    redrawAllGraphs();
+    
+    qDebug() << "GraphLayout: Finished adding BTW symbols to all graphs";
 }
 
 bool GraphLayout::hasHardRangeLimits(const GraphType graphType) const

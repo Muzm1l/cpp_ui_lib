@@ -75,6 +75,7 @@ public:
 
     // Graph redraw method
     void redrawWaterfallGraph();
+    void redrawWaterfallGraph(GraphType graphType); // Redraw a specific graph type
     
     // Get the current waterfall graph
     WaterfallGraph* getCurrentWaterfallGraph() const;

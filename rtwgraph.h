@@ -41,7 +41,7 @@ protected:
 private:
     // RTW-specific properties and methods can be added here
     void drawRTWScatterplot();
-    void drawCustomRMarkers(const QString &seriesLabel);
+    void drawCustomRMarkers();
     void drawRTWSymbols();
     RTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
 

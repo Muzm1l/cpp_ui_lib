@@ -91,17 +91,16 @@ void BTWGraph::draw()
                     drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
                 }
 
-                if (seriesLabel == "BTW-1")
-                {
-                    // Draw custom circle markers for BTW-1 series with delta-calculated angles
-                    drawCustomCircleMarkers(seriesLabel);
-                }
+                // BTW markers are now manually placed through data source - no automatic generation
             }
         }
     }
     
     // Draw BTW symbols (magenta circles from other graphs)
     drawBTWSymbols();
+    
+    // Draw manually placed BTW markers from data source
+    drawCustomCircleMarkers();
     
     isDrawing = false;
 }
@@ -134,9 +133,6 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     
     // Only add a marker if we clicked on empty space (no interactive items)
     if (m_interactiveOverlay) {
-        // Clear any existing markers first (only allow one marker)
-        m_interactiveOverlay->clearAllMarkers();
-        
         // Convert scene position to overlay coordinates
         QPointF overlayPos = scenePos;
         
@@ -186,200 +182,53 @@ void BTWGraph::drawBTWScatterplot()
 }
 
 /**
- * @brief Draw custom circle markers with delta-calculated line for BTW graph
- * Circle outline with a line whose angle is calculated from delta values between consecutive points
- *
- * @param seriesLabel The series label to draw markers for
+ * @brief Draw manually placed BTW circle markers from data source
+ * Circle outline with a line whose angle is calculated from delta values
  */
-void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
+void BTWGraph::drawCustomCircleMarkers()
 {
     if (!dataSource || !graphicsScene) {
         qDebug() << "BTW: drawCustomCircleMarkers early return - no dataSource or graphicsScene";
         return;
     }
 
-    // Get BTW-1 series data to calculate deltas
-    const std::vector<qreal>& btw1Data = dataSource->getYDataSeries("BTW-1");
-    const std::vector<QDateTime>& btw1Timestamps = dataSource->getTimestampsSeries("BTW-1");
+    // Get manually placed markers from data source
+    std::vector<BTWMarkerData> btwMarkers = dataSource->getBTWMarkers();
     
-    if (btw1Data.size() < 2) {
-        qDebug() << "BTW: Not enough BTW-1 data points for delta calculation";
+    if (btwMarkers.empty()) {
+        qDebug() << "BTW: No manually placed markers in data source";
         return;
     }
 
-    // Calculate delta values (differences between consecutive points)
-    std::vector<qreal> deltaValues;
-    std::vector<QDateTime> deltaTimestamps;
+    // Filter markers to only include those within the visible time range
+    std::vector<BTWMarkerData> visibleMarkers;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
-    // First delta is 0 (no previous point)
-    deltaValues.push_back(0.0);
-    deltaTimestamps.push_back(btw1Timestamps[0]);
-    
-    // Calculate deltas for remaining points
-    for (size_t i = 1; i < btw1Data.size(); ++i) {
-        qreal delta = btw1Data[i] - btw1Data[i - 1];
-        deltaValues.push_back(delta);
-        deltaTimestamps.push_back(btw1Timestamps[i]);
-    }
-
-    qDebug() << "BTW: Calculated" << deltaValues.size() << "delta values for custom markers";
-
-    // Use 1/5 of current time interval for sampling (following pattern from RTW/LTW)
-    qint64 samplingIntervalMs = 300000; // 3 seconds
-
-    // Convert to QTime for the binning method
-    QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
-    
-    // Use BTW-1 data for binning (for positioning), but keep delta values for angle calculation
-    std::vector<std::pair<qreal, QDateTime>> binnedData = WaterfallData::binDataByTime(btw1Data, btw1Timestamps, binDuration);
-    
-    // Filter binned data to only include points within the visible time range
-    std::vector<std::pair<qreal, QDateTime>> visibleBinnedData;
-    for (const auto& point : binnedData) {
-        if (point.second >= timeMin && point.second <= timeMax) {
-            visibleBinnedData.push_back(point);
-        }
-    }
-
-    // Helper function to find delta value for a given timestamp
-    auto findDeltaForTimestamp = [&](const QDateTime& timestamp) -> qreal {
-        // Find the closest timestamp in deltaTimestamps
-        qint64 minDiff = LLONG_MAX;
-        qreal closestDelta = 0.0;
-        
-        for (size_t i = 0; i < deltaTimestamps.size(); ++i) {
-            qint64 diff = qAbs(deltaTimestamps[i].msecsTo(timestamp));
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestDelta = deltaValues[i];
+    if (timeRangeValid) {
+        for (const auto& markerData : btwMarkers) {
+            if (markerData.timestamp >= timeMin && markerData.timestamp <= timeMax) {
+                visibleMarkers.push_back(markerData);
             }
         }
-        return closestDelta;
-    };
-    
-    qDebug() << "BTW: Time range filtering - Total binned:" << binnedData.size() 
-             << "- Visible binned:" << visibleBinnedData.size()
-             << "- Time range:" << timeMin.toString() << "to" << timeMax.toString();
+    } else {
+        visibleMarkers = btwMarkers;
+    }
 
-    qDebug() << "BTW: Binning completed for delta values" 
-             << "- Total delta data:" << deltaValues.size() 
-             << "- Binned data:" << binnedData.size()
-             << "- Visible binned data:" << visibleBinnedData.size()
-             << "- Sampling interval:" << samplingIntervalMs << "ms";
-
-    // Check if time range is valid and reasonable before drawing markers
-    // Use the robust helper function that checks validity, range size, and reasonableness
-    if (!isTimeRangeValidForDrawing()) {
-        qDebug() << "BTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
-        qDebug() << "BTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
-        qDebug() << "BTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
-        qDebug() << "BTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
+    if (visibleMarkers.empty()) {
+        qDebug() << "BTW: No visible markers within time range";
         return;
     }
 
-    if (visibleBinnedData.empty()) {
-        qDebug() << "BTW: No visible binned data available for series" << seriesLabel;
-        qDebug() << "BTW: Time range is valid but no data points within range - skipping marker drawing";
-        return;
-        
-        // REMOVED FALLBACK: Don't draw markers when time range is not properly set
-        // This prevents duplicate markers at startup
-        /*
-        qDebug() << "BTW: Trying fallback - drawing markers for raw data";
-        
-        // Fallback: draw markers for raw data if binning produces no visible results
-        int fallbackMarkersDrawn = 0;
-        for (size_t i = 0; i < deltaValues.size() && i < 10; ++i) { // Limit to first 10 points
-            qreal deltaValue = deltaValues[i];
-            qreal btw1Value = btw1Data[i]; // Use BTW-1 value for positioning
-            QDateTime timestamp = deltaTimestamps[i];
-            QPointF screenPos = mapDataToScreen(btw1Value, timestamp); // Position based on BTW-1 value
-            
-            if (drawingArea.contains(screenPos)) {
-                QSize windowSize = this->size();
-                qreal markerRadius = std::min(0.04 * windowSize.width(), 12.0);
-                
-                // Draw circle outline
-                QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
-                circleOutline->setRect(screenPos.x() - markerRadius, screenPos.y() - markerRadius, 
-                                     2 * markerRadius, 2 * markerRadius);
-                circleOutline->setPen(QPen(Qt::blue, 2));
-                circleOutline->setBrush(QBrush(Qt::transparent));
-                circleOutline->setZValue(1000);
-                
-                graphicsScene->addItem(circleOutline);
-                
-                // Log timestamp when fallback automatic marker is created
-                qDebug() << "========================================";
-                qDebug() << "BTW AUTOMATIC MARKER CREATED (FALLBACK) - TIMESTAMP RETURNED";
-                qDebug() << "========================================";
-                qDebug() << "BTWGraph: Automatic circle marker created at screen position:" << screenPos;
-                qDebug() << "BTWGraph: Marker timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                qDebug() << "BTWGraph: BTW-1 value:" << btw1Value;
-                qDebug() << "BTWGraph: Delta value:" << deltaValue;
-                qDebug() << "========================================";
-                
-                // Draw angled line (5x radius on both sides)
-                qreal lineLength = 5 * markerRadius;
-                
-                // Calculate angle from delta value
-                // Map delta value to angle: positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
-                qreal angleDegrees = deltaValue * 10.0; // Scale factor to convert delta to meaningful angle
-                qreal angleRadians = qDegreesToRadians(angleDegrees);
-                
-                // Calculate line endpoints based on angle
-                // For true north (0°), line points up/down (vertical)
-                qreal deltaX = lineLength * qSin(angleRadians);
-                qreal deltaY = -lineLength * qCos(angleRadians); // Negative because Y increases downward
-                
-                QGraphicsLineItem *angledLine = new QGraphicsLineItem();
-                angledLine->setLine(screenPos.x() - deltaX, screenPos.y() - deltaY,
-                                  screenPos.x() + deltaX, screenPos.y() + deltaY);
-                angledLine->setPen(QPen(Qt::blue, 2));
-                angledLine->setZValue(1001);
-                
-                graphicsScene->addItem(angledLine);
-                
-                // Add blue text label with rectangular outline beside the marker
-                DrawUtils::addBearingRateBoxToScene(graphicsScene, deltaValue, Qt::blue, screenPos, markerRadius, 1002);
-                
-                // Store timestamp for retrieval
-                m_automaticMarkerTimestamps.push_back(timestamp);
-                
-                // Log timestamp when fallback automatic marker is created
-                qDebug() << "========================================";
-                qDebug() << "BTW AUTOMATIC MARKER CREATED (FALLBACK) - TIMESTAMP RETURNED";
-                qDebug() << "========================================";
-                qDebug() << "BTWGraph: Automatic circle marker created at screen position:" << screenPos;
-                qDebug() << "BTWGraph: Marker timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                qDebug() << "BTWGraph: BTW-1 value:" << btw1Value;
-                qDebug() << "BTWGraph: Delta value:" << deltaValue;
-                qDebug() << "========================================";
-                
-                // Add magenta circle symbol to all other graphs at this timestamp
-                addBTWSymbolToOtherGraphs(timestamp, btw1Value);
-                
-                fallbackMarkersDrawn++;
-            }
-        }
-        qDebug() << "BTW: Fallback drew" << fallbackMarkersDrawn << "blue circle markers";
-        return;
-        */
-    }
-
-    // Draw circle markers for each visible binned point
+    // Draw circle markers for each visible marker
     int markersDrawn = 0;
-    qDebug() << "BTW: Drawing area:" << drawingArea;
-    for (const auto& point : visibleBinnedData) {
-        qreal btw1Value = point.first; // BTW-1 value for positioning
-        QDateTime timestamp = point.second;
-        qreal deltaValue = findDeltaForTimestamp(timestamp); // Delta value for angle calculation
-        QPointF screenPos = mapDataToScreen(btw1Value, timestamp); // Position based on BTW-1 value
+    qDebug() << "BTW: Drawing" << visibleMarkers.size() << "manually placed markers";
+    
+    for (const auto& markerData : visibleMarkers) {
+        QDateTime timestamp = markerData.timestamp;
+        qreal range = markerData.range;
+        qreal deltaValue = markerData.delta;
         
-        // Only debug first few points to avoid spam
-        if (markersDrawn < 3) {
-            qDebug() << "BTW: Point" << markersDrawn << "- BTW1:" << btw1Value << "Delta:" << deltaValue << "Time:" << timestamp.toString() << "Screen:" << screenPos << "In area:" << drawingArea.contains(screenPos);
-        }
+        QPointF screenPos = mapDataToScreen(range, timestamp);
         
         // Check if point is within visible area
         if (drawingArea.contains(screenPos)) {
@@ -396,23 +245,6 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             circleOutline->setZValue(1000);
             
             graphicsScene->addItem(circleOutline);
-            
-            // Store timestamp for retrieval
-            m_automaticMarkerTimestamps.push_back(timestamp);
-            
-            // Log timestamp when automatic marker is created
-            qDebug() << "========================================";
-            qDebug() << "BTW AUTOMATIC MARKER CREATED - TIMESTAMP RETURNED";
-            qDebug() << "========================================";
-            qDebug() << "BTWGraph: Automatic circle marker created at screen position:" << screenPos;
-            qDebug() << "BTWGraph: Marker timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-            qDebug() << "BTWGraph: BTW-1 value:" << btw1Value;
-            qDebug() << "BTWGraph: Delta value:" << deltaValue;
-            qDebug() << "========================================";
-            
-            // Add magenta circle symbol to all other graphs at this timestamp
-            // Check if there's a datapoint at this timestamp in other graphs
-            addBTWSymbolToOtherGraphs(timestamp, btw1Value);
             
             // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
@@ -467,7 +299,7 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
         }
     }
     
-    qDebug() << "BTW: Drew" << markersDrawn << "delta-based circle markers";
+    qDebug() << "BTW: Drew" << markersDrawn << "manually placed circle markers";
 }
 
 /**

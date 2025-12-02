@@ -31,6 +31,8 @@ WaterfallData::~WaterfallData()
     dataSeriesTimestamps.clear();
     rtwSymbols.clear();
     btwSymbols.clear();
+    btwMarkers.clear();
+    rtwRMarkers.clear();
 }
 
 void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -795,4 +797,101 @@ std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
 size_t WaterfallData::getBTWSymbolsCount() const
 {
     return btwSymbols.size();
+}
+
+// BTW Marker management methods implementation
+
+void WaterfallData::addBTWMarker(const QDateTime& timestamp, qreal range, qreal delta)
+{
+    BTWMarkerData markerData;
+    markerData.timestamp = timestamp;
+    markerData.range = range;
+    markerData.delta = delta;
+    
+    btwMarkers.push_back(markerData);
+    
+    qDebug() << "WaterfallData: Added BTW marker at timestamp" << timestamp.toString() << "with range" << range << "and delta" << delta;
+}
+
+void WaterfallData::clearBTWMarkers()
+{
+    btwMarkers.clear();
+    qDebug() << "WaterfallData: Cleared all BTW markers";
+}
+
+bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    for (auto it = btwMarkers.begin(); it != btwMarkers.end(); ++it)
+    {
+        // Check if timestamp matches within tolerance
+        qint64 timeDiff = qAbs(it->timestamp.msecsTo(timestamp));
+        qreal rangeDiff = qAbs(it->range - range);
+        
+        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        {
+            btwMarkers.erase(it);
+            qDebug() << "WaterfallData: Removed BTW marker at timestamp" << timestamp.toString() << "with range" << range;
+            return true;
+        }
+    }
+    qDebug() << "WaterfallData: BTW marker not found at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
+std::vector<BTWMarkerData> WaterfallData::getBTWMarkers() const
+{
+    return btwMarkers;
+}
+
+size_t WaterfallData::getBTWMarkersCount() const
+{
+    return btwMarkers.size();
+}
+
+// RTW R Marker management methods implementation
+
+void WaterfallData::addRTWRMarker(const QDateTime& timestamp, qreal range)
+{
+    RTWRMarkerData markerData;
+    markerData.timestamp = timestamp;
+    markerData.range = range;
+    
+    rtwRMarkers.push_back(markerData);
+    
+    qDebug() << "WaterfallData: Added RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearRTWRMarkers()
+{
+    rtwRMarkers.clear();
+    qDebug() << "WaterfallData: Cleared all RTW R markers";
+}
+
+bool WaterfallData::removeRTWRMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    for (auto it = rtwRMarkers.begin(); it != rtwRMarkers.end(); ++it)
+    {
+        // Check if timestamp matches within tolerance
+        qint64 timeDiff = qAbs(it->timestamp.msecsTo(timestamp));
+        qreal rangeDiff = qAbs(it->range - range);
+        
+        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        {
+            rtwRMarkers.erase(it);
+            qDebug() << "WaterfallData: Removed RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
+            return true;
+        }
+    }
+    qDebug() << "WaterfallData: RTW R marker not found at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
+std::vector<RTWRMarkerData> WaterfallData::getRTWRMarkers() const
+{
+    return rtwRMarkers;
+}
+
+size_t WaterfallData::getRTWRMarkersCount() const
+{
+    return rtwRMarkers.size();
 }
