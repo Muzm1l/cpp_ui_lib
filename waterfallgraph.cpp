@@ -52,6 +52,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     autoUpdateYRange(true),
     lastNotifiedCursorTime(QDateTime()),
     lastNotifiedYPosition(-1.0),
+    lastNotifiedCrosshairXPosition(-1.0),
     m_renderState(RenderState::FULL_REDRAW),
     m_rangeUpdateNeeded(false)
 {
@@ -2784,6 +2785,13 @@ void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
     // Update horizontal and vertical lines
     crosshairHorizontal->setLine(sceneRect.left(), mousePos.y(), sceneRect.right(), mousePos.y());
     crosshairVertical->setLine(mousePos.x(), sceneRect.top(), mousePos.x(), sceneRect.bottom());
+    
+    // Notify crosshair X position change (only if position changed significantly)
+    qreal currentX = mousePos.x();
+    if (qAbs(currentX - lastNotifiedCrosshairXPosition) >= 1.0)
+    {
+        notifyCrosshairPositionChanged(currentX);
+    }
 }
 
 /**
@@ -2908,6 +2916,21 @@ void WaterfallGraph::updateCursorLayer()
         cursorCrosshairVertical->setLine(m_lastMousePos.x(), sceneRect.top(), 
                                          m_lastMousePos.x(), sceneRect.bottom());
         needsUpdate = true;
+        
+        // Notify crosshair X position change (only if position changed significantly)
+        qreal currentX = m_lastMousePos.x();
+        if (qAbs(currentX - lastNotifiedCrosshairXPosition) >= 1.0)
+        {
+            notifyCrosshairPositionChanged(currentX);
+        }
+    }
+    else
+    {
+        // Crosshair is not visible, notify with -1 to clear label
+        if (lastNotifiedCrosshairXPosition >= 0)
+        {
+            notifyCrosshairPositionChanged(-1.0);
+        }
     }
     
     if (cursorCrosshairHorizontal->isVisible() != crosshairVisible)
@@ -3197,6 +3220,21 @@ void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time, qreal yPosit
  */
 void WaterfallGraph::notifyCrosshairPositionChanged(qreal xPosition)
 {
+    // Skip if position hasn't changed significantly (more than 1 pixel)
+    if (xPosition >= 0 && lastNotifiedCrosshairXPosition >= 0)
+    {
+        if (qAbs(xPosition - lastNotifiedCrosshairXPosition) < 1.0)
+        {
+            return; // Position hasn't changed enough
+        }
+    }
+    else if (xPosition < 0 && lastNotifiedCrosshairXPosition < 0)
+    {
+        return; // Both are cleared, no need to notify again
+    }
+    
+    lastNotifiedCrosshairXPosition = xPosition;
+    
     if (crosshairPositionChangedCallback)
     {
         crosshairPositionChangedCallback(xPosition);

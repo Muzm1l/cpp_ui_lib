@@ -235,6 +235,7 @@ private:
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
     void drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer);
     void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
+    void drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea);
     
     // Slider methods (following zoom slider pattern)
     void createSliderIndicator();

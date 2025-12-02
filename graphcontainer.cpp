@@ -164,6 +164,17 @@ void GraphContainer::onTimerTick()
             {
                 m_timelineView->setTimelineViewMode(newMode);
             }
+            
+            // Update crosshair timestamp from shared sync state
+            // This ensures crosshair appears in timeline view even when cursor changes in another container
+            if (m_syncState->hasCursorTime && m_syncState->cursorTime.isValid())
+            {
+                m_timelineView->updateCrosshairTimestampFromTime(m_syncState->cursorTime);
+            }
+            else
+            {
+                m_timelineView->clearCrosshairTimestamp();
+            }
         }
         
         // TimelineView will decide whether to update slider based on its current mode

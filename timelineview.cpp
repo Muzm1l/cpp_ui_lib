@@ -783,6 +783,12 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     {
         drawNavTimeLabels(painter, rect());
     }
+    
+    // Draw crosshair timestamp label if visible
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid() && m_crosshairYPosition >= 0 && m_crosshairYPosition <= rect().height())
+    {
+        drawCrosshairTimestampLabel(painter, rect());
+    }
 }
 
 void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
@@ -986,6 +992,10 @@ void TimelineVisualizerWidget::updateCrosshairTimestamp(const QDateTime &timesta
     m_crosshairTimestamp = timestamp;
     m_crosshairYPosition = yPosition;
     m_showCrosshairTimestamp = timestamp.isValid();
+    
+    qDebug() << "TimelineVisualizerWidget: updateCrosshairTimestamp - timestamp" << timestamp.toString("HH:mm:ss.zzz")
+             << "Y position" << yPosition << "valid" << timestamp.isValid() << "show" << m_showCrosshairTimestamp;
+    
     update(); // Trigger repaint
 }
 
@@ -1435,6 +1445,56 @@ void TimelineVisualizerWidget::drawNavTimeLabels(QPainter& painter, const QRect&
             painter.drawText(QPoint(centerX, centerY), labelText);
         }
     }
+}
+
+void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea)
+{
+    if (!m_showCrosshairTimestamp)
+    {
+        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - m_showCrosshairTimestamp is false";
+        return;
+    }
+    
+    if (!m_crosshairTimestamp.isValid())
+    {
+        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - timestamp is invalid";
+        return;
+    }
+    
+    // Check if Y position is within visible area (allow boundary values)
+    if (m_crosshairYPosition < 0 || m_crosshairYPosition > drawArea.height())
+    {
+        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - Y position" << m_crosshairYPosition 
+                 << "out of bounds [0," << drawArea.height() << "]";
+        return;
+    }
+    
+    // Format the timestamp as HH:mm:ss.zzz
+    QString labelText = m_crosshairTimestamp.toString("HH:mm:ss.zzz");
+    
+    // Set text color to yellow for visibility (different from navtime labels)
+    painter.setPen(QPen(QColor(255, 255, 0), 1)); // Yellow
+    
+    QFontMetrics fm(painter.font());
+    int textWidth = fm.horizontalAdvance(labelText);
+    int textHeight = fm.height();
+    
+    // Position the label at the crosshair Y position
+    // Center it horizontally in the draw area
+    int centerX = (drawArea.width() - textWidth) / 2;
+    int centerY = static_cast<int>(m_crosshairYPosition + textHeight / 2);
+    
+    // Draw a background rectangle for better visibility
+    int padding = 2;
+    QRect bgRect(centerX - padding, centerY - textHeight - padding, 
+                 textWidth + (2 * padding), textHeight + (2 * padding));
+    painter.fillRect(bgRect, QColor(0, 0, 0, 200)); // Semi-transparent black background
+    
+    // Draw the timestamp text
+    painter.drawText(QPoint(centerX, centerY), labelText);
+    
+    qDebug() << "TimelineVisualizerWidget: Drew crosshair timestamp label at Y" << m_crosshairYPosition 
+             << "with text" << labelText << "in drawArea" << drawArea;
 }
 
 TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState)

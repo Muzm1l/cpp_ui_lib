@@ -210,6 +210,7 @@ protected:
     // Crosshair position callback
     std::function<void(qreal xPosition)> crosshairPositionChangedCallback;
     void notifyCrosshairPositionChanged(qreal xPosition);
+    qreal lastNotifiedCrosshairXPosition;
 
     // Time axis cursor functionality
     QGraphicsLineItem *timeAxisCursor;

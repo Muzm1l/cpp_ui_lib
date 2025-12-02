@@ -1437,7 +1437,28 @@ void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDa
         m_syncState.hasCursorTime = false;
     }
 
-    // All containers now read from sync state via timer, so no need to call applySharedTimeAxisCursor
+    // Propagate cursor time to all containers' timeline views
+    // The source container already updated its timeline view in handleCursorTimeChanged
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container != source)
+        {
+            // Update timeline view crosshair timestamp in other containers
+            if (container->getTimelineView())
+            {
+                if (time.isValid())
+                {
+                    container->getTimelineView()->updateCrosshairTimestampFromTime(time);
+                }
+                else
+                {
+                    container->getTimelineView()->clearCrosshairTimestamp();
+                }
+            }
+        }
+    }
+
+    // All containers now read from sync state via timer for cursor layer
     // The cursor layer in each WaterfallGraph will automatically read from m_syncState
 }
 
