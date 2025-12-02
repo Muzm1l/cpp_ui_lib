@@ -1,6 +1,10 @@
 #include "btwgraph.h"
 #include "btwinteractiveoverlay.h"
 #include "interactivegraphicsitem.h"
+#include "graphcontainer.h"
+#include "graphlayout.h"
+#include "waterfalldata.h"
+#include "graphtype.h"
 #include <QDebug>
 #include <QRandomGenerator>
 
@@ -15,6 +19,7 @@
 BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
     , m_interactiveOverlay(nullptr)
+    , symbols(40)  // Initialize BTW symbol cache
 {
     qDebug() << "BTWGraph constructor called";
     
@@ -39,8 +44,23 @@ void BTWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "BTWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
+    // Clear existing items - ensure complete clearing before drawing
+    // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    
+    // Clear stored timestamps when redrawing (markers will be recreated)
+    m_automaticMarkerTimestamps.clear();
+    
     setupDrawingArea();
 
     if (gridEnabled)
@@ -79,6 +99,11 @@ void BTWGraph::draw()
             }
         }
     }
+    
+    // Draw BTW symbols (magenta circles from other graphs)
+    drawBTWSymbols();
+    
+    isDrawing = false;
 }
 
 /**
@@ -93,9 +118,11 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     qDebug() << "BTWGraph mouse clicked at scene position:" << scenePos;
     
     // Check if we clicked on an existing interactive marker in the overlay scene
+    // The overlay scene and graphics scene share the same coordinate system
     if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
         QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
-        if (itemAtPos) {
+        // Filter out crosshair items - they should not prevent marker creation
+        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
             qDebug() << "BTWGraph: Clicked on existing interactive item:" << itemAtPos << "letting it handle the event";
             // Don't add a new marker, let the interactive item handle the click
             return;
@@ -113,14 +140,21 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         // Convert scene position to overlay coordinates
         QPointF overlayPos = scenePos;
         
-        // Add a data point marker at the clicked position
-        QDateTime timestamp = QDateTime::currentDateTime();
+        // Calculate timestamp from Y position (this represents the time at that position on the graph)
+        QDateTime timestamp = mapScreenToTime(scenePos.y());
+        
+        // If timestamp is invalid, fallback to current time
+        if (!timestamp.isValid()) {
+            timestamp = QDateTime::currentDateTime();
+            qDebug() << "BTWGraph: Could not map Y position to timestamp, using current time";
+        }
+        
         qreal value = 50.0; // Default value
         QString seriesLabel = "BTW-Click";
         
         m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
         
-        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos;
+        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos << "with timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
     
     // Call parent implementation
@@ -233,8 +267,24 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
              << "- Visible binned data:" << visibleBinnedData.size()
              << "- Sampling interval:" << samplingIntervalMs << "ms";
 
+    // Check if time range is valid and reasonable before drawing markers
+    // Use the robust helper function that checks validity, range size, and reasonableness
+    if (!isTimeRangeValidForDrawing()) {
+        qDebug() << "BTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
+        qDebug() << "BTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
+        qDebug() << "BTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
+        qDebug() << "BTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
+        return;
+    }
+
     if (visibleBinnedData.empty()) {
         qDebug() << "BTW: No visible binned data available for series" << seriesLabel;
+        qDebug() << "BTW: Time range is valid but no data points within range - skipping marker drawing";
+        return;
+        
+        // REMOVED FALLBACK: Don't draw markers when time range is not properly set
+        // This prevents duplicate markers at startup
+        /*
         qDebug() << "BTW: Trying fallback - drawing markers for raw data";
         
         // Fallback: draw markers for raw data if binning produces no visible results
@@ -258,6 +308,16 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                 circleOutline->setZValue(1000);
                 
                 graphicsScene->addItem(circleOutline);
+                
+                // Log timestamp when fallback automatic marker is created
+                qDebug() << "========================================";
+                qDebug() << "BTW AUTOMATIC MARKER CREATED (FALLBACK) - TIMESTAMP RETURNED";
+                qDebug() << "========================================";
+                qDebug() << "BTWGraph: Automatic circle marker created at screen position:" << screenPos;
+                qDebug() << "BTWGraph: Marker timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                qDebug() << "BTWGraph: BTW-1 value:" << btw1Value;
+                qDebug() << "BTWGraph: Delta value:" << deltaValue;
+                qDebug() << "========================================";
                 
                 // Draw angled line (5x radius on both sides)
                 qreal lineLength = 5 * markerRadius;
@@ -283,11 +343,28 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                 // Add blue text label with rectangular outline beside the marker
                 DrawUtils::addBearingRateBoxToScene(graphicsScene, deltaValue, Qt::blue, screenPos, markerRadius, 1002);
                 
+                // Store timestamp for retrieval
+                m_automaticMarkerTimestamps.push_back(timestamp);
+                
+                // Log timestamp when fallback automatic marker is created
+                qDebug() << "========================================";
+                qDebug() << "BTW AUTOMATIC MARKER CREATED (FALLBACK) - TIMESTAMP RETURNED";
+                qDebug() << "========================================";
+                qDebug() << "BTWGraph: Automatic circle marker created at screen position:" << screenPos;
+                qDebug() << "BTWGraph: Marker timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                qDebug() << "BTWGraph: BTW-1 value:" << btw1Value;
+                qDebug() << "BTWGraph: Delta value:" << deltaValue;
+                qDebug() << "========================================";
+                
+                // Add magenta circle symbol to all other graphs at this timestamp
+                addBTWSymbolToOtherGraphs(timestamp, btw1Value);
+                
                 fallbackMarkersDrawn++;
             }
         }
         qDebug() << "BTW: Fallback drew" << fallbackMarkersDrawn << "blue circle markers";
         return;
+        */
     }
 
     // Draw circle markers for each visible binned point
@@ -319,6 +396,23 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             circleOutline->setZValue(1000);
             
             graphicsScene->addItem(circleOutline);
+            
+            // Store timestamp for retrieval
+            m_automaticMarkerTimestamps.push_back(timestamp);
+            
+            // Log timestamp when automatic marker is created
+            qDebug() << "========================================";
+            qDebug() << "BTW AUTOMATIC MARKER CREATED - TIMESTAMP RETURNED";
+            qDebug() << "========================================";
+            qDebug() << "BTWGraph: Automatic circle marker created at screen position:" << screenPos;
+            qDebug() << "BTWGraph: Marker timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+            qDebug() << "BTWGraph: BTW-1 value:" << btw1Value;
+            qDebug() << "BTWGraph: Delta value:" << deltaValue;
+            qDebug() << "========================================";
+            
+            // Add magenta circle symbol to all other graphs at this timestamp
+            // Check if there's a datapoint at this timestamp in other graphs
+            addBTWSymbolToOtherGraphs(timestamp, btw1Value);
             
             // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
@@ -439,9 +533,38 @@ void BTWGraph::deleteInteractiveMarkers()
 
 void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(type);
-    qDebug() << "BTWGraph: Marker added, type:" << type;
+    if (!marker) {
+        qDebug() << "BTWGraph: Marker added - NULL marker, type:" << type;
+        return;
+    }
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    if (timestamp.isValid()) {
+        qDebug() << "========================================";
+        qDebug() << "BTW MANUAL MARKER PLACED - TIMESTAMP RETURNED";
+        qDebug() << "========================================";
+        qDebug() << "BTWGraph: Marker added, type:" << type;
+        qDebug() << "BTWGraph: Marker scene position:" << marker->scenePos();
+        qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+        qDebug() << "========================================";
+        
+        // Emit signal for external integration
+        emit manualMarkerPlaced(timestamp, marker->scenePos());
+    } else {
+        qDebug() << "BTWGraph: Marker added, type:" << type << "- Could not determine timestamp (invalid)";
+    }
 }
 
 void BTWGraph::onMarkerRemoved(InteractiveGraphicsItem *marker, int type)
@@ -467,7 +590,237 @@ void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
 
 void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(position);
-    qDebug() << "BTWGraph: Marker clicked at:" << position;
+    if (!marker) {
+        qDebug() << "BTWGraph: Marker clicked - NULL marker";
+        return;
+    }
+    
+    // First try to get timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    if (timestamp.isValid()) {
+        qDebug() << "========================================";
+        qDebug() << "BTW MANUAL MARKER CLICKED - TIMESTAMP RETURNED";
+        qDebug() << "========================================";
+        qDebug() << "BTWGraph: Marker clicked at position:" << position;
+        qDebug() << "BTWGraph: Marker scene position:" << marker->scenePos();
+        qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+        qDebug() << "========================================";
+        
+        // Emit signal for external integration
+        emit manualMarkerClicked(timestamp, marker->scenePos());
+    } else {
+        qDebug() << "BTWGraph: Marker clicked at:" << position << "- Could not determine timestamp (invalid)";
+    }
+}
+
+std::vector<QDateTime> BTWGraph::getAutomaticMarkerTimestamps() const
+{
+    return m_automaticMarkerTimestamps;
+}
+
+void BTWGraph::addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
+{
+    // Store symbol in dataSource (WaterfallData) so it persists with track data
+    if (!dataSource)
+    {
+        qDebug() << "BTW: Cannot add symbol - no data source set";
+        return;
+    }
+    
+    dataSource->addBTWSymbol(symbolName, timestamp, range);
+    
+    qDebug() << "BTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "to data source";
+    
+    // Trigger redraw
+    draw();
+}
+
+BTWSymbolDrawing::SymbolType BTWGraph::symbolNameToType(const QString &symbolName) const
+{
+    QString name = symbolName.toUpper();
+    if (name == "MAGENTACIRCLE") return BTWSymbolDrawing::SymbolType::MagentaCircle;
+    
+    // Default to MagentaCircle
+    return BTWSymbolDrawing::SymbolType::MagentaCircle;
+}
+
+void BTWGraph::drawBTWSymbols()
+{
+    // Follow the same pattern as RTW symbols - read symbols from dataSource
+    if (!graphicsScene || !dataSource)
+    {
+        return;
+    }
+    
+    // Get symbols from dataSource
+    std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
+    
+    if (btwSymbols.empty())
+    {
+        return;
+    }
+    
+    // Filter symbols to only include those within the visible time range
+    std::vector<BTWSymbolData> visibleSymbols;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    
+    if (timeRangeValid)
+    {
+        for (const auto& symbolData : btwSymbols)
+        {
+            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
+            {
+                visibleSymbols.push_back(symbolData);
+            }
+        }
+    }
+    else
+    {
+        visibleSymbols = btwSymbols;
+    }
+    
+    // Draw symbols
+    for (const auto& symbolData : visibleSymbols)
+    {
+        // Map symbol position to screen coordinates
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
+        
+        // Check if point is within visible area
+        if (!drawingArea.contains(screenPos))
+        {
+            continue;
+        }
+        
+        // Convert symbol name to SymbolType
+        BTWSymbolDrawing::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
+        
+        // Get the pixmap for this symbol type
+        const QPixmap& symbolPixmap = symbols.get(symbolType);
+        
+        // Validate pixmap before using it
+        if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
+        {
+            continue;
+        }
+        
+        // Create a graphics pixmap item and add it to the scene
+        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
+        
+        // Center the symbol on the data point
+        QRectF pixmapRect = pixmapItem->boundingRect();
+        pixmapItem->setPos(screenPos.x() - pixmapRect.width()/2, screenPos.y() - pixmapRect.height()/2);
+        pixmapItem->setZValue(1003); // Above markers but below interactive items
+        
+        graphicsScene->addItem(pixmapItem);
+    }
+}
+
+void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue)
+{
+    // Find parent GraphContainer to access GraphLayout
+    QWidget *parent = this->parentWidget();
+    if (!parent) return;
+    
+    // Try to find GraphContainer
+    GraphContainer *container = qobject_cast<GraphContainer*>(parent);
+    if (!container) return;
+    
+    // Try to find GraphLayout (parent of GraphContainer)
+    QWidget *layoutWidget = container->parentWidget();
+    if (!layoutWidget) return;
+    
+    GraphLayout *layout = qobject_cast<GraphLayout*>(layoutWidget);
+    if (!layout) return;
+    
+    // Get all graph containers in the layout
+    // We need to access m_graphContainers, but it's private, so we'll use a different approach
+    // Get all containers using findChildren
+    QList<GraphContainer*> allContainers = layout->findChildren<GraphContainer*>();
+    
+    for (GraphContainer *otherContainer : allContainers)
+    {
+        if (otherContainer == container) continue; // Skip self
+        
+        // Get all graph types in this container
+        std::vector<GraphType> graphTypes = getAllGraphTypes();
+        
+        for (GraphType graphType : graphTypes)
+        {
+            if (graphType == GraphType::BTW) continue; // Skip BTW graphs
+            
+            // Check if this container has this graph type
+            if (!otherContainer->hasDataOption(graphType)) continue;
+            
+            // Get the data source for this graph type
+            WaterfallData *dataSource = layout->getDataSource(graphType);
+            if (!dataSource) continue;
+            
+            // Check if symbol already exists at this timestamp (deduplication)
+            // This prevents adding duplicate symbols when draw() is called multiple times
+            std::vector<BTWSymbolData> existingSymbols = dataSource->getBTWSymbols();
+            bool symbolExists = false;
+            for (const auto& existingSymbol : existingSymbols)
+            {
+                // Check if symbol exists at the same timestamp (within 100ms tolerance)
+                qint64 timeDiff = qAbs(existingSymbol.timestamp.msecsTo(timestamp));
+                if (timeDiff < 100 && existingSymbol.symbolName == "MagentaCircle")
+                {
+                    symbolExists = true;
+                    break;
+                }
+            }
+            
+            if (symbolExists) continue; // Skip if symbol already exists
+            
+            // Check if there's a datapoint at this timestamp
+            bool hasDataPoint = false;
+            qreal dataValue = 0.0;
+            
+            // Check all series in the data source
+            std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+            for (const QString &seriesLabel : seriesLabels)
+            {
+                // Get data points near this timestamp (within 1 second)
+                const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+                const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
+                
+                for (size_t i = 0; i < timestamps.size(); ++i)
+                {
+                    qint64 timeDiff = qAbs(timestamps[i].msecsTo(timestamp));
+                    if (timeDiff < 1000) // Within 1 second
+                    {
+                        hasDataPoint = true;
+                        dataValue = yData[i];
+                        break;
+                    }
+                }
+                if (hasDataPoint) break;
+            }
+            
+            // Only add symbol if there's a datapoint
+            if (hasDataPoint)
+            {
+                // Add magenta circle symbol to this graph's data source
+                dataSource->addBTWSymbol("MagentaCircle", timestamp, dataValue);
+                
+                // Trigger redraw of the graph
+                WaterfallGraph *graph = otherContainer->getCurrentWaterfallGraph();
+                if (graph && graph->getDataSource() == dataSource)
+                {
+                    graph->draw();
+                }
+            }
+        }
+    }
 }

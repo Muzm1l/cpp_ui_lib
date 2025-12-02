@@ -19,6 +19,7 @@
 #include <QPainterPath>
 #include <QPalette>
 #include <QPolygonF>
+#include <QEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QTime>
@@ -117,6 +118,7 @@ protected:
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
+    void drawBTWSymbols();
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
     void updateDataRanges();
     void updateYRange();
@@ -150,6 +152,9 @@ protected:
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;
+    
+    // Drawing guard to prevent concurrent draws
+    bool isDrawing;
 
     // Crosshair functionality
     void setupCrosshair();
@@ -161,9 +166,14 @@ protected:
     bool crosshairEnabled;
 
     // Cursor callback helpers
-    void notifyCursorTimeChanged(const QDateTime &time);
-    std::function<void(const QDateTime &)> cursorTimeChangedCallback;
+    void notifyCursorTimeChanged(const QDateTime &time, qreal yPosition = -1.0);
+    std::function<void(const QDateTime &, qreal)> cursorTimeChangedCallback;
     QDateTime lastNotifiedCursorTime;
+    qreal lastNotifiedYPosition;
+    
+    // Crosshair position callback
+    std::function<void(qreal xPosition)> crosshairPositionChangedCallback;
+    void notifyCrosshairPositionChanged(qreal xPosition);
 
     // Time axis cursor functionality
     QGraphicsLineItem *timeAxisCursor;
@@ -197,7 +207,10 @@ public:
     // Time axis cursor control
     void setTimeAxisCursor(const QDateTime &time);
     void clearTimeAxisCursor();
-    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback);
+    void setCursorTimeChangedCallback(const std::function<void(const QDateTime &, qreal)> &callback);
+    
+    // Crosshair position callback
+    void setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback);
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }
@@ -221,6 +234,9 @@ public:
     std::pair<QDateTime, QDateTime> getTimeRange() const;
     void setTimeRangeFromData();
     void setTimeRangeFromDataWithInterval(qint64 intervalMs);
+    
+    // Helper to check if time range is valid and reasonable for drawing
+    bool isTimeRangeValidForDrawing() const;
     void unsetCustomTimeRange();
 
     // Public draw method for external redraw triggers

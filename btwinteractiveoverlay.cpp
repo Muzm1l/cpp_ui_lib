@@ -8,6 +8,7 @@
 #include <QGraphicsRectItem>
 #include <QFont>
 #include <QFontMetrics>
+#include <QVariant>
 #include <QDebug>
 
 BTWInteractiveOverlay::BTWInteractiveOverlay(BTWGraph *btwGraph, QObject *parent)
@@ -92,6 +93,10 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     marker->setShowDragRegion(false);  // Hide the drag region square
     marker->setShowRotateRegion(false); // Hide the rotate regions at line ends
     marker->setRotateRegionSize(QSizeF(12, 12)); // Set rotation regions to 12x12 pixels
+
+    // Store the timestamp in the marker for later retrieval
+    // Use QGraphicsItem::setData() with key 0 to store the timestamp
+    marker->setData(0, QVariant::fromValue(timestamp));
 
     // Add to scene
     m_overlayScene->addItem(marker);

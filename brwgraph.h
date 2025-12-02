@@ -28,6 +28,7 @@ protected:
 private:
     // BRW-specific properties and methods can be added here
     void drawBRWScatterplot();
+    void drawZeroAxis();
 };
 
 #endif // BRWGRAPH_H

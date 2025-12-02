@@ -3,6 +3,13 @@
 #include <QDateTime>
 #include <QDebug>
 #include <QLabel>
+#include <QList>
+#include <QStringList>
+#include <QPainter>
+#include <QFont>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
+#include <QTimer>
 #include <cmath>
 #include <algorithm>
 
@@ -75,11 +82,11 @@ MainWindow::MainWindow(QWidget *parent)
     // Set hard limits for all graph types using GraphLayout range limit methods
     // Range limits are set to be 2x larger than the simulation ranges
     // FDW: sim range 8.0-30.0, so limits 8.0-(8.0+2*(30.0-8.0)) = 8.0-52.0
-    graphgrid->setHardRangeLimits(GraphType::FDW, 8.0, 52.0);  // Frequency Domain Window
+    graphgrid->setHardRangeLimits(GraphType::FDW, -35.0, 35.0);  // Frequency Domain Window4
     // BDW: sim range 5.0-38.0, so limits 5.0-(5.0+2*(38.0-5.0)) = 5.0-71.0
-    graphgrid->setHardRangeLimits(GraphType::BDW, 5.0, 71.0);  // Bandwidth Domain Window
+    graphgrid->setHardRangeLimits(GraphType::BDW, -35.0, 35.0);  // Bandwidth Domain Window
     // BRW: sim range 8.0-30.0, so limits 8.0-52.0
-    graphgrid->setHardRangeLimits(GraphType::BRW, 8.0, 52.0);  // Bit Rate Window
+    graphgrid->setHardRangeLimits(GraphType::BRW, -35.0, 35.0);  // Bit Rate Window
     // LTW: sim range 15.0-30.0, so limits 15.0-(15.0+2*(30.0-15.0)) = 15.0-45.0
     graphgrid->setHardRangeLimits(GraphType::LTW, 15.0, 45.0);  // Left Track Window
     // BTW: sim range 5.0-40.0, so limits 5.0-(5.0+2*(40.0-5.0)) = 5.0-75.0
@@ -87,8 +94,8 @@ MainWindow::MainWindow(QWidget *parent)
     // RTW: sim range 0.0-25.0, so limits 0.0-(0.0+2*(25.0-0.0)) = 0.0-50.0
     graphgrid->setHardRangeLimits(GraphType::RTW, 0.0, 50.0);  // Right Track Window
     // FTW: sim range 15.0-30.0, so limits 15.0-45.0
-    graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
-    graphgrid->setHardRangeLimits(GraphType::FTW, 45.0, 90.0);  // Frequency Time Window
+    // graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
+    graphgrid->setHardRangeLimits(GraphType::FTW, -40.0, 40.0);  // Frequency Time Window
 
     ui->tsv->setData(
         this->currentShipSpeed,
@@ -115,8 +122,48 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup TimelineView in controls tab for slider testing
     setupTimelineView();
 
+    // Setup RTW Symbols test
+    setupRTWSymbolsTest();
+
     // Configure Zoom Panel test functionality
     configureZoomPanel();
+    
+    // Setup time selection history storage
+    setupTimeSelectionHistory();
+}
+
+void MainWindow::setupTimeSelectionHistory()
+{
+    // Connect time selection signal to store timestamps
+    connect(graphgrid, &GraphLayout::TimeSelectionCreated,
+            this, &MainWindow::onTimeSelectionCreated);
+    
+    qDebug() << "Time selection history storage initialized (max 5 selections)";
+}
+
+void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
+{
+    qDebug() << "MainWindow: Time selection created - start:" << selection.startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+             << "end:" << selection.endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    
+    // Store the selection timestamps (both start and end)
+    // If we already have 5, remove the oldest (FIFO)
+    if (timeSelectionHistory.size() >= 5)
+    {
+        timeSelectionHistory.erase(timeSelectionHistory.begin());
+        qDebug() << "Time selection history full, removed oldest entry";
+    }
+    
+    // Add the new selection to the end
+    timeSelectionHistory.push_back(selection);
+    
+    qDebug() << "Time selection stored. History size:" << timeSelectionHistory.size();
+    qDebug() << "All stored selections:";
+    for (size_t i = 0; i < timeSelectionHistory.size(); ++i)
+    {
+        qDebug() << "  [" << i << "] Start:" << timeSelectionHistory[i].startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                 << "End:" << timeSelectionHistory[i].endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    }
 }
 
 MainWindow::~MainWindow()
@@ -480,6 +527,116 @@ void MainWindow::setupCustomGraphsTab()
     rtwGraph->setSeriesColor("RTW-2", QColor(Qt::green));
     rtwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
     qDebug() << "RTW Graph connected to data source and colors set";
+    
+    // Test: Add RTW symbols to the overview tab (GraphLayout) RTW graph
+    // The overview tab uses GraphLayout's data sources, not the standalone rtwData
+    // Strategy: Temporarily set RTW as current in one container, get the graph, add symbols, then restore
+    QTimer::singleShot(3000, this, [this]() {
+        qDebug() << "RTW: ===== Timer callback fired - attempting to add test symbols to overview tab =====";
+        
+        if (!graphgrid) {
+            qDebug() << "RTW: ERROR - graphgrid (GraphLayout) is null!";
+            return;
+        }
+        
+        // Get RTW data source from GraphLayout (this is what the overview tab uses)
+        WaterfallData* overviewRTWData = graphgrid->getDataSource(GraphType::RTW);
+        if (!overviewRTWData) {
+            qDebug() << "RTW: ERROR - GraphLayout RTW data source is null!";
+            return;
+        }
+        
+        qDebug() << "RTW: GraphLayout RTW data source pointer:" << overviewRTWData;
+        qDebug() << "RTW: Current symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
+        
+        // Find RTW graphs in the GraphLayout widget tree using Qt's findChildren
+        // This allows us to get RTW graph instances without accessing private members
+        QList<RTWGraph*> rtwGraphs = graphgrid->findChildren<RTWGraph*>();
+        qDebug() << "RTW: Found" << rtwGraphs.size() << "RTW graph(s) in GraphLayout";
+        
+        RTWGraph* rtwGraphToUse = nullptr;
+        
+        // Find an RTW graph that uses the GraphLayout's RTW data source
+        for (RTWGraph* rtwGraph : rtwGraphs) {
+            if (!rtwGraph) continue;
+            
+            WaterfallData* graphDataSource = rtwGraph->getDataSource();
+            if (graphDataSource == overviewRTWData) {
+                rtwGraphToUse = rtwGraph;
+                qDebug() << "RTW: Found RTW graph using GraphLayout RTW data source";
+                break;
+            }
+        }
+        
+        // Get the current time range from the RTW graph to add symbols within visible range
+        QDateTime symbolTimeMin, symbolTimeMax;
+        bool timeRangeValid = false;
+        
+        if (rtwGraphToUse) {
+            auto timeRange = rtwGraphToUse->getTimeRange();
+            symbolTimeMin = timeRange.first;
+            symbolTimeMax = timeRange.second;
+            timeRangeValid = symbolTimeMin.isValid() && symbolTimeMax.isValid() && symbolTimeMin < symbolTimeMax;
+            qDebug() << "RTW: Current graph time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
+        }
+        
+        // If graph time range is invalid, try data source time range
+        if (!timeRangeValid) {
+            if (!overviewRTWData->isEmpty()) {
+                auto timeRange = overviewRTWData->getCombinedTimeRange();
+                symbolTimeMin = timeRange.first;
+                symbolTimeMax = timeRange.second;
+                timeRangeValid = symbolTimeMin.isValid() && symbolTimeMax.isValid() && symbolTimeMin < symbolTimeMax;
+                qDebug() << "RTW: Using data source time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
+            }
+        }
+        
+        // If still invalid, use current time with a window
+        if (!timeRangeValid) {
+            symbolTimeMax = QDateTime::currentDateTime();
+            symbolTimeMin = symbolTimeMax.addSecs(-150); // 2.5 minutes window
+            qDebug() << "RTW: No valid time range available, using default:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
+        }
+        
+        // Calculate symbol timestamps with 10 second intervals
+        // Start from symbolTimeMin and add 0, 10, 20, 30, 40 seconds
+        QDateTime symbol1Time = symbolTimeMin.addSecs(0);
+        QDateTime symbol2Time = symbolTimeMin.addSecs(250);
+        QDateTime symbol3Time = symbolTimeMin.addSecs(100);
+        QDateTime symbol4Time = symbolTimeMin.addSecs(150);
+        QDateTime symbol5Time = symbolTimeMin.addSecs(200);
+        
+        qDebug() << "RTW: Symbol timestamps:";
+        qDebug() << "  Symbol1 (TM):" << symbol1Time.toString();
+        qDebug() << "  Symbol2 (DP):" << symbol2Time.toString();
+        qDebug() << "  Symbol3 (LY):" << symbol3Time.toString();
+        qDebug() << "  Symbol4 (CircleI):" << symbol4Time.toString();
+        qDebug() << "  Symbol5 (Triangle):" << symbol5Time.toString();
+        qDebug() << "RTW: Time range for filtering:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
+        
+        if (rtwGraphToUse) {
+            // Use rtwGraphToUse->addRTWSymbol() which adds to dataSource AND calls draw() automatically
+            qDebug() << "RTW: Adding test symbols via RTW graph->addRTWSymbol() within time range";
+            rtwGraphToUse->addRTWSymbol("TM", symbol1Time, 10.0);
+            rtwGraphToUse->addRTWSymbol("DP", symbol2Time, 15.0);
+            rtwGraphToUse->addRTWSymbol("LY", symbol3Time, 20.0);
+            rtwGraphToUse->addRTWSymbol("CircleI", symbol4Time, 8.0);
+            rtwGraphToUse->addRTWSymbol("Triangle", symbol5Time, 12.0);
+        } else {
+            // Fallback: add directly to data source (symbols will appear on next redraw)
+            qDebug() << "RTW: WARNING - No RTW graph found using GraphLayout RTW data source";
+            qDebug() << "RTW: Adding symbols directly to data source (will appear on next redraw)";
+            overviewRTWData->addRTWSymbol("TM", symbol1Time, 10.0);
+            overviewRTWData->addRTWSymbol("DP", symbol2Time, 15.0);
+            overviewRTWData->addRTWSymbol("LY", symbol3Time, 20.0);
+            overviewRTWData->addRTWSymbol("CircleI", symbol4Time, 8.0);
+            overviewRTWData->addRTWSymbol("Triangle", symbol5Time, 12.0);
+        }
+        
+        // Verify symbols were added
+        qDebug() << "RTW: After adding - symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
+        qDebug() << "RTW: ===== Finished adding 5 test symbols to overview tab RTW graph =====";
+    });
 
     // FTW Graph - Frequency Time Waterfall
     ftwGraph = new FTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -664,9 +821,9 @@ void MainWindow::setBulkDataForAllGraphs()
     WaterfallData rtwData("RTW", {"RTW-1", "RTW-2"});
     WaterfallData ftwData("FTW", {"FTW-1", "FTW-2"});
 
-    waterfallDataMap[&fdwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[&fdwData] = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};
     waterfallDataMap[&bdwData] = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};
-    waterfallDataMap[&brwData] = SimulatorConfig{8.0, 30.0, 19.0, 2.2};
+    waterfallDataMap[&brwData] = SimulatorConfig{-30.0, 30.0, 0.0, 6.0};
     waterfallDataMap[&ltwData] = SimulatorConfig{15.0, 30.0, 22.5, 1.5};
     waterfallDataMap[&btwData] = SimulatorConfig{5.0, 40.0, 22.5, 3.5};
     waterfallDataMap[&rtwData] = SimulatorConfig{0.0, 25.0, 12.5, 2.5};
@@ -675,3 +832,173 @@ void MainWindow::setBulkDataForAllGraphs()
     // Method moved to Simulator class
     simulator->generateBulkDataForWaterfallData(waterfallDataMap, 90);
 }
+
+/**
+ * @brief Simple widget class to display RTW symbols for testing
+ */
+class RTWSymbolsTestWidget : public QWidget
+{
+public:
+    RTWSymbolsTestWidget(QWidget* parent = nullptr) : QWidget(parent), symbols(40)
+    {
+        setMinimumSize(1200, 800);
+        // Set black background
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, Qt::black);
+        setPalette(pal);
+        setAutoFillBackground(true);
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        int symbolSize = 60;
+        int spacing = 120;
+        int startX = 50;
+        int startY = 80;
+        int currentX = startX;
+        int currentY = startY;
+
+        // Draw title
+        painter.setPen(Qt::white);
+        painter.setFont(QFont("Arial", 16, QFont::Bold));
+        painter.drawText(QRect(0, 10, width(), 30), Qt::AlignCenter, "RTW Symbols Test");
+
+        // Draw all symbol types
+        QList<RTWSymbolDrawing::SymbolType> symbolTypes = {
+            RTWSymbolDrawing::SymbolType::TM,
+            RTWSymbolDrawing::SymbolType::DP,
+            RTWSymbolDrawing::SymbolType::LY,
+            RTWSymbolDrawing::SymbolType::CircleI,
+            RTWSymbolDrawing::SymbolType::Triangle,
+            RTWSymbolDrawing::SymbolType::RectR,
+            RTWSymbolDrawing::SymbolType::EllipsePP,
+            RTWSymbolDrawing::SymbolType::RectX,
+            RTWSymbolDrawing::SymbolType::RectA,
+            RTWSymbolDrawing::SymbolType::RectAPurple,
+            RTWSymbolDrawing::SymbolType::RectK,
+            RTWSymbolDrawing::SymbolType::CircleRYellow,
+            RTWSymbolDrawing::SymbolType::DoubleBarYellow,
+            RTWSymbolDrawing::SymbolType::R,
+            RTWSymbolDrawing::SymbolType::L,
+            RTWSymbolDrawing::SymbolType::BOT,
+            RTWSymbolDrawing::SymbolType::BOTC,
+            RTWSymbolDrawing::SymbolType::BOTF,
+            RTWSymbolDrawing::SymbolType::BOTD
+            
+        };
+
+        QStringList symbolNames = {
+            "TTM Range",
+            "DOPPLER Range",
+            "LLOYD Range",
+            "SONAR Range",
+            "INTERCEPTION SONAR",
+            "RADAR Range",
+            "RULER PIVOT Range",
+            "EXTERNAL Range",
+            "REAL TIME ADOPTION",
+            "PAST TIME ADOPTION",
+            "EKELUND Range",
+            "LATERAL Range",
+            "MIN/MAX Range",
+            "ATMA-ATMAF",
+            "BOPT",
+            "BOT",
+            "BOTC",
+            "BFT",
+            "BRAT",
+            "Wavy Circle (Green)",
+            "Scallop Ellipse (Green)"
+        };
+
+        for (int i = 0; i < symbolTypes.size(); ++i)
+        {
+            // Draw symbol label (with space above symbol)
+            painter.setPen(Qt::white);
+            painter.setFont(QFont("Arial", 10));
+            painter.drawText(QRect(currentX - symbolSize/2, currentY - 45, symbolSize, 20), 
+                           Qt::AlignCenter, symbolNames[i]);
+
+            // Draw the symbol (with space below label)
+            symbols.draw(&painter, QPointF(currentX, currentY), symbolTypes[i]);
+
+            // Move to next position
+            currentX += spacing;
+            if (currentX + spacing > width() - startX)
+            {
+                currentX = startX;
+                currentY += spacing + 20; // Extra spacing between rows
+            }
+        }
+    }
+
+private:
+    RTWSymbolDrawing symbols;
+};
+
+/**
+ * @brief Setup RTW Symbols test widget in a new tab
+ */
+void MainWindow::setupRTWSymbolsTest()
+{
+    qDebug() << "=== Setting up RTW Symbols Test ===";
+    
+    // Create a new tab for RTW symbols test
+    QWidget* rtwSymbolsTab = new QWidget();
+    rtwSymbolsTab->setObjectName("rtwSymbolsTab");
+    ui->tabWidget->addTab(rtwSymbolsTab, "RTW Symbols Test");
+    
+    // Create the RTW symbols test widget
+    rtwSymbolsTestWidget = new RTWSymbolsTestWidget(rtwSymbolsTab);
+    rtwSymbolsTestWidget->setObjectName("rtwSymbolsTestWidget");
+    rtwSymbolsTestWidget->setGeometry(QRect(10, 10, 1200, 800));
+    
+    // Add instructions label
+    QLabel* instructionsLabel = new QLabel(
+        "RTW Symbols Test\n"
+        "This widget displays all available RTW symbol types:\n\n"
+        "Range Types:\n"
+        "• TTM Range - TM\n"
+        "• DOPPLER Range - DP\n"
+        "• LLOYD Range - LY\n"
+        "• SONAR Range - CircleI\n"
+        "• RADAR Range - RectR\n"
+        "• RULER PIVOT Range - EllipsePP\n"
+        "• EXTERNAL Range - RectX\n"
+        "• EKELUND Range - RectK\n"
+        "• LATERAL Range - CircleRYellow\n"
+        "• MIN/MAX Range - DoubleBarYellow\n\n"
+        "Adoption Types:\n"
+        "• REAL TIME ADOPTION - RectA (Red)\n"
+        "• PAST TIME ADOPTION - RectAPurple\n\n"
+        "Methodology Types:\n"
+        "• ATMA-ATMAF - R (Orange)\n"
+        "• BOPT - L in Circle (Green)\n"
+        "• BOT - L in Rectangle (Green)\n"
+        "• BOTC - C (Green)\n"
+        "• BFT - F (Green)\n"
+        "• BRAT - D (Green)\n\n"
+        "Other:\n"
+        "• INTERCEPTION SONAR - Triangle",
+        rtwSymbolsTab);
+    instructionsLabel->setGeometry(QRect(1220, 10, 350, 750));
+    instructionsLabel->setStyleSheet("QLabel { color: white; font-size: 12px; background-color: rgba(0, 0, 0, 150); padding: 10px; border: 1px solid gray; border-radius: 4px; }");
+    instructionsLabel->setWordWrap(true);
+    
+    qDebug() << "RTW Symbols test widget created in new tab";
+    qDebug() << "RTW Symbols test widget geometry:" << rtwSymbolsTestWidget->geometry();
+    qDebug() << "RTW Symbols test widget visible:" << rtwSymbolsTestWidget->isVisible();
+}
+
+/**
+ * @brief Setup RTW Symbol Test Tab with GraphContainer
+ * 
+ * Creates a new tab with a GraphContainer containing an RTW graph.
+ * Adds test data and symbols to verify symbol persistence through
+ * track changes and zoom customization.
+ */

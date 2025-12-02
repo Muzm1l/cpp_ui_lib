@@ -9,6 +9,22 @@
 #include <QDebug>
 #include <QString>
 
+// Forward declaration for RTW symbols
+struct RTWSymbolData
+{
+    QString symbolName;
+    QDateTime timestamp;
+    qreal range;
+};
+
+// Forward declaration for BTW symbols
+struct BTWSymbolData
+{
+    QString symbolName;
+    QDateTime timestamp;
+    qreal range;
+};
+
 class WaterfallData
 {
 public:
@@ -99,11 +115,29 @@ public:
         const QTime& binDuration
     );
 
+    // RTW Symbol management methods (stored with track data)
+    void addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range);
+    void clearRTWSymbols();
+    std::vector<RTWSymbolData> getRTWSymbols() const;
+    size_t getRTWSymbolsCount() const;
+
+    // BTW Symbol management methods (stored with track data)
+    void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range);
+    void clearBTWSymbols();
+    std::vector<BTWSymbolData> getBTWSymbols() const;
+    size_t getBTWSymbolsCount() const;
+
 private:
 
     // Multiple data series storage
     std::map<QString, std::vector<qreal>> dataSeriesYData;
     std::map<QString, std::vector<QDateTime>> dataSeriesTimestamps;
+
+    // RTW Symbol storage (persists with track data)
+    std::vector<RTWSymbolData> rtwSymbols;
+    
+    // BTW Symbol storage (persists with track data)
+    std::vector<BTWSymbolData> btwSymbols;
 
     // Data title
     QString dataTitle;

@@ -8,7 +8,7 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_showTimelineView(showTimelineView), 
     m_timer(timer), 
     m_ownsTimer(false), 
-    m_timelineWidth(80), 
+    m_timelineWidth(64), 
     m_graphViewSize(226, 300), 
     m_seriesColorsMap(seriesColorsMap), 
     currentDataOption(GraphType::BDW), 
@@ -127,11 +127,15 @@ void GraphContainer::setupTimer()
         m_timer->setInterval(1000); // 1 second
     }
 
-    // Connect timer to our tick handler
-    connect(m_timer, &QTimer::timeout, this, &GraphContainer::onTimerTick);
+    // Connect timer to our tick handler with UniqueConnection to prevent duplicates
+    // This ensures the animation continues even after timeline view customization
+    connect(m_timer, &QTimer::timeout, this, &GraphContainer::onTimerTick, Qt::UniqueConnection);
 
-    // Start the timer
-    m_timer->start();
+    // Ensure timer is started (in case it was stopped during customization)
+    if (!m_timer->isActive())
+    {
+        m_timer->start();
+    }
 
     qDebug() << "GraphContainer: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
@@ -165,9 +169,50 @@ void GraphContainer::onTimerTick()
         // TimelineView will decide whether to update slider based on its current mode
         m_timelineView->setCurrentTime(currentTime);
     }
-
-    // Note: Time scope synchronization is now handled by GraphLayout hub
-    // GraphLayout propagates changes directly via setTimeScope() method
+//--------syed----------------
+    // Continuously update graph if showing recent data (within 1 minute of current time)
+    // This ensures data point animation continues after setDataToDataSource is called
+    if (m_currentWaterfallGraph && m_timelineView)
+    {
+        auto timeRange = m_currentWaterfallGraph->getTimeRange();
+        if (timeRange.first.isValid() && timeRange.second.isValid())
+        {
+            QDateTime currentDateTime = QDateTime::currentDateTime();
+            qint64 timeDiffMs = timeRange.second.msecsTo(currentDateTime);
+            
+            // If showing recent data (within 1 minute), update time range and redraw
+            if (timeDiffMs >= 0 && timeDiffMs < 60000)
+            {
+                // Check if we have new data to show
+                if (m_currentWaterfallGraph->getDataSource())
+                {
+                    QDateTime latestDataTime = m_currentWaterfallGraph->getDataSource()->getLatestTime();
+                    if (latestDataTime.isValid() && latestDataTime > timeRange.second)
+                    {
+                        // Update time range to include new data
+                        qint64 intervalMs = timeRange.first.msecsTo(timeRange.second);
+                        QDateTime newTimeMin = latestDataTime.addMSecs(-intervalMs);
+                        QDateTime newTimeMax = latestDataTime;
+                        
+                        m_currentWaterfallGraph->setTimeRange(newTimeMin, newTimeMax);
+                        
+                        // Update timeline view to match
+                        TimeSelectionSpan newWindow(newTimeMin, newTimeMax);
+                        m_timelineView->setVisibleTimeWindow(newWindow);
+                        
+                        // Redraw graph to show updated data
+                        redrawWaterfallGraph();
+                    }
+                    else
+                    {
+                        // Even if no new data, redraw to keep animation smooth
+                        // This ensures the graph continues updating as time progresses
+                        redrawWaterfallGraph();
+                    }
+                }
+            }
+        }
+    } //------------syed-----------------------------------
 
     // qDebug() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
 }
@@ -224,6 +269,19 @@ bool GraphContainer::getShowTimelineView()
     return m_showTimelineView;
 }
 
+TimelineView *GraphContainer::getTimelineView() const
+{
+    return m_timelineView;
+}
+
+void GraphContainer::setShowTimeSelectionVisualizer(bool show)
+{
+    if (m_timelineSelectionView)
+    {
+        m_timelineSelectionView->setVisible(show);
+    }
+}
+
 int GraphContainer::getTimelineWidth() const
 {
     return m_timelineWidth;
@@ -268,7 +326,7 @@ QSize GraphContainer::getTotalContainerSize() const
     int totalHeight = m_graphViewSize.height();
 
     // Add timeline selection view width (fixed width)
-    totalWidth += 50; // Timeline selection view width
+    totalWidth += 32; // Timeline selection view width
 
     // Add timeline view width if enabled
     if (m_showTimelineView)
@@ -378,6 +436,11 @@ void GraphContainer::redrawWaterfallGraph()
         m_currentWaterfallGraph->draw();
         qDebug() << "GraphContainer: Triggered waterfall graph redraw";
     }
+}
+
+WaterfallGraph* GraphContainer::getCurrentWaterfallGraph() const
+{
+    return m_currentWaterfallGraph;
 }
 
 // Data options management implementation
@@ -534,6 +597,23 @@ void GraphContainer::setupEventConnections()
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
+        
+        // Connect crosshair position changes to update zoompanel label
+        pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
+            if (m_zoomPanel)
+            {
+                if (xPosition < 0)
+                {
+                    // Crosshair hidden
+                    m_zoomPanel->clearCrosshairLabel();
+                }
+                else
+                {
+                    // Update zoompanel label with crosshair X position
+                    m_zoomPanel->updateCrosshairLabel(xPosition);
+                }
+            }
+        });
     }
 
     // Connect ZoomPanel value changes
@@ -703,16 +783,59 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setSeriesColor(colorPair.first, colorPair.second);
     }
 
-    graph->setCursorTimeChangedCallback([this](const QDateTime &time) {
+    graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal /* yPosition */) {
         handleCursorTimeChanged(time);
+        
+        // Update timelineview with crosshair timestamp
+        // Use timestamp-based calculation instead of Y coordinate to ensure consistency
+        // This prevents the cursor timestamp from showing at wrong position when layout becomes unstable
+        if (m_timelineView && time.isValid())
+        {
+            m_timelineView->updateCrosshairTimestampFromTime(time);
+        }
+        else if (m_timelineView)
+        {
+            m_timelineView->clearCrosshairTimestamp();
+        }
     });
     applyCursorTimeToGraph(graph);
+    
+    // Set up crosshair position callback to update zoompanel label
+    graph->setCrosshairPositionChangedCallback([this](qreal xPosition) {
+        if (m_zoomPanel)
+        {
+            if (xPosition < 0)
+            {
+                // Crosshair hidden
+                m_zoomPanel->clearCrosshairLabel();
+            }
+            else
+            {
+                // Update zoompanel label with crosshair X position
+                m_zoomPanel->updateCrosshairLabel(xPosition);
+            }
+        }
+    });
 
     // Connect DeleteInteractiveMarkers signal to BTWGraph
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {
         connect(this, &GraphContainer::DeleteInteractiveMarkers,
                 btwGraph, &BTWGraph::deleteInteractiveMarkers);
         qDebug() << "GraphContainer: Connected DeleteInteractiveMarkers signal to BTWGraph";
+        
+        // Connect BTW marker signals
+        connect(btwGraph, &BTWGraph::manualMarkerPlaced,
+                this, &GraphContainer::onBTWManualMarkerPlaced);
+        connect(btwGraph, &BTWGraph::manualMarkerClicked,
+                this, &GraphContainer::onBTWManualMarkerClicked);
+        qDebug() << "GraphContainer: Connected BTW marker timestamp signals";
+    }
+    
+    // Connect RTW R marker signal
+    if (auto rtwGraph = qobject_cast<RTWGraph*>(graph)) {
+        connect(rtwGraph, &RTWGraph::rMarkerTimestampCaptured,
+                this, &GraphContainer::onRTWRMarkerTimestampCaptured);
+        qDebug() << "GraphContainer: Connected RTW R marker timestamp signal";
     }
 }
 
@@ -890,6 +1013,13 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         qDebug() << "TimelineView updated with interval:" << timeIntervalToString(interval);
     }
 
+    // Ensure timer is still running after interval change to keep animation active
+    if (m_timer && !m_timer->isActive())
+    {
+        m_timer->start();
+        qDebug() << "GraphContainer: Timer restarted after interval change";
+    }
+
     // Reset flag after a short delay to allow signals to propagate
     // Use QTimer::singleShot to reset the flag after the current event loop
     QTimer::singleShot(0, this, [this]() {
@@ -955,6 +1085,7 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     qDebug() << "GraphContainer: Time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     // Update the waterfall graph's time range to match the visible scope
+    // This sets a custom time range, but the graph will still redraw when new data arrives
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
 
     // Update shared sync state so other containers can be synchronized
@@ -1205,11 +1336,79 @@ void GraphContainer::onDataChanged(GraphType graphType)
     // If this is the currently displayed graph, update UI components
     if (getCurrentDataOption() == graphType)
     {
+        // Initialize or update the graph's time range from timeline view
+        // This ensures the graph starts drawing immediately when data arrives
+        if (m_currentWaterfallGraph && m_timelineView)
+        {
+            TimelineView *timelineView = m_timelineView;
+            auto timeRange = m_currentWaterfallGraph->getTimeRange();
+            
+            // Check if graph has a valid time range
+            bool hasValidTimeRange = timeRange.first.isValid() && timeRange.second.isValid() && 
+                                     timeRange.first < timeRange.second;
+            
+            // If graph doesn't have a valid time range, initialize it from timeline view
+            if (!hasValidTimeRange)
+            {
+                TimeSelectionSpan timelineWindow = timelineView->getVisibleTimeWindow();
+                if (timelineWindow.startTime.isValid() && timelineWindow.endTime.isValid())
+                {
+                    // Initialize graph time range from timeline view's current window
+                    m_currentWaterfallGraph->setTimeRange(timelineWindow.startTime, timelineWindow.endTime);
+                    qDebug() << "GraphContainer: Initialized graph time range from timeline view -" 
+                             << timelineWindow.startTime.toString() << "to" << timelineWindow.endTime.toString();
+                }
+            }
+            else
+            {
+                // Graph has a valid time range - check if we need to update it for new data
+                QDateTime currentTime = QDateTime::currentDateTime();
+                qint64 timeDiffMs = timeRange.second.msecsTo(currentTime);
+                
+                // If timeMax is within 1 minute of current time, we're showing recent data
+                // Update the time range to include new data points
+                if (timeDiffMs >= 0 && timeDiffMs < 60000) // Within 1 minute
+                {
+                    // Get the latest data time
+                    if (m_currentWaterfallGraph->getDataSource())
+                    {
+                        QDateTime latestDataTime = m_currentWaterfallGraph->getDataSource()->getLatestTime();
+                        if (latestDataTime.isValid() && latestDataTime > timeRange.second)
+                        {
+                            // New data is after current timeMax, update the range
+                            // Keep the same interval but shift the window forward
+                            qint64 intervalMs = timeRange.first.msecsTo(timeRange.second);
+                            QDateTime newTimeMin = latestDataTime.addMSecs(-intervalMs);
+                            QDateTime newTimeMax = latestDataTime;
+                            
+                            // Update the graph's time range
+                            m_currentWaterfallGraph->setTimeRange(newTimeMin, newTimeMax);
+                            
+                            // Also update the timeline view to match
+                            TimeSelectionSpan newWindow(newTimeMin, newTimeMax);
+                            timelineView->setVisibleTimeWindow(newWindow);
+                            
+                            qDebug() << "GraphContainer: Updated time range to show new data -" 
+                                     << newTimeMin.toString() << "to" << newTimeMax.toString();
+                        }
+                    }
+                }
+            }
+        }
+        
         // Update zoom panel limits to reflect new data ranges
         initializeZoomPanelLimits();
 
         // Force redraw of the waterfall graph
+        // This is critical - ensure graph redraws when new data arrives, even after time range changes
         redrawWaterfallGraph();
+        
+        // Ensure timer is running to continue animation after data update
+        if (m_timer && !m_timer->isActive())
+        {
+            m_timer->start();
+            qDebug() << "GraphContainer: Timer restarted after data change to continue animation";
+        }
 
         // Update valid time range in TimeSelectionVisualizer from available data
         if (m_timelineSelectionView)
@@ -1270,6 +1469,25 @@ void GraphContainer::onClearTimeSelectionsButtonClicked()
 {
     qDebug() << "GraphContainer: Clear time selections button clicked";
     clearTimeSelections();
+}
+
+// Marker timestamp slot implementations
+void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphContainer: RTW R marker timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit RTWRMarkerTimestampCaptured(timestamp, position);
+}
+
+void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphContainer: BTW manual marker placed:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BTWManualMarkerPlaced(timestamp, position);
+}
+
+void GraphContainer::onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position)
+{
+    qDebug() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BTWManualMarkerClicked(timestamp, position);
 }
 
 // Chevron label control methods implementation

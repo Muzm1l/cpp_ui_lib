@@ -216,7 +216,7 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // ============================================================================
 
 TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_showCrosshairTimestamp(false), m_crosshairYPosition(0.0)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -279,10 +279,21 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Recalculate cursor timestamp label position if there's a current cursor timestamp
+    // This ensures the label stays aligned with the cursor when interval changes
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+    }
 
     // Recreate all drawing objects with new parameters
     // This will automatically calculate optimal divisions based on current area
     createDrawingObjects();
+
+    // Force an update to ensure animation continues after interval change
+    // This is critical to resume the animation after interval customization
+    updateVisualization();
 
     // Emit signal for the updated time window
     emitTimeScopeChanged();
@@ -764,6 +775,39 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     
     QColor sliderColor(255, 255, 255, 128); // 50% opacity white
     painter.fillRect(sliderRect, sliderColor);
+    
+    // Draw crosshair timestamp label if visible
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        // Check if Y position is within the timelineview bounds
+        if (m_crosshairYPosition >= 0 && m_crosshairYPosition <= rect().height())
+        {
+            // Format timestamp as HH:mm:ss
+            QString timestampText = m_crosshairTimestamp.time().toString("HH:mm:ss");
+            
+            // Calculate text metrics
+            QFont font = painter.font();
+            QFontMetrics fontMetrics(font);
+            int textWidth = fontMetrics.horizontalAdvance(timestampText);
+            int textHeight = fontMetrics.height();
+            
+            // Add padding for background
+            int padding = 2;
+            int bgX = rect().width() / 2 - textWidth / 2 - padding; // Center horizontally
+            int bgY = static_cast<int>(m_crosshairYPosition) - textHeight / 2 - padding;
+            int bgWidth = textWidth + (2 * padding);
+            int bgHeight = textHeight + (2 * padding);
+            
+            // Draw black background rectangle
+            painter.fillRect(bgX, bgY, bgWidth, bgHeight, QColor(0, 0, 0));
+            
+            // Draw white text
+            painter.setPen(QPen(QColor(255, 255, 255), 1));
+            int textX = bgX + padding;
+            int textY = bgY + padding + textHeight;
+            painter.drawText(QPoint(textX, textY), timestampText);
+        }
+    }
 }
 
 void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
@@ -960,9 +1004,142 @@ void TimelineVisualizerWidget::updateSliderFromMousePosition(const QPoint& curre
     
     // Trigger immediate repaint to show updated slider position
     repaint();
+}
+
+void TimelineVisualizerWidget::updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition)
+{
+    m_crosshairTimestamp = timestamp;
+    m_crosshairYPosition = yPosition;
+    m_showCrosshairTimestamp = timestamp.isValid();
+    update(); // Trigger repaint
+}
+
+void TimelineVisualizerWidget::updateCrosshairTimestampFromTime(const QDateTime &timestamp)
+{
+    if (!timestamp.isValid())
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
     
-    // Emit signal during drag
-    emitTimeScopeChanged();
+    if (rect().height() <= 0)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Get the visible time window from the slider state
+    // This matches what the waterfall graph uses (timeMax = window.endTime, timeMin = window.startTime)
+    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
+    
+    if (!visibleWindow.startTime.isValid() || !visibleWindow.endTime.isValid())
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Use the slider window's time range to match waterfall graph alignment
+    // The timeline view shows: top (Y=0) = window.endTime, bottom (Y=height) = window.startTime
+    QDateTime windowStart = visibleWindow.startTime;
+    QDateTime windowEnd = visibleWindow.endTime;
+    
+    // Ensure windowStart < windowEnd (start is older, end is newer)
+    if (windowStart > windowEnd)
+    {
+        std::swap(windowStart, windowEnd);
+    }
+    
+    // Check if timestamp is within the visible window
+    if (timestamp < windowStart || timestamp > windowEnd)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Calculate Y position: windowEnd is at top (Y=0), windowStart is at bottom (Y=height)
+    // This matches how waterfall graph maps time: timeMax (top) to timeMin (bottom)
+    qint64 totalWindowMs = windowStart.msecsTo(windowEnd);
+    if (totalWindowMs <= 0)
+    {
+        clearCrosshairTimestamp();
+        return;
+    }
+    
+    // Calculate how far the timestamp is from the end (top)
+    qint64 timeFromEndMs = timestamp.msecsTo(windowEnd);
+    
+    // Normalize: 0.0 at top (windowEnd), 1.0 at bottom (windowStart)
+    qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(totalWindowMs);
+    normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+    
+    // Map to widget height: top (windowEnd) is Y=0, bottom (windowStart) is Y=height
+    qreal yPosition = normalizedY * rect().height();
+    yPosition = qMax(0.0, qMin(static_cast<qreal>(rect().height()), yPosition));
+    
+    updateCrosshairTimestamp(timestamp, yPosition);
+}
+
+void TimelineVisualizerWidget::clearCrosshairTimestamp()
+{
+    m_showCrosshairTimestamp = false;
+    m_crosshairTimestamp = QDateTime();
+    update(); // Trigger repaint
+}
+
+void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &window)
+{
+    if (!window.startTime.isValid() || !window.endTime.isValid())
+    {
+        return;
+    }
+    
+    // Calculate the interval from the window size to ensure we use the correct interval
+    // This is important because TimeScopeChanged might arrive before TimeIntervalChanged
+    qint64 windowDurationMs = window.startTime.msecsTo(window.endTime);
+    if (windowDurationMs > 0)
+    {
+        // Calculate the interval in minutes from the window duration
+        int windowDurationMinutes = static_cast<int>(windowDurationMs / 60000);
+        // Find the closest matching interval
+        static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+        TimeInterval calculatedInterval = m_timeInterval; // Default to current
+        for (TimeInterval interval : intervals)
+        {
+            int intervalMinutes = static_cast<int>(interval);
+            if (abs(intervalMinutes - windowDurationMinutes) < abs(static_cast<int>(calculatedInterval) - windowDurationMinutes))
+            {
+                calculatedInterval = interval;
+            }
+        }
+        
+        // If the calculated interval differs from current, update it
+        // This handles the case where TimeScopeChanged arrives before TimeIntervalChanged
+        if (calculatedInterval != m_timeInterval)
+        {
+            QTime newLength = timeIntervalToQTime(calculatedInterval);
+            m_timeLineLength = newLength;
+            m_timeInterval = calculatedInterval;
+        }
+    }
+    
+    // Update the slider state with the new time window using the correct interval length
+    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
+    
+    // Keep legacy member in sync
+    m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Recalculate cursor timestamp label position if there's a current cursor timestamp
+    // This ensures the label stays aligned with the cursor when the window changes
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+    }
+    
+    // Update the visualization to reflect the new slider position
+    updateVisualization();
+    
+    // Note: We don't emit visibleTimeWindowChanged here to avoid feedback loops
+    // when syncing from another timeline view
 }
 
 void TimelineVisualizerWidget::emitTimeScopeChanged()
@@ -1021,6 +1198,13 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
         
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+        
+        // Recalculate cursor timestamp label position if there's a current cursor timestamp
+        // This ensures the label stays aligned with the cursor during drag
+        if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+        {
+            updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+        }
         
         // Trigger immediate repaint for smooth dragging
         repaint();
@@ -1088,6 +1272,13 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
         
+        // Recalculate cursor timestamp label position after drag ends
+        // This ensures the label is correctly positioned with the final window
+        if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+        {
+            updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+        }
+        
         setCursor(Qt::ArrowCursor);
         
         // Emit signal when drag is complete (final update)
@@ -1096,8 +1287,9 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
                  << m_sliderVisibleWindow.startTime.toString("HH:mm:ss") 
                  << "to" << m_sliderVisibleWindow.endTime.toString("HH:mm:ss");
         
-        // Trigger repaint to show final position
-        update();
+        // Force visualization update to resume animation after drag ends
+        // This is critical - we need to explicitly resume the animation
+        updateVisualization();
     }
     QWidget::mouseReleaseEvent(event);
 }
@@ -1236,6 +1428,10 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
 
     // Set the default time interval to be 15 minutes
+    // Initialize intervalIndex to 0 (FifteenMinutes is the first interval)
+    static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+    intervalIndex = 0; // FifteenMinutes is the first interval in the list
+    
     m_visualizerWidget->setTimeInterval(TimeInterval::FifteenMinutes);
 
     // Initialize button text with default interval
@@ -1263,11 +1459,15 @@ void TimelineView::setupTimer()
         m_timer->setInterval(1000); // 1 second
     }
 
-    // Connect timer to our tick handler
-    connect(m_timer, &QTimer::timeout, this, &TimelineView::onTimerTick);
+    // Connect timer to our tick handler with UniqueConnection to prevent duplicates
+    // This ensures the animation continues even after timeline view customization
+    connect(m_timer, &QTimer::timeout, this, &TimelineView::onTimerTick, Qt::UniqueConnection);
 
-    // Start the timer
-    m_timer->start();
+    // Ensure timer is started (in case it was stopped during customization)
+    if (!m_timer->isActive())
+    {
+        m_timer->start();
+    }
 
     // qDebug() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
@@ -1285,6 +1485,15 @@ void TimelineView::onTimerTick()
     // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
 
+void TimelineView::ensureTimerRunning()
+{
+    if (m_timer && !m_timer->isActive())
+    {
+        m_timer->start();
+        qDebug() << "TimelineView: Timer restarted to resume animation";
+    }
+}
+
 void TimelineView::updateButtonText(TimeInterval interval)
 {
     QTime timeInterval = timeIntervalToQTime(interval);
@@ -1297,9 +1506,8 @@ void TimelineView::onIntervalButtonClicked()
 {
     // Cycle through valid time intervals on each button click
     static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
-    static int intervalIndex = 0;
 
-    // Advance to next interval
+    // Advance to next interval using member variable (not static) for per-instance state
     intervalIndex = (intervalIndex + 1) % intervals.size();
     TimeInterval nextInterval = intervals[intervalIndex];
     m_visualizerWidget->setTimeInterval(nextInterval);
@@ -1329,6 +1537,108 @@ void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection
     {
         emit TimeScopeChanged(selection);
     }
+
+
+    //---- syed ------------------------------rebase conflict
+    // Ensure timer is running after window changes (e.g., after slider drag)
+    // This is critical to resume animation after user interactions
+    ensureTimerRunning();
+}
+
+void TimelineView::updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->updateCrosshairTimestamp(timestamp, yPosition);
+    }
+}
+
+void TimelineView::updateCrosshairTimestampFromTime(const QDateTime &timestamp)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->updateCrosshairTimestampFromTime(timestamp);
+    }
+}
+
+void TimelineView::clearCrosshairTimestamp()
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->clearCrosshairTimestamp();
+    }
+}
+
+void TimelineView::setVisibleTimeWindow(const TimeSelectionSpan &window)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setVisibleTimeWindow(window);
+    }
+}
+
+TimeSelectionSpan TimelineView::getVisibleTimeWindow() const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->getVisibleTimeWindow();
+    }
+    return TimeSelectionSpan();
+}
+
+
+void TimelineView::handleModeTransitionLogic(TimelineViewMode newMode)
+{
+    // Handles all the logic for the mode transition
+    // Case 1 : FOLLOW_MODE -> FROZEN_MODE
+    // Case 2 : FROZEN_MODE -> FOLLOW_MODE
+    // TODO: TBA
+}
+
+// Primarily handles the mode change signal from the visualizer widget
+void TimelineView::onTimelineViewModeChanged(TimelineViewMode mode)
+{
+    // Update our mode to match the visualizer widget
+    m_timelineViewMode = mode;
+    
+
+    // This is the standard location where the mode transition logic is handled
+    handleModeTransitionLogic(mode);
+
+    // Emit signal for mode change
+    bool isInFollowMode = (mode == TimelineViewMode::FOLLOW_MODE);
+    emit GraphContainerInFollowModeChanged(isInFollowMode);
+}
+
+void TimelineView::setTimeWindowSilent(const TimeSelectionSpan& window)
+{
+    // Delegate to visualizer widget
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setTimeWindowSilent(window);
+    }
+}
+
+// Handles the mode change request from the user / outside the widget
+void TimelineView::setTimelineViewMode(TimelineViewMode mode)
+{
+    m_timelineViewMode = mode;
+    
+    // Update the visualizer widget's mode
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setTimelineViewMode(mode);
+    }
+
+    // This is the standard location where the mode transition logic is handled
+    // Case 1 : FOLLOW_MODE -> FROZEN_MODE
+
+    handleModeTransitionLogic(TimelineViewMode::FROZEN_MODE);
+
+    // Case 2 : FROZEN_MODE -> FOLLOW_MODE
+
+    handleModeTransitionLogic(mode);
+    
 }
 
 

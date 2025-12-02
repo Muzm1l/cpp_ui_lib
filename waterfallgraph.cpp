@@ -1,4 +1,5 @@
 #include "waterfallgraph.h"
+#include "waterfalldata.h"  // For BTWSymbolData
 #include <QApplication>
 #include <QPointF>
 
@@ -32,6 +33,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     timeInterval(timeInterval), 
     dataSource(nullptr), 
     isDragging(false), 
+    isDrawing(false),
     crosshairHorizontal(nullptr), 
     crosshairVertical(nullptr), 
     crosshairEnabled(true), 
@@ -39,7 +41,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     mouseSelectionEnabled(false), 
     selectionRect(nullptr), 
     autoUpdateYRange(true),
-    lastNotifiedCursorTime(QDateTime())
+    lastNotifiedCursorTime(QDateTime()),
+    lastNotifiedYPosition(-1.0)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -536,9 +539,18 @@ void WaterfallGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "WaterfallGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
-    // Clear existing items
+    // Clear existing items - ensure complete clearing before drawing
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
 
     // Update the drawing area
     setupDrawingArea();
@@ -558,6 +570,74 @@ void WaterfallGraph::draw()
             updateDataRanges();
         }
         drawAllDataSeries();
+    }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    drawBTWSymbols();
+    
+    isDrawing = false;
+}
+
+/**
+ * @brief Draw BTW symbols (magenta circles) from data source
+ *
+ */
+void WaterfallGraph::drawBTWSymbols()
+{
+    // Follow the same pattern as RTW symbols - read symbols from dataSource
+    if (!graphicsScene || !dataSource)
+    {
+        return;
+    }
+    
+    // Get symbols from dataSource
+    std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
+    
+    if (btwSymbols.empty())
+    {
+        return;
+    }
+    
+    // Filter symbols to only include those within the visible time range
+    std::vector<BTWSymbolData> visibleSymbols;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    
+    if (timeRangeValid)
+    {
+        for (const auto& symbolData : btwSymbols)
+        {
+            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
+            {
+                visibleSymbols.push_back(symbolData);
+            }
+        }
+    }
+    else
+    {
+        visibleSymbols = btwSymbols;
+    }
+    
+    // Draw symbols using a simple magenta circle (we'll create it inline since BTWSymbolDrawing is BTW-specific)
+    for (const auto& symbolData : visibleSymbols)
+    {
+        // Map symbol position to screen coordinates
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
+        
+        // Check if point is within visible area
+        if (!drawingArea.contains(screenPos))
+        {
+            continue;
+        }
+        
+        // Draw a simple magenta circle
+        QGraphicsEllipseItem *magentaCircle = new QGraphicsEllipseItem();
+        qreal circleSize = 8.0; // Small circle, 8 pixels diameter
+        magentaCircle->setRect(screenPos.x() - circleSize/2, screenPos.y() - circleSize/2, circleSize, circleSize);
+        magentaCircle->setPen(QPen(QColor(255, 0, 255), 2)); // Magenta color
+        magentaCircle->setBrush(QBrush(QColor(255, 0, 255))); // Filled magenta
+        magentaCircle->setZValue(1003); // Above markers but below interactive items
+        
+        graphicsScene->addItem(magentaCircle);
     }
 }
 
@@ -670,17 +750,22 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
         {
-            // First, try to forward the mouse event to the overlay view
+            // First, try to forward the mouse event to the overlay view if we clicked on an interactive item
+            // This allows interactive markers (like BTW markers) to handle their own events
+            // RTW R markers are in graphicsScene and will be handled in RTWGraph::onMouseClick
             if (overlayView && overlayScene) {
                 QPointF overlayScenePos = overlayView->mapToScene(event->pos());
                 QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-                if (itemAtPos) {
+                // Filter out crosshair items - they should not intercept mouse events
+                // Only forward if we clicked on an actual interactive item (not crosshair, not empty)
+                if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
                     qDebug() << "WaterfallGraph: Found interactive item at overlay position:" << overlayScenePos << "item:" << itemAtPos;
-                    // Forward the mouse event to the overlay view
+                    // Forward the mouse event to the overlay view so the interactive item can handle it
                     QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
                     QApplication::postEvent(overlayView, overlayEvent);
                     return; // Don't process further, let the overlay handle it
                 }
+                // If no interactive item found, continue to onMouseClick to allow adding new markers
             }
 
             isDragging = true;
@@ -720,7 +805,8 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
     if (isDragging && overlayView && overlayScene) {
         QPointF overlayScenePos = overlayView->mapToScene(event->pos());
         QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-        if (itemAtPos) {
+        // Filter out crosshair items - they should not intercept mouse events
+        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
             qDebug() << "WaterfallGraph: Forwarding mouse move to overlay item:" << itemAtPos;
             // Forward the mouse event to the overlay view
             QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
@@ -762,11 +848,11 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
         if (drawingArea.contains(scenePos))
         {
             QDateTime cursorTime = mapScreenToTime(scenePos.y());
-            notifyCursorTimeChanged(cursorTime);
+            notifyCursorTimeChanged(cursorTime, scenePos.y());
         }
         else
         {
-            notifyCursorTimeChanged(QDateTime());
+            notifyCursorTimeChanged(QDateTime(), -1.0);
         }
     }
 
@@ -810,7 +896,7 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     {
         hideCrosshair();
     }
-    notifyCursorTimeChanged(QDateTime());
+    notifyCursorTimeChanged(QDateTime(), -1.0);
     qDebug() << "Mouse left WaterfallGraph widget";
 }
 
@@ -2063,6 +2149,117 @@ void WaterfallGraph::setTimeRangeFromDataWithInterval(qint64 intervalMs)
 }
 
 /**
+ * @brief Check if time range is valid and reasonable for drawing markers
+ * 
+ * This performs a more robust check than just isValid():
+ * - Both timeMin and timeMax must be valid
+ * - timeMin must be strictly less than timeMax
+ * - The range should be reasonable (not too large, not in the distant future)
+ * - Either customTimeRangeEnabled is true (explicitly set) OR the range is within reasonable bounds
+ * 
+ * @return true if time range is valid for drawing, false otherwise
+ */
+bool WaterfallGraph::isTimeRangeValidForDrawing() const
+{
+    // Basic validity check
+    if (!timeMin.isValid() || !timeMax.isValid())
+    {
+        return false;
+    }
+    
+    // timeMin must be strictly less than timeMax
+    if (timeMin >= timeMax)
+    {
+        return false;
+    }
+    
+    // Check if range is reasonable (not too large - max 24 hours)
+    qint64 rangeMs = timeMin.msecsTo(timeMax);
+    const qint64 maxReasonableRangeMs = 24 * 60 * 60 * 1000; // 24 hours
+    if (rangeMs > maxReasonableRangeMs)
+    {
+        qDebug() << "WaterfallGraph: Time range too large:" << rangeMs << "ms (max:" << maxReasonableRangeMs << "ms)";
+        return false;
+    }
+    
+    // Check if range is not too small (at least 100ms - very small but valid)
+    // This allows for very short intervals like 15 minutes
+    const qint64 minReasonableRangeMs = 100; // 100ms - very small but valid
+    if (rangeMs < minReasonableRangeMs)
+    {
+        qDebug() << "WaterfallGraph: Time range too small:" << rangeMs << "ms (min:" << minReasonableRangeMs << "ms)";
+        return false;
+    }
+    
+    // If custom time range is enabled, it means it was explicitly set - trust it completely
+    if (customTimeRangeEnabled)
+    {
+        return true;
+    }
+    
+    // For non-custom ranges, perform additional reasonableness checks
+    // But be more lenient - allow ranges that are set by setTimeInterval() or setTimeRangeFromData()
+    QDateTime currentTime = QDateTime::currentDateTime();
+    
+    // Check if timeMax is not too far in the future (max 2 hours - more lenient)
+    qint64 futureDiffMs = currentTime.msecsTo(timeMax);
+    const qint64 maxFutureMs = 2 * 60 * 60 * 1000; // 2 hours (more lenient)
+    if (futureDiffMs > maxFutureMs)
+    {
+        qDebug() << "WaterfallGraph: timeMax too far in future:" << futureDiffMs << "ms (max:" << maxFutureMs << "ms)";
+        return false;
+    }
+    
+    // Check if timeMin is not too far in the past (max 48 hours)
+    qint64 pastDiffMs = timeMin.msecsTo(currentTime);
+    const qint64 maxPastMs = 48 * 60 * 60 * 1000; // 48 hours
+    if (pastDiffMs > maxPastMs)
+    {
+        qDebug() << "WaterfallGraph: timeMin too far in past:" << pastDiffMs << "ms (max:" << maxPastMs << "ms)";
+        return false;
+    }
+    
+    // Additional check: if the range is within reasonable bounds relative to current time,
+    // and the range size matches a known interval (15min, 30min, 1hr, etc.), trust it
+    // This handles cases where setTimeInterval() was called and set a valid range
+    qint64 interval15Min = 15 * 60 * 1000;
+    qint64 interval30Min = 30 * 60 * 1000;
+    qint64 interval1Hr = 60 * 60 * 1000;
+    qint64 interval2Hr = 2 * 60 * 60 * 1000;
+    qint64 interval3Hr = 3 * 60 * 60 * 1000;
+    qint64 interval6Hr = 6 * 60 * 60 * 1000;
+    qint64 interval12Hr = 12 * 60 * 60 * 1000;
+    
+    // Check if range matches a known interval (within 1% tolerance)
+    bool matchesKnownInterval = false;
+    qreal tolerance = 0.01; // 1% tolerance
+    if (qAbs(rangeMs - interval15Min) < interval15Min * tolerance ||
+        qAbs(rangeMs - interval30Min) < interval30Min * tolerance ||
+        qAbs(rangeMs - interval1Hr) < interval1Hr * tolerance ||
+        qAbs(rangeMs - interval2Hr) < interval2Hr * tolerance ||
+        qAbs(rangeMs - interval3Hr) < interval3Hr * tolerance ||
+        qAbs(rangeMs - interval6Hr) < interval6Hr * tolerance ||
+        qAbs(rangeMs - interval12Hr) < interval12Hr * tolerance)
+    {
+        matchesKnownInterval = true;
+    }
+    
+    // If it matches a known interval and timeMax is within 2 hours of now, it's valid
+    if (matchesKnownInterval && futureDiffMs <= maxFutureMs && pastDiffMs <= maxPastMs)
+    {
+        return true;
+    }
+    
+    // Final check: if timeMax is close to current time (within 5 minutes) and range is reasonable, trust it
+    if (futureDiffMs >= -300000 && futureDiffMs <= 300000 && rangeMs <= maxReasonableRangeMs) // Within 5 minutes
+    {
+        return true;
+    }
+    
+    return true; // Default to true if all basic checks pass
+}
+
+/**
  * @brief Unset the custom time range and revert to using data-based time range.
  *
  */
@@ -2098,6 +2295,9 @@ void WaterfallGraph::setupCrosshair()
     crosshairHorizontal->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
     crosshairHorizontal->setZValue(1000); // High z-value to appear on top
     crosshairHorizontal->setVisible(false);
+    // Make crosshair not accept mouse events so it doesn't block marker selection or cause duplication
+    crosshairHorizontal->setAcceptedMouseButtons(Qt::NoButton);
+    crosshairHorizontal->setAcceptHoverEvents(false);
     overlayScene->addItem(crosshairHorizontal);
     
     // Create vertical crosshair line
@@ -2105,6 +2305,9 @@ void WaterfallGraph::setupCrosshair()
     crosshairVertical->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
     crosshairVertical->setZValue(1000); // High z-value to appear on top
     crosshairVertical->setVisible(false);
+    // Make crosshair not accept mouse events so it doesn't block marker selection or cause duplication
+    crosshairVertical->setAcceptedMouseButtons(Qt::NoButton);
+    crosshairVertical->setAcceptHoverEvents(false);
     overlayScene->addItem(crosshairVertical);
 }
 
@@ -2133,6 +2336,8 @@ void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
     // Update vertical line (top to bottom)
     crosshairVertical->setLine(mousePos.x(), sceneRect.top(), mousePos.x(), sceneRect.bottom());
     
+    // Notify listeners about crosshair position change
+    notifyCrosshairPositionChanged(mousePos.x());
 }
 
 /**
@@ -2155,6 +2360,9 @@ void WaterfallGraph::hideCrosshair()
         crosshairHorizontal->setVisible(false);
         crosshairVertical->setVisible(false);
     }
+    
+    // Notify that crosshair is hidden (clear label)
+    notifyCrosshairPositionChanged(-1.0); // Use -1 to indicate crosshair is hidden
 }
 
 /**
@@ -2283,6 +2491,11 @@ void WaterfallGraph::setTimeAxisCursor(const QDateTime &time)
     timeAxisCursor->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
     timeAxisCursor->setVisible(true);
 
+    // Force immediate repaint to clear any stale rendering and prevent trails
+    if (overlayView) {
+        overlayView->update();
+    }
+
     qDebug() << "Time axis cursor set at time:" << time.toString() << "Y position:" << yPos;
 }
 
@@ -2294,6 +2507,10 @@ void WaterfallGraph::clearTimeAxisCursor()
     if (timeAxisCursor)
     {
         timeAxisCursor->setVisible(false);
+        // Force immediate repaint to clear the cursor
+        if (overlayView) {
+            overlayView->update();
+        }
         qDebug() << "Time axis cursor cleared";
     }
 }
@@ -2303,36 +2520,71 @@ void WaterfallGraph::clearTimeAxisCursor()
  *
  * @param callback Function to invoke when cursor time changes
  */
-void WaterfallGraph::setCursorTimeChangedCallback(const std::function<void(const QDateTime &)> &callback)
+void WaterfallGraph::setCursorTimeChangedCallback(const std::function<void(const QDateTime &, qreal)> &callback)
 {
     cursorTimeChangedCallback = callback;
+}
+
+/**
+ * @brief Set a callback to receive crosshair position updates
+ *
+ * @param callback Function to invoke when crosshair X position changes
+ */
+void WaterfallGraph::setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback)
+{
+    crosshairPositionChangedCallback = callback;
 }
 
 /**
  * @brief Notify listeners about cursor time changes
  *
  * @param time Cursor time or invalid to clear
+ * @param yPosition Y position in scene coordinates, or -1.0 if not available
  */
-void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time)
+void WaterfallGraph::notifyCursorTimeChanged(const QDateTime &time, qreal yPosition)
 {
     if (!cursorTimeChangedCallback)
     {
         lastNotifiedCursorTime = time;
+        lastNotifiedYPosition = yPosition;
         return;
     }
 
+    // Check if both time and Y position are the same (skip update if unchanged)
     if (time.isValid())
     {
         if (lastNotifiedCursorTime.isValid() && time == lastNotifiedCursorTime)
         {
+            // Time is the same, check if Y position changed significantly (more than 1 pixel)
+            if (qAbs(yPosition - lastNotifiedYPosition) < 1.0)
+            {
+                return; // Both time and position are essentially the same
+            }
+        }
+    }
+    else if (!lastNotifiedCursorTime.isValid() && yPosition < 0)
+    {
+        // Both are invalid/cleared, skip if we already notified this state
+        if (lastNotifiedYPosition < 0)
+        {
             return;
         }
     }
-    else if (!lastNotifiedCursorTime.isValid())
-    {
-        return;
-    }
 
     lastNotifiedCursorTime = time;
-    cursorTimeChangedCallback(time);
+    lastNotifiedYPosition = yPosition;
+    cursorTimeChangedCallback(time, yPosition);
+}
+
+/**
+ * @brief Notify listeners about crosshair position changes
+ *
+ * @param xPosition Crosshair X position in scene coordinates, or -1.0 to clear
+ */
+void WaterfallGraph::notifyCrosshairPositionChanged(qreal xPosition)
+{
+    if (crosshairPositionChangedCallback)
+    {
+        crosshairPositionChangedCallback(xPosition);
+    }
 }

@@ -7,8 +7,10 @@
 #include <QPainter>
 #include <QPaintEvent>
 #include <QResizeEvent>
+#include <QEvent>
 #include <QMouseEvent>
 #include <QTime>
+#include <QDateTime>
 #include <QList>
 #include <QObject>
 #include <QTimer>
@@ -24,7 +26,7 @@
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
-#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 80
+#define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 64
 
 // Enum describing the follow mode of the timeline view
 enum class TimelineViewMode
@@ -147,6 +149,21 @@ public:
 
     // Slider visible window access
     TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
+    
+    //--------------syed-----------------------rebase conflict
+    void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    
+    // Crosshair timestamp label methods
+    void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
+    void clearCrosshairTimestamp();
+
+    // Mode control
+    void setTimelineViewMode(TimelineViewMode mode);
+    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
+    
+    // Set time window without emitting signals (for external synchronization)
+    void setTimeWindowSilent(const TimeSelectionSpan& window);
 
     // Mode control
     void setTimelineViewMode(TimelineViewMode mode);
@@ -194,6 +211,11 @@ private:
     // This will be removed and replaced by m_sliderState.getTimeWindow()
     TimeSelectionSpan m_sliderVisibleWindow;
     QGraphicsRectItem* m_sliderIndicator = nullptr; // Kept for now but may be removed
+    
+    // Crosshair timestamp label state
+    QDateTime m_crosshairTimestamp;
+    qreal m_crosshairYPosition;
+    bool m_showCrosshairTimestamp;
 
     // Timeline view mode
     TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
@@ -234,9 +256,28 @@ public:
 
     // No time selection methods needed for TimelineView
     void setTimeLineLength(TimeInterval interval) {
+        // Update the interval index to match the new interval
+        // This ensures button state stays in sync when interval is changed via signal
+        static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+        for (size_t i = 0; i < intervals.size(); ++i)
+        {
+            if (intervals[i] == interval)
+            {
+                intervalIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        
         m_visualizerWidget->setTimeInterval(interval);
         updateButtonText(interval);
+        
+        // Ensure timer is still running after interval change to keep animation active
+        // This is critical - restart timer explicitly to resume animation
+        ensureTimerRunning();
     }
+    
+    // Ensure timer is running - call this after operations that might stop animation
+    void ensureTimerRunning();
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
     void setNumberOfDivisions(int divisions) { m_visualizerWidget->setNumberOfDivisions(divisions); }
 
@@ -250,6 +291,23 @@ public:
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
+
+    //-----------syed----------------------rebase conflict
+    // Crosshair timestamp label methods
+    void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
+    void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
+    void clearCrosshairTimestamp();
+    
+    // Time window control for syncing
+    void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    TimeSelectionSpan getVisibleTimeWindow() const;
+
+    // Mode control
+    void setTimelineViewMode(TimelineViewMode mode);
+    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
+    
+    // Set time window without emitting signals (for external synchronization)
+    void setTimeWindowSilent(const TimeSelectionSpan& window);
 
     // Mode control
     void setTimelineViewMode(TimelineViewMode mode);

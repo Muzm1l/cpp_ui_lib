@@ -29,6 +29,8 @@ WaterfallData::~WaterfallData()
     // Vectors will be automatically cleaned up
     dataSeriesYData.clear();
     dataSeriesTimestamps.clear();
+    rtwSymbols.clear();
+    btwSymbols.clear();
 }
 
 void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -734,4 +736,63 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
     qDebug() << "WaterfallData::binDataByTime: Binned" << yData.size() << "points into" << result.size() << "bins with duration" << binSizeMs << "ms";
     
     return result;
+}
+
+// RTW Symbol management methods implementation
+
+void WaterfallData::addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+{
+    RTWSymbolData symbolData;
+    symbolData.symbolName = symbolName;
+    symbolData.timestamp = timestamp;
+    symbolData.range = range;
+    
+    rtwSymbols.push_back(symbolData);
+    
+    qDebug() << "WaterfallData: Added RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearRTWSymbols()
+{
+    rtwSymbols.clear();
+    qDebug() << "WaterfallData: Cleared all RTW symbols";
+}
+
+std::vector<RTWSymbolData> WaterfallData::getRTWSymbols() const
+{
+    return rtwSymbols;
+}
+
+size_t WaterfallData::getRTWSymbolsCount() const
+{
+    return rtwSymbols.size();
+}
+
+// BTW Symbol management methods
+void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+{
+    BTWSymbolData symbolData;
+    symbolData.symbolName = symbolName;
+    symbolData.timestamp = timestamp;
+    symbolData.range = range;
+    
+    btwSymbols.push_back(symbolData);
+    
+    qDebug() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearBTWSymbols()
+{
+    btwSymbols.clear();
+    qDebug() << "WaterfallData: Cleared all BTW symbols";
+}
+
+std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
+{
+    return btwSymbols;
+}
+
+size_t WaterfallData::getBTWSymbolsCount() const
+{
+    return btwSymbols.size();
 }

@@ -84,6 +84,9 @@ public:
 
     // Selection linking methods
     void linkHorizontalContainers();
+    
+    // Timeline view syncing methods
+    void syncAllTimelineViews();
 
     // Chevron label control methods - operate on all visible containers
     void setChevronLabel1(const QString &label);
@@ -150,6 +153,28 @@ private:
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionsCleared();
+    
+    // Marker timestamp signals for external integration
+    /**
+     * @brief Emitted when an RTW R marker is clicked
+     * @param timestamp The timestamp of the clicked R marker
+     * @param position The scene position where the marker was clicked
+     */
+    void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a BTW manual marker is placed
+     * @param timestamp The timestamp of the placed marker
+     * @param position The scene position where the marker was placed
+     */
+    void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a BTW manual marker is clicked
+     * @param timestamp The timestamp of the clicked marker
+     * @param position The scene position where the marker was clicked
+     */
+    void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
 };
 
 #endif // GRAPHLAYOUT_H
