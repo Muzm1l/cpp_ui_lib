@@ -1,4 +1,5 @@
 #include "graphlayout.h"
+#include "navtimeutils.h"
 #include <QDebug>
 
 GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
@@ -1299,6 +1300,12 @@ void GraphLayout::syncAllTimelineViews()
 void GraphLayout::onTimerTick()
 {
     setCurrentTime(QTime::currentTime());
+    
+    // Update current navtime in sync state
+    NavTimeUtils navTimeUtils;
+    QDateTime currentSystemTime = QDateTime::currentDateTime();
+    m_syncState.currentNavTime = navTimeUtils.covertSystemTimeToNavTime(currentSystemTime);
+    m_syncState.hasCurrentNavTime = true;
 }
 
 void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
@@ -1417,43 +1424,19 @@ void GraphLayout::registerCursorSyncCallbacks()
 
 void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time)
 {
-    // Update all containers' graphs with the shared cursor time
-    for (auto *container : m_graphContainers)
+    // Update shared sync state
+    if (time.isValid())
     {
-        if (!container || container == source)
-        {
-            continue;
-        }
+        m_syncState.cursorTime = time;
+        m_syncState.hasCursorTime = true;
+    }
+    else
+    {
+        m_syncState.hasCursorTime = false;
+    }
 
-        container->applySharedTimeAxisCursor(time);
-    }
-    
-    // Update all timeline views with the cursor timestamp label
-    // This shows the timestamp when the horizontal cursor line intersects the timeline view
-    // Skip the source container since it updates its own timeline view locally
-    for (auto *container : m_graphContainers)
-    {
-        if (!container || container == source || !container->isVisible())
-        {
-            continue;
-        }
-        
-        if (container->getShowTimelineView())
-        {
-            TimelineView *timelineView = container->getTimelineView();
-            if (timelineView)
-            {
-                if (time.isValid())
-                {
-                    timelineView->updateCrosshairTimestampFromTime(time);
-                }
-                else
-                {
-                    timelineView->clearCrosshairTimestamp();
-                }
-            }
-        }
-    }
+    // All containers now read from sync state via timer, so no need to call applySharedTimeAxisCursor
+    // The cursor layer in each WaterfallGraph will automatically read from m_syncState
 }
 
 void GraphLayout::onTimeSelectionsCleared()

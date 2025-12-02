@@ -47,7 +47,8 @@ SOURCES += \
     btwsymboldrawing.cpp \
     simulator.cpp \
     interactivegraphicsitem.cpp \
-    btwinteractiveoverlay.cpp 
+    btwinteractiveoverlay.cpp \
+    navtimeutils.cpp 
 
 HEADERS += \
     graphcontainer.h \
@@ -75,7 +76,8 @@ HEADERS += \
     btwsymboldrawing.h \
     simulator.h \
     interactivegraphicsitem.h \
-    btwinteractiveoverlay.h 
+    btwinteractiveoverlay.h \
+    navtimeutils.h 
 
 FORMS += \
     mainwindow.ui

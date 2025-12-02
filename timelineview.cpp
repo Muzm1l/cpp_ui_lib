@@ -1,10 +1,12 @@
 #include "timelineview.h"
+#include "navtimeutils.h"
 #include <QBrush>
 #include <QDebug>
 #include <QFrame>
 #include <QGraphicsView>
 #include <algorithm>
 #include <QPair>
+#include <cmath>
 
 // ============================================================================
 // SliderGeometry Implementation
@@ -215,8 +217,8 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // TimelineVisualizerWidget Implementation
 // ============================================================================
 
-TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_showCrosshairTimestamp(false), m_crosshairYPosition(0.0)
+TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_syncState(syncState)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -775,38 +777,11 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     
     QColor sliderColor(255, 255, 255, 128); // 50% opacity white
     painter.fillRect(sliderRect, sliderColor);
-    
-    // Draw crosshair timestamp label if visible
-    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+
+    // Draw navtime labels if sync state is available
+    if (m_syncState && m_syncState->hasCurrentNavTime)
     {
-        // Check if Y position is within the timelineview bounds
-        if (m_crosshairYPosition >= 0 && m_crosshairYPosition <= rect().height())
-        {
-            // Format timestamp as HH:mm:ss
-            QString timestampText = m_crosshairTimestamp.time().toString("HH:mm:ss");
-            
-            // Calculate text metrics
-            QFont font = painter.font();
-            QFontMetrics fontMetrics(font);
-            int textWidth = fontMetrics.horizontalAdvance(timestampText);
-            int textHeight = fontMetrics.height();
-            
-            // Add padding for background
-            int padding = 2;
-            int bgX = rect().width() / 2 - textWidth / 2 - padding; // Center horizontally
-            int bgY = static_cast<int>(m_crosshairYPosition) - textHeight / 2 - padding;
-            int bgWidth = textWidth + (2 * padding);
-            int bgHeight = textHeight + (2 * padding);
-            
-            // Draw black background rectangle
-            painter.fillRect(bgX, bgY, bgWidth, bgHeight, QColor(0, 0, 0));
-            
-            // Draw white text
-            painter.setPen(QPen(QColor(255, 255, 255), 1));
-            int textX = bgX + padding;
-            int textY = bgY + padding + textHeight;
-            painter.drawText(QPoint(textX, textY), timestampText);
-        }
+        drawNavTimeLabels(painter, rect());
     }
 }
 
@@ -1334,7 +1309,135 @@ void TimelineVisualizerWidget::setTimeWindowSilent(const TimeSelectionSpan& wind
     updateVisualization();
 }
 
-TimelineView::TimelineView(QWidget *parent, QTimer *timer)
+// Navtime label calculation methods
+int TimelineVisualizerWidget::getLabelSpacingMinutes(TimeInterval interval) const
+{
+    // Determine label spacing based on interval:
+    // 15 minutes -> every 3 minutes
+    // 30 minutes -> every 6 minutes
+    // 1 hour -> every 12 minutes
+    // 2 hours -> every 24 minutes
+    // 3 hours -> every 36 minutes
+    // 6 hours -> every 72 minutes (1 hour 12 minutes)
+    // 12 hours -> every 144 minutes (2 hours 24 minutes)
+    
+    int intervalMinutes = static_cast<int>(interval);
+    
+    // Calculate spacing as 20% of interval (rounded to nearest minute)
+    // This gives us: 15->3, 30->6, 60->12, 120->24, 180->36, 360->72, 720->144
+    int spacing = static_cast<int>(std::round(intervalMinutes * 0.2));
+    
+    // Ensure minimum spacing of 1 minute
+    return qMax(1, spacing);
+}
+
+std::vector<QDateTime> TimelineVisualizerWidget::calculateNavTimeLabels(
+    const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const
+{
+    std::vector<QDateTime> labels;
+    
+    if (!currentNavTime.isValid())
+    {
+        return labels;
+    }
+    
+    int spacingMinutes = getLabelSpacingMinutes(interval);
+    int timelineLengthMinutes = timelineLength.hour() * 60 + timelineLength.minute();
+    
+    // Calculate the start time (currentNavTime - timelineLength)
+    QDateTime startNavTime = currentNavTime.addSecs(-timelineLengthMinutes * 60);
+    
+    // Find the first label time that's >= startNavTime
+    // Round down to the nearest spacing interval
+    qint64 startSeconds = startNavTime.toMSecsSinceEpoch() / 1000;
+    qint64 spacingSeconds = spacingMinutes * 60;
+    qint64 firstLabelSeconds = (startSeconds / spacingSeconds) * spacingSeconds;
+    
+    // Generate labels from first label to currentNavTime
+    QDateTime labelTime = QDateTime::fromMSecsSinceEpoch(firstLabelSeconds * 1000);
+    QDateTime endTime = currentNavTime.addSecs(60); // Add 1 minute buffer to include current time
+    
+    while (labelTime <= endTime)
+    {
+        labels.push_back(labelTime);
+        labelTime = labelTime.addSecs(spacingSeconds);
+    }
+    
+    return labels;
+}
+
+double TimelineVisualizerWidget::calculateLabelYPosition(
+    const QDateTime& labelNavTime, const QDateTime& currentNavTime, 
+    const QTime& timelineLength, int widgetHeight) const
+{
+    if (!labelNavTime.isValid() || !currentNavTime.isValid())
+    {
+        return 0.0;
+    }
+    
+    // Calculate time difference in seconds (positive if labelNavTime is before currentNavTime)
+    qint64 diffSeconds = labelNavTime.msecsTo(currentNavTime) / 1000;
+    
+    // Convert to minutes
+    double diffMinutes = static_cast<double>(diffSeconds) / 60.0;
+    
+    // Get timeline length in minutes
+    int timelineLengthMinutes = timelineLength.hour() * 60 + timelineLength.minute();
+    
+    // Calculate position ratio (0.0 = top = currentNavTime, 1.0 = bottom = currentNavTime - timelineLength)
+    // Note: In the timeline, top (Y=0) represents the most recent time (currentNavTime)
+    // If labelNavTime is before currentNavTime, diffMinutes is positive
+    double positionRatio = diffMinutes / static_cast<double>(timelineLengthMinutes);
+    
+    // Clamp to [0, 1] - labels outside the timeline range won't be drawn
+    positionRatio = qBound(0.0, positionRatio, 1.0);
+    
+    // Convert to Y position (top = 0, bottom = widgetHeight)
+    return positionRatio * widgetHeight;
+}
+
+void TimelineVisualizerWidget::drawNavTimeLabels(QPainter& painter, const QRect& drawArea)
+{
+    if (!m_syncState || !m_syncState->hasCurrentNavTime)
+    {
+        return;
+    }
+    
+    QDateTime currentNavTime = m_syncState->currentNavTime;
+    
+    // Calculate which labels to show
+    std::vector<QDateTime> labels = calculateNavTimeLabels(currentNavTime, m_timeInterval, m_timeLineLength);
+    
+    // Set text color to white for visibility on dark background
+    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    QFontMetrics fm(painter.font());
+    
+    for (const QDateTime& labelNavTime : labels)
+    {
+        // Calculate Y position for this label
+        double y = calculateLabelYPosition(labelNavTime, currentNavTime, m_timeLineLength, drawArea.height());
+        
+        // Only draw if label is within visible area
+        if (y >= 0 && y <= drawArea.height())
+        {
+            // Format the label as HH:mm
+            QString labelText = labelNavTime.toString("HH:mm");
+            
+            // Calculate text metrics
+            int textWidth = fm.horizontalAdvance(labelText);
+            int textHeight = fm.height();
+            
+            // Calculate center position for the text
+            int centerX = (drawArea.width() - textWidth) / 2;
+            int centerY = static_cast<int>(y + textHeight / 2);
+            
+            // Draw the timestamp
+            painter.drawText(QPoint(centerX, centerY), labelText);
+        }
+    }
+}
+
+TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState)
     : QWidget(parent), 
     m_intervalChangeButton(nullptr), 
     m_timeModeChangeButton(nullptr), 
@@ -1342,7 +1445,8 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     m_layout(nullptr), 
     m_timer(timer), 
     m_ownsTimer(false),
-    m_timelineViewMode(TimelineViewMode::FOLLOW_MODE)
+    m_timelineViewMode(TimelineViewMode::FOLLOW_MODE),
+    m_syncState(syncState)
 {
     // Setup timer (create default if none provided)
     setupTimer();
@@ -1398,8 +1502,8 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer)
     m_isAbsoluteTime = true;
     // updateTimeModeButtonText(m_isAbsoluteTime);
 
-    // Create visualizer widget
-    m_visualizerWidget = new TimelineVisualizerWidget(this);
+    // Create visualizer widget with sync state
+    m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState);
 
     // Add widgets to layout
     m_layout->addWidget(m_timeModeChangeButton);
@@ -1639,4 +1743,35 @@ void TimelineView::setTimelineViewMode(TimelineViewMode mode)
 
     handleModeTransitionLogic(mode);
     
+}
+
+// Navtime label calculation methods (delegate to visualizer widget)
+int TimelineView::getLabelSpacingMinutes(TimeInterval interval) const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->getLabelSpacingMinutes(interval);
+    }
+    return 3; // Default
+}
+
+std::vector<QDateTime> TimelineView::calculateNavTimeLabels(
+    const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->calculateNavTimeLabels(currentNavTime, interval, timelineLength);
+    }
+    return std::vector<QDateTime>();
+}
+
+double TimelineView::calculateLabelYPosition(
+    const QDateTime& labelNavTime, const QDateTime& currentNavTime, 
+    const QTime& timelineLength, int widgetHeight) const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->calculateLabelYPosition(labelNavTime, currentNavTime, timelineLength, widgetHeight);
+    }
+    return 0.0;
 }

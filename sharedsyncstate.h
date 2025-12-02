@@ -15,6 +15,7 @@ public:
           hasInterval(false), 
           hasTimeScope(false), 
           hasCursorTime(false), 
+          hasCurrentNavTime(false),
           isGraphContainerInFollowMode(true)
     {
     }
@@ -30,6 +31,10 @@ public:
     // Cursor time synchronization
     QDateTime cursorTime;
     bool hasCursorTime;
+
+    // Current navtime synchronization
+    QDateTime currentNavTime;
+    bool hasCurrentNavTime;
 
     // Graph Container data follower synchronization
     bool isGraphContainerInFollowMode = true;

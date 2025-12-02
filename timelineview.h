@@ -23,6 +23,7 @@
 #include <vector>
 #include "timelineutils.h"
 #include "timelinedrawingobjects.h"
+#include "sharedsyncstate.h"
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
@@ -111,7 +112,7 @@ class TimelineVisualizerWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineVisualizerWidget(QWidget* parent = nullptr);
+    explicit TimelineVisualizerWidget(QWidget* parent = nullptr, GraphContainerSyncState *syncState = nullptr);
     ~TimelineVisualizerWidget();
 
     // Properties
@@ -165,6 +166,11 @@ public:
     // Set time window without emitting signals (for external synchronization)
     void setTimeWindowSilent(const TimeSelectionSpan& window);
 
+    // Navtime label calculation methods (public for TimelineView access)
+    int getLabelSpacingMinutes(TimeInterval interval) const;
+    std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
+    double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -213,6 +219,9 @@ private:
     // Timeline view mode
     TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
 
+    // Shared sync state reference
+    GraphContainerSyncState *m_syncState;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -225,6 +234,7 @@ private:
     // Helper methods for drawing with QPainter
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
     void drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer);
+    void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
     
     // Slider methods (following zoom slider pattern)
     void createSliderIndicator();
@@ -244,7 +254,7 @@ class TimelineView : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr);
+    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr);
     ~TimelineView();
 
     // No time selection methods needed for TimelineView
@@ -302,6 +312,11 @@ public:
     // Set time window without emitting signals (for external synchronization)
     void setTimeWindowSilent(const TimeSelectionSpan& window);
 
+    // Navtime label calculation methods
+    int getLabelSpacingMinutes(TimeInterval interval) const;
+    std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
+    double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
+
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
     void TimeScopeChanged(const TimeSelectionSpan& selection);
@@ -328,6 +343,9 @@ private:
 
     // Timeline view mode
     TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
+
+    // Shared sync state reference
+    GraphContainerSyncState *m_syncState;
 
 private slots:
     void onIntervalButtonClicked();

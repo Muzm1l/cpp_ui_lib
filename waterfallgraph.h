@@ -9,6 +9,7 @@
 #include <QFont>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
+#include <QGraphicsPathItem>
 #include <QGraphicsPolygonItem>
 #include <QGraphicsRectItem>
 #include <QGraphicsScene>
@@ -26,9 +27,12 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QCursor>
 #include <map>
+#include <set>
 #include <vector>
 #include <functional>
+#include "sharedsyncstate.h"
 
 class WaterfallGraph : public QWidget
 {
@@ -106,6 +110,17 @@ protected:
     QGraphicsView *overlayView;
     QGraphicsScene *overlayScene;
 
+    // Cursor layer for dedicated cursor rendering
+    QGraphicsView *cursorView;
+    QGraphicsScene *cursorScene;
+    QTimer *cursorUpdateTimer;
+    QGraphicsLineItem *cursorCrosshairHorizontal;
+    QGraphicsLineItem *cursorCrosshairVertical;
+    QGraphicsLineItem *cursorTimeAxisLine;
+    GraphContainerSyncState *m_cursorSyncState;
+    QPointF m_lastMousePos;
+    bool m_cursorLayerEnabled;
+
     // Drawing area and grid
     QRectF drawingArea;
     bool gridEnabled;
@@ -118,8 +133,22 @@ protected:
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
+    void drawIncremental();
     void drawBTWSymbols();
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
+
+    // State machine for rendering
+    enum class RenderState {
+        CLEAN,
+        RANGE_UPDATE_ONLY,
+        INCREMENTAL_UPDATE,
+        FULL_REDRAW
+    };
+    void setRenderState(RenderState newState);
+    void markSeriesDirty(const QString &seriesLabel);
+    void markAllSeriesDirty();
+    void markRangeUpdateNeeded();
+    void transitionToAppropriateState();
     void updateDataRanges();
     void updateYRange();
     void updateYRangeFromData();
@@ -148,6 +177,13 @@ protected:
     // Multi-series support
     std::map<QString, QColor> seriesColors;
     std::map<QString, bool> seriesVisibility;
+
+    // Incremental rendering support
+    RenderState m_renderState;
+    bool m_rangeUpdateNeeded;
+    std::set<QString> m_dirtySeries;
+    std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
+    std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;
 
     // Mouse tracking
     bool isDragging;
@@ -192,6 +228,10 @@ protected:
     void clearSelection();
     QDateTime mapScreenToTime(qreal yPos) const;
 
+private slots:
+    // Cursor layer update method
+    void updateCursorLayer();
+
 public:
     // Mouse selection control
     qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
@@ -212,6 +252,11 @@ public:
     
     // Crosshair position callback
     void setCrosshairPositionChangedCallback(const std::function<void(qreal xPosition)> &callback);
+    
+    // Cursor layer control
+    void setCursorSyncState(GraphContainerSyncState *syncState);
+    void setCursorLayerEnabled(bool enabled);
+    bool isCursorLayerEnabled() const;
     
     // Public access to overlay scene for interactive elements
     QGraphicsScene* getOverlayScene() const { return overlayScene; }
