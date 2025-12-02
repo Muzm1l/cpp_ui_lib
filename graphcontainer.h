@@ -79,6 +79,9 @@ public:
     
     // Get the current waterfall graph
     WaterfallGraph* getCurrentWaterfallGraph() const;
+    
+    // Get a specific waterfall graph by type
+    WaterfallGraph* getWaterfallGraph(GraphType graphType) const;
 
     // Data options management
     void addDataOption(const GraphType graphType, WaterfallData &dataSource);

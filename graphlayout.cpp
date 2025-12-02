@@ -1,5 +1,7 @@
 #include "graphlayout.h"
 #include "navtimeutils.h"
+#include "btwgraph.h"
+#include "btwinteractiveoverlay.h"
 #include <QDebug>
 
 GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
@@ -1780,6 +1782,26 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
+bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    auto it = m_dataSources.find(graphType);
+    if (it != m_dataSources.end() && it->second)
+    {
+        bool removed = it->second->removeRTWSymbol(symbolName, timestamp, range, toleranceMs, rangeTolerance);
+        if (removed)
+        {
+            redrawGraph(graphType);
+            qDebug() << "GraphLayout: Removed RTW symbol" << symbolName << "from graph type" << static_cast<int>(graphType);
+        }
+        return removed;
+    }
+    else
+    {
+        qDebug() << "GraphLayout: Cannot remove RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        return false;
+    }
+}
+
 void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
 {
     auto it = m_dataSources.find(graphType);
@@ -1926,6 +1948,38 @@ void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
     {
         qDebug() << "GraphLayout: Cannot clear RTW R markers - data source not found for graph type" << static_cast<int>(graphType);
     }
+}
+
+void GraphLayout::clearBTWManualMarkers()
+{
+    qDebug() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";
+    
+    int markersCleared = 0;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container (even if not currently displayed)
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph && btwGraph->getInteractiveOverlay())
+            {
+                btwGraph->getInteractiveOverlay()->clearAllMarkers();
+                markersCleared++;
+                qDebug() << "GraphLayout: Cleared BTW manual markers in container";
+            }
+        }
+    }
+    
+    // Redraw all graphs to ensure visual update
+    redrawAllGraphs();
+    
+    qDebug() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
 }
 
 void GraphLayout::redrawGraph(const GraphType &graphType)

@@ -133,6 +133,7 @@ public:
     // RTW Symbol management methods (stored with track data)
     void addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range);
     void clearRTWSymbols();
+    bool removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
     std::vector<RTWSymbolData> getRTWSymbols() const;
     size_t getRTWSymbolsCount() const;
 

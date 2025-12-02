@@ -760,6 +760,31 @@ void WaterfallData::clearRTWSymbols()
     qDebug() << "WaterfallData: Cleared all RTW symbols";
 }
 
+bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    for (auto it = rtwSymbols.begin(); it != rtwSymbols.end(); ++it)
+    {
+        // Check if symbol name matches
+        if (it->symbolName != symbolName)
+        {
+            continue;
+        }
+        
+        // Check if timestamp matches within tolerance
+        qint64 timeDiff = qAbs(it->timestamp.msecsTo(timestamp));
+        qreal rangeDiff = qAbs(it->range - range);
+        
+        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        {
+            rtwSymbols.erase(it);
+            qDebug() << "WaterfallData: Removed RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+            return true;
+        }
+    }
+    qDebug() << "WaterfallData: RTW symbol not found:" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
 std::vector<RTWSymbolData> WaterfallData::getRTWSymbols() const
 {
     return rtwSymbols;

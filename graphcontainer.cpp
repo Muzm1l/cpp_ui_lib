@@ -454,6 +454,16 @@ WaterfallGraph* GraphContainer::getCurrentWaterfallGraph() const
     return m_currentWaterfallGraph;
 }
 
+WaterfallGraph* GraphContainer::getWaterfallGraph(GraphType graphType) const
+{
+    auto it = m_waterfallGraphs.find(graphType);
+    if (it != m_waterfallGraphs.end())
+    {
+        return it->second;
+    }
+    return nullptr;
+}
+
 // Data options management implementation
 
 void GraphContainer::addDataOption(const GraphType graphType, WaterfallData &dataSource)

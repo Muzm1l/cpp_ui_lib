@@ -120,7 +120,8 @@ public:
     void addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal delta);
     void addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range);
     
-    // Remove individual markers
+    // Remove individual markers and symbols
+    bool removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
     bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
     bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
     
@@ -129,6 +130,9 @@ public:
     void clearBTWSymbols(const GraphType &graphType);
     void clearBTWMarkers(const GraphType &graphType);
     void clearRTWRMarkers(const GraphType &graphType);
+    
+    // Clear BTW manual markers (interactive overlay markers)
+    void clearBTWManualMarkers();
     
     // Redraw specific graph
     void redrawGraph(const GraphType &graphType);

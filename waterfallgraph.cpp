@@ -1166,8 +1166,8 @@ void WaterfallGraph::enterEvent(QEvent *event)
 {
     QWidget::enterEvent(event);
     
-    // Get mouse position from enter event
-    m_lastMousePos = event->pos();
+    // Get mouse position from cursor (QEvent doesn't have pos() in Qt 5)
+    m_lastMousePos = mapFromGlobal(QCursor::pos());
     
     // Enable mouse tracking when mouse enters the widget
     setMouseTracking(true);
