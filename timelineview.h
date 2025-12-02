@@ -165,13 +165,6 @@ public:
     // Set time window without emitting signals (for external synchronization)
     void setTimeWindowSilent(const TimeSelectionSpan& window);
 
-    // Mode control
-    void setTimelineViewMode(TimelineViewMode mode);
-    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
-    
-    // Set time window without emitting signals (for external synchronization)
-    void setTimeWindowSilent(const TimeSelectionSpan& window);
-
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -301,13 +294,6 @@ public:
     // Time window control for syncing
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
     TimeSelectionSpan getVisibleTimeWindow() const;
-
-    // Mode control
-    void setTimelineViewMode(TimelineViewMode mode);
-    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
-    
-    // Set time window without emitting signals (for external synchronization)
-    void setTimeWindowSilent(const TimeSelectionSpan& window);
 
     // Mode control
     void setTimelineViewMode(TimelineViewMode mode);
