@@ -408,16 +408,59 @@ void BTWGraph::onMarkerRemoved(InteractiveGraphicsItem *marker, int type)
 
 void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &newPosition)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(newPosition);
+    if (!marker) {
+        qDebug() << "BTWGraph: Marker moved - NULL marker";
+        return;
+    }
+    
     qDebug() << "BTWGraph: Marker moved to:" << newPosition;
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        qreal yPos = newPosition.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    // Update magenta circles when green marker is moved
+    if (timestamp.isValid()) {
+        emit manualMarkerPlaced(timestamp, newPosition);
+        qDebug() << "BTWGraph: Emitted manualMarkerPlaced signal for moved marker at timestamp" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    }
 }
 
 void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(angle);
+    if (!marker) {
+        qDebug() << "BTWGraph: Marker rotated - NULL marker";
+        return;
+    }
+    
     qDebug() << "BTWGraph: Marker rotated by:" << angle << "degrees";
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    // Update magenta circles when green marker is rotated (position might have changed)
+    if (timestamp.isValid()) {
+        emit manualMarkerPlaced(timestamp, marker->scenePos());
+        qDebug() << "BTWGraph: Emitted manualMarkerPlaced signal for rotated marker at timestamp" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    }
 }
 
 void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
