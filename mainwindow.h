@@ -15,6 +15,7 @@
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
 #include "zoompanel.h"
+#include "scwwindow.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <cstdlib>
@@ -72,6 +73,9 @@ private:
     QLabel* timespanEndLabel; ///< Label to display end time
     QLabel* timespanDurationLabel; ///< Label to display duration
     QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
+    
+    // SCWWindow for SCW tab
+    SCWWindow* scwWindow; ///< SCW Window widget
 
     // void configureTimeVisualizer();
     // void configureTimelineView();
@@ -82,6 +86,7 @@ private:
     void setupCustomGraphsTab();
     void setupTestWaterfallGraph(); ///< Setup test WaterfallGraph in controls tab
     void setupTimelineView(); ///< Setup TimelineView in controls tab for testing
+    void setupSCWWindow(); ///< Setup SCWWindow in a new tab
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
