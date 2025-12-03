@@ -111,7 +111,7 @@ class TimelineVisualizerWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineVisualizerWidget(QWidget* parent = nullptr, GraphContainerSyncState *syncState = nullptr);
+    explicit TimelineVisualizerWidget(QWidget* parent = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
     ~TimelineVisualizerWidget();
 
     // Properties
@@ -250,7 +250,7 @@ class TimelineView : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr);
+    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
     ~TimelineView();
 
     // No time selection methods needed for TimelineView

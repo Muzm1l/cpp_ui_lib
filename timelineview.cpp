@@ -217,8 +217,8 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // TimelineVisualizerWidget Implementation
 // ============================================================================
 
-TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_syncState(syncState)
+TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_syncState(syncState), m_sliderVisible(sliderVisible), m_chevronVisible(chevronVisible)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -1283,7 +1283,7 @@ void TimelineVisualizerWidget::drawNavTimeLabels(QPainter& painter, const QRect&
     }
 }
 
-TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState)
+TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
     : QWidget(parent), 
     m_intervalChangeButton(nullptr), 
     m_timeModeChangeButton(nullptr), 
@@ -1349,7 +1349,7 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
     // updateTimeModeButtonText(m_isAbsoluteTime);
 
     // Create visualizer widget with sync state
-    m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState);
+    m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState, sliderVisible, chevronVisible);
 
     // Add widgets to layout
     m_layout->addWidget(m_timeModeChangeButton);
