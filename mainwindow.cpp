@@ -115,6 +115,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup TimelineView in controls tab for slider testing
     setupTimelineView();
 
+    // Setup SCWWindow in a new tab
+    setupSCWWindow();
+
     // Configure Zoom Panel test functionality
     configureZoomPanel();
 }
@@ -392,6 +395,48 @@ void MainWindow::setupTimelineView()
     qDebug() << "TimelineView created in dedicated Timeline View tab";
     qDebug() << "TimelineView geometry:" << testTimelineView->geometry();
     qDebug() << "TimelineView visible:" << testTimelineView->isVisible();
+}
+
+/**
+ * @brief Setup SCWWindow in a new tab
+ */
+void MainWindow::setupSCWWindow()
+{
+    qDebug() << "=== Setting up SCWWindow Tab ===";
+    
+    // Create a new tab for SCWWindow
+    QWidget* scwTab = new QWidget();
+    scwTab->setObjectName("scwTab");
+    
+    // Create a layout for the tab to ensure SCWWindow fills the entire tab
+    QVBoxLayout* tabLayout = new QVBoxLayout(scwTab);
+    tabLayout->setContentsMargins(0, 0, 0, 0);
+    tabLayout->setSpacing(0);
+    
+    // Create SCWWindow in the new tab
+    scwWindow = new SCWWindow(scwTab, timeUpdateTimer);
+    scwWindow->setObjectName("scwWindow");
+    
+    // Set size policy to allow SCWWindow to expand and fill available space
+    scwWindow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    
+    // Add SCWWindow to the tab layout
+    tabLayout->addWidget(scwWindow);
+    
+    // Set the layout on the tab
+    scwTab->setLayout(tabLayout);
+    
+    // Add the tab to the tab widget
+    ui->tabWidget->addTab(scwTab, "SCW Window");
+    
+    // Create SCWSimulator to populate graphs every second
+    // Use the same timeUpdateTimer which fires every second
+    scwSimulator = new SCWSimulator(this, timeUpdateTimer, scwWindow);
+    scwSimulator->start();
+    
+    qDebug() << "SCWWindow created in SCW Window tab";
+    qDebug() << "SCWWindow size policy:" << scwWindow->sizePolicy();
+    qDebug() << "SCWSimulator created and started";
 }
 
 void MainWindow::setupCustomGraphsTab()
