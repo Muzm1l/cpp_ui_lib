@@ -54,7 +54,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     lastNotifiedYPosition(-1.0),
     lastNotifiedCrosshairXPosition(-1.0),
     m_renderState(RenderState::FULL_REDRAW),
-    m_rangeUpdateNeeded(false)
+    m_rangeUpdateNeeded(false),
+    m_zeroAxisValue(0.0)
 {
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -2318,6 +2319,16 @@ void WaterfallGraph::setAutoUpdateYRange(bool enabled)
 bool WaterfallGraph::getAutoUpdateYRange() const
 {
     return autoUpdateYRange;
+}
+
+void WaterfallGraph::setZeroAxisValue(qreal value)
+{
+    m_zeroAxisValue = value;
+}
+
+qreal WaterfallGraph::getZeroAxisValue() const
+{
+    return m_zeroAxisValue;
 }
 
 // Convenience method to force range update for manual control
