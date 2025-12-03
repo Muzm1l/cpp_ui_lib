@@ -47,7 +47,8 @@ SOURCES += \
     interactivegraphicsitem.cpp \
     btwinteractiveoverlay.cpp \
     navtimeutils.cpp \
-    scwwindow.cpp
+    scwwindow.cpp \
+    scwsimulator.cpp
 
 HEADERS += \
     graphcontainer.h \
@@ -75,7 +76,8 @@ HEADERS += \
     interactivegraphicsitem.h \
     btwinteractiveoverlay.h \
     navtimeutils.h  \
-    scwwindow.h
+    scwwindow.h \
+    scwsimulator.h
 
 FORMS += \
     mainwindow.ui

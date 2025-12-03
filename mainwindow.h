@@ -16,6 +16,7 @@
 #include "waterfallgraph.h"
 #include "zoompanel.h"
 #include "scwwindow.h"
+#include "scwsimulator.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <cstdlib>
@@ -76,6 +77,7 @@ private:
     
     // SCWWindow for SCW tab
     SCWWindow* scwWindow; ///< SCW Window widget
+    SCWSimulator* scwSimulator; ///< Simulator for SCWWindow data generation
 
     // void configureTimeVisualizer();
     // void configureTimelineView();

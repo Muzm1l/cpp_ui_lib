@@ -429,8 +429,14 @@ void MainWindow::setupSCWWindow()
     // Add the tab to the tab widget
     ui->tabWidget->addTab(scwTab, "SCW Window");
     
+    // Create SCWSimulator to populate graphs every second
+    // Use the same timeUpdateTimer which fires every second
+    scwSimulator = new SCWSimulator(this, timeUpdateTimer, scwWindow);
+    scwSimulator->start();
+    
     qDebug() << "SCWWindow created in SCW Window tab";
     qDebug() << "SCWWindow size policy:" << scwWindow->sizePolicy();
+    qDebug() << "SCWSimulator created and started";
 }
 
 void MainWindow::setupCustomGraphsTab()
