@@ -1353,6 +1353,12 @@ void GraphContainer::initializeZoomPanelLimits()
         m_zoomPanel->setCenterLabelValue(centerValue);
         m_zoomPanel->setRightLabelValue(dataMax);
         
+        // Update zero axis value for BDW, BRW, FDW graphs (use center sticker value)
+        if (m_currentWaterfallGraph)
+        {
+            m_currentWaterfallGraph->setZeroAxisValue(centerValue);
+        }
+        
         qDebug() << "GraphContainer: Zoom panel limits updated - Min:" << dataMin
                  << "Center:" << centerValue << "Max:" << dataMax << "- User has not customized";
     }
@@ -1501,6 +1507,13 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
     // Update the time range to ensure only relevant data points are rendered
     m_currentWaterfallGraph->updateTimeRange();
 
+    // Update zero axis value for BDW, BRW, FDW graphs (use center sticker value from zoom panel)
+    if (m_zoomPanel)
+    {
+        qreal centerStickerValue = m_zoomPanel->getCenterLabelValue();
+        m_currentWaterfallGraph->setZeroAxisValue(centerStickerValue);
+    }
+
     qDebug() << "GraphContainer: Custom Y range set directly from interpolated bounds and time range updated";
 }
 
@@ -1627,6 +1640,9 @@ void GraphContainer::setGraphRangeLimits(const GraphType graphType, qreal yMin, 
         m_zoomPanel->setLeftLabelValue(yMin);
         m_zoomPanel->setCenterLabelValue(centerValue);
         m_zoomPanel->setRightLabelValue(yMax);
+        
+        // Update zero axis value for BDW, BRW, FDW graphs (use center sticker value)
+        m_currentWaterfallGraph->setZeroAxisValue(centerValue);
         
         // Reset indicator to full range to restore initial state
         m_zoomPanel->resetIndicatorToFullRange();

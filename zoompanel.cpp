@@ -383,7 +383,7 @@ void ZoomPanel::mousePressEvent(QMouseEvent *event)
                 m_indicatorUpperBoundValue = newUpperBound;
                 updateIndicatorToBounds();
                 
-                // Update display labels to show current selected range (dynamic values)
+                // Update sticker labels to show current selected range
                 updateDisplayLabels();
                 
                 // Emit bounds change
@@ -747,16 +747,16 @@ ZoomBounds ZoomPanel::calculateInterpolatedBounds() const
 
 void ZoomPanel::updateDisplayLabels()
 {
-    // Calculate current selected range from original values (dynamic values for display)
+    // Calculate current selected range from original values (sticker values for display)
     ZoomBounds current = calculateInterpolatedBounds();
     
-    // Update display labels to show the selected range
-    // These are the "layered" dynamic values shown to the user
+    // Update sticker labels to show the selected range
+    // These are the sticker values used when zoomer is customized
     m_leftLabelValue = current.lowerbound;
     m_rightLabelValue = current.upperbound;
     m_centerLabelValue = current.lowerbound + (current.upperbound - current.lowerbound) * 0.5;
     
-    // Update the text items to reflect the new display values
+    // Update the text items to reflect the new sticker values
     if (m_leftText)
     {
         m_leftText->setPlainText(QString::number(m_leftLabelValue, 'f', 2));
@@ -770,7 +770,7 @@ void ZoomPanel::updateDisplayLabels()
         m_centerText->setPlainText(QString::number(m_centerLabelValue, 'f', 2));
     }
     
-    qDebug() << "ZoomPanel: Display labels updated (dynamic) - Lower:" << m_leftLabelValue
+    qDebug() << "ZoomPanel: Sticker labels updated - Lower:" << m_leftLabelValue
              << "Upper:" << m_rightLabelValue << "| Original (constant) - Lower:" << m_originalLeftLabelValue
              << "Upper:" << m_originalRightLabelValue;
 }
@@ -780,13 +780,13 @@ void ZoomPanel::rebaseToCurrentBounds()
     // Compute interpolated bounds for current indicator extents
     ZoomBounds current = calculateInterpolatedBounds();
 
-    // Update only the display labels to reflect the selected range
-    // Original values remain constant (used for calculations)
+    // Update only the sticker labels to reflect the selected range
+    // Original values remain constant (set during initialization, used for calculations)
     m_leftLabelValue = current.lowerbound;
     m_rightLabelValue = current.upperbound;
     m_centerLabelValue = current.lowerbound + (current.upperbound - current.lowerbound) * 0.5;
     
-    // Update display text items
+    // Update sticker text items
     if (m_leftText)
     {
         m_leftText->setPlainText(QString::number(m_leftLabelValue, 'f', 2));
@@ -801,7 +801,7 @@ void ZoomPanel::rebaseToCurrentBounds()
     }
 
     // Reset indicator to full range [0.0, 1.0] so it spans the entire panel
-    // The display labels now represent the selected range, so full indicator = full selected range
+    // The sticker labels now represent the selected range, so full indicator = full selected range
     // BUT preserve the user modified flag so future data updates don't reset the zoom
     m_indicatorLowerBoundValue = 0.0;
     m_indicatorUpperBoundValue = 1.0;
@@ -809,8 +809,8 @@ void ZoomPanel::rebaseToCurrentBounds()
     updateIndicatorToBounds();
     // DO NOT reset m_userModifiedBounds - keep it true to preserve customization
     
-    qDebug() << "ZoomPanel: Display labels updated to selected bounds (original values unchanged) - Display Lower:" << m_leftLabelValue
-             << "Display Upper:" << m_rightLabelValue << "Original Lower:" << m_originalLeftLabelValue
+    qDebug() << "ZoomPanel: Sticker labels updated to selected bounds (original values unchanged) - Sticker Lower:" << m_leftLabelValue
+             << "Sticker Upper:" << m_rightLabelValue << "Original Lower:" << m_originalLeftLabelValue
              << "Original Upper:" << m_originalRightLabelValue << "- User modification preserved";
 }
 
@@ -852,9 +852,9 @@ void ZoomPanel::updateCrosshairLabel(qreal xPosition)
     qreal normalizedValue = (xPosition - margin) / static_cast<qreal>(availableWidth);
     normalizedValue = qBound(0.0, normalizedValue, 1.0);
     
-    // Calculate the actual range value using original values
-    qreal originalRange = m_originalRightLabelValue - m_originalLeftLabelValue;
-    qreal rangeValue = m_originalLeftLabelValue + (normalizedValue * originalRange);
+    // Calculate the actual range value using sticker values (used when zoomer is customized)
+    qreal stickerRange = m_rightLabelValue - m_leftLabelValue;
+    qreal rangeValue = m_leftLabelValue + (normalizedValue * stickerRange);
     
     // Update label text
     QString labelText = QString::number(rangeValue, 'f', 2);

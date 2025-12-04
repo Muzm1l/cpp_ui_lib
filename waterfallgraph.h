@@ -83,6 +83,10 @@ public:
     void setAutoUpdateYRange(bool enabled);
     bool getAutoUpdateYRange() const;
 
+    // Zero axis value (for BDW, BRW, FDW graphs)
+    void setZeroAxisValue(qreal value);
+    qreal getZeroAxisValue() const;
+
 protected:
     // Override mouse events
     void mousePressEvent(QMouseEvent *event) override;
@@ -159,6 +163,9 @@ protected:
     qreal yMin, yMax;
     QDateTime timeMin, timeMax;
     bool dataRangesValid;
+
+    // Zero axis value (used for BDW, BRW, FDW graphs)
+    qreal m_zeroAxisValue;
 
     // Range limiting properties
     bool rangeLimitingEnabled;

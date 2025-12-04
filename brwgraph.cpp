@@ -131,9 +131,9 @@ void BRWGraph::drawZeroAxis()
         return;
     }
 
-    // Map 0 value to screen coordinates using current time as timestamp
+    // Map zero axis value (zoom panel middle sticker value) to screen coordinates using current time as timestamp
     QDateTime currentTime = QDateTime::currentDateTime();
-    QPointF zeroPoint = mapDataToScreen(0.0, currentTime);
+    QPointF zeroPoint = mapDataToScreen(m_zeroAxisValue, currentTime);
     
     // Create vertical line from top to bottom of drawing area at x = 0
     QPointF topPoint(zeroPoint.x(), drawingArea.top());
