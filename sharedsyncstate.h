@@ -16,7 +16,8 @@ public:
           hasTimeScope(false), 
           hasCursorTime(false), 
           hasCurrentNavTime(false),
-          isGraphContainerInFollowMode(true)
+          isGraphContainerInFollowMode(true),
+          hasManoeuvres(false)
     {
     }
 
@@ -41,6 +42,10 @@ public:
 
     // Time selections synchronization
     std::vector<TimeSelectionSpan> timeSelections;
+
+    // Manoeuvres synchronization
+    std::vector<Manoeuvre> manoeuvres;
+    bool hasManoeuvres;
 };
 
 

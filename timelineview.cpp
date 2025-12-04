@@ -218,7 +218,7 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // ============================================================================
 
 TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_syncState(syncState), m_sliderVisible(sliderVisible), m_chevronVisible(chevronVisible)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_sliderIndicator(nullptr), m_syncState(syncState), m_sliderVisible(sliderVisible), m_chevronVisible(chevronVisible), m_manoeuvreOverlay(nullptr)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -250,6 +250,25 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContain
     
     // Create slider indicator
     createSliderIndicator();
+    
+    // Create manoeuvre overlay
+    m_manoeuvreOverlay = new ManoeuvreOverlay(this);
+    m_manoeuvreOverlay->setGeometry(0, 0, TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, height());
+    m_manoeuvreOverlay->raise(); // Ensure overlay is on top
+    m_manoeuvreOverlay->show();
+    
+    // Initialize overlay with manoeuvres from sync state if available
+    if (m_syncState && m_syncState->hasManoeuvres)
+    {
+        m_manoeuvreOverlay->setManoeuvres(&m_syncState->manoeuvres);
+    }
+    
+    // Initialize overlay time range from slider state
+    TimeSelectionSpan window = m_sliderState.getTimeWindow();
+    if (window.startTime.isValid() && window.endTime.isValid())
+    {
+        m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+    }
 }
 
 void TimelineVisualizerWidget::setTimeLineLength(const QTime &length)
@@ -335,6 +354,13 @@ void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
             m_sliderState.setYPosition(0, rect().height(), m_timeLineLength);
             // Keep legacy member in sync
             m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+            
+            // Update manoeuvre overlay time range
+            if (m_manoeuvreOverlay && newWindow.startTime.isValid() && newWindow.endTime.isValid())
+            {
+                m_manoeuvreOverlay->setTimeRange(newWindow.startTime, newWindow.endTime);
+            }
+            
             // Emit signal to notify about time window change
             emitTimeScopeChanged();
         }
@@ -449,6 +475,11 @@ double TimelineVisualizerWidget::calculateSegmentDurationSeconds() const
 TimelineVisualizerWidget::~TimelineVisualizerWidget()
 {
     clearDrawingObjects();
+    if (m_manoeuvreOverlay)
+    {
+        delete m_manoeuvreOverlay;
+        m_manoeuvreOverlay = nullptr;
+    }
 }
 
 void TimelineVisualizerWidget::setIsAbsoluteTime(bool isAbsoluteTime)
@@ -491,9 +522,6 @@ void TimelineVisualizerWidget::createDrawingObjects()
     // Create segment drawers for animation range (including off-screen segments)
     clearDrawingObjects(); // Clear existing ones first
 
-    // Create chevron drawer - position it at the top of the timeline
-    m_chevronDrawer = new TimelineChevronDrawer(drawArea, 30);
-
     // Create segments with fixed count but variable time gaps
     // We need enough segments to cover the entire visible area plus some buffer
     int segmentsNeeded = m_numberOfDivisions + 10; // Add buffer for smooth animation
@@ -523,10 +551,6 @@ void TimelineVisualizerWidget::clearDrawingObjects()
         delete segmentDrawer;
     }
     m_segmentDrawers.clear();
-
-    // Clear chevron drawer
-    delete m_chevronDrawer;
-    m_chevronDrawer = nullptr;
 }
 
 void TimelineVisualizerWidget::setShowRelativeLabels(bool showRelative)
@@ -757,16 +781,6 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
         //          << "Smooth offset:" << smoothOffset;
     }
 
-    // Draw chevron using drawing object - position it at the top of the timeline
-    // Only draw if chevron is visible
-    if (m_chevronVisible && m_chevronDrawer)
-    {
-        m_chevronDrawer->setDrawArea(rect());
-        m_chevronDrawer->setYOffset(30); // Position at the top with enough space for the chevron box
-        m_chevronDrawer->update();
-        drawChevronWithPainter(painter, m_chevronDrawer);
-    }
-
     // Draw a border to make it more visible
     painter.setPen(QPen(QColor(150, 150, 150), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
@@ -809,6 +823,12 @@ void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
     
     // Update slider indicator for new size
     updateSliderIndicator();
+    
+    // Update manoeuvre overlay geometry
+    if (m_manoeuvreOverlay)
+    {
+        m_manoeuvreOverlay->setGeometry(0, 0, width(), height());
+    }
 }
 
 // Helper methods to draw using QPainter instead of QGraphicsScene
@@ -864,85 +884,6 @@ void TimelineVisualizerWidget::drawSegmentWithPainter(QPainter &painter, Timelin
 
     // Right tick
     painter.drawLine(drawArea.width(), tickY, drawArea.width() - tickWidth, tickY);
-}
-
-void TimelineVisualizerWidget::drawChevronWithPainter(QPainter &painter, TimelineChevronDrawer *chevronDrawer)
-{
-    if (!chevronDrawer)
-    {
-        // qDebug() << "Chevron drawer is null!";
-        return;
-    }
-
-    QRect drawArea = chevronDrawer->getDrawArea();
-    int yOffset = chevronDrawer->getYOffset();
-    double chevronWidthPercent = chevronDrawer->getChevronWidthPercent();
-    int chevronHeight = chevronDrawer->getChevronHeight();
-    int chevronBoxHeight = chevronDrawer->getChevronBoxHeight();
-
-    int widgetWidth = drawArea.width();
-
-    // Set pen for blue chevron outline
-    painter.setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width for better visibility
-
-    // Define chevron size (width and height)
-    int chevronWidth = static_cast<int>(widgetWidth * chevronWidthPercent);
-
-    // Calculate chevron position (centered horizontally)
-    int chevronX = (widgetWidth - chevronWidth) / 2;
-    int chevronY = yOffset;
-
-    // Calculate the tip position (bottom center of V)
-    int tipX = chevronX + chevronWidth / 2;
-    int tipY = chevronY + chevronHeight;
-
-    // Define chevron points (pointing down: V) and the lines to the edges
-    QPoint chevronPoints[8] = {
-        QPoint(0, chevronY - chevronBoxHeight),           // Start point
-        QPoint(0, chevronY),                              // Left edge
-        QPoint(chevronX, chevronY),                       // Top left point
-        QPoint(tipX, tipY),                               // Bottom point (tip)
-        QPoint(chevronX + chevronWidth, chevronY),        // Top right point
-        QPoint(widgetWidth, chevronY),                    // Right edge
-        QPoint(widgetWidth, chevronY - chevronBoxHeight), // Right edge
-        QPoint(0, chevronY - chevronBoxHeight)            // Start point
-    };
-
-    // Draw the chevron outline
-    painter.drawPolygon(chevronPoints, 8);
-
-    // Draw the 3 labels - 1 and 3 below the V, 2 at the top
-    painter.setPen(QPen(QColor(0, 100, 255), 2)); // Blue text, thicker
-
-    // Calculate text metrics for centering
-    QFontMetrics fontMetrics(painter.font());
-
-    // Label 1: below the chevron, left of the V (centered at chevronX)
-    if (!m_chevronLabel1.isEmpty())
-    {
-        int label1Width = fontMetrics.horizontalAdvance(m_chevronLabel1);
-        int label1X = chevronX - label1Width / 2; // Center at chevronX
-        int label1Y = tipY + 15;
-        painter.drawText(QPoint(label1X, label1Y), m_chevronLabel1);
-    }
-
-    // Label 2: at the top center (centered at tipX)
-    if (!m_chevronLabel2.isEmpty())
-    {
-        int label2Width = fontMetrics.horizontalAdvance(m_chevronLabel2);
-        int label2X = tipX - label2Width / 2; // Center at tipX
-        int label2Y = chevronY;
-        painter.drawText(QPoint(label2X, label2Y), m_chevronLabel2);
-    }
-
-    // Label 3: below the chevron, right of the V (centered at chevronX + chevronWidth)
-    if (!m_chevronLabel3.isEmpty())
-    {
-        int label3Width = fontMetrics.horizontalAdvance(m_chevronLabel3);
-        int label3X = (chevronX + chevronWidth) - label3Width / 2; // Center at right edge
-        int label3Y = tipY + 15;
-        painter.drawText(QPoint(label3X, label3Y), m_chevronLabel3);
-    }
 }
 
 // Slider methods implementation (following zoom slider pattern - vertical orientation)
@@ -1118,6 +1059,12 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
     
+    // Update manoeuvre overlay time range
+    if (m_manoeuvreOverlay)
+    {
+        m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+    }
+    
     // Recalculate cursor timestamp label position if there's a current cursor timestamp
     // This ensures the label stays aligned with the cursor when the window changes
     if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
@@ -1188,6 +1135,16 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
         
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+        
+        // Update manoeuvre overlay time range during drag
+        if (m_manoeuvreOverlay)
+        {
+            TimeSelectionSpan window = m_sliderState.getTimeWindow();
+            if (window.startTime.isValid() && window.endTime.isValid())
+            {
+                m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+            }
+        }
         
         // Recalculate cursor timestamp label position if there's a current cursor timestamp
         // This ensures the label stays aligned with the cursor during drag
@@ -1262,6 +1219,16 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
         
+        // Update manoeuvre overlay time range after drag ends
+        if (m_manoeuvreOverlay)
+        {
+            TimeSelectionSpan window = m_sliderState.getTimeWindow();
+            if (window.startTime.isValid() && window.endTime.isValid())
+            {
+                m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+            }
+        }
+        
         // Recalculate cursor timestamp label position after drag ends
         // This ensures the label is correctly positioned with the final window
         if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
@@ -1284,7 +1251,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
     QWidget::mouseReleaseEvent(event);
 }
 
-void TimelineVisualizerWidget::enterEvent(QEvent* event)
+void TimelineVisualizerWidget::enterEvent(QEnterEvent* event)
 {
     QWidget::enterEvent(event);
     // Cursor will be updated in mouseMoveEvent
@@ -1306,6 +1273,13 @@ void TimelineVisualizerWidget::setTimelineViewMode(TimelineViewMode mode)
         m_sliderState.setYPosition(0, rect().height(), m_timeLineLength);
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+        
+        // Update manoeuvre overlay time range
+        if (m_manoeuvreOverlay && newWindow.startTime.isValid() && newWindow.endTime.isValid())
+        {
+            m_manoeuvreOverlay->setTimeRange(newWindow.startTime, newWindow.endTime);
+        }
+        
         emitTimeScopeChanged();
         update();
     }
@@ -1318,6 +1292,12 @@ void TimelineVisualizerWidget::setTimeWindowSilent(const TimeSelectionSpan& wind
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Update manoeuvre overlay time range
+    if (m_manoeuvreOverlay && window.startTime.isValid() && window.endTime.isValid())
+    {
+        m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+    }
     
     // Update visualization to reflect new slider position
     // Note: We do NOT emit visibleTimeWindowChanged signal to avoid feedback loops
@@ -1893,4 +1873,27 @@ bool TimelineView::isChevronVisible() const
         return m_visualizerWidget->isChevronVisible();
     }
     return true; // Default
+}
+
+void TimelineView::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setManoeuvres(manoeuvres);
+    }
+}
+
+void TimelineVisualizerWidget::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
+{
+    if (m_manoeuvreOverlay)
+    {
+        m_manoeuvreOverlay->setManoeuvres(manoeuvres);
+        
+        // Update time range from current slider state
+        TimeSelectionSpan window = m_sliderState.getTimeWindow();
+        if (window.startTime.isValid() && window.endTime.isValid())
+        {
+            m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+        }
+    }
 }

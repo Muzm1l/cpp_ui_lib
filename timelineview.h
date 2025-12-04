@@ -24,6 +24,7 @@
 #include "timelineutils.h"
 #include "timelinedrawingobjects.h"
 #include "sharedsyncstate.h"
+#include "manoeuvreoverlay.h"
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
@@ -177,13 +178,16 @@ public:
     std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
     double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
 
+    // Manoeuvre overlay methods
+    void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
-    void enterEvent(QEvent* event) override;
+    void enterEvent(QEnterEvent* event) override;
 
 private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes
@@ -197,8 +201,7 @@ private:
     double m_pixelSpeed; // pixels per second
     double m_accumulatedOffset; // accumulated pixel offset
 
-    // Drawing objects (only segments and chevron)
-    TimelineChevronDrawer* m_chevronDrawer;
+    // Drawing objects (only segments)
     std::vector<TimelineSegmentDrawer*> m_segmentDrawers;
 
     // Label mode control
@@ -232,6 +235,9 @@ private:
     bool m_sliderVisible = true;  // Default: slider is visible
     bool m_chevronVisible = true; // Default: chevron (maneuvers) is visible
 
+    // Manoeuvre overlay
+    ManoeuvreOverlay *m_manoeuvreOverlay;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -243,7 +249,6 @@ private:
 
     // Helper methods for drawing with QPainter
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
-    void drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer);
     void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
     void drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea);
     
@@ -333,6 +338,9 @@ public:
     bool isSliderVisible() const;
     void setChevronVisible(bool visible);
     bool isChevronVisible() const;
+
+    // Manoeuvre methods
+    void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);

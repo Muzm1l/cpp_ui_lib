@@ -137,6 +137,9 @@ public:
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
 
+    // Manoeuvre methods
+    void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+
     // Range limits management methods
     void setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
     void removeGraphRangeLimits(const GraphType graphType);
