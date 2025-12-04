@@ -112,7 +112,7 @@ class TimelineVisualizerWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineVisualizerWidget(QWidget* parent = nullptr, GraphContainerSyncState *syncState = nullptr);
+    explicit TimelineVisualizerWidget(QWidget* parent = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
     ~TimelineVisualizerWidget();
 
     // Properties
@@ -165,6 +165,12 @@ public:
     
     // Set time window without emitting signals (for external synchronization)
     void setTimeWindowSilent(const TimeSelectionSpan& window);
+    
+    // Optional rendering control
+    void setSliderVisible(bool visible);
+    bool isSliderVisible() const { return m_sliderVisible; }
+    void setChevronVisible(bool visible);
+    bool isChevronVisible() const { return m_chevronVisible; }
 
     // Navtime label calculation methods (public for TimelineView access)
     int getLabelSpacingMinutes(TimeInterval interval) const;
@@ -221,6 +227,10 @@ private:
 
     // Shared sync state reference
     GraphContainerSyncState *m_syncState;
+    
+    // Optional rendering flags
+    bool m_sliderVisible = true;  // Default: slider is visible
+    bool m_chevronVisible = true; // Default: chevron (maneuvers) is visible
 
     void updateVisualization();
     double calculateTimeOffset();
@@ -255,7 +265,7 @@ class TimelineView : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr);
+    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
     ~TimelineView();
 
     // No time selection methods needed for TimelineView
@@ -317,6 +327,12 @@ public:
     int getLabelSpacingMinutes(TimeInterval interval) const;
     std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
     double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
+    
+    // Optional rendering control
+    void setSliderVisible(bool visible);
+    bool isSliderVisible() const;
+    void setChevronVisible(bool visible);
+    bool isChevronVisible() const;
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);

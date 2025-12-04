@@ -217,8 +217,8 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // TimelineVisualizerWidget Implementation
 // ============================================================================
 
-TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_syncState(syncState)
+TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_chevronDrawer(nullptr), m_sliderIndicator(nullptr), m_syncState(syncState), m_sliderVisible(sliderVisible), m_chevronVisible(chevronVisible)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -758,7 +758,8 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     }
 
     // Draw chevron using drawing object - position it at the top of the timeline
-    if (m_chevronDrawer)
+    // Only draw if chevron is visible
+    if (m_chevronVisible && m_chevronDrawer)
     {
         m_chevronDrawer->setDrawArea(rect());
         m_chevronDrawer->setYOffset(30); // Position at the top with enough space for the chevron box
@@ -771,12 +772,16 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 
     // Draw slider indicator using geometry helper
-    QRect sliderRect = SliderGeometry::calculateSliderRect(
-        rect().height(), rect().width(), m_timeLineLength,
-        m_sliderState.getYPosition());
-    
-    QColor sliderColor(255, 255, 255, 128); // 50% opacity white
-    painter.fillRect(sliderRect, sliderColor);
+    // Only draw if slider is visible
+    if (m_sliderVisible)
+    {
+        QRect sliderRect = SliderGeometry::calculateSliderRect(
+            rect().height(), rect().width(), m_timeLineLength,
+            m_sliderState.getYPosition());
+        
+        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
+        painter.fillRect(sliderRect, sliderColor);
+    }
 
     // Draw navtime labels if sync state is available
     if (m_syncState && m_syncState->hasCurrentNavTime)
@@ -1497,7 +1502,7 @@ void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, co
              << "with text" << labelText << "in drawArea" << drawArea;
 }
 
-TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState)
+TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
     : QWidget(parent), 
     m_intervalChangeButton(nullptr), 
     m_timeModeChangeButton(nullptr), 
@@ -1563,7 +1568,7 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
     // updateTimeModeButtonText(m_isAbsoluteTime);
 
     // Create visualizer widget with sync state
-    m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState);
+    m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState, sliderVisible, chevronVisible);
 
     // Add widgets to layout
     m_layout->addWidget(m_timeModeChangeButton);
@@ -1834,4 +1839,58 @@ double TimelineView::calculateLabelYPosition(
         return m_visualizerWidget->calculateLabelYPosition(labelNavTime, currentNavTime, timelineLength, widgetHeight);
     }
     return 0.0;
+}
+
+// Optional rendering control methods for TimelineVisualizerWidget
+void TimelineVisualizerWidget::setSliderVisible(bool visible)
+{
+    if (m_sliderVisible != visible)
+    {
+        m_sliderVisible = visible;
+        update(); // Trigger repaint
+    }
+}
+
+void TimelineVisualizerWidget::setChevronVisible(bool visible)
+{
+    if (m_chevronVisible != visible)
+    {
+        m_chevronVisible = visible;
+        update(); // Trigger repaint
+    }
+}
+
+// Optional rendering control methods for TimelineView (delegate to visualizer widget)
+void TimelineView::setSliderVisible(bool visible)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setSliderVisible(visible);
+    }
+}
+
+bool TimelineView::isSliderVisible() const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->isSliderVisible();
+    }
+    return true; // Default
+}
+
+void TimelineView::setChevronVisible(bool visible)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setChevronVisible(visible);
+    }
+}
+
+bool TimelineView::isChevronVisible() const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->isChevronVisible();
+    }
+    return true; // Default
 }

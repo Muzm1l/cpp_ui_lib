@@ -17,6 +17,8 @@
 #include "waterfallgraph.h"
 #include "zoompanel.h"
 #include "rtwsymboldrawing.h"
+#include "scwwindow.h"
+#include "scwsimulator.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <QPaintEvent>
@@ -84,7 +86,11 @@ private:
     
     // Time selection history storage (max 5 selections)
     std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
-    
+        
+    // SCWWindow for SCW tab
+    SCWWindow* scwWindow; ///< SCW Window widget
+    SCWSimulator* scwSimulator; ///< Simulator for SCWWindow data generation
+
     // void configureTimeVisualizer();
     // void configureTimelineView();
     void configureZoomPanel();
@@ -94,6 +100,7 @@ private:
     void setupCustomGraphsTab();
     void setupTestWaterfallGraph(); ///< Setup test WaterfallGraph in controls tab
     void setupTimelineView(); ///< Setup TimelineView in controls tab for testing
+    void setupSCWWindow(); ///< Setup SCWWindow in a new tab
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
