@@ -80,6 +80,10 @@ private:
     QLabel* timespanDurationLabel; ///< Label to display duration
     QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
 
+    // Manoeuvre management buttons
+    QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout
+    QPushButton* clearManoeuvresButton; ///< Button to clear all manoeuvres from the graph layout
+
     
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
@@ -106,6 +110,7 @@ private:
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
+    void setupManoeuvreButton(); ///< Setup button to add manoeuvres
 
     long simTick;
 
@@ -164,6 +169,22 @@ private slots:
      * Stores the selection timestamps in history (max 5).
      */
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
+
+    /**
+     * @brief Handles add manoeuvre button click
+     *
+     * Called when the add manoeuvre button is clicked.
+     * Creates a sample manoeuvre and adds it to the graph layout.
+     */
+    void onAddManoeuvreButtonClicked();
+
+    /**
+     * @brief Handles clear manoeuvres button click
+     *
+     * Called when the clear manoeuvres button is clicked.
+     * Clears all manoeuvres from the graph layout.
+     */
+    void onClearManoeuvresButtonClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

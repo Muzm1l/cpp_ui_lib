@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "timelineutils.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QLabel>
@@ -134,6 +135,9 @@ MainWindow::MainWindow(QWidget *parent)
     
     // Setup time selection history storage
     setupTimeSelectionHistory();
+
+    // Setup manoeuvre button
+    setupManoeuvreButton();
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -143,6 +147,59 @@ void MainWindow::setupTimeSelectionHistory()
             this, &MainWindow::onTimeSelectionCreated);
     
     qDebug() << "Time selection history storage initialized (max 5 selections)";
+}
+
+void MainWindow::setupManoeuvreButton()
+{
+    // Create button to add manoeuvres
+    addManoeuvreButton = new QPushButton("Add Manoeuvre", ui->originalTab);
+    addManoeuvreButton->setObjectName("addManoeuvreButton");
+    addManoeuvreButton->setGeometry(QRect(10, 10, 150, 30)); // Position at top-left of originalTab
+    
+    // Connect button click to slot
+    connect(addManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onAddManoeuvreButtonClicked);
+    
+    // Create button to clear manoeuvres
+    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", ui->originalTab);
+    clearManoeuvresButton->setObjectName("clearManoeuvresButton");
+    clearManoeuvresButton->setGeometry(QRect(170, 10, 150, 30)); // Position next to add button
+    
+    // Connect button click to slot
+    connect(clearManoeuvresButton, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
+    
+    qDebug() << "Manoeuvre buttons created and connected";
+}
+
+void MainWindow::onAddManoeuvreButtonClicked()
+{
+    // Create a sample manoeuvre with dummy data
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime startTime = now.addSecs(-180); // 3 minutes ago
+    QDateTime endTime = now;                  // Current time
+    
+    // Generate dummy data: bearing (0-360), speed (10-30), depth (50-200)
+    int bearing = (std::rand() % 360);      // Random bearing 0-359
+    int speed = 10 + (std::rand() % 21);     // Random speed 10-30
+    int depth = 50 + (std::rand() % 151);    // Random depth 50-200
+    
+    Manoeuvre manoeuvre(startTime, endTime, bearing, speed, depth);
+    
+    // Add manoeuvre to graph layout
+    graphgrid->addManoeuvre(manoeuvre);
+    
+    qDebug() << "MainWindow: Added manoeuvre - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << manoeuvre.bearing
+             << "speed:" << manoeuvre.speed
+             << "depth:" << manoeuvre.depth;
+}
+
+void MainWindow::onClearManoeuvresButtonClicked()
+{
+    // Clear all manoeuvres from graph layout
+    graphgrid->clearManoeuvres();
+    
+    qDebug() << "MainWindow: Cleared all manoeuvres";
 }
 
 void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)

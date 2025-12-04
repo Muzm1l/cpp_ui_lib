@@ -42,6 +42,19 @@ struct TimeSelectionSpan
     TimeSelectionSpan(const QDateTime &start, const QDateTime &end) : startTime(start), endTime(end) {}
 };
 
+struct Manoeuvre
+{
+    QDateTime startTime;
+    QDateTime endTime;
+    int bearing;
+    int speed;
+    int depth;
+
+    Manoeuvre() : bearing(0), speed(0), depth(0) {}
+    Manoeuvre(const QDateTime &start, const QDateTime &end, int b, int s, int d)
+        : startTime(start), endTime(end), bearing(b), speed(s), depth(d) {}
+};
+
 // Utility function to convert TimeInterval enum to QTime
 inline QTime timeIntervalToQTime(TimeInterval interval)
 {

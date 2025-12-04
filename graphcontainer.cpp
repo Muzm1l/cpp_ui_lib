@@ -1621,6 +1621,35 @@ QString GraphContainer::getChevronLabel3() const
     }
 }
 
+void GraphContainer::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
+{
+    // Update shared sync state if available
+    if (m_syncState)
+    {
+        if (manoeuvres)
+        {
+            m_syncState->manoeuvres = *manoeuvres;
+            m_syncState->hasManoeuvres = true;
+        }
+        else
+        {
+            m_syncState->manoeuvres.clear();
+            m_syncState->hasManoeuvres = false;
+        }
+    }
+    
+    // Propagate to timeline view if it exists
+    if (m_timelineView)
+    {
+        m_timelineView->setManoeuvres(manoeuvres);
+        qDebug() << "GraphContainer: Set manoeuvres to timeline view - count:" << (manoeuvres ? manoeuvres->size() : 0);
+    }
+    else
+    {
+        qWarning() << "GraphContainer: Cannot set manoeuvres - timeline view is null";
+    }
+}
+
 // Range limits management methods implementation
 void GraphContainer::setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax)
 {

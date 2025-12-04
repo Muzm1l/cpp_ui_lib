@@ -1676,6 +1676,67 @@ void GraphLayout::setChevronLabel3(const QString &containerLabel, const QString 
     }
 }
 
+void GraphLayout::addManoeuvre(const Manoeuvre &manoeuvre)
+{
+    // Add manoeuvre to sync state
+    m_syncState.manoeuvres.push_back(manoeuvre);
+    m_syncState.hasManoeuvres = true;
+    
+    // Propagate to all containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->setManoeuvres(&m_syncState.manoeuvres);
+        }
+    }
+    
+    qDebug() << "GraphLayout: Added manoeuvre - startTime:" << manoeuvre.startTime.toString()
+             << "endTime:" << manoeuvre.endTime.toString()
+             << "Total manoeuvres:" << m_syncState.manoeuvres.size();
+}
+
+void GraphLayout::setManoeuvres(const std::vector<Manoeuvre> &manoeuvres)
+{
+    // Update sync state with new manoeuvres
+    m_syncState.manoeuvres = manoeuvres;
+    m_syncState.hasManoeuvres = !manoeuvres.empty();
+    
+    // Propagate to all containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->setManoeuvres(&m_syncState.manoeuvres);
+        }
+    }
+    
+    qDebug() << "GraphLayout: Set manoeuvres - count:" << manoeuvres.size();
+}
+
+void GraphLayout::clearManoeuvres()
+{
+    // Clear manoeuvres from sync state
+    m_syncState.manoeuvres.clear();
+    m_syncState.hasManoeuvres = false;
+    
+    // Propagate to all containers (pass nullptr to clear)
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->setManoeuvres(nullptr);
+        }
+    }
+    
+    qDebug() << "GraphLayout: Cleared all manoeuvres";
+}
+
+std::vector<Manoeuvre> GraphLayout::getManoeuvres() const
+{
+    return m_syncState.manoeuvres;
+}
+
 QString GraphLayout::getChevronLabel1(const QString &containerLabel) const
 {
     int containerIndex = getContainerIndex(containerLabel);
