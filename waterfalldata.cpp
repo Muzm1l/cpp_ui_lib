@@ -29,6 +29,10 @@ WaterfallData::~WaterfallData()
     // Vectors will be automatically cleaned up
     dataSeriesYData.clear();
     dataSeriesTimestamps.clear();
+    rtwSymbols.clear();
+    btwSymbols.clear();
+    btwMarkers.clear();
+    rtwRMarkers.clear();
 }
 
 void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -734,4 +738,185 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
     qDebug() << "WaterfallData::binDataByTime: Binned" << yData.size() << "points into" << result.size() << "bins with duration" << binSizeMs << "ms";
     
     return result;
+}
+
+// RTW Symbol management methods implementation
+
+void WaterfallData::addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+{
+    RTWSymbolData symbolData;
+    symbolData.symbolName = symbolName;
+    symbolData.timestamp = timestamp;
+    symbolData.range = range;
+    
+    rtwSymbols.push_back(symbolData);
+    
+    qDebug() << "WaterfallData: Added RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearRTWSymbols()
+{
+    rtwSymbols.clear();
+    qDebug() << "WaterfallData: Cleared all RTW symbols";
+}
+
+bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    for (auto it = rtwSymbols.begin(); it != rtwSymbols.end(); ++it)
+    {
+        // Check if symbol name matches
+        if (it->symbolName != symbolName)
+        {
+            continue;
+        }
+        
+        // Check if timestamp matches within tolerance
+        qint64 timeDiff = qAbs(it->timestamp.msecsTo(timestamp));
+        qreal rangeDiff = qAbs(it->range - range);
+        
+        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        {
+            rtwSymbols.erase(it);
+            qDebug() << "WaterfallData: Removed RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+            return true;
+        }
+    }
+    qDebug() << "WaterfallData: RTW symbol not found:" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
+std::vector<RTWSymbolData> WaterfallData::getRTWSymbols() const
+{
+    return rtwSymbols;
+}
+
+size_t WaterfallData::getRTWSymbolsCount() const
+{
+    return rtwSymbols.size();
+}
+
+// BTW Symbol management methods
+void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+{
+    BTWSymbolData symbolData;
+    symbolData.symbolName = symbolName;
+    symbolData.timestamp = timestamp;
+    symbolData.range = range;
+    
+    btwSymbols.push_back(symbolData);
+    
+    qDebug() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearBTWSymbols()
+{
+    btwSymbols.clear();
+    qDebug() << "WaterfallData: Cleared all BTW symbols";
+}
+
+std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
+{
+    return btwSymbols;
+}
+
+size_t WaterfallData::getBTWSymbolsCount() const
+{
+    return btwSymbols.size();
+}
+
+// BTW Marker management methods implementation
+
+void WaterfallData::addBTWMarker(const QDateTime& timestamp, qreal range, qreal delta)
+{
+    BTWMarkerData markerData;
+    markerData.timestamp = timestamp;
+    markerData.range = range;
+    markerData.delta = delta;
+    
+    btwMarkers.push_back(markerData);
+    
+    qDebug() << "WaterfallData: Added BTW marker at timestamp" << timestamp.toString() << "with range" << range << "and delta" << delta;
+}
+
+void WaterfallData::clearBTWMarkers()
+{
+    btwMarkers.clear();
+    qDebug() << "WaterfallData: Cleared all BTW markers";
+}
+
+bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    for (auto it = btwMarkers.begin(); it != btwMarkers.end(); ++it)
+    {
+        // Check if timestamp matches within tolerance
+        qint64 timeDiff = qAbs(it->timestamp.msecsTo(timestamp));
+        qreal rangeDiff = qAbs(it->range - range);
+        
+        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        {
+            btwMarkers.erase(it);
+            qDebug() << "WaterfallData: Removed BTW marker at timestamp" << timestamp.toString() << "with range" << range;
+            return true;
+        }
+    }
+    qDebug() << "WaterfallData: BTW marker not found at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
+std::vector<BTWMarkerData> WaterfallData::getBTWMarkers() const
+{
+    return btwMarkers;
+}
+
+size_t WaterfallData::getBTWMarkersCount() const
+{
+    return btwMarkers.size();
+}
+
+// RTW R Marker management methods implementation
+
+void WaterfallData::addRTWRMarker(const QDateTime& timestamp, qreal range)
+{
+    RTWRMarkerData markerData;
+    markerData.timestamp = timestamp;
+    markerData.range = range;
+    
+    rtwRMarkers.push_back(markerData);
+    
+    qDebug() << "WaterfallData: Added RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
+}
+
+void WaterfallData::clearRTWRMarkers()
+{
+    rtwRMarkers.clear();
+    qDebug() << "WaterfallData: Cleared all RTW R markers";
+}
+
+bool WaterfallData::removeRTWRMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+{
+    for (auto it = rtwRMarkers.begin(); it != rtwRMarkers.end(); ++it)
+    {
+        // Check if timestamp matches within tolerance
+        qint64 timeDiff = qAbs(it->timestamp.msecsTo(timestamp));
+        qreal rangeDiff = qAbs(it->range - range);
+        
+        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        {
+            rtwRMarkers.erase(it);
+            qDebug() << "WaterfallData: Removed RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
+            return true;
+        }
+    }
+    qDebug() << "WaterfallData: RTW R marker not found at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
+std::vector<RTWRMarkerData> WaterfallData::getRTWRMarkers() const
+{
+    return rtwRMarkers;
+}
+
+size_t WaterfallData::getRTWRMarkersCount() const
+{
+    return rtwRMarkers.size();
 }

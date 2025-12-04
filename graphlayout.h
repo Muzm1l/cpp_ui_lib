@@ -84,6 +84,9 @@ public:
 
     // Selection linking methods
     void linkHorizontalContainers();
+    
+    // Timeline view syncing methods
+    void syncAllTimelineViews();
 
     // Chevron label control methods - operate on all visible containers
     void setChevronLabel1(const QString &label);
@@ -108,6 +111,35 @@ public:
     bool hasHardRangeLimits(const GraphType graphType) const;
     std::pair<qreal, qreal> getHardRangeLimits(const GraphType graphType) const;
 
+    // Clear all graphs - clears all data, markers, and symbols from all graphs
+    void clearAllGraphs();
+
+    // Marker and symbol management methods - operate on specific graph type
+    void addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range);
+    void addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range);
+    void addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal delta);
+    void addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range);
+    
+    // Remove individual markers and symbols
+    bool removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    
+    // Clear markers and symbols for specific graph type
+    void clearRTWSymbols(const GraphType &graphType);
+    void clearBTWSymbols(const GraphType &graphType);
+    void clearBTWMarkers(const GraphType &graphType);
+    void clearRTWRMarkers(const GraphType &graphType);
+    
+    // Clear BTW manual markers (interactive overlay markers)
+    void clearBTWManualMarkers();
+    
+    // Redraw specific graph
+    void redrawGraph(const GraphType &graphType);
+    
+    // Redraw all graphs
+    void redrawAllGraphs();
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
 
@@ -115,6 +147,7 @@ public slots:
     void onTimerTick();
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
     void onTimeSelectionsCleared();
+    void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
 
 public slots:
     void onContainerIntervalChanged(TimeInterval interval);
@@ -143,6 +176,9 @@ private:
     void registerCursorSyncCallbacks();
     void onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time);
     void onContainerTimeScopeChanged(const TimeSelectionSpan &selection);
+    
+    // Helper to add BTW symbol (magenta circle) to all graphs at a timestamp
+    void addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal range);
 
     // Container synchronization state
     GraphContainerSyncState m_syncState;
@@ -150,6 +186,28 @@ private:
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionsCleared();
+    
+    // Marker timestamp signals for external integration
+    /**
+     * @brief Emitted when an RTW R marker is clicked
+     * @param timestamp The timestamp of the clicked R marker
+     * @param position The scene position where the marker was clicked
+     */
+    void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a BTW manual marker is placed
+     * @param timestamp The timestamp of the placed marker
+     * @param position The scene position where the marker was placed
+     */
+    void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a BTW manual marker is clicked
+     * @param timestamp The timestamp of the clicked marker
+     * @param position The scene position where the marker was clicked
+     */
+    void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
 };
 
 #endif // GRAPHLAYOUT_H

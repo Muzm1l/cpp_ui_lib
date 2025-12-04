@@ -32,8 +32,17 @@ void BDWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        qDebug() << "BDWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
     graphicsScene->clear();
+    graphicsScene->update(); // Force immediate update to ensure clearing is visible
     setupDrawingArea();
 
     if (gridEnabled)
@@ -69,6 +78,11 @@ void BDWGraph::draw()
             }
         }
     }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    drawBTWSymbols();
+    
+    isDrawing = false;
 }
 
 /**
@@ -134,4 +148,78 @@ void BDWGraph::drawZeroAxis()
     graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
     
     qDebug() << "BDW zero axis drawn at x:" << zeroPoint.x();
+}
+
+/**
+ * @brief Override drawDataLine to use dashed lines for BDW graph
+ *
+ */
+void BDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
+{
+    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
+    {
+        return;
+    }
+
+    const auto &yData = dataSource->getYDataSeries(seriesLabel);
+    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+
+    // Filter data points to only include those within the current time range
+    std::vector<std::pair<qreal, QDateTime>> visibleData;
+    for (size_t i = 0; i < yData.size(); ++i)
+    {
+        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
+        {
+            visibleData.push_back({yData[i], timestamps[i]});
+        }
+    }
+
+    if (visibleData.empty())
+    {
+        qDebug() << "No data points within current time range";
+        return;
+    }
+
+    if (visibleData.size() < 2)
+    {
+        // Draw a single point if we only have one data point
+        QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+        QPen pointPen(Qt::green, 0); // No stroke (width 0)
+        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        qDebug() << "Data line drawn with 1 visible point";
+        return;
+    }
+
+    // Create a path for the line
+    QPainterPath path;
+    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+    path.moveTo(firstPoint);
+
+    // Add lines connecting all visible data points
+    for (size_t i = 1; i < visibleData.size(); ++i)
+    {
+        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+        path.lineTo(point);
+    }
+
+    // Draw the line with dashed style
+    QColor seriesColor = getSeriesColor(seriesLabel);
+    QPen linePen(seriesColor, 2);
+    linePen.setStyle(Qt::DashLine);
+    linePen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
+    graphicsScene->addPath(path, linePen);
+
+    // Draw data points if enabled
+    if (plotPoints)
+    {
+        // Draw data points
+        QPen pointPen(seriesColor, 0); // No stroke (width 0)
+        for (size_t i = 0; i < visibleData.size(); ++i)
+        {
+            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+            graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+        }
+    }
+
+    qDebug() << "BDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size() << "visible points";
 }

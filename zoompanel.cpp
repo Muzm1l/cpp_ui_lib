@@ -2,7 +2,7 @@
 #include <QFontMetrics>
 
 ZoomPanel::ZoomPanel(QWidget *parent)
-    : QWidget(parent), m_graphicsView(nullptr), m_scene(nullptr), m_indicator(nullptr), m_leftText(nullptr), m_centerText(nullptr), m_rightText(nullptr), m_isDragging(false), m_isExtending(false), m_currentValue(1.0), m_extendMode(None), m_userModifiedBounds(false), m_indicatorLowerBoundValue(0.0), m_indicatorUpperBoundValue(1.0)
+    : QWidget(parent), m_graphicsView(nullptr), m_scene(nullptr), m_indicator(nullptr), m_leftText(nullptr), m_centerText(nullptr), m_rightText(nullptr), m_crosshairLabel(nullptr), m_crosshairLabelBackground(nullptr), m_isDragging(false), m_isExtending(false), m_currentValue(1.0), m_extendMode(None), m_userModifiedBounds(false), m_indicatorLowerBoundValue(0.0), m_indicatorUpperBoundValue(1.0)
 {
     // Set black background
     this->setStyleSheet("background-color: black;");
@@ -15,6 +15,9 @@ ZoomPanel::ZoomPanel(QWidget *parent)
     m_graphicsView->setFrameShape(QFrame::NoFrame);
     m_graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     m_graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // Set black background for graphics view
+    m_graphicsView->setBackgroundBrush(QBrush(Qt::black));
+    m_graphicsView->setStyleSheet("background-color: black;");
 
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
@@ -57,6 +60,7 @@ void ZoomPanel::setupGraphicsView()
     // Create the visual elements
     createIndicator();
     createTextItems();
+    createCrosshairLabel();
 
     // Update indicator to current value to ensure proper initial state
     updateIndicator(m_currentValue);
@@ -126,6 +130,35 @@ void ZoomPanel::createTextItems()
     m_rightText->setPos(drawArea.width() - rightMargin - maxLabelWidth, textY); // Right aligned with width constraint
     m_rightText->setTextWidth(maxLabelWidth);                                   // Constrain width to 20% of slider width
     m_scene->addItem(m_rightText);
+}
+
+void ZoomPanel::createCrosshairLabel()
+{
+    if (!m_scene)
+        return;
+
+    QRect drawArea = this->rect();
+    
+    // Calculate font size (similar to other labels)
+    int maxLabelWidth = drawArea.width() * 0.20;
+    int fontSize = calculateOptimalFontSize(maxLabelWidth);
+    QFont textFont("Arial", fontSize);
+
+    // Create black background rectangle for crosshair label
+    m_crosshairLabelBackground = new QGraphicsRectItem();
+    m_crosshairLabelBackground->setBrush(QBrush(Qt::black));
+    m_crosshairLabelBackground->setPen(QPen(Qt::black)); // No border
+    m_crosshairLabelBackground->setVisible(false);
+    m_crosshairLabelBackground->setZValue(1999); // Just below the text
+    m_scene->addItem(m_crosshairLabelBackground);
+
+    // Create crosshair label (initially hidden)
+    m_crosshairLabel = new QGraphicsTextItem("");
+    m_crosshairLabel->setFont(textFont);
+    m_crosshairLabel->setDefaultTextColor(Qt::white);
+    m_crosshairLabel->setVisible(false);
+    m_crosshairLabel->setZValue(2000); // High z-value to appear above other elements
+    m_scene->addItem(m_crosshairLabel);
 }
 
 /**
@@ -573,10 +606,23 @@ void ZoomPanel::updateAllElements()
         delete m_rightText;
         m_rightText = nullptr;
     }
+    if (m_crosshairLabel)
+    {
+        m_scene->removeItem(m_crosshairLabel);
+        delete m_crosshairLabel;
+        m_crosshairLabel = nullptr;
+    }
+    if (m_crosshairLabelBackground)
+    {
+        m_scene->removeItem(m_crosshairLabelBackground);
+        delete m_crosshairLabelBackground;
+        m_crosshairLabelBackground = nullptr;
+    }
 
     // Recreate elements with new size
     createIndicator();
     createTextItems();
+    createCrosshairLabel();
 
     // Restore indicator bounds (preserve custom size/position if customized)
     m_indicatorLowerBoundValue = savedLowerBound;
@@ -782,4 +828,80 @@ void ZoomPanel::resetIndicatorToFullRange()
     m_userModifiedBounds = false;
     
     qDebug() << "ZoomPanel: Indicator reset to full range [0.0, 1.0]";
+}
+
+void ZoomPanel::updateCrosshairLabel(qreal xPosition)
+{
+    if (!m_crosshairLabel || !m_scene)
+        return;
+
+    QRect drawArea = this->rect();
+    
+    // Check if the X position is within the zoom panel bounds
+    if (xPosition < 0 || xPosition > drawArea.width())
+    {
+        clearCrosshairLabel();
+        return;
+    }
+
+    // Calculate the range value at this X position
+    int margin = qMax(2, drawArea.height() / 10);
+    int availableWidth = drawArea.width() - (2 * margin);
+    
+    // Convert X position to a normalized value (0.0 to 1.0)
+    qreal normalizedValue = (xPosition - margin) / static_cast<qreal>(availableWidth);
+    normalizedValue = qBound(0.0, normalizedValue, 1.0);
+    
+    // Calculate the actual range value using original values
+    qreal originalRange = m_originalRightLabelValue - m_originalLeftLabelValue;
+    qreal rangeValue = m_originalLeftLabelValue + (normalizedValue * originalRange);
+    
+    // Update label text
+    QString labelText = QString::number(rangeValue, 'f', 2);
+    m_crosshairLabel->setPlainText(labelText);
+    
+    // Position the label at the crosshair intersection point
+    // Center it vertically and position it slightly to the right of the crosshair line
+    int fontSize = calculateOptimalFontSize(drawArea.width() * 0.20);
+    int textY = (drawArea.height() - fontSize) / 2;
+    int textX = xPosition + 5; // Offset slightly to the right of the crosshair line
+    
+    // Make sure the label doesn't go off the right edge
+    QFontMetrics fontMetrics(m_crosshairLabel->font());
+    int textWidth = fontMetrics.horizontalAdvance(labelText);
+    int textHeight = fontMetrics.height();
+    if (textX + textWidth > drawArea.width())
+    {
+        // Position to the left of the crosshair line instead
+        textX = xPosition - textWidth - 5;
+    }
+    
+    // Add padding around the text for the background
+    int padding = 2;
+    int bgX = textX - padding;
+    int bgY = textY - padding;
+    int bgWidth = textWidth + (2 * padding);
+    int bgHeight = textHeight + (2 * padding);
+    
+    // Update background rectangle position and size
+    if (m_crosshairLabelBackground)
+    {
+        m_crosshairLabelBackground->setRect(bgX, bgY, bgWidth, bgHeight);
+        m_crosshairLabelBackground->setVisible(true);
+    }
+    
+    m_crosshairLabel->setPos(textX, textY);
+    m_crosshairLabel->setVisible(true);
+}
+
+void ZoomPanel::clearCrosshairLabel()
+{
+    if (m_crosshairLabel)
+    {
+        m_crosshairLabel->setVisible(false);
+    }
+    if (m_crosshairLabelBackground)
+    {
+        m_crosshairLabelBackground->setVisible(false);
+    }
 }

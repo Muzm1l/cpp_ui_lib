@@ -9,6 +9,37 @@
 #include <QDebug>
 #include <QString>
 
+// Forward declaration for RTW symbols
+struct RTWSymbolData
+{
+    QString symbolName;
+    QDateTime timestamp;
+    qreal range;
+};
+
+// Forward declaration for BTW symbols
+struct BTWSymbolData
+{
+    QString symbolName;
+    QDateTime timestamp;
+    qreal range;
+};
+
+// Forward declaration for BTW markers
+struct BTWMarkerData
+{
+    QDateTime timestamp;
+    qreal range;  // Y-axis position (range value)
+    qreal delta; // Delta value for angle calculation
+};
+
+// Forward declaration for RTW R markers
+struct RTWRMarkerData
+{
+    QDateTime timestamp;
+    qreal range; // Y-axis position (range value)
+};
+
 class WaterfallData
 {
 public:
@@ -99,11 +130,50 @@ public:
         const QTime& binDuration
     );
 
+    // RTW Symbol management methods (stored with track data)
+    void addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range);
+    void clearRTWSymbols();
+    bool removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    std::vector<RTWSymbolData> getRTWSymbols() const;
+    size_t getRTWSymbolsCount() const;
+
+    // BTW Symbol management methods (stored with track data)
+    void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range);
+    void clearBTWSymbols();
+    std::vector<BTWSymbolData> getBTWSymbols() const;
+    size_t getBTWSymbolsCount() const;
+
+    // BTW Marker management methods (manually placed markers)
+    void addBTWMarker(const QDateTime& timestamp, qreal range, qreal delta);
+    void clearBTWMarkers();
+    bool removeBTWMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    std::vector<BTWMarkerData> getBTWMarkers() const;
+    size_t getBTWMarkersCount() const;
+
+    // RTW R Marker management methods (manually placed markers)
+    void addRTWRMarker(const QDateTime& timestamp, qreal range);
+    void clearRTWRMarkers();
+    bool removeRTWRMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    std::vector<RTWRMarkerData> getRTWRMarkers() const;
+    size_t getRTWRMarkersCount() const;
+
 private:
 
     // Multiple data series storage
     std::map<QString, std::vector<qreal>> dataSeriesYData;
     std::map<QString, std::vector<QDateTime>> dataSeriesTimestamps;
+
+    // RTW Symbol storage (persists with track data)
+    std::vector<RTWSymbolData> rtwSymbols;
+    
+    // BTW Symbol storage (persists with track data)
+    std::vector<BTWSymbolData> btwSymbols;
+
+    // BTW Marker storage (manually placed markers)
+    std::vector<BTWMarkerData> btwMarkers;
+
+    // RTW R Marker storage (manually placed markers)
+    std::vector<RTWRMarkerData> rtwRMarkers;
 
     // Data title
     QString dataTitle;

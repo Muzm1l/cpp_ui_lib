@@ -43,6 +43,8 @@ public:
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
+    TimelineView *getTimelineView() const;
+    void setShowTimeSelectionVisualizer(bool show);
 
     // Sizing methods
     int getTimelineWidth() const;
@@ -73,6 +75,13 @@ public:
 
     // Graph redraw method
     void redrawWaterfallGraph();
+    void redrawWaterfallGraph(GraphType graphType); // Redraw a specific graph type
+    
+    // Get the current waterfall graph
+    WaterfallGraph* getCurrentWaterfallGraph() const;
+    
+    // Get a specific waterfall graph by type
+    WaterfallGraph* getWaterfallGraph(GraphType graphType) const;
 
     // Data options management
     void addDataOption(const GraphType graphType, WaterfallData &dataSource);
@@ -153,6 +162,11 @@ public slots:
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
     void onTimeScopeChanged(const TimeSelectionSpan &selection);
+    
+    // Marker timestamp slots
+    void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
     // Unified data change notification handler
     void onDataChanged(GraphType graphType);
@@ -180,6 +194,11 @@ signals:
     void IntervalChanged(TimeInterval interval);
     void TimeScopeChanged(const TimeSelectionSpan &selection);
     void DeleteInteractiveMarkers();
+    
+    // Marker timestamp signals
+    void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
 
 private:
     QHBoxLayout *m_mainLayout;

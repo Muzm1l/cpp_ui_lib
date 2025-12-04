@@ -6,6 +6,7 @@
 #include "btwgraph.h"
 #include "fdwgraph.h"
 #include "ftwgraph.h"
+#include "graphcontainer.h"
 #include "graphlayout.h"
 #include "ltwgraph.h"
 #include "rtwgraph.h"
@@ -15,10 +16,14 @@
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
 #include "zoompanel.h"
+#include "rtwsymboldrawing.h"
 #include "scwwindow.h"
 #include "scwsimulator.h"
 #include <QMainWindow>
 #include <QTimer>
+#include <QPaintEvent>
+#include <QPushButton>
+#include <vector>
 #include <cstdlib>
 #include <ctime>
 
@@ -74,7 +79,14 @@ private:
     QLabel* timespanEndLabel; ///< Label to display end time
     QLabel* timespanDurationLabel; ///< Label to display duration
     QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
+
     
+    // RTW Symbols test widget
+    QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
+    
+    // Time selection history storage (max 5 selections)
+    std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
+        
     // SCWWindow for SCW tab
     SCWWindow* scwWindow; ///< SCW Window widget
     SCWSimulator* scwSimulator; ///< Simulator for SCWWindow data generation
@@ -92,6 +104,8 @@ private:
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
+    void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
+    void setupTimeSelectionHistory(); ///< Setup time selection history storage
 
     long simTick;
 
@@ -142,6 +156,14 @@ private slots:
      * Called when user selects a different layout type from the combobox.
      */
     void onLayoutTypeChanged(int index);
+    
+    /**
+     * @brief Handles time selection created events
+     *
+     * Called when a time selection is created on the timeline.
+     * Stores the selection timestamps in history (max 5).
+     */
+    void onTimeSelectionCreated(const TimeSelectionSpan &selection);
 
     // /**
     //  * @brief Updates the current time in the time visualizer
