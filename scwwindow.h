@@ -46,17 +46,24 @@ enum class SCW_SERIES_E
     EXTERNAL5,
 };
 
+enum class SCW_SERIES_ADOPTED
+{
+    ADOPTED,
+};
+
 // Helper function to convert SCW_SERIES to QString
 QString scwSeriesRToString(SCW_SERIES_R series);
 QString scwSeriesBToString(SCW_SERIES_B series);
 QString scwSeriesAToString(SCW_SERIES_A series);
 QString scwSeriesEToString(SCW_SERIES_E series);
+QString scwSeriesAdoptedToString(SCW_SERIES_ADOPTED series);
 
 // Helper function to convert QString to SCW_SERIES
 SCW_SERIES_R stringToScwSeriesR(const QString &str);
 SCW_SERIES_B stringToScwSeriesB(const QString &str);
 SCW_SERIES_A stringToScwSeriesA(const QString &str);
 SCW_SERIES_E stringToScwSeriesE(const QString &str);
+SCW_SERIES_ADOPTED stringToScwSeriesAdopted(const QString &str);
 
 class SCWWindow : public QWidget
 {
@@ -67,6 +74,8 @@ public:
     ~SCWWindow();
 
     // Data management APIs
+    void setDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void setDataPoints(SCW_SERIES_R series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_R series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void setDataPoints(SCW_SERIES_B series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
@@ -84,16 +93,17 @@ private:
     QHBoxLayout *m_mainLayout;
     TimelineView *m_timelineView;
 
-    // 7 container frames, each containing a vertical layout with button and waterfallgraph
-    QFrame *m_seriesContainers[7];
-    QVBoxLayout *m_seriesLayouts[7];
-    QPushButton *m_seriesButtons[7];
-    WaterfallGraph *m_waterfallGraphs[7];
+    // 8 container frames, each containing a vertical layout with button and waterfallgraph
+    QFrame *m_seriesContainers[8];
+    QVBoxLayout *m_seriesLayouts[8];
+    QPushButton *m_seriesButtons[8];
+    WaterfallGraph *m_waterfallGraphs[8];
     
     // Currently selected window index (-1 if none selected)
     int m_selectedWindowIndex = -1;
 
-    // 7 WaterfallData data sources keyed by SCW_SERIES
+    // 8 WaterfallData data sources keyed by SCW_SERIES
+    QMap<SCW_SERIES_ADOPTED, WaterfallData *> m_dataSourcesAdopted;
     QMap<SCW_SERIES_R, WaterfallData *> m_dataSourcesR;
     QMap<SCW_SERIES_B, WaterfallData *> m_dataSourcesB;
     QMap<SCW_SERIES_A, WaterfallData *> m_dataSourcesA;
@@ -102,15 +112,16 @@ private:
     // Timer for TimelineView
     QTimer *m_timer;
     
-    // Current series indices for cycling windows (5, 6, 7)
-    int m_currentSeriesBIndex = 0;  // Window 5: cycles through SCW_SERIES_B
-    int m_currentSeriesAIndex = 0;  // Window 6: cycles through SCW_SERIES_A
-    int m_currentSeriesEIndex = 0;  // Window 7: cycles through SCW_SERIES_E
+    // Current series indices for cycling windows (6, 7, 8)
+    int m_currentSeriesBIndex = 0;  // Window 6: cycles through SCW_SERIES_B
+    int m_currentSeriesAIndex = 0;  // Window 7: cycles through SCW_SERIES_A
+    int m_currentSeriesEIndex = 0;  // Window 8: cycles through SCW_SERIES_E
 
     // Helper methods
     void setupLayout();
     void setupDataSources();
     void setupWaterfallGraphs();
+    WaterfallData *getDataSourceAdopted(SCW_SERIES_ADOPTED series) const;
     WaterfallData *getDataSourceR(SCW_SERIES_R series) const;
     WaterfallData *getDataSourceB(SCW_SERIES_B series) const;
     WaterfallData *getDataSourceA(SCW_SERIES_A series) const;
@@ -122,18 +133,19 @@ private:
     bool eventFilter(QObject *obj, QEvent *event) override;
     
     // Helper methods for cycling
-    void switchWindow5Series();
     void switchWindow6Series();
     void switchWindow7Series();
+    void switchWindow8Series();
 
 private slots:
-    void onWindow1ButtonClicked();  // Select window 1
+    void onWindow1ButtonClicked();  // Select window 1 (ADOPTED)
     void onWindow2ButtonClicked();  // Select window 2
     void onWindow3ButtonClicked();  // Select window 3
     void onWindow4ButtonClicked();  // Select window 4
-    void onWindow5ButtonClicked();  // Cycle through SCW_SERIES_B
-    void onWindow6ButtonClicked();  // Cycle through SCW_SERIES_A
-    void onWindow7ButtonClicked();  // Cycle through SCW_SERIES_E
+    void onWindow5ButtonClicked();  // Select window 5
+    void onWindow6ButtonClicked();  // Cycle through SCW_SERIES_B
+    void onWindow7ButtonClicked();  // Cycle through SCW_SERIES_A
+    void onWindow8ButtonClicked();  // Cycle through SCW_SERIES_E
 };
 
 #endif // SCWWINDOW_H
