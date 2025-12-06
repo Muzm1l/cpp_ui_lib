@@ -58,6 +58,10 @@ void RTWSymbolDrawing::generateAll()
     cache[SymbolType::BOTC]      = BOTC();
     cache[SymbolType::BOTF]       = BOTF();
     cache[SymbolType::BOTD]       = BOTD();
+    cache[SymbolType::YellowCircle1] = makeYellowCircle1();
+    cache[SymbolType::YellowCircle2] = makeYellowCircle2();
+    cache[SymbolType::YellowCircle3] = makeYellowCircle3();
+    cache[SymbolType::YellowCircle4] = makeYellowCircle4();
 }
 
 /* ----------------- Helpers ----------------- */
@@ -519,6 +523,98 @@ QPixmap RTWSymbolDrawing::BOTD(){
     
     p.setFont(makeFont());
     p.drawText(box, Qt::AlignCenter, "D");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 1
+QPixmap RTWSymbolDrawing::makeYellowCircle1()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(4, 4, size-8, size-8);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 1 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "1");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 2
+QPixmap RTWSymbolDrawing::makeYellowCircle2()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(4, 4, size-8, size-8);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 2 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "2");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 3
+QPixmap RTWSymbolDrawing::makeYellowCircle3()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(4, 4, size-8, size-8);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 3 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "3");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 4
+QPixmap RTWSymbolDrawing::makeYellowCircle4()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(4, 4, size-8, size-8);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 4 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "4");
 
     return pix;
 }

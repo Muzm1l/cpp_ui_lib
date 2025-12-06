@@ -25,7 +25,11 @@ public:
         BOT,
         BOTC,
         BOTF,
-        BOTD
+        BOTD,
+        YellowCircle1,
+        YellowCircle2,
+        YellowCircle3,
+        YellowCircle4
     };
 
     RTWSymbolDrawing(int baseSize = 40);  // size in pixels
@@ -60,6 +64,10 @@ private:
     QPixmap BOTC();
     QPixmap BOTF();
     QPixmap BOTD();
+    QPixmap makeYellowCircle1();
+    QPixmap makeYellowCircle2();
+    QPixmap makeYellowCircle3();
+    QPixmap makeYellowCircle4();
 
     // helpers
     QPixmap blank();

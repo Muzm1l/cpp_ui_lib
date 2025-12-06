@@ -1047,7 +1047,11 @@ protected:
             RTWSymbolDrawing::SymbolType::BOT,
             RTWSymbolDrawing::SymbolType::BOTC,
             RTWSymbolDrawing::SymbolType::BOTF,
-            RTWSymbolDrawing::SymbolType::BOTD
+            RTWSymbolDrawing::SymbolType::BOTD,
+            RTWSymbolDrawing::SymbolType::YellowCircle1,
+            RTWSymbolDrawing::SymbolType::YellowCircle2,
+            RTWSymbolDrawing::SymbolType::YellowCircle3,
+            RTWSymbolDrawing::SymbolType::YellowCircle4
             
         };
 
@@ -1072,7 +1076,11 @@ protected:
             "BFT",
             "BRAT",
             "Wavy Circle (Green)",
-            "Scallop Ellipse (Green)"
+            "Scallop Ellipse (Green)",
+            "Yellow Circle 1",
+            "Yellow Circle 2",
+            "Yellow Circle 3",
+            "Yellow Circle 4"
         };
 
         for (int i = 0; i < symbolTypes.size(); ++i)
