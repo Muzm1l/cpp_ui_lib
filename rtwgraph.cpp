@@ -360,6 +360,10 @@ RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolNam
     if (name == "BOTC") return RTWSymbolDrawing::SymbolType::BOTC;
     if (name == "BOTF") return RTWSymbolDrawing::SymbolType::BOTF;
     if (name == "BOTD") return RTWSymbolDrawing::SymbolType::BOTD;
+    if (name == "YELLOWCIRCLE1" || name == "YELLOW_CIRCLE_1" || name == "YC1") return RTWSymbolDrawing::SymbolType::YellowCircle1;
+    if (name == "YELLOWCIRCLE2" || name == "YELLOW_CIRCLE_2" || name == "YC2") return RTWSymbolDrawing::SymbolType::YellowCircle2;
+    if (name == "YELLOWCIRCLE3" || name == "YELLOW_CIRCLE_3" || name == "YC3") return RTWSymbolDrawing::SymbolType::YellowCircle3;
+    if (name == "YELLOWCIRCLE4" || name == "YELLOW_CIRCLE_4" || name == "YC4") return RTWSymbolDrawing::SymbolType::YellowCircle4;
     
     // Default to R if symbol name is not recognized
     qDebug() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";
