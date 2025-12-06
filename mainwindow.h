@@ -79,6 +79,7 @@ private:
     QLabel* timespanEndLabel; ///< Label to display end time
     QLabel* timespanDurationLabel; ///< Label to display duration
     QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
+    QLabel* markerTimestampLabel; ///< Label to display marker timestamp in first tab
 
     // Manoeuvre management buttons
     QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout

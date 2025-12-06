@@ -630,6 +630,10 @@ void GraphContainer::setupEventConnections()
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
         
+        // Connect marker timestamp and value changes
+        connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
+                this, &GraphContainer::markerTimestampValueChanged);
+        
         // Connect crosshair position changes to update zoompanel label
         pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
             if (m_zoomPanel)
@@ -690,6 +694,10 @@ void GraphContainer::setupEventConnectionsForWaterfallGraph()
     // Connect WaterfallGraph selection events
     connect(m_currentWaterfallGraph, &WaterfallGraph::SelectionCreated,
             this, &GraphContainer::onSelectionCreated);
+    
+    // Connect marker timestamp and value changes
+    connect(m_currentWaterfallGraph, &WaterfallGraph::markerTimestampValueChanged,
+            this, &GraphContainer::markerTimestampValueChanged);
 
     qDebug() << "GraphContainer: Event connections established for waterfall graph";
 }
@@ -756,6 +764,10 @@ void GraphContainer::createAllWaterfallGraphs()
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
+        
+        // Connect marker timestamp and value changes
+        connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
+                this, &GraphContainer::markerTimestampValueChanged);
     }
     
     qDebug() << "GraphContainer: Created all waterfall graph instances";

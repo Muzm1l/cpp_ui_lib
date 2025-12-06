@@ -266,6 +266,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::BTWManualMarkerPlaced);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked);
+        connect(container, &GraphContainer::markerTimestampValueChanged,
+                this, &GraphLayout::markerTimestampValueChanged);
     }
 }
 
@@ -341,6 +343,8 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::BTWManualMarkerPlaced);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked);
+        connect(container, &GraphContainer::markerTimestampValueChanged,
+                this, &GraphLayout::markerTimestampValueChanged);
     }
     
     qDebug() << "GraphLayout: Connected all containers to time selection and time scope propagation";

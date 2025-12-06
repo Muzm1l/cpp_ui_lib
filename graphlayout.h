@@ -214,6 +214,13 @@ signals:
      * @param position The scene position where the marker was clicked
      */
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
+     * @param timestamp The timestamp of the marker
+     * @param value The value (range) of the marker
+     */
+    void markerTimestampValueChanged(const QDateTime &timestamp, qreal value);
 };
 
 #endif // GRAPHLAYOUT_H

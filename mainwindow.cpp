@@ -35,6 +35,35 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
+    
+    // Create container widget for top bar with label and buttons
+    QWidget* topBarWidget = new QWidget(ui->originalTab);
+    topBarWidget->setObjectName("topBarWidget");
+    topBarWidget->setGeometry(QRect(10, 10, 1200, 50));
+    
+    // Create horizontal layout for buttons and timestamp label
+    QHBoxLayout* topLayout = new QHBoxLayout(topBarWidget);
+    topLayout->setContentsMargins(0, 0, 0, 0);
+    topLayout->setSpacing(10);
+    
+    // Create label to display marker timestamp in first tab
+    markerTimestampLabel = new QLabel("Marker Timestamp: --", topBarWidget);
+    markerTimestampLabel->setObjectName("markerTimestampLabel");
+    markerTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid yellow; border-radius: 4px; }");
+    markerTimestampLabel->setMinimumWidth(400);
+    
+    // Add label to layout
+    topLayout->addWidget(markerTimestampLabel);
+    
+    // Connect marker timestamp signal from graphgrid to update label
+    connect(graphgrid, &GraphLayout::markerTimestampValueChanged,
+            [this](const QDateTime &timestamp, qreal value) {
+                if (markerTimestampLabel && timestamp.isValid()) {
+                    QString timestampStr = timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz");
+                    markerTimestampLabel->setText(QString("Marker Timestamp: %1 | Value: %2").arg(timestampStr).arg(value, 0, 'f', 2));
+                    qDebug() << "Marker timestamp updated:" << timestampStr << "Value:" << value;
+                }
+            });
 
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
@@ -151,23 +180,50 @@ void MainWindow::setupTimeSelectionHistory()
 
 void MainWindow::setupManoeuvreButton()
 {
+    // Find the top bar widget and its layout
+    QWidget* topBarWidget = ui->originalTab->findChild<QWidget*>("topBarWidget");
+    if (!topBarWidget) {
+        qWarning() << "Top bar widget not found, creating new one";
+        topBarWidget = new QWidget(ui->originalTab);
+        topBarWidget->setObjectName("topBarWidget");
+        topBarWidget->setGeometry(QRect(10, 10, 1200, 50));
+    }
+    
+    // Get or create the horizontal layout
+    QHBoxLayout* topLayout = qobject_cast<QHBoxLayout*>(topBarWidget->layout());
+    if (!topLayout) {
+        topLayout = new QHBoxLayout(topBarWidget);
+        topLayout->setContentsMargins(0, 0, 0, 0);
+        topLayout->setSpacing(10);
+        
+        // Add the timestamp label if it exists and isn't already in a layout
+        if (markerTimestampLabel && markerTimestampLabel->parent() == topBarWidget) {
+            topLayout->addWidget(markerTimestampLabel);
+        }
+    }
+    
     // Create button to add manoeuvres
-    addManoeuvreButton = new QPushButton("Add Manoeuvre", ui->originalTab);
+    addManoeuvreButton = new QPushButton("Add Manoeuvre", topBarWidget);
     addManoeuvreButton->setObjectName("addManoeuvreButton");
-    addManoeuvreButton->setGeometry(QRect(10, 10, 150, 30)); // Position at top-left of originalTab
+    addManoeuvreButton->setFixedSize(150, 30);
     
     // Connect button click to slot
     connect(addManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onAddManoeuvreButtonClicked);
     
     // Create button to clear manoeuvres
-    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", ui->originalTab);
+    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", topBarWidget);
     clearManoeuvresButton->setObjectName("clearManoeuvresButton");
-    clearManoeuvresButton->setGeometry(QRect(170, 10, 150, 30)); // Position next to add button
+    clearManoeuvresButton->setFixedSize(150, 30);
     
     // Connect button click to slot
     connect(clearManoeuvresButton, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
     
-    qDebug() << "Manoeuvre buttons created and connected";
+    // Add buttons to the layout
+    topLayout->addWidget(addManoeuvreButton);
+    topLayout->addWidget(clearManoeuvresButton);
+    topLayout->addStretch(); // Add stretch to push everything to the left
+    
+    qDebug() << "Manoeuvre buttons created and connected in horizontal layout";
 }
 
 void MainWindow::onAddManoeuvreButtonClicked()

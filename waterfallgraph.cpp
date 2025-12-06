@@ -1041,6 +1041,29 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
         {
+            // Check if we clicked on a magenta circle (BTW symbol) in graphicsScene
+            if (graphicsScene) {
+                QGraphicsItem *itemAtPos = graphicsScene->itemAt(scenePos, QTransform());
+                if (itemAtPos) {
+                    QGraphicsEllipseItem *ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(itemAtPos);
+                    if (ellipseItem) {
+                        // Check if it's a magenta circle by checking the brush color
+                        QBrush brush = ellipseItem->brush();
+                        if (brush.color() == QColor(255, 0, 255)) { // Magenta color
+                            // This is a magenta circle - extract timestamp and value
+                            QDateTime timestamp = mapScreenToTime(scenePos.y());
+                            qreal value = mapScreenXToRange(scenePos.x());
+                            
+                            if (timestamp.isValid()) {
+                                qDebug() << "WaterfallGraph: Magenta marker clicked at timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") << "value:" << value;
+                                emit markerTimestampValueChanged(timestamp, value);
+                            }
+                            return; // Don't process further
+                        }
+                    }
+                }
+            }
+            
             // First, try to forward the mouse event to the overlay view if we clicked on an interactive item
             // This allows interactive markers (like BTW markers) to handle their own events
             // RTW R markers are in graphicsScene and will be handled in RTWGraph::onMouseClick

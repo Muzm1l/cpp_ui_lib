@@ -145,12 +145,18 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
             qDebug() << "BTWGraph: Could not map Y position to timestamp, using current time";
         }
         
-        qreal value = 50.0; // Default value
+        // Get value from X position (range value)
+        qreal value = mapScreenXToRange(scenePos.x());
         QString seriesLabel = "BTW-Click";
         
         m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
         
-        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos << "with timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos << "with timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") << "value:" << value;
+        
+        // Emit signal for marker timestamp and value
+        if (timestamp.isValid()) {
+            emit markerTimestampValueChanged(timestamp, value);
+        }
     }
     
     // Call parent implementation
@@ -492,8 +498,19 @@ void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &p
         qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
         qDebug() << "========================================";
         
+        // Get value from marker's X position (range value)
+        QPointF scenePos = marker->scenePos();
+        qreal value = mapScreenXToRange(scenePos.x());
+        
+        qDebug() << "BTWGraph: Emitting markerTimestampValueChanged signal - timestamp:" << timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz") << "value:" << value;
+        
         // Emit signal for external integration
         emit manualMarkerClicked(timestamp, marker->scenePos());
+        
+        // Emit signal for marker timestamp and value (this will propagate through GraphContainer -> GraphLayout)
+        emit markerTimestampValueChanged(timestamp, value);
+        
+        qDebug() << "BTWGraph: markerTimestampValueChanged signal emitted successfully";
     } else {
         qDebug() << "BTWGraph: Marker clicked at:" << position << "- Could not determine timestamp (invalid)";
     }
