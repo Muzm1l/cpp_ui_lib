@@ -367,16 +367,12 @@ void GraphLayout::attachContainerDataSources()
 
 void GraphLayout::updateLayoutSizing()
 {
-    // Get the current geometry of this GraphLayout widget
-    QSize currentSize = size();
-    if (currentSize.isEmpty()) {
-        // If size is not set yet, use the minimum size hint
-        currentSize = minimumSizeHint();
-    }
+    // Standard sizes for layout types
+    // x = combined width of timelineview (64) and history selection (32) = 96
+    const int x = 64 + 32; // Timeline view width + history selection width
+    const int standardHeight = 900;
     
-    int availableHeight = currentSize.height();
-    
-    // Calculate container heights based on layout type and available space
+    // Calculate container heights based on layout type
     int containerHeight = 0;
     int numRows = 1;
     
@@ -404,7 +400,7 @@ void GraphLayout::updateLayoutSizing()
     if (numRows > 0) {
         // Calculate height per row, accounting for spacing between rows
         int spacingHeight = (numRows > 1) ? (numRows - 1) : 0; // 1px spacing between rows
-        containerHeight = (availableHeight - spacingHeight) / numRows;
+        containerHeight = (standardHeight - spacingHeight) / numRows;
         
         // Ensure minimum height
         containerHeight = qMax(containerHeight, 200);
@@ -419,200 +415,99 @@ void GraphLayout::updateLayoutSizing()
         }
     }
     
-    // Calculate widths based on formula: totalWidth = N_Columns * container_width + 64
-    // (64 is the timeline view width)
-    int numColumns = 0;
-    int containerWidth = 0;
+    // Set container widths and total width based on standard sizes
+    int totalWidth = 0;
     const int timelineViewWidth = 64; // Timeline view width
     
     switch (m_layoutType)
     {
     case LayoutType::GPW1W:
-        numColumns = 1;
+        // 1W: Width: 226 + x; h = 900
+        if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
+            m_graphContainers[0]->setContainerWidth(226 + x);
+        }
+        totalWidth = 226 + x;
         break;
+        
     case LayoutType::GPW2WH:
-        numColumns = 2;
+        // GPW2W: 226 + x + 226; h = 900
+        for (int i = 0; i < 2; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 0) {
+                    m_graphContainers[i]->setContainerWidth(226);
+                } else {
+                    m_graphContainers[i]->setContainerWidth(226 + x);
+                }
+            }
+        }
+        totalWidth = 226 + x + 226;
         break;
+        
     case LayoutType::NOGPW2WH:
-        numColumns = 2;
+        // NOGPW2WH: 580 + 582 + x; H = 900
+        for (int i = 0; i < 2; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 0) {
+                    m_graphContainers[i]->setContainerWidth(580);
+                } else {
+                    m_graphContainers[i]->setContainerWidth(582 + x);
+                }
+            }
+        }
+        totalWidth = 580 + 582 + x;
         break;
+        
     case LayoutType::GPW4WH:
-        numColumns = 4;
+        // GPW4WH: 290 + 290 + x + 290 + 290
+        for (int i = 0; i < 4; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 2) {
+                    // Third container (index 2) has timeline view, so gets extra width
+                    m_graphContainers[i]->setContainerWidth(290 + x);
+                } else {
+                    m_graphContainers[i]->setContainerWidth(290);
+                }
+            }
+        }
+        totalWidth = 290 + 290 + x + 290 + 290;
         break;
+        
     case LayoutType::GPW2WV:
-        numColumns = 1; // Stacked vertically, so 1 column
+        // GPW4WV: 226 + x; h = 900
+        if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
+            m_graphContainers[0]->setContainerWidth(226 + x);
+        }
+        if (m_graphContainers[2] && m_graphContainers[2]->isVisible()) {
+            m_graphContainers[2]->setContainerWidth(226 + x);
+        }
+        totalWidth = 226 + x;
         break;
+        
     case LayoutType::GPW4W:
-        numColumns = 2; // 2x2 grid, so 2 columns
+        // GPW4W: 226 + x + 226; h = 900
+        for (int i = 0; i < 4; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 1 || i == 3) {
+                    // Second container in each row has timeline view, so gets extra width
+                    m_graphContainers[i]->setContainerWidth(226 + x);
+                } else {
+                    // First container in each row gets standard width (no timeline view)
+                    m_graphContainers[i]->setContainerWidth(226);
+                }
+            }
+        }
+        totalWidth = 226 + x + 226;
         break;
+        
     case LayoutType::HIDDEN:
-        numColumns = 0;
+        totalWidth = 0;
         break;
     }
     
-    if (numColumns > 0) {
-        // Calculate container width from available space
-        // Formula: totalWidth = N_Columns * container_width + timelineViewWidth
-        // So: container_width = (totalWidth - timelineViewWidth) / N_Columns
-        int availableWidth = currentSize.width();
-        
-        // If the current width seems too large (likely from a previous layout with more columns),
-        // try using parent widget's available space or container's graph view size as a base
-        if (!m_graphContainers.empty() && m_graphContainers[0])
-        {
-            QSize graphViewSize = m_graphContainers[0]->getGraphViewSize();
-            int baseContainerWidth = graphViewSize.width();
-            
-            // Check if current width calculation would result in an unreasonably wide container
-            // (more than 2x the base width suggests we're using the wrong base width)
-            int calculatedWidth = (availableWidth - timelineViewWidth) / numColumns;
-            if (calculatedWidth > baseContainerWidth * 2)
-            {
-                // Try to use parent widget's available space if available
-                QWidget *parent = parentWidget();
-                if (parent)
-                {
-                    int parentWidth = parent->width();
-                    if (parentWidth > 0)
-                    {
-                        int parentBasedWidth = (parentWidth - timelineViewWidth) / numColumns;
-                        // Use parent-based width if it's more reasonable
-                        if (parentBasedWidth <= baseContainerWidth * 2 && parentBasedWidth >= baseContainerWidth)
-                        {
-                            containerWidth = parentBasedWidth;
-                        }
-                        else
-                        {
-                            // Fall back to base container width from graph view size
-                            containerWidth = baseContainerWidth;
-                        }
-                    }
-                    else
-                    {
-                        // Use the base container width from graph view size
-                        containerWidth = baseContainerWidth;
-                    }
-                }
-                else
-                {
-                    // Use the base container width from graph view size
-                    containerWidth = baseContainerWidth;
-                }
-            }
-            else
-            {
-                containerWidth = calculatedWidth;
-            }
-        }
-        else
-        {
-            containerWidth = (availableWidth - timelineViewWidth) / numColumns;
-        }
-        
-        // Ensure minimum width
-        containerWidth = qMax(containerWidth, 200);
-        
-        // Set container widths based on layout type
-        switch (m_layoutType)
-        {
-        case LayoutType::GPW1W:
-            if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
-                m_graphContainers[0]->setContainerWidth(containerWidth + timelineViewWidth);
-            }
-            break;
-        case LayoutType::GPW2WH:
-            for (int i = 0; i < 2; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    } else {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::NOGPW2WH:
-            for (int i = 0; i < 2; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    } else {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::GPW4WH:
-            for (int i = 0; i < 4; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 2) {
-                        // Third container (index 2) has timeline view, so gets extra width
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    } else {
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::GPW2WV:
-            // For vertical stacking, both containers should have the same width
-            // Containers 0 and 2 are used in GPW2WV layout
-            if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
-                m_graphContainers[0]->setContainerWidth(containerWidth + timelineViewWidth);
-            }
-            if (m_graphContainers[2] && m_graphContainers[2]->isVisible()) {
-                m_graphContainers[2]->setContainerWidth(containerWidth + timelineViewWidth);
-            }
-            break;
-        case LayoutType::GPW4W:
-            // For 2x2 grid, second container in each row has timeline view, so gets extra width
-            for (int i = 0; i < 4; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 1 || i == 3) {
-                        // Second container in each row has timeline view, so gets extra width
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    } else {
-                        // First container in each row gets standard width (no timeline view)
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::HIDDEN:
-            break;
-        }
-        
-        // Calculate and set total width based on layout type
-        int totalWidth = 0;
-        switch (m_layoutType)
-        {
-        case LayoutType::GPW1W:
-            totalWidth = containerWidth + timelineViewWidth;
-            break;
-        case LayoutType::GPW2WH:
-            // Container 0: no timeline view, Container 1: has timeline view
-            totalWidth = containerWidth + (containerWidth + timelineViewWidth);
-            break;
-        case LayoutType::NOGPW2WH:
-            // Container 0: no timeline view, Container 1: has timeline view
-            totalWidth = containerWidth + (containerWidth + timelineViewWidth);
-            break;
-        case LayoutType::GPW4WH:
-            // Container 2 (3rd container) has timeline view, so gets extra width
-            totalWidth = containerWidth + containerWidth + (containerWidth + timelineViewWidth) + containerWidth;
-            break;
-        case LayoutType::GPW2WV:
-            totalWidth = containerWidth + timelineViewWidth; // Both containers have same width with timeline view
-            break;
-        case LayoutType::GPW4W:
-            // 2x2 grid: second container in each row has timeline view, so gets extra width
-            totalWidth = containerWidth + (containerWidth + timelineViewWidth); // Row 1: standard + (standard + timelineViewWidth)
-            break;
-        case LayoutType::HIDDEN:
-            totalWidth = 0;
-            break;
-        }
+    // Set fixed width and height for the GraphLayout widget
+    if (m_layoutType != LayoutType::HIDDEN) {
         setFixedWidth(totalWidth);
+        setFixedHeight(standardHeight);
     }
     
     updateGeometry();
