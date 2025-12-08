@@ -84,6 +84,8 @@ private:
     // Manoeuvre management buttons
     QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout
     QPushButton* clearManoeuvresButton; ///< Button to clear all manoeuvres from the graph layout
+    QPushButton* startManoeuvreButton; ///< Button to start drawing a manoeuvre (new API)
+    QPushButton* endManoeuvreButton; ///< Button to end drawing a manoeuvre (new API)
 
     
     // RTW Symbols test widget
@@ -186,6 +188,22 @@ private slots:
      * Clears all manoeuvres from the graph layout.
      */
     void onClearManoeuvresButtonClicked();
+
+    /**
+     * @brief Handles start manoeuvre drawing button click
+     *
+     * Called when the start manoeuvre button is clicked.
+     * Starts a new manoeuvre drawing session with current time and random parameters.
+     */
+    void onStartManoeuvreButtonClicked();
+
+    /**
+     * @brief Handles end manoeuvre drawing button click
+     *
+     * Called when the end manoeuvre button is clicked.
+     * Completes the current manoeuvre drawing session with current time.
+     */
+    void onEndManoeuvreButtonClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

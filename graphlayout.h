@@ -110,6 +110,29 @@ public:
     void clearManoeuvres();
     std::vector<Manoeuvre> getManoeuvres() const;
 
+    /**
+     * @brief Starts drawing a manoeuvre
+     *
+     * Begins a new manoeuvre drawing session with the specified start time and parameters.
+     * The manoeuvre will be completed when endManoeuvreDrawing() is called.
+     *
+     * @param startTime The start time of the manoeuvre
+     * @param bearing The bearing in degrees (0-359)
+     * @param speed The speed value
+     * @param depth The depth value
+     */
+    void startManoeuvreDrawing(const QDateTime &startTime, int bearing, int speed, int depth);
+
+    /**
+     * @brief Ends drawing a manoeuvre
+     *
+     * Completes the current manoeuvre drawing session with the specified end time.
+     * The manoeuvre will be added to the graph layout.
+     *
+     * @param endTime The end time of the manoeuvre
+     */
+    void endManoeuvreDrawing(const QDateTime &endTime);
+
     // Set range limits methods
     void setHardRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
     void removeHardRangeLimits(const GraphType graphType);
@@ -188,6 +211,13 @@ private:
 
     // Container synchronization state
     GraphContainerSyncState m_syncState;
+
+    // Manoeuvre drawing state
+    bool m_manoeuvreDrawingInProgress; ///< Flag indicating if a manoeuvre is currently being drawn
+    QDateTime m_currentManoeuvreStartTime; ///< Start time of the manoeuvre being drawn
+    int m_currentManoeuvreBearing; ///< Bearing of the manoeuvre being drawn
+    int m_currentManoeuvreSpeed; ///< Speed of the manoeuvre being drawn
+    int m_currentManoeuvreDepth; ///< Depth of the manoeuvre being drawn
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);

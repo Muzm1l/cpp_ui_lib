@@ -218,9 +218,29 @@ void MainWindow::setupManoeuvreButton()
     // Connect button click to slot
     connect(clearManoeuvresButton, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
     
+    // Create button to start manoeuvre drawing (new API)
+    startManoeuvreButton = new QPushButton("Start Manoeuvre", topBarWidget);
+    startManoeuvreButton->setObjectName("startManoeuvreButton");
+    startManoeuvreButton->setFixedSize(150, 30);
+    startManoeuvreButton->setStyleSheet("QPushButton { background-color: #28a745; color: white; font-weight: bold; }");
+    
+    // Connect button click to slot
+    connect(startManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onStartManoeuvreButtonClicked);
+    
+    // Create button to end manoeuvre drawing (new API)
+    endManoeuvreButton = new QPushButton("End Manoeuvre", topBarWidget);
+    endManoeuvreButton->setObjectName("endManoeuvreButton");
+    endManoeuvreButton->setFixedSize(150, 30);
+    endManoeuvreButton->setStyleSheet("QPushButton { background-color: #dc3545; color: white; font-weight: bold; }");
+    
+    // Connect button click to slot
+    connect(endManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onEndManoeuvreButtonClicked);
+    
     // Add buttons to the layout
     topLayout->addWidget(addManoeuvreButton);
     topLayout->addWidget(clearManoeuvresButton);
+    topLayout->addWidget(startManoeuvreButton);
+    topLayout->addWidget(endManoeuvreButton);
     topLayout->addStretch(); // Add stretch to push everything to the left
     
     qDebug() << "Manoeuvre buttons created and connected in horizontal layout";
@@ -256,6 +276,40 @@ void MainWindow::onClearManoeuvresButtonClicked()
     graphgrid->clearManoeuvres();
     
     qDebug() << "MainWindow: Cleared all manoeuvres";
+}
+
+void MainWindow::onStartManoeuvreButtonClicked()
+{
+    // Start a manoeuvre drawing session with current time and random parameters
+    QDateTime startTime = QDateTime::currentDateTime();
+    
+    // Generate dummy data: bearing (0-360), speed (10-30), depth (50-200)
+    int bearing = (std::rand() % 360);      // Random bearing 0-359
+    int speed = 10 + (std::rand() % 21);     // Random speed 10-30
+    int depth = 50 + (std::rand() % 151);    // Random depth 50-200
+    
+    // Call the new API to start manoeuvre drawing
+    graphgrid->startManoeuvreDrawing(startTime, bearing, speed, depth);
+    
+    qDebug() << "MainWindow: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << bearing
+             << "speed:" << speed
+             << "depth:" << depth;
+}
+
+void MainWindow::onEndManoeuvreButtonClicked()
+{
+    // End the current manoeuvre drawing session with current time
+    QDateTime endTime = QDateTime::currentDateTime();
+    
+    // Call the new API to end manoeuvre drawing
+    graphgrid->endManoeuvreDrawing(endTime);
+    
+    qDebug() << "MainWindow: Ended manoeuvre drawing - endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss");
+    
+    // Show current manoeuvre count
+    auto manoeuvres = graphgrid->getManoeuvres();
+    qDebug() << "MainWindow: Total manoeuvres:" << manoeuvres.size();
 }
 
 void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
