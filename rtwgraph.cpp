@@ -189,7 +189,75 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                     return;
                 }
             }
+            
+            // Check if we clicked on an RTW symbol (QGraphicsPixmapItem)
+            QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
+            if (pixmapItem) {
+                // Check if this pixmap item has symbol data stored (data(0) = timestamp)
+                QVariant timestampVariant = pixmapItem->data(0);
+                QVariant symbolNameVariant = pixmapItem->data(1);
+                
+                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() && 
+                    symbolNameVariant.isValid()) {
+                    // This is an RTW symbol - get timestamp and symbol name from stored data
+                    QDateTime timestamp = timestampVariant.value<QDateTime>();
+                    QString symbolName = symbolNameVariant.toString();
+                    
+                    if (timestamp.isValid()) {
+                        qDebug() << "========================================";
+                        qDebug() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED";
+                        qDebug() << "========================================";
+                        qDebug() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
+                        qDebug() << "RTWGraph: Symbol name:" << symbolName;
+                        qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                        qDebug() << "========================================";
+                        
+                        // Emit signal for external integration
+                        emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
+                    } else {
+                        qDebug() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
+                    }
+                    // Don't call parent - we've handled the symbol click
+                    return;
+                }
+            }
         } else {
+            // If no item found at exact position, try a small bounding box search for symbols
+            const qreal searchRadius = 15.0; // Search within 15 pixels (slightly larger than R markers)
+            QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
+                           searchRadius * 2, searchRadius * 2);
+            QList<QGraphicsItem*> itemsInArea = graphicsScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
+            
+            // Look for RTW symbols (pixmap items with stored data) in the nearby items
+            for (QGraphicsItem *item : itemsInArea) {
+                QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+                if (pixmapItem) {
+                    QVariant timestampVariant = pixmapItem->data(0);
+                    QVariant symbolNameVariant = pixmapItem->data(1);
+                    
+                    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() && 
+                        symbolNameVariant.isValid()) {
+                        QDateTime timestamp = timestampVariant.value<QDateTime>();
+                        QString symbolName = symbolNameVariant.toString();
+                        
+                        if (timestamp.isValid()) {
+                            qDebug() << "========================================";
+                            qDebug() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED (via bounding box search)";
+                            qDebug() << "========================================";
+                            qDebug() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
+                            qDebug() << "RTWGraph: Symbol name:" << symbolName;
+                            qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                            qDebug() << "========================================";
+                            
+                            // Emit signal for external integration
+                            emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
+                        }
+                        // Don't call parent - we've handled the symbol click
+                        return;
+                    }
+                }
+            }
+            
             qDebug() << "RTWGraph: No item found at scene position:" << scenePos;
             qDebug() << "RTWGraph: Graphics scene items count:" << graphicsScene->items().size();
         }
@@ -502,6 +570,18 @@ void RTWGraph::drawRTWSymbols()
         pixmapItem->setPos(screenPos.x() - pixmapRect.width() / 2, 
                           screenPos.y() - pixmapRect.height() / 2);
         pixmapItem->setZValue(1000); // High z-value to ensure visibility above other elements
+        
+        // Store symbol data in the pixmap item for click detection
+        // Use data(0) for timestamp (QVariant can store QDateTime)
+        pixmapItem->setData(0, symbolData.timestamp);
+        // Use data(1) for symbol name
+        pixmapItem->setData(1, symbolData.symbolName);
+        // Use data(2) for range value
+        pixmapItem->setData(2, symbolData.range);
+        
+        // Make pixmap item clickable (similar to R markers)
+        pixmapItem->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
+        pixmapItem->setAcceptHoverEvents(true);
         
         graphicsScene->addItem(pixmapItem);
         symbolsDrawn++;

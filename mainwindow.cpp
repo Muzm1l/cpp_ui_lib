@@ -65,6 +65,29 @@ MainWindow::MainWindow(QWidget *parent)
                 }
             });
 
+    // Create label to display RTW symbol timestamp when clicked
+    rtwSymbolTimestampLabel = new QLabel("RTW Symbol: --", topBarWidget);
+    rtwSymbolTimestampLabel->setObjectName("rtwSymbolTimestampLabel");
+    rtwSymbolTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid cyan; border-radius: 4px; }");
+    rtwSymbolTimestampLabel->setMinimumWidth(450);
+    
+    // Add label to layout
+    topLayout->addWidget(rtwSymbolTimestampLabel);
+    
+    // Connect RTW symbol timestamp signal from graphgrid to update label
+    connect(graphgrid, &GraphLayout::RTWSymbolTimestampCaptured,
+            [this](const QDateTime &timestamp, const QPointF &position, const QString &symbolName) {
+                if (rtwSymbolTimestampLabel && timestamp.isValid()) {
+                    QString timestampStr = timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz");
+                    rtwSymbolTimestampLabel->setText(QString("RTW Symbol: %1 | Timestamp: %2 | Pos: (%3, %4)")
+                        .arg(symbolName)
+                        .arg(timestampStr)
+                        .arg(position.x(), 0, 'f', 1)
+                        .arg(position.y(), 0, 'f', 1));
+                    qDebug() << "RTW Symbol clicked:" << symbolName << "Timestamp:" << timestampStr << "Position:" << position;
+                }
+            });
+
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
 
@@ -167,6 +190,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Setup manoeuvre button
     setupManoeuvreButton();
+
+    // Add a test RTW symbol to the graph layout
+    QDateTime testSymbolTime = QDateTime::currentDateTime().addSecs(-120); // 2 minutes ago
+    graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
+    qDebug() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -199,6 +227,10 @@ void MainWindow::setupManoeuvreButton()
         // Add the timestamp label if it exists and isn't already in a layout
         if (markerTimestampLabel && markerTimestampLabel->parent() == topBarWidget) {
             topLayout->addWidget(markerTimestampLabel);
+        }
+        // Add the RTW symbol timestamp label if it exists and isn't already in a layout
+        if (rtwSymbolTimestampLabel && rtwSymbolTimestampLabel->parent() == topBarWidget) {
+            topLayout->addWidget(rtwSymbolTimestampLabel);
         }
     }
     

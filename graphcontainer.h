@@ -168,6 +168,7 @@ public slots:
     
     // Marker timestamp slots
     void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
@@ -200,6 +201,7 @@ signals:
     
     // Marker timestamp signals
     void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
     void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     /**
