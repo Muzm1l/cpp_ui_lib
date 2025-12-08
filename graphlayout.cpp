@@ -52,6 +52,13 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, 
 
     // Initialize the graph containers layout
     setLayoutType(layoutType);
+
+    // Initialize manoeuvre drawing state
+    m_manoeuvreDrawingInProgress = false;
+    m_currentManoeuvreStartTime = QDateTime();
+    m_currentManoeuvreBearing = 0;
+    m_currentManoeuvreSpeed = 0;
+    m_currentManoeuvreDepth = 0;
 }
 
 GraphLayout::~GraphLayout()
@@ -1634,6 +1641,66 @@ void GraphLayout::clearManoeuvres()
 std::vector<Manoeuvre> GraphLayout::getManoeuvres() const
 {
     return m_syncState.manoeuvres;
+}
+
+void GraphLayout::startManoeuvreDrawing(const QDateTime &startTime, int bearing, int speed, int depth)
+{
+    // Store the start time and parameters for the manoeuvre being drawn
+    m_currentManoeuvreStartTime = startTime;
+    m_currentManoeuvreBearing = bearing;
+    m_currentManoeuvreSpeed = speed;
+    m_currentManoeuvreDepth = depth;
+    m_manoeuvreDrawingInProgress = true;
+    
+    qDebug() << "GraphLayout: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << bearing
+             << "speed:" << speed
+             << "depth:" << depth;
+}
+
+void GraphLayout::endManoeuvreDrawing(const QDateTime &endTime)
+{
+    // Check if a manoeuvre drawing is in progress
+    if (!m_manoeuvreDrawingInProgress)
+    {
+        qWarning() << "GraphLayout: endManoeuvreDrawing() called but no manoeuvre drawing in progress";
+        return;
+    }
+    
+    // Validate that start time is before end time
+    if (!m_currentManoeuvreStartTime.isValid() || !endTime.isValid())
+    {
+        qWarning() << "GraphLayout: Invalid start or end time for manoeuvre";
+        m_manoeuvreDrawingInProgress = false;
+        return;
+    }
+    
+    if (m_currentManoeuvreStartTime >= endTime)
+    {
+        qWarning() << "GraphLayout: Start time must be before end time for manoeuvre";
+        m_manoeuvreDrawingInProgress = false;
+        return;
+    }
+    
+    // Create the manoeuvre with the stored start time and parameters, and the provided end time
+    Manoeuvre manoeuvre(m_currentManoeuvreStartTime, endTime, 
+                        m_currentManoeuvreBearing, m_currentManoeuvreSpeed, m_currentManoeuvreDepth);
+    
+    // Add manoeuvre to graph layout
+    addManoeuvre(manoeuvre);
+    
+    qDebug() << "GraphLayout: Ended manoeuvre drawing - startTime:" << m_currentManoeuvreStartTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << m_currentManoeuvreBearing
+             << "speed:" << m_currentManoeuvreSpeed
+             << "depth:" << m_currentManoeuvreDepth;
+    
+    // Reset the drawing state
+    m_manoeuvreDrawingInProgress = false;
+    m_currentManoeuvreStartTime = QDateTime();
+    m_currentManoeuvreBearing = 0;
+    m_currentManoeuvreSpeed = 0;
+    m_currentManoeuvreDepth = 0;
 }
 
 QString GraphLayout::getChevronLabel1(const QString &containerLabel) const
