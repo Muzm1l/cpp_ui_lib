@@ -266,6 +266,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
                 this, &GraphLayout::RTWRMarkerTimestampCaptured);
+        connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
+                this, &GraphLayout::RTWSymbolTimestampCaptured);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced);
         // Also forward the signal for external integration
@@ -343,6 +345,8 @@ void GraphLayout::initializeContainers()
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
                 this, &GraphLayout::RTWRMarkerTimestampCaptured);
+        connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
+                this, &GraphLayout::RTWSymbolTimestampCaptured);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced);
         // Also forward the signal for external integration

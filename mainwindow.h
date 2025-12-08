@@ -80,6 +80,7 @@ private:
     QLabel* timespanDurationLabel; ///< Label to display duration
     QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
     QLabel* markerTimestampLabel; ///< Label to display marker timestamp in first tab
+    QLabel* rtwSymbolTimestampLabel; ///< Label to display RTW symbol timestamp when clicked
 
     // Manoeuvre management buttons
     QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout

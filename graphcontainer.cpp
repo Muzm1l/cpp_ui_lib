@@ -887,6 +887,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(rtwGraph, &RTWGraph::rMarkerTimestampCaptured,
                 this, &GraphContainer::onRTWRMarkerTimestampCaptured);
         qDebug() << "GraphContainer: Connected RTW R marker timestamp signal";
+        
+        // Connect RTW symbol signal
+        connect(rtwGraph, &RTWGraph::rtwSymbolTimestampCaptured,
+                this, &GraphContainer::onRTWSymbolTimestampCaptured);
+        qDebug() << "GraphContainer: Connected RTW symbol timestamp signal";
     }
 }
 
@@ -1540,6 +1545,13 @@ void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, c
 {
     qDebug() << "GraphContainer: RTW R marker timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit RTWRMarkerTimestampCaptured(timestamp, position);
+}
+
+void GraphContainer::onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName)
+{
+    qDebug() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") 
+             << "symbol:" << symbolName;
+    emit RTWSymbolTimestampCaptured(timestamp, position, symbolName);
 }
 
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)

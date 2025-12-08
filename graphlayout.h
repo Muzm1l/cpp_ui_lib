@@ -232,6 +232,14 @@ signals:
     void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
     
     /**
+     * @brief Emitted when an RTW symbol is clicked
+     * @param timestamp The timestamp of the clicked RTW symbol
+     * @param position The scene position where the symbol was clicked
+     * @param symbolName The name of the clicked symbol
+     */
+    void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+    
+    /**
      * @brief Emitted when a BTW manual marker is placed
      * @param timestamp The timestamp of the placed marker
      * @param position The scene position where the marker was placed
