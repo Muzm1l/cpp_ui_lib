@@ -383,6 +383,17 @@ void GraphLayout::updateLayoutSizing()
     const int x = 64 + 32; // Timeline view width + history selection width
     const int standardHeight = 900;
     
+    // Get combo box and zoom panel height from first visible container
+    int comboBoxAndZoomPanelHeight = 0;
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible())
+        {
+            comboBoxAndZoomPanelHeight = container->getComboBoxAndZoomPanelHeight();
+            break; // Use height from first visible container (all should be the same)
+        }
+    }
+    
     // Calculate container heights based on layout type
     int containerHeight = 0;
     int numRows = 1;
@@ -415,6 +426,29 @@ void GraphLayout::updateLayoutSizing()
         
         // Ensure minimum height
         containerHeight = qMax(containerHeight, 200);
+        
+        // Calculate graph height by subtracting combo box and zoom panel height from container height
+        // This ensures graphs are symmetrical and fill the remaining space
+        int graphHeight = containerHeight - comboBoxAndZoomPanelHeight;
+        
+        // Ensure graph has minimum height
+        graphHeight = qMax(graphHeight, 100);
+        
+        // Set graph view size for all containers to ensure symmetrical graphs
+        // Preserve each container's existing width
+        for (auto *container : m_graphContainers)
+        {
+            if (container && container->isVisible())
+            {
+                int graphWidth = container->getGraphViewSize().width();
+                // If width is not set yet, use default
+                if (graphWidth <= 0)
+                {
+                    graphWidth = 226; // Default width
+                }
+                container->setGraphViewSize(graphWidth, graphHeight);
+            }
+        }
     }
     
     // Set container heights for all visible containers

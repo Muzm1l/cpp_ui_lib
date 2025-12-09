@@ -353,6 +353,25 @@ QSize GraphContainer::getTotalContainerSize() const
     return QSize(totalWidth, totalHeight);
 }
 
+int GraphContainer::getComboBoxAndZoomPanelHeight() const
+{
+    if (!m_comboBox || !m_zoomPanel)
+    {
+        return 0;
+    }
+    
+    // Get combo box height
+    int comboboxHeight = m_comboBox->sizeHint().height();
+    
+    // Zoom panel height matches combo box height
+    int zoompanelHeight = m_zoomPanel->maximumHeight();
+    
+    // Return combined height (they are stacked vertically, so add them)
+    // Also account for any spacing between them in the layout
+    // The layout spacing is 0, so just add the heights
+    return comboboxHeight + zoompanelHeight;
+}
+
 // Container geometry methods
 void GraphContainer::setContainerHeight(int height)
 {
