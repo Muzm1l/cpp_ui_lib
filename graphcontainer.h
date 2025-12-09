@@ -61,6 +61,9 @@ public:
     void setGraphViewSize(int width, int height);
     QSize getGraphViewSize() const;
     QSize getTotalContainerSize() const;
+    
+    // Get the combined height of combo box and zoom panel
+    int getComboBoxAndZoomPanelHeight() const;
 
 
     // Data access methods
