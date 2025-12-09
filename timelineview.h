@@ -341,11 +341,16 @@ public:
 
     // Manoeuvre methods
     void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    
+    // Absolute/Relative time mode control
+    void setIsAbsoluteTime(bool isAbsoluteTime);
+    bool getIsAbsoluteTime() const { return m_isAbsoluteTime; }
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
     void TimeScopeChanged(const TimeSelectionSpan& selection);
     void GraphContainerInFollowModeChanged(bool isInFollowMode);
+    void AbsoluteTimeModeChanged(bool isAbsoluteTime);
 
 private:
     QPushButton* m_intervalChangeButton;

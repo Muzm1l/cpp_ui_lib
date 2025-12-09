@@ -1630,6 +1630,18 @@ void TimelineView::onTimerTick()
     {
         m_visualizerWidget->setCurrentTime(currentTime);
     }
+    
+    // Update absolute/relative time mode from sync state if available
+    if (m_syncState && m_syncState->hasAbsoluteTime)
+    {
+        if (m_isAbsoluteTime != m_syncState->isAbsoluteTime)
+        {
+            // Update without emitting signal to avoid feedback loop
+            m_isAbsoluteTime = m_syncState->isAbsoluteTime;
+            m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
+            updateTimeModeButtonText(m_isAbsoluteTime);
+        }
+    }
 
     // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
@@ -1671,6 +1683,16 @@ void TimelineView::onTimeModeButtonClicked()
     m_isAbsoluteTime = !m_isAbsoluteTime;
     m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
     updateTimeModeButtonText(m_isAbsoluteTime);
+    
+    // Update sync state if available
+    if (m_syncState)
+    {
+        m_syncState->isAbsoluteTime = m_isAbsoluteTime;
+        m_syncState->hasAbsoluteTime = true;
+    }
+    
+    // Emit signal to sync with other timeline views
+    emit AbsoluteTimeModeChanged(m_isAbsoluteTime);
 }
 
 void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
@@ -1880,6 +1902,24 @@ void TimelineView::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
     if (m_visualizerWidget)
     {
         m_visualizerWidget->setManoeuvres(manoeuvres);
+    }
+}
+
+void TimelineView::setIsAbsoluteTime(bool isAbsoluteTime)
+{
+    // Only update if the value has changed to avoid unnecessary updates
+    if (m_isAbsoluteTime != isAbsoluteTime)
+    {
+        m_isAbsoluteTime = isAbsoluteTime;
+        m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
+        updateTimeModeButtonText(m_isAbsoluteTime);
+        
+        // Update sync state if available
+        if (m_syncState)
+        {
+            m_syncState->isAbsoluteTime = m_isAbsoluteTime;
+            m_syncState->hasAbsoluteTime = true;
+        }
     }
 }
 
