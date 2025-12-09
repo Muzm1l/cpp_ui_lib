@@ -1122,6 +1122,16 @@ void GraphLayout::syncAllTimelineViews()
             }
         }
         
+        // Disconnect AbsoluteTimeModeChanged connections to other timeline views
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
+        {
+            if (i != j && timelineViewPairs[j].second)
+            {
+                disconnect(sourceTimelineView, &TimelineView::AbsoluteTimeModeChanged,
+                          timelineViewPairs[j].second, &TimelineView::setIsAbsoluteTime);
+            }
+        }
+        
         // Disconnect TimeScopeChanged connections to other timeline views
         for (size_t j = 0; j < timelineViewPairs.size(); ++j)
         {
@@ -1171,6 +1181,11 @@ void GraphLayout::syncAllTimelineViews()
                 // Use Qt::UniqueConnection to prevent duplicate connections
                 connect(timelineViewPairs[i].second, &TimelineView::TimeIntervalChanged,
                         timelineViewPairs[j].second, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
+                
+                // Connect AbsoluteTimeModeChanged signal to setIsAbsoluteTime
+                // This ensures all timeline views' abs/rel buttons stay in sync
+                connect(timelineViewPairs[i].second, &TimelineView::AbsoluteTimeModeChanged,
+                        timelineViewPairs[j].second, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
             }
         }
     }

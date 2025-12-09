@@ -17,6 +17,8 @@ public:
           hasCursorTime(false), 
           hasCurrentNavTime(false),
           isGraphContainerInFollowMode(true),
+          isAbsoluteTime(true),
+          hasAbsoluteTime(false),
           hasManoeuvres(false)
     {
     }
@@ -39,6 +41,10 @@ public:
 
     // Graph Container data follower synchronization
     bool isGraphContainerInFollowMode = true;
+
+    // Absolute/Relative time mode synchronization
+    bool isAbsoluteTime = true;
+    bool hasAbsoluteTime = false;
 
     // Time selections synchronization
     std::vector<TimeSelectionSpan> timeSelections;
