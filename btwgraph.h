@@ -22,6 +22,7 @@ class InteractiveGraphicsItem;
 class ZoomPanel;
 class GraphContainer;
 struct BTWSyncMarkerData;
+struct ShadedRegionSyncData;
 
 // Structure to store shaded region data
 struct ShadedRegionData
@@ -87,6 +88,29 @@ public:
      * @return true if marker exists
      */
     bool hasMarkerWithSyncId(const QUuid &markerId) const;
+    
+    // ========== Shaded Region Sync Methods ==========
+    
+    /**
+     * @brief Create a shaded region from sync data (called when syncing from another container)
+     * @param regionData The shaded region sync data
+     * @return The local region ID, or -1 if creation failed
+     */
+    int createShadedRegionFromSyncData(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Delete a shaded region by its sync ID
+     * @param syncId The global sync ID of the region to delete
+     * @return true if region was found and deleted
+     */
+    bool deleteShadedRegionBySyncId(const QUuid &syncId);
+    
+    /**
+     * @brief Check if a shaded region with the given sync ID exists
+     * @param syncId The global sync ID to check
+     * @return true if region exists
+     */
+    bool hasShadedRegionWithSyncId(const QUuid &syncId) const;
     
     /**
      * @brief Add a BTW symbol to the graph
@@ -165,11 +189,13 @@ private:
     {
         ShadedRegionData data;
         QGraphicsPolygonItem *polygonItem;
+        QUuid syncId;  // Global sync identifier for syncing across containers
         
         ShadedRegionItem() : polygonItem(nullptr) {}
-        ShadedRegionItem(const ShadedRegionData &d) : data(d), polygonItem(nullptr) {}
+        ShadedRegionItem(const ShadedRegionData &d) : data(d), polygonItem(nullptr), syncId(QUuid::createUuid()) {}
     };
     QMap<int, ShadedRegionItem> m_shadedRegions;
+    QMap<QUuid, int> m_syncIdToRegionId;  // Reverse lookup: sync ID to local region ID
     int m_nextRegionId;
     
     // Helper method to get zoom panel from parent GraphContainer
@@ -220,6 +246,25 @@ signals:
      * @param markerId The unique ID of the deleted marker
      */
     void markerSyncDeleted(const QUuid &markerId);
+    
+    // ========== Shaded Region Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a shaded region is added and needs to be synced
+     * @param regionData The shaded region data to sync
+     */
+    void shadedRegionAdded(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Emitted when a shaded region is removed and needs to be synced
+     * @param syncId The global sync ID of the removed region
+     */
+    void shadedRegionRemoved(const QUuid &syncId);
+    
+    /**
+     * @brief Emitted when all shaded regions are cleared
+     */
+    void shadedRegionsCleared();
 };
 
 #endif // BTWGRAPH_H
