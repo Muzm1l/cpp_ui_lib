@@ -177,6 +177,10 @@ public slots:
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    
+    // BTW Marker sync slots - propagate markers to all containers
+    void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    void onBTWMarkerSyncDeleted(const QUuid &markerId);
 
 public slots:
     void onContainerIntervalChanged(TimeInterval interval);

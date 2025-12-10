@@ -6,6 +6,7 @@
 #include "waterfalldata.h"
 #include "graphtype.h"
 #include "zoompanel.h"
+#include "sharedsyncstate.h"
 #include <QDebug>
 #include <QRandomGenerator>
 
@@ -217,6 +218,7 @@ void BTWGraph::drawCustomCircleMarkers()
     }
 
     // Get manually placed markers from data source
+    // Note: BTWMarkerData here is from waterfalldata.h (not BTWSyncMarkerData)
     std::vector<BTWMarkerData> btwMarkers = dataSource->getBTWMarkers();
     
     if (btwMarkers.empty()) {
@@ -371,6 +373,12 @@ void BTWGraph::setupInteractiveOverlay()
             this, &BTWGraph::onMarkerRotated);
     connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerClicked,
             this, &BTWGraph::onMarkerClicked);
+    
+    // Connect sync signals to forward to GraphContainer
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerDataChanged,
+            this, &BTWGraph::markerSyncDataChanged);
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerDeleted,
+            this, &BTWGraph::markerSyncDeleted);
     
     qDebug() << "BTWGraph: Interactive overlay setup complete";
 }
@@ -934,4 +942,74 @@ void BTWGraph::drawShadedRegions()
                      << "to" << data.endX << "Y: full height (top to bottom)";
         }
     }
+}
+
+// ========== Marker Sync Methods Implementation ==========
+
+bool BTWGraph::createMarkerFromSyncData(const BTWSyncMarkerData &markerData)
+{
+    if (!m_interactiveOverlay) {
+        qDebug() << "BTWGraph: Cannot create marker from sync data - no overlay";
+        return false;
+    }
+    
+    // Check if marker already exists
+    if (m_interactiveOverlay->hasMarker(markerData.id)) {
+        qDebug() << "BTWGraph: Marker already exists, updating instead - ID:" << markerData.id.toString();
+        return updateMarkerFromSyncData(markerData);
+    }
+    
+    InteractiveGraphicsItem *marker = m_interactiveOverlay->createMarkerFromData(markerData);
+    if (!marker) {
+        qDebug() << "BTWGraph: Failed to create marker from sync data - ID:" << markerData.id.toString();
+        return false;
+    }
+    
+    qDebug() << "BTWGraph: Created marker from sync data - ID:" << markerData.id.toString()
+             << "timestamp:" << markerData.timestamp.toString();
+    
+    return true;
+}
+
+bool BTWGraph::updateMarkerFromSyncData(const BTWSyncMarkerData &markerData)
+{
+    if (!m_interactiveOverlay) {
+        qDebug() << "BTWGraph: Cannot update marker from sync data - no overlay";
+        return false;
+    }
+    
+    bool result = m_interactiveOverlay->updateMarkerFromData(markerData);
+    if (result) {
+        qDebug() << "BTWGraph: Updated marker from sync data - ID:" << markerData.id.toString();
+    } else {
+        qDebug() << "BTWGraph: Failed to update marker from sync data - ID:" << markerData.id.toString();
+    }
+    
+    return result;
+}
+
+bool BTWGraph::deleteMarkerBySyncId(const QUuid &markerId)
+{
+    if (!m_interactiveOverlay) {
+        qDebug() << "BTWGraph: Cannot delete marker - no overlay";
+        return false;
+    }
+    
+    bool result = m_interactiveOverlay->removeMarkerById(markerId);
+    if (result) {
+        qDebug() << "BTWGraph: Deleted marker by sync ID:" << markerId.toString();
+    } else {
+        qDebug() << "BTWGraph: Failed to delete marker by sync ID:" << markerId.toString();
+    }
+    
+    return result;
+}
+
+bool BTWGraph::hasMarkerWithSyncId(const QUuid &markerId) const
+{
+    if (!m_interactiveOverlay) {
+        return false;
+    }
+    
+    return m_interactiveOverlay->hasMarker(markerId);
 }

@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QDateTime>
 #include <QMap>
+#include <QUuid>
 #include <QGraphicsPolygonItem>
 #include <vector>
 
@@ -20,6 +21,7 @@ class BTWInteractiveOverlay;
 class InteractiveGraphicsItem;
 class ZoomPanel;
 class GraphContainer;
+struct BTWSyncMarkerData;
 
 // Structure to store shaded region data
 struct ShadedRegionData
@@ -55,6 +57,36 @@ public:
      * @return Vector of timestamps from all automatic markers that were created
      */
     std::vector<QDateTime> getAutomaticMarkerTimestamps() const;
+    
+    // ========== Marker Sync Methods ==========
+    
+    /**
+     * @brief Create a marker from sync data (called when syncing from another container)
+     * @param markerData The BTW marker data
+     * @return true if marker was created successfully
+     */
+    bool createMarkerFromSyncData(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Update a marker from sync data
+     * @param markerData The updated marker data
+     * @return true if marker was found and updated
+     */
+    bool updateMarkerFromSyncData(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Delete a marker by its sync ID
+     * @param markerId The unique ID of the marker to delete
+     * @return true if marker was found and deleted
+     */
+    bool deleteMarkerBySyncId(const QUuid &markerId);
+    
+    /**
+     * @brief Check if a marker with the given sync ID exists
+     * @param markerId The unique ID to check
+     * @return true if marker exists
+     */
+    bool hasMarkerWithSyncId(const QUuid &markerId) const;
     
     /**
      * @brief Add a BTW symbol to the graph
@@ -174,6 +206,20 @@ signals:
      * @param bearingRate The bearing rate value (from the box display)
      */
     void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+    
+    // ========== Marker Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a marker's data changes and needs to be synced
+     * @param markerData The current state of the marker
+     */
+    void markerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Emitted when a marker is deleted and needs to be synced
+     * @param markerId The unique ID of the deleted marker
+     */
+    void markerSyncDeleted(const QUuid &markerId);
 };
 
 #endif // BTWGRAPH_H

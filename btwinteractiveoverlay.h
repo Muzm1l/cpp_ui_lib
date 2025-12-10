@@ -11,10 +11,12 @@
 #include <QColor>
 #include <QList>
 #include <QMap>
+#include <QUuid>
 #include <QDebug>
 
-// Forward declaration to avoid circular dependency with BTWGraph only
+// Forward declarations
 class BTWGraph;
+struct BTWSyncMarkerData;
 
 // Include full type so moc has a complete type for signals using InteractiveGraphicsItem*
 #include "interactivegraphicsitem.h"
@@ -99,6 +101,61 @@ public:
      * @brief Clear all markers
      */
     void clearAllMarkers();
+    
+    // ========== Marker Sync Methods ==========
+    
+    /**
+     * @brief Create a marker from sync data
+     * 
+     * Creates a marker using timestamp, range, and bearing rate data.
+     * This is used for syncing markers across different containers.
+     * 
+     * @param markerData The BTW marker data containing timestamp, range, and bearing rate
+     * @return Pointer to the created marker, or nullptr if creation failed
+     */
+    InteractiveGraphicsItem* createMarkerFromData(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Find a marker by its unique ID
+     * @param id The unique identifier of the marker
+     * @return Pointer to the marker, or nullptr if not found
+     */
+    InteractiveGraphicsItem* findMarkerById(const QUuid &id) const;
+    
+    /**
+     * @brief Get the unique ID of a marker
+     * @param marker Pointer to the marker
+     * @return The UUID of the marker, or null UUID if not found
+     */
+    QUuid getMarkerId(InteractiveGraphicsItem *marker) const;
+    
+    /**
+     * @brief Get marker data for syncing
+     * @param marker Pointer to the marker
+     * @return BTWSyncMarkerData structure with marker's current state
+     */
+    BTWSyncMarkerData getMarkerData(InteractiveGraphicsItem *marker) const;
+    
+    /**
+     * @brief Update a marker from sync data
+     * @param markerData The updated marker data
+     * @return true if marker was found and updated, false otherwise
+     */
+    bool updateMarkerFromData(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Remove a marker by its unique ID
+     * @param id The unique identifier of the marker to remove
+     * @return true if marker was found and removed, false otherwise
+     */
+    bool removeMarkerById(const QUuid &id);
+    
+    /**
+     * @brief Check if a marker with the given ID exists
+     * @param id The unique identifier to check
+     * @return true if marker exists, false otherwise
+     */
+    bool hasMarker(const QUuid &id) const;
 
     /**
      * @brief Get all markers of a specific type
@@ -306,6 +363,25 @@ signals:
      * @param angle New rotation angle
      */
     void markerRotated(InteractiveGraphicsItem *marker, qreal angle);
+    
+    // ========== Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a marker's data changes and needs to be synced
+     * 
+     * This signal is emitted when a marker is created, moved, or its
+     * bearing rate changes. Other containers can listen to this signal
+     * to keep their markers in sync.
+     * 
+     * @param markerData The current state of the marker
+     */
+    void markerDataChanged(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Emitted when a marker is deleted and needs to be synced
+     * @param markerId The unique ID of the deleted marker
+     */
+    void markerDeleted(const QUuid &markerId);
 
     /**
      * @brief Emitted when a marker is clicked
@@ -343,6 +419,8 @@ private:
     QList<InteractiveGraphicsItem*> m_markers;
     QList<MarkerType> m_markerTypes;
     QMap<InteractiveGraphicsItem*, QList<QGraphicsItem*>> m_bearingRateItems; // Maps each marker to its bearing rate items
+    QMap<InteractiveGraphicsItem*, QUuid> m_markerIds; // Maps markers to their unique IDs
+    QMap<QUuid, InteractiveGraphicsItem*> m_idToMarker; // Reverse lookup: ID to marker
 
     // Styling
     QPen m_dataPointPen;

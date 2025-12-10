@@ -20,6 +20,7 @@
 #include <QHBoxLayout>
 #include <QString>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <functional>
@@ -175,6 +176,10 @@ public slots:
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
+    
+    // BTW Marker sync slots (called when syncing markers from other containers)
+    void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    void onBTWMarkerSyncDeleted(const QUuid &markerId);
     // Unified data change notification handler
     void onDataChanged(GraphType graphType);
 
@@ -227,6 +232,20 @@ signals:
      * @param bearingRate The bearing rate value (from the box display)
      */
     void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+    
+    // ========== BTW Marker Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a BTW marker's data changes and needs to be synced
+     * @param markerData The current state of the marker
+     */
+    void BTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Emitted when a BTW marker is deleted and needs to be synced
+     * @param markerId The unique ID of the deleted marker
+     */
+    void BTWMarkerSyncDeleted(const QUuid &markerId);
 
 private:
     QHBoxLayout *m_mainLayout;

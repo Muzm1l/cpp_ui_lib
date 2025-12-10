@@ -279,6 +279,12 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::markerTimestampValueChanged);
         connect(container, &GraphContainer::markerClickedWithData,
                 this, &GraphLayout::markerClickedWithData);
+        
+        // Connect BTW marker sync signals to propagate to all containers
+        connect(container, &GraphContainer::BTWMarkerSyncDataChanged,
+                this, &GraphLayout::onBTWMarkerSyncDataChanged);
+        connect(container, &GraphContainer::BTWMarkerSyncDeleted,
+                this, &GraphLayout::onBTWMarkerSyncDeleted);
     }
 }
 
@@ -360,6 +366,12 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::markerTimestampValueChanged);
         connect(container, &GraphContainer::markerClickedWithData,
                 this, &GraphLayout::markerClickedWithData);
+        
+        // Connect BTW marker sync signals to propagate to all containers
+        connect(container, &GraphContainer::BTWMarkerSyncDataChanged,
+                this, &GraphLayout::onBTWMarkerSyncDataChanged);
+        connect(container, &GraphContainer::BTWMarkerSyncDeleted,
+                this, &GraphLayout::onBTWMarkerSyncDeleted);
     }
     
     qDebug() << "GraphLayout: Connected all containers to time selection and time scope propagation";
@@ -1515,6 +1527,57 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
     // Add magenta circle (BTW symbol) to all graphs at this timestamp
     // The range parameter is not needed - we'll find the data point at this timestamp in each graph
     addBTWSymbolToAllGraphs(timestamp, 0.0); // Range parameter is ignored, we find it from data points
+}
+
+void GraphLayout::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
+{
+    qDebug() << "GraphLayout: BTW marker sync data changed - ID:" << markerData.id.toString()
+             << "timestamp:" << markerData.timestamp.toString();
+    
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state (m_syncState is a direct object, not a pointer)
+    m_syncState.addOrUpdateBTWMarker(markerData);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onBTWMarkerSyncDataChanged(markerData);
+    }
+    
+    qDebug() << "GraphLayout: Synced BTW marker to" << m_graphContainers.size() - 1 << "other containers";
+}
+
+void GraphLayout::onBTWMarkerSyncDeleted(const QUuid &markerId)
+{
+    qDebug() << "GraphLayout: BTW marker sync deleted - ID:" << markerId.toString();
+    
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state (m_syncState is a direct object, not a pointer)
+    m_syncState.removeBTWMarker(markerId);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onBTWMarkerSyncDeleted(markerId);
+    }
+    
+    qDebug() << "GraphLayout: Synced BTW marker deletion to" << m_graphContainers.size() - 1 << "other containers";
 }
 
 // Chevron label control methods implementation - operate on all visible containers
