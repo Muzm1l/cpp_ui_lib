@@ -2,6 +2,7 @@
 #include "waterfalldata.h"  // For BTWSymbolData
 #include <QApplication>
 #include <QPointF>
+#include <QPainter>
 
 /**
  * @brief Construct a new WaterfallGraph::WaterfallGraph object
@@ -57,6 +58,14 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_rangeUpdateNeeded(false),
     m_zeroAxisValue(0.0)
 {
+    // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
+    // Using default size (4x4 pixel rectangle)
+    const qreal defaultPointSize = 4.0;
+    getPointPixmap(Qt::cyan, defaultPointSize);
+    getPointPixmap(Qt::red, defaultPointSize);
+    getPointPixmap(Qt::green, defaultPointSize);
+    getPointPixmap(Qt::yellow, defaultPointSize);
+    
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
 
@@ -2003,11 +2012,73 @@ void WaterfallGraph::drawTriangleMarker(const QPointF &position, const QColor &f
 }
 
 /**
+ * @brief Generate a cache key for a point pixmap based on color and size
+ * 
+ * @param color The color of the point
+ * @param size The size (diameter) of the point
+ * @return QString A unique key for this color/size combination
+ */
+QString WaterfallGraph::getPointPixmapKey(const QColor &color, qreal size) const
+{
+    return QString("%1_%2_%3_%4_%5")
+        .arg(color.red())
+        .arg(color.green())
+        .arg(color.blue())
+        .arg(color.alpha())
+        .arg(size);
+}
+
+/**
+ * @brief Get or create a cached pixmap for a point with given color and size
+ * 
+ * This avoids creating new pixmaps for each point, significantly improving performance
+ * when drawing many points (e.g., 1000 points with same color/size).
+ * 
+ * @param color The color of the point
+ * @param size The size (diameter) of the point
+ * @return QPixmap The cached pixmap for this color/size combination
+ */
+QPixmap WaterfallGraph::getPointPixmap(const QColor &color, qreal size)
+{
+    QString key = getPointPixmapKey(color, size);
+    
+    // Check if we already have this pixmap cached
+    if (pointPixmapCache.contains(key))
+    {
+        return pointPixmapCache[key];
+    }
+    
+    // Create a new pixmap for this color/size combination
+    // For smallest possible rectangle, use exact size (no padding needed for rectangles)
+    int pixmapSize = qMax(1, static_cast<int>(size)); // Minimum 1 pixel
+    QPixmap pixmap(pixmapSize, pixmapSize);
+    pixmap.fill(Qt::transparent);
+    
+    QPainter painter(&pixmap);
+    // No antialiasing for smallest rectangles - we want crisp 1x1 or 2x2 pixel rectangles
+    // Use CompositionMode_Source to prevent color blending when points overlap
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    
+    // Draw the rectangle (smallest possible - 1x1 or 2x2 pixels)
+    QRectF rect(0, 0, size, size);
+    painter.setBrush(QBrush(color));
+    painter.setPen(QPen(Qt::transparent, 0));
+    painter.drawRect(rect);
+    
+    painter.end();
+    
+    // Cache the pixmap for future use
+    pointPixmapCache[key] = pixmap;
+    
+    return pixmap;
+}
+
+/**
  * @brief Draw a scatterplot for the default data series.
  *
  * @param pointColor The color of the scatterplot points (default: white)
- * @param pointSize The size of the scatterplot points (default: 3.0)
- * @param outlineColor The outline color of the scatterplot points (default: black)
+ * @param pointSize The size of the scatterplot points (default: 4.0 for 4x4 pixel rectangle)
+ * @param outlineColor The outline color of the scatterplot points (default: black, unused for rectangles)
  */
 void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &pointColor, qreal pointSize, const QColor &outlineColor)
 {
@@ -2046,16 +2117,19 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         return;
     }
 
-    // Draw scatterplot points
+    // Get cached pixmap for this color/size combination (creates if doesn't exist)
+    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
+    
+    // Draw scatterplot points using cached pixmaps
+    // This is much more efficient than creating individual QGraphicsEllipseItem for each point
     for (const auto &dataPoint : visibleData)
     {
         QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
 
-        // Create a circle for the scatterplot point
-        QGraphicsEllipseItem *point = new QGraphicsEllipseItem();
-        point->setRect(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2, pointSize, pointSize);
-        point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
-        point->setBrush(QBrush(pointColor));
+        // Create pixmap item using cached pixmap
+        QGraphicsPixmapItem *point = new QGraphicsPixmapItem(pointPixmap);
+        // Center the pixmap on the screen point
+        point->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
         point->setZValue(120); // Draw above data lines but below markers
 
         graphicsScene->addItem(point);

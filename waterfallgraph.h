@@ -16,6 +16,10 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsTextItem>
 #include <QGraphicsView>
+#include <QGraphicsPixmapItem>
+#include <QPixmap>
+#include <QMap>
+#include <QPair>
 #include <QMouseEvent>
 #include <QPainterPath>
 #include <QPalette>
@@ -184,6 +188,12 @@ protected:
     // Multi-series support
     std::map<QString, QColor> seriesColors;
     std::map<QString, bool> seriesVisibility;
+    
+    // Cached point pixmaps by (color, size) for efficient rendering
+    // Key format: "color_r_g_b_a_size" (e.g., "255_0_255_255_3.0")
+    QMap<QString, QPixmap> pointPixmapCache;
+    QString getPointPixmapKey(const QColor &color, qreal size) const;
+    QPixmap getPointPixmap(const QColor &color, qreal size);
 
     // Incremental rendering support
     RenderState m_renderState;
@@ -301,7 +311,7 @@ public:
     void drawAxisLine(const QPointF &startPos, const QPointF &endPos, const QColor &color = QColor(255, 255, 255, 128));
     void drawCharacterLabel(const QString &text, const QPointF &position, const QColor &color = Qt::white, int fontSize = 12);
     void drawTriangleMarker(const QPointF &position, const QColor &fillColor = Qt::red, const QColor &outlineColor = Qt::black, qreal size = 8.0);
-    void drawScatterplot(const QString &seriesLabel, const QColor &pointColor = Qt::white, qreal pointSize = 3.0, const QColor &outlineColor = Qt::black);
+    void drawScatterplot(const QString &seriesLabel, const QColor &pointColor = Qt::white, qreal pointSize = 4.0, const QColor &outlineColor = Qt::black);
 
     // Multi-series support methods
     void setSeriesColor(const QString &seriesLabel, const QColor &color);

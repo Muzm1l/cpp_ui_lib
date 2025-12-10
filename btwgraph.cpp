@@ -88,7 +88,7 @@ void BTWGraph::draw()
                 else
                 {
                     // Draw scatterplot for other series
-                    drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                    drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
 
                 // BTW markers are now manually placed through data source - no automatic generation
