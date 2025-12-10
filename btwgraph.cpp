@@ -9,6 +9,8 @@
 #include "sharedsyncstate.h"
 #include <QDebug>
 #include <QRandomGenerator>
+#include <QPainter>
+#include <QPixmap>
 
 /**
  * @brief Construct a new BTWGraph::BTWGraph object
@@ -799,11 +801,19 @@ int BTWGraph::addShadedRegion(qreal startX, qreal endX, const QDateTime &startY)
     ShadedRegionItem regionItem(regionData);
     m_shadedRegions[regionId] = regionItem;
     
-    qDebug() << "BTWGraph: Added shaded region" << regionId << "X range:" << startX << "to" << endX 
-             << "Y:" << startY.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    // Store reverse lookup for sync ID
+    m_syncIdToRegionId[regionItem.syncId] = regionId;
+    
+    qDebug() << "BTWGraph: Added shaded region" << regionId << "syncId:" << regionItem.syncId.toString()
+             << "X range:" << startX << "to" << endX << "Y:" << startY.toString("yyyy-MM-dd hh:mm:ss.zzz");
     
     // Trigger redraw to show the new region
     draw();
+    
+    // Emit sync signal
+    ShadedRegionSyncData syncData(regionId, startX, endX);
+    syncData.syncId = regionItem.syncId;  // Use the same sync ID
+    emit shadedRegionAdded(syncData);
     
     return regionId;
 }
@@ -816,17 +826,26 @@ void BTWGraph::removeShadedRegion(int regionId)
 {
     if (m_shadedRegions.contains(regionId)) {
         ShadedRegionItem &item = m_shadedRegions[regionId];
+        QUuid syncId = item.syncId;  // Save sync ID before removal
+        
         // Remove graphics item from scene if it exists
         if (item.polygonItem && graphicsScene) {
             graphicsScene->removeItem(item.polygonItem);
             delete item.polygonItem;
             item.polygonItem = nullptr;
         }
+        
+        // Remove from reverse lookup
+        m_syncIdToRegionId.remove(syncId);
+        
         m_shadedRegions.remove(regionId);
-        qDebug() << "BTWGraph: Removed shaded region" << regionId;
+        qDebug() << "BTWGraph: Removed shaded region" << regionId << "syncId:" << syncId.toString();
         
         // Trigger redraw
         draw();
+        
+        // Emit sync signal
+        emit shadedRegionRemoved(syncId);
     }
 }
 
@@ -843,10 +862,14 @@ void BTWGraph::clearShadedRegions()
         }
     }
     m_shadedRegions.clear();
+    m_syncIdToRegionId.clear();
     qDebug() << "BTWGraph: Cleared all shaded regions";
     
     // Trigger redraw
     draw();
+    
+    // Emit sync signal
+    emit shadedRegionsCleared();
 }
 
 /**
@@ -923,22 +946,43 @@ void BTWGraph::drawShadedRegions()
             polygonPoints.append(bottomRight);
             polygonPoints.append(bottomLeft);
             
-            // Create polygon item with semi-transparent fill
+            // Create polygon item with hatch pattern (45 degree diagonal lines)
             QPolygonF polygon(polygonPoints);
             QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(polygon);
             
-            // Set appearance: semi-transparent gray with light border
-            QColor fillColor(128, 128, 128, 80);  // Semi-transparent gray
-            QColor borderColor(200, 200, 200, 150);  // Light gray border
+            // Create hatch pattern using a custom QPixmap
+            // This is efficient - pattern is created once and Qt handles tiling
+            const int patternSize = 10;  // Size of the pattern tile (controls line spacing)
+            QPixmap patternPixmap(patternSize, patternSize);
+            patternPixmap.fill(Qt::transparent);  // Transparent background
             
-            polygonItem->setBrush(QBrush(fillColor));
+            QPainter patternPainter(&patternPixmap);
+            patternPainter.setRenderHint(QPainter::Antialiasing, true);
+            
+            // Draw single diagonal line for hatch effect
+            QColor lineColor(100, 100, 100, 180);  // Dark gray lines
+            QPen linePen(lineColor, 1);
+            patternPainter.setPen(linePen);
+            
+            // Forward diagonal line (/) - from bottom-left to top-right
+            patternPainter.drawLine(0, patternSize, patternSize, 0);
+            
+            patternPainter.end();
+            
+            // Create brush with the hatch pattern
+            QBrush hatchBrush(patternPixmap);
+            
+            // Set appearance with hatch fill and light border
+            QColor borderColor(150, 150, 150, 200);  // Medium gray border
+            
+            polygonItem->setBrush(hatchBrush);
             polygonItem->setPen(QPen(borderColor, 1));
             polygonItem->setZValue(500);  // Below markers but above grid
             
             graphicsScene->addItem(polygonItem);
             item.polygonItem = polygonItem;
             
-            qDebug() << "BTWGraph: Drew vertical shaded region" << regionId << "X range:" << data.startX 
+            qDebug() << "BTWGraph: Drew hatched shaded region" << regionId << "X range:" << data.startX 
                      << "to" << data.endX << "Y: full height (top to bottom)";
         }
     }
@@ -1012,4 +1056,71 @@ bool BTWGraph::hasMarkerWithSyncId(const QUuid &markerId) const
     }
     
     return m_interactiveOverlay->hasMarker(markerId);
+}
+
+// ========== Shaded Region Sync Methods Implementation ==========
+
+int BTWGraph::createShadedRegionFromSyncData(const ShadedRegionSyncData &regionData)
+{
+    // Check if region with this sync ID already exists
+    if (m_syncIdToRegionId.contains(regionData.syncId)) {
+        qDebug() << "BTWGraph: Shaded region with sync ID already exists:" << regionData.syncId.toString();
+        return m_syncIdToRegionId[regionData.syncId];
+    }
+    
+    // Create the region without emitting sync signal (to avoid loop)
+    int regionId = m_nextRegionId++;
+    ShadedRegionData data(regionData.startX, regionData.endX, QDateTime());  // No timestamp needed
+    ShadedRegionItem regionItem(data);
+    regionItem.syncId = regionData.syncId;  // Use the provided sync ID
+    
+    m_shadedRegions[regionId] = regionItem;
+    m_syncIdToRegionId[regionData.syncId] = regionId;
+    
+    qDebug() << "BTWGraph: Created shaded region from sync data - localId:" << regionId 
+             << "syncId:" << regionData.syncId.toString() << "X range:" << regionData.startX << "to" << regionData.endX;
+    
+    // Trigger redraw to show the new region
+    draw();
+    
+    return regionId;
+}
+
+bool BTWGraph::deleteShadedRegionBySyncId(const QUuid &syncId)
+{
+    if (!m_syncIdToRegionId.contains(syncId)) {
+        qDebug() << "BTWGraph: Cannot delete shaded region - sync ID not found:" << syncId.toString();
+        return false;
+    }
+    
+    int regionId = m_syncIdToRegionId[syncId];
+    
+    if (m_shadedRegions.contains(regionId)) {
+        ShadedRegionItem &item = m_shadedRegions[regionId];
+        
+        // Remove graphics item from scene if it exists
+        if (item.polygonItem && graphicsScene) {
+            graphicsScene->removeItem(item.polygonItem);
+            delete item.polygonItem;
+            item.polygonItem = nullptr;
+        }
+        
+        // Remove from both maps
+        m_syncIdToRegionId.remove(syncId);
+        m_shadedRegions.remove(regionId);
+        
+        qDebug() << "BTWGraph: Deleted shaded region by sync ID:" << syncId.toString();
+        
+        // Trigger redraw
+        draw();
+        
+        return true;
+    }
+    
+    return false;
+}
+
+bool BTWGraph::hasShadedRegionWithSyncId(const QUuid &syncId) const
+{
+    return m_syncIdToRegionId.contains(syncId);
 }

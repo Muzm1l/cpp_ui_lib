@@ -163,6 +163,39 @@ public:
     // Clear BTW manual markers (interactive overlay markers)
     void clearBTWManualMarkers();
     
+    // ========== Shaded Region API ==========
+    
+    /**
+     * @brief Add a shaded region to all BTW graphs
+     * 
+     * The shaded region will be drawn as a cross-hatched vertical band
+     * spanning from top to bottom (all timestamps), with horizontal 
+     * boundaries defined by the X range values.
+     * 
+     * @param startX Starting X value (left range boundary)
+     * @param endX Ending X value (right range boundary)
+     * @return The sync ID of the created region (can be used for removal)
+     */
+    QUuid addShadedRegionToAllBTW(qreal startX, qreal endX);
+    
+    /**
+     * @brief Remove a shaded region from all BTW graphs by sync ID
+     * @param syncId The global sync ID of the region to remove
+     * @return true if region was found and removed
+     */
+    bool removeShadedRegionFromAllBTW(const QUuid &syncId);
+    
+    /**
+     * @brief Clear all shaded regions from all BTW graphs
+     */
+    void clearAllShadedRegions();
+    
+    /**
+     * @brief Get all active shaded regions
+     * @return Vector of shaded region sync data
+     */
+    std::vector<ShadedRegionSyncData> getAllShadedRegions() const;
+    
     // Redraw specific graph
     void redrawGraph(const GraphType &graphType);
     
@@ -181,6 +214,11 @@ public slots:
     // BTW Marker sync slots - propagate markers to all containers
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
     void onBTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // Shaded region sync slots - propagate regions to all containers
+    void onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    void onShadedRegionSyncRemoved(const QUuid &syncId);
+    void onShadedRegionsSyncCleared();
 
 public slots:
     void onContainerIntervalChanged(TimeInterval interval);

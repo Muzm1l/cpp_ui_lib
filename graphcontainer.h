@@ -180,6 +180,11 @@ public slots:
     // BTW Marker sync slots (called when syncing markers from other containers)
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
     void onBTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // Shaded region sync slots (called when syncing regions from other containers)
+    void onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    void onShadedRegionSyncRemoved(const QUuid &syncId);
+    void onShadedRegionsSyncCleared();
     // Unified data change notification handler
     void onDataChanged(GraphType graphType);
 
@@ -246,6 +251,25 @@ signals:
      * @param markerId The unique ID of the deleted marker
      */
     void BTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // ========== Shaded Region Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a shaded region is added and needs to be synced
+     * @param regionData The shaded region data to sync
+     */
+    void ShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Emitted when a shaded region is removed and needs to be synced
+     * @param syncId The global sync ID of the removed region
+     */
+    void ShadedRegionSyncRemoved(const QUuid &syncId);
+    
+    /**
+     * @brief Emitted when all shaded regions are cleared
+     */
+    void ShadedRegionsSyncCleared();
 
 private:
     QHBoxLayout *m_mainLayout;

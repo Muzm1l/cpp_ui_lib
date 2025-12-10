@@ -36,6 +36,35 @@ struct BTWSyncMarkerData
     }
 };
 
+/**
+ * @brief Data structure for synchronized shaded regions
+ * 
+ * Contains all the data needed to recreate a shaded region across
+ * different BTW graph containers.
+ */
+struct ShadedRegionSyncData
+{
+    int id;                 ///< Unique identifier for the region (local ID)
+    QUuid syncId;           ///< Global sync identifier across containers
+    qreal startX;           ///< Starting X value (left range boundary)
+    qreal endX;             ///< Ending X value (right range boundary)
+    bool isDeleted;         ///< Flag to mark deleted regions
+    
+    ShadedRegionSyncData() : id(-1), startX(0.0), endX(0.0), isDeleted(false) {}
+    
+    ShadedRegionSyncData(int localId, qreal xStart, qreal xEnd)
+        : id(localId)
+        , syncId(QUuid::createUuid())
+        , startX(xStart)
+        , endX(xEnd)
+        , isDeleted(false)
+    {}
+    
+    bool operator==(const ShadedRegionSyncData &other) const {
+        return syncId == other.syncId;
+    }
+};
+
 // Shared synchronization state for all graph containers
 class GraphContainerSyncState
 {
@@ -156,6 +185,81 @@ public:
     {
         btwMarkers.clear();
         hasBTWMarkers = false;
+    }
+    
+    // ========== Shaded Region Synchronization ==========
+    
+    std::vector<ShadedRegionSyncData> shadedRegions;
+    bool hasShadedRegions = false;
+    
+    /**
+     * @brief Add or update a shaded region in the sync state
+     * @param region The region data to add/update
+     */
+    void addOrUpdateShadedRegion(const ShadedRegionSyncData &region)
+    {
+        for (auto &r : shadedRegions) {
+            if (r.syncId == region.syncId) {
+                r = region;
+                hasShadedRegions = true;
+                return;
+            }
+        }
+        shadedRegions.push_back(region);
+        hasShadedRegions = true;
+    }
+    
+    /**
+     * @brief Remove a shaded region from the sync state
+     * @param syncId The global sync ID of the region to remove
+     */
+    void removeShadedRegion(const QUuid &syncId)
+    {
+        for (auto &r : shadedRegions) {
+            if (r.syncId == syncId) {
+                r.isDeleted = true;
+                return;
+            }
+        }
+    }
+    
+    /**
+     * @brief Get a shaded region by sync ID
+     * @param syncId The global sync ID of the region
+     * @return Pointer to the region data, or nullptr if not found
+     */
+    ShadedRegionSyncData* getShadedRegion(const QUuid &syncId)
+    {
+        for (auto &r : shadedRegions) {
+            if (r.syncId == syncId && !r.isDeleted) {
+                return &r;
+            }
+        }
+        return nullptr;
+    }
+    
+    /**
+     * @brief Get all active (non-deleted) shaded regions
+     * @return Vector of active region data
+     */
+    std::vector<ShadedRegionSyncData> getActiveShadedRegions() const
+    {
+        std::vector<ShadedRegionSyncData> active;
+        for (const auto &r : shadedRegions) {
+            if (!r.isDeleted) {
+                active.push_back(r);
+            }
+        }
+        return active;
+    }
+    
+    /**
+     * @brief Clear all shaded regions
+     */
+    void clearShadedRegions()
+    {
+        shadedRegions.clear();
+        hasShadedRegions = false;
     }
 };
 

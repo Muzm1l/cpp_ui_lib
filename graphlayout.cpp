@@ -285,6 +285,14 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::onBTWMarkerSyncDataChanged);
         connect(container, &GraphContainer::BTWMarkerSyncDeleted,
                 this, &GraphLayout::onBTWMarkerSyncDeleted);
+        
+        // Connect shaded region sync signals to propagate to all containers
+        connect(container, &GraphContainer::ShadedRegionSyncAdded,
+                this, &GraphLayout::onShadedRegionSyncAdded);
+        connect(container, &GraphContainer::ShadedRegionSyncRemoved,
+                this, &GraphLayout::onShadedRegionSyncRemoved);
+        connect(container, &GraphContainer::ShadedRegionsSyncCleared,
+                this, &GraphLayout::onShadedRegionsSyncCleared);
     }
 }
 
@@ -372,6 +380,14 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::onBTWMarkerSyncDataChanged);
         connect(container, &GraphContainer::BTWMarkerSyncDeleted,
                 this, &GraphLayout::onBTWMarkerSyncDeleted);
+        
+        // Connect shaded region sync signals to propagate to all containers
+        connect(container, &GraphContainer::ShadedRegionSyncAdded,
+                this, &GraphLayout::onShadedRegionSyncAdded);
+        connect(container, &GraphContainer::ShadedRegionSyncRemoved,
+                this, &GraphLayout::onShadedRegionSyncRemoved);
+        connect(container, &GraphContainer::ShadedRegionsSyncCleared,
+                this, &GraphLayout::onShadedRegionsSyncCleared);
     }
     
     qDebug() << "GraphLayout: Connected all containers to time selection and time scope propagation";
@@ -1580,6 +1596,82 @@ void GraphLayout::onBTWMarkerSyncDeleted(const QUuid &markerId)
     qDebug() << "GraphLayout: Synced BTW marker deletion to" << m_graphContainers.size() - 1 << "other containers";
 }
 
+void GraphLayout::onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData)
+{
+    qDebug() << "GraphLayout: Shaded region sync added - syncId:" << regionData.syncId.toString()
+             << "X range:" << regionData.startX << "to" << regionData.endX;
+    
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state
+    m_syncState.addOrUpdateShadedRegion(regionData);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onShadedRegionSyncAdded(regionData);
+    }
+    
+    qDebug() << "GraphLayout: Synced shaded region to" << m_graphContainers.size() - 1 << "other containers";
+}
+
+void GraphLayout::onShadedRegionSyncRemoved(const QUuid &syncId)
+{
+    qDebug() << "GraphLayout: Shaded region sync removed - syncId:" << syncId.toString();
+    
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state
+    m_syncState.removeShadedRegion(syncId);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onShadedRegionSyncRemoved(syncId);
+    }
+    
+    qDebug() << "GraphLayout: Synced shaded region deletion to" << m_graphContainers.size() - 1 << "other containers";
+}
+
+void GraphLayout::onShadedRegionsSyncCleared()
+{
+    qDebug() << "GraphLayout: Shaded regions sync cleared";
+    
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state
+    m_syncState.clearShadedRegions();
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onShadedRegionsSyncCleared();
+    }
+    
+    qDebug() << "GraphLayout: Synced shaded regions cleared to" << m_graphContainers.size() - 1 << "other containers";
+}
+
 // Chevron label control methods implementation - operate on all visible containers
 void GraphLayout::setChevronLabel1(const QString &label)
 {
@@ -2148,6 +2240,150 @@ void GraphLayout::clearBTWManualMarkers()
     redrawAllGraphs();
     
     qDebug() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
+}
+
+// ========== Shaded Region API Implementation ==========
+
+QUuid GraphLayout::addShadedRegionToAllBTW(qreal startX, qreal endX)
+{
+    qDebug() << "GraphLayout: Adding shaded region to all BTW graphs - X range:" << startX << "to" << endX;
+    
+    QUuid syncId;
+    bool firstRegion = true;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container (even if not currently displayed)
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                if (firstRegion)
+                {
+                    // First BTW graph creates the region and generates the sync ID
+                    int regionId = btwGraph->addShadedRegion(startX, endX, QDateTime());
+                    
+                    // Get the sync ID from the created region
+                    // We need to access it through the internal storage
+                    // For now, create a sync ID here and use it
+                    syncId = QUuid::createUuid();
+                    
+                    qDebug() << "GraphLayout: Created shaded region in first BTW graph, regionId:" << regionId
+                             << "syncId:" << syncId.toString();
+                    firstRegion = false;
+                }
+                else
+                {
+                    // Other BTW graphs receive the region via sync
+                    // Since we already emitted the signal from the first graph,
+                    // the sync system should handle it
+                    // But for direct API calls, we create it directly
+                    ShadedRegionSyncData syncData;
+                    syncData.syncId = syncId;
+                    syncData.startX = startX;
+                    syncData.endX = endX;
+                    syncData.isDeleted = false;
+                    
+                    if (!btwGraph->hasShadedRegionWithSyncId(syncId))
+                    {
+                        btwGraph->createShadedRegionFromSyncData(syncData);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update sync state
+    if (!syncId.isNull())
+    {
+        ShadedRegionSyncData syncData;
+        syncData.syncId = syncId;
+        syncData.startX = startX;
+        syncData.endX = endX;
+        syncData.isDeleted = false;
+        m_syncState.addOrUpdateShadedRegion(syncData);
+    }
+    
+    qDebug() << "GraphLayout: Added shaded region to all BTW graphs, syncId:" << syncId.toString();
+    return syncId;
+}
+
+bool GraphLayout::removeShadedRegionFromAllBTW(const QUuid &syncId)
+{
+    qDebug() << "GraphLayout: Removing shaded region from all BTW graphs - syncId:" << syncId.toString();
+    
+    bool removed = false;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                if (btwGraph->deleteShadedRegionBySyncId(syncId))
+                {
+                    removed = true;
+                    qDebug() << "GraphLayout: Removed shaded region from BTW graph";
+                }
+            }
+        }
+    }
+    
+    // Update sync state
+    m_syncState.removeShadedRegion(syncId);
+    
+    qDebug() << "GraphLayout: Shaded region removal complete, success:" << removed;
+    return removed;
+}
+
+void GraphLayout::clearAllShadedRegions()
+{
+    qDebug() << "GraphLayout: Clearing all shaded regions from all BTW graphs";
+    
+    int regionsCleared = 0;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                btwGraph->clearShadedRegions();
+                regionsCleared++;
+                qDebug() << "GraphLayout: Cleared shaded regions in BTW graph";
+            }
+        }
+    }
+    
+    // Clear sync state
+    m_syncState.clearShadedRegions();
+    
+    qDebug() << "GraphLayout: Cleared shaded regions from" << regionsCleared << "BTW graph(s)";
+}
+
+std::vector<ShadedRegionSyncData> GraphLayout::getAllShadedRegions() const
+{
+    return m_syncState.getActiveShadedRegions();
 }
 
 void GraphLayout::redrawGraph(const GraphType &graphType)
