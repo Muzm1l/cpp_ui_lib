@@ -525,9 +525,6 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
         return;
     }
     
-    // Remove old bearing rate items if they exist
-    removeBearingRateBox(marker);
-    
     // Get marker position (use scene position for absolute coordinates)
     QPointF markerPos = marker->scenePos();
     qreal markerRadius = 10.0; // Match the marker radius in addDataPointMarker
@@ -551,29 +548,50 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
     qreal textX = markerPos.x() - textRect.width() - markerRadius - 7;
     qreal textY = markerPos.y() - textRect.height() / 2;
     
-    // Create and add text label
-    QGraphicsTextItem *textLabel = new QGraphicsTextItem(bearingRateText);
-    textLabel->setFont(font);
-    textLabel->setDefaultTextColor(Qt::green);
-    textLabel->setPos(textX, textY);
-    textLabel->setZValue(1002);
+    // Performance optimization: Reuse existing items instead of deleting and recreating
+    QGraphicsTextItem *textLabel = nullptr;
+    QGraphicsRectItem *textOutline = nullptr;
     
-    // Create and add rectangular outline around the text
-    QGraphicsRectItem *textOutline = new QGraphicsRectItem();
-    textOutline->setRect(textX - 2, textY + 1, textRect.width() + 6, textRect.height() + 4);
-    textOutline->setPen(QPen(Qt::green, 1));
-    textOutline->setBrush(QBrush(Qt::transparent));
-    textOutline->setZValue(1001);
+    if (m_bearingRateItems.contains(marker) && m_bearingRateItems[marker].size() >= 2) {
+        // Reuse existing items
+        textLabel = qgraphicsitem_cast<QGraphicsTextItem*>(m_bearingRateItems[marker].at(0));
+        textOutline = qgraphicsitem_cast<QGraphicsRectItem*>(m_bearingRateItems[marker].at(1));
+    }
     
-    // Add items to scene
-    m_overlayScene->addItem(textLabel);
-    m_overlayScene->addItem(textOutline);
+    if (textLabel) {
+        // Update existing text label
+        textLabel->setPlainText(bearingRateText);
+        textLabel->setPos(textX, textY);
+    } else {
+        // Create new text label
+        textLabel = new QGraphicsTextItem(bearingRateText);
+        textLabel->setFont(font);
+        textLabel->setDefaultTextColor(Qt::green);
+        textLabel->setPos(textX, textY);
+        textLabel->setZValue(1002);
+        m_overlayScene->addItem(textLabel);
+    }
     
-    // Store the items so we can remove them later
-    QList<QGraphicsItem*> items;
-    items.append(textLabel);
-    items.append(textOutline);
-    m_bearingRateItems[marker] = items;
+    if (textOutline) {
+        // Update existing outline
+        textOutline->setRect(textX - 2, textY + 1, textRect.width() + 6, textRect.height() + 4);
+    } else {
+        // Create new outline
+        textOutline = new QGraphicsRectItem();
+        textOutline->setRect(textX - 2, textY + 1, textRect.width() + 6, textRect.height() + 4);
+        textOutline->setPen(QPen(Qt::green, 1));
+        textOutline->setBrush(QBrush(Qt::transparent));
+        textOutline->setZValue(1001);
+        m_overlayScene->addItem(textOutline);
+    }
+    
+    // Store/update the items reference
+    if (!m_bearingRateItems.contains(marker)) {
+        QList<QGraphicsItem*> items;
+        items.append(textLabel);
+        items.append(textOutline);
+        m_bearingRateItems[marker] = items;
+    }
 }
 
 void BTWInteractiveOverlay::removeBearingRateBox(InteractiveGraphicsItem *marker)

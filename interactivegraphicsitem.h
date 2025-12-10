@@ -98,7 +98,7 @@ public:
      * @brief Set rotate region size
      * @param size Size of the rotate regions
      */
-    void setRotateRegionSize(const QSizeF &size) { m_rotateRegionSize = size; updateInteractionRegions(); }
+    void setRotateRegionSize(const QSizeF &size) { m_rotateRegionSize = size; invalidateRotateRegionsCache(); updateInteractionRegions(); }
 
     /**
      * @brief Enable or disable drag functionality
@@ -348,6 +348,11 @@ private:
     void updateCursor(InteractionRegion region);
     QRectF getRotateRegionRect() const;
     QList<QRectF> getRotateRegions() const;
+    void invalidateRotateRegionsCache();
+    
+    // Rotate regions cache for performance optimization
+    mutable QList<QRectF> m_cachedRotateRegions;
+    mutable bool m_rotateRegionsCacheValid;
 };
 
 Q_DECLARE_METATYPE(InteractiveGraphicsItem*)

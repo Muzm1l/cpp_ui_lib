@@ -228,13 +228,13 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     cursorUpdateTimer->setInterval(16); // 60fps
     connect(cursorUpdateTimer, &QTimer::timeout, this, &WaterfallGraph::updateCursorLayer);
 
-    // Debug: Print initial state
-    qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
-    qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
-    qDebug() << "WaterfallGraph constructor - graphicsView:" << graphicsView;
+    // Debug: Print initial state (commented out for performance)
+    // qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
+    // qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
+    // qDebug() << "WaterfallGraph constructor - graphicsView:" << graphicsView;
 
     // Initial setup will happen in showEvent
-    qDebug() << "Constructor - Widget size:" << this->size();
+    // qDebug() << "Constructor - Widget size:" << this->size();
 }
 
 /**
@@ -638,13 +638,15 @@ int WaterfallGraph::getGridDivisions() const
  */
 void WaterfallGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "Mouse clicked at scene position:" << scenePos;
+    // qDebug() << "Mouse clicked at scene position:" << scenePos;  // Commented for performance
+    Q_UNUSED(scenePos);
     // This is a virtual function that can be overridden in derived classes
 }
 
 void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "Mouse dragged to scene position:" << scenePos;
+    // qDebug() << "Mouse dragged to scene position:" << scenePos;  // Commented for performance
+    Q_UNUSED(scenePos);
     // This is a virtual function that can be overridden in derived classes
 }
 
@@ -792,14 +794,11 @@ void WaterfallGraph::drawBTWSymbols()
     // Follow the same pattern as RTW symbols - read symbols from dataSource
     if (!graphicsScene || !dataSource)
     {
-        qDebug() << "WaterfallGraph: drawBTWSymbols - no graphicsScene or dataSource";
         return;
     }
     
     // Get symbols from dataSource
     std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
-    
-    qDebug() << "WaterfallGraph: drawBTWSymbols - found" << btwSymbols.size() << "BTW symbols in data source";
     
     if (btwSymbols.empty())
     {
@@ -810,10 +809,6 @@ void WaterfallGraph::drawBTWSymbols()
     std::vector<BTWSymbolData> visibleSymbols;
     bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
-    qDebug() << "WaterfallGraph: drawBTWSymbols - timeRangeValid:" << timeRangeValid 
-             << "timeMin:" << (timeMin.isValid() ? timeMin.toString() : "invalid")
-             << "timeMax:" << (timeMax.isValid() ? timeMax.toString() : "invalid");
-    
     if (timeRangeValid)
     {
         for (const auto& symbolData : btwSymbols)
@@ -822,37 +817,23 @@ void WaterfallGraph::drawBTWSymbols()
             {
                 visibleSymbols.push_back(symbolData);
             }
-            else
-            {
-                qDebug() << "WaterfallGraph: Symbol filtered out - timestamp" << symbolData.timestamp.toString() 
-                         << "not in range [" << timeMin.toString() << "," << timeMax.toString() << "]";
-            }
         }
     }
     else
     {
         // If time range is not valid, show all symbols (they might be needed for initialization)
         visibleSymbols = btwSymbols;
-        qDebug() << "WaterfallGraph: Time range not valid, showing all" << visibleSymbols.size() << "symbols";
     }
     
-    qDebug() << "WaterfallGraph: drawBTWSymbols - drawing" << visibleSymbols.size() << "visible symbols";
-    
-    int symbolsDrawn = 0;
     // Draw symbols using a simple magenta circle (we'll create it inline since BTWSymbolDrawing is BTW-specific)
     for (const auto& symbolData : visibleSymbols)
     {
         // Map symbol position to screen coordinates
         QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
         
-        qDebug() << "WaterfallGraph: Symbol at timestamp" << symbolData.timestamp.toString() 
-                 << "range" << symbolData.range << "mapped to screen position" << screenPos;
-        
         // Check if point is within visible area
         if (!drawingArea.contains(screenPos))
         {
-            qDebug() << "WaterfallGraph: Symbol filtered out - screen position" << screenPos 
-                     << "not in drawing area" << drawingArea;
             continue;
         }
         
@@ -865,11 +846,7 @@ void WaterfallGraph::drawBTWSymbols()
         magentaCircle->setZValue(1003); // Above markers but below interactive items
         
         graphicsScene->addItem(magentaCircle);
-        symbolsDrawn++;
-        qDebug() << "WaterfallGraph: Drew magenta circle at" << screenPos;
     }
-    
-    qDebug() << "WaterfallGraph: drawBTWSymbols - drew" << symbolsDrawn << "magenta circles";
 
     // If only ranges need update
     if (m_rangeUpdateNeeded || !dataRangesValid)
@@ -979,13 +956,6 @@ void WaterfallGraph::updateGraphicsDimensions()
 
         // Redraw the scene
         draw();
-
-        qDebug() << "Graphics dimensions updated successfully to:" << widgetSize;
-        qDebug() << "Scene rect is now:" << graphicsScene->sceneRect();
-    }
-    else
-    {
-        qDebug() << "Widget size is invalid, skipping update";
     }
 }
 
@@ -997,7 +967,6 @@ void WaterfallGraph::setupDrawingArea()
 {
     // Set up the drawing area to cover the entire scene
     drawingArea = graphicsScene->sceneRect();
-    qDebug() << "Drawing area set to:" << drawingArea;
 }
 
 /**
@@ -1040,13 +1009,10 @@ void WaterfallGraph::drawGrid()
  */
 void WaterfallGraph::mousePressEvent(QMouseEvent *event)
 {
-    qDebug() << "Mouse press event - button:" << event->button() << "mouseSelectionEnabled:" << mouseSelectionEnabled;
-
     if (event->button() == Qt::LeftButton)
     {
         // Convert widget coordinates to scene coordinates
         QPointF scenePos = graphicsView->mapToScene(event->pos());
-        qDebug() << "Scene position:" << scenePos << "drawingArea:" << drawingArea;
 
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
@@ -1065,7 +1031,6 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
                             qreal value = mapScreenXToRange(scenePos.x());
                             
                             if (timestamp.isValid()) {
-                                qDebug() << "WaterfallGraph: Magenta marker clicked at timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") << "value:" << value;
                                 emit markerTimestampValueChanged(timestamp, value);
                             }
                             return; // Don't process further
@@ -1086,8 +1051,6 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
                     itemAtPos != crosshairVertical &&
                     itemAtPos != selectionRect) {
                     
-                    qDebug() << "WaterfallGraph: Found interactive item at overlay position:" << overlayScenePos << "item:" << itemAtPos;
-                    
                     // Create a QGraphicsSceneMouseEvent to dispatch to the item
                     QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMousePress);
                     sceneEvent.setScenePos(overlayScenePos);
@@ -1101,7 +1064,6 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
                     QApplication::sendEvent(overlayScene, &sceneEvent);
                     
                     if (sceneEvent.isAccepted()) {
-                        qDebug() << "WaterfallGraph: Interactive item accepted the event";
                         return; // Don't process further, the overlay item is handling it
                     }
                 }
@@ -1113,12 +1075,7 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
             // Start selection if mouse selection is enabled
             if (mouseSelectionEnabled)
             {
-                qDebug() << "Starting selection...";
                 startSelection(scenePos);
-            }
-            else
-            {
-                qDebug() << "Mouse selection is disabled";
             }
 
             onMouseClick(scenePos);
@@ -1250,13 +1207,11 @@ void WaterfallGraph::enterEvent(QEvent *event)
         }
     }
     
-    // Ensure cursor layer timer is running
-    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
+    // Ensure cursor layer timer is running when mouse is inside widget
+    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
     {
         cursorUpdateTimer->start();
     }
-    
-    qDebug() << "Mouse entered WaterfallGraph widget";
 }
 
 /**
@@ -1294,7 +1249,11 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     // Notify cursor time cleared
     notifyCursorTimeChanged(QDateTime());
     
-    qDebug() << "Mouse left WaterfallGraph widget";
+    // Stop cursor layer timer when mouse leaves to reduce CPU usage
+    if (cursorUpdateTimer && cursorUpdateTimer->isActive())
+    {
+        cursorUpdateTimer->stop();
+    }
 }
 
 /**
@@ -1322,8 +1281,6 @@ void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
             
             // Send event to the scene
             QApplication::sendEvent(overlayScene, &sceneEvent);
-            
-            qDebug() << "WaterfallGraph: Forwarded mouse release to overlay item:" << mouseGrabberItem;
         }
     }
 
@@ -1379,8 +1336,6 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
 
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
-
-    qDebug() << "Resize event - New size:" << size();
 }
 
 /**
@@ -1391,11 +1346,6 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
 void WaterfallGraph::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-
-    // This is called when the widget becomes visible
-    qDebug() << "showEvent - Widget size:" << this->size();
-    qDebug() << "showEvent - Graphics view size:" << graphicsView->size();
-    qDebug() << "showEvent - crosshairEnabled:" << crosshairEnabled;
 
     // Ensure graphics view fits the widget exactly
     if (graphicsView)
@@ -1410,7 +1360,6 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         overlayView->raise();
         overlayView->show();
         overlayView->update(); // Force a repaint
-        qDebug() << "showEvent - Overlay view geometry:" << overlayView->geometry() << "visible:" << overlayView->isVisible();
     }
 
     // Ensure cursor view also fits the widget exactly and is positioned on top
@@ -1420,7 +1369,6 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         cursorView->raise(); // Ensure it's above overlayView
         cursorView->show();
         cursorView->update();
-        qDebug() << "showEvent - Cursor view geometry:" << cursorView->geometry() << "visible:" << cursorView->isVisible();
     }
 
     // Update cursor scene rect to match widget dimensions
@@ -1429,11 +1377,7 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         cursorScene->setSceneRect(0, 0, this->size().width(), this->size().height());
     }
 
-    // Start cursor update timer if cursor layer is enabled
-    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
-    {
-        cursorUpdateTimer->start();
-    }
+    // Don't start cursor timer here - it will be started when mouse enters widget
 
     // Update graphics dimensions now that we're visible
     updateGraphicsDimensions();
@@ -2275,11 +2219,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     const auto &yData = dataSource->getYDataSeries(seriesLabel);
     const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
-    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << yData.size() << "yData points and" << timestamps.size() << "timestamps";
-
     if (yData.empty() || timestamps.empty())
     {
-        qDebug() << "No data available for series:" << seriesLabel;
         return;
     }
 
@@ -2293,12 +2234,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         }
     }
 
-    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << visibleData.size() << "visible data points within time range"
-             << timeMin.toString() << "to" << timeMax.toString();
-
     if (visibleData.empty())
     {
-        qDebug() << "No data points within current time range for series:" << seriesLabel;
         return;
     }
 
@@ -2312,7 +2249,6 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
         QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
         m_seriesPointItems[seriesLabel].push_back(pointItem);
-        qDebug() << "Data series" << seriesLabel << "drawn with 1 visible point";
         return;
     }
 
@@ -2343,8 +2279,6 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
         pointItems.push_back(pointItem);
     }
-
-    qDebug() << "Data series" << seriesLabel << "drawn with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
 }
 
 // Multi-series support methods implementation
@@ -2358,7 +2292,6 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &color)
 {
     seriesColors[seriesLabel] = color;
-    qDebug() << "Series color set for" << seriesLabel << "to" << color.name();
 }
 
 /**
@@ -2393,7 +2326,6 @@ QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 void WaterfallGraph::setSeriesVisible(const QString &seriesLabel, bool visible)
 {
     seriesVisibility[seriesLabel] = visible;
-    qDebug() << "Series visibility set for" << seriesLabel << "to" << (visible ? "visible" : "hidden");
 }
 
 /**
