@@ -5,6 +5,7 @@
 #include "graphlayout.h"
 #include "waterfalldata.h"
 #include "graphtype.h"
+#include "zoompanel.h"
 #include <QDebug>
 #include <QRandomGenerator>
 
@@ -20,6 +21,7 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
     , m_interactiveOverlay(nullptr)
     , symbols(40)  // Initialize BTW symbol cache
+    , m_nextRegionId(1)
 {
     qDebug() << "BTWGraph constructor called";
     
@@ -55,6 +57,12 @@ void BTWGraph::draw()
 
     // Clear existing items - ensure complete clearing before drawing
     // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
+    // Shaded region polygon items will be recreated in drawShadedRegions() from stored data
+    // Clear polygon item pointers since clear() will delete them
+    for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+        it.value().polygonItem = nullptr;
+    }
+    
     graphicsScene->clear();
     graphicsScene->update(); // Force immediate update to ensure clearing is visible
     
@@ -101,6 +109,9 @@ void BTWGraph::draw()
     
     // Draw manually placed BTW markers from data source
     drawCustomCircleMarkers();
+    
+    // Draw shaded regions
+    drawShadedRegions();
     
     isDrawing = false;
 }
@@ -713,6 +724,192 @@ void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwVa
                     graph->draw();
                 }
             }
+        }
+    }
+}
+
+/**
+ * @brief Get zoom panel from parent GraphContainer
+ * @return Pointer to ZoomPanel, or nullptr if not found
+ */
+ZoomPanel* BTWGraph::getZoomPanel() const
+{
+    // Find parent GraphContainer
+    QWidget *parent = this->parentWidget();
+    if (!parent) {
+        return nullptr;
+    }
+    
+    // Try to find GraphContainer
+    GraphContainer *container = qobject_cast<GraphContainer*>(parent);
+    if (!container) {
+        // If parent is not GraphContainer, try to find it in the widget hierarchy
+        container = parent->findChild<GraphContainer*>();
+    }
+    
+    if (!container) {
+        return nullptr;
+    }
+    
+    // Get zoom panel from GraphContainer (we need to access it through a public method)
+    // Since GraphContainer doesn't expose getZoomPanel, we'll use findChild
+    return container->findChild<ZoomPanel*>();
+}
+
+/**
+ * @brief Add a shaded region to the graph
+ * @param startX Starting X value (range value)
+ * @param startY Starting Y value (timestamp)
+ * @return Unique identifier for the shaded region
+ */
+int BTWGraph::addShadedRegion(qreal startX, qreal endX, const QDateTime &startY)
+{
+    int regionId = m_nextRegionId++;
+    ShadedRegionData regionData(startX, endX, startY);
+    ShadedRegionItem regionItem(regionData);
+    m_shadedRegions[regionId] = regionItem;
+    
+    qDebug() << "BTWGraph: Added shaded region" << regionId << "X range:" << startX << "to" << endX 
+             << "Y:" << startY.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    
+    // Trigger redraw to show the new region
+    draw();
+    
+    return regionId;
+}
+
+/**
+ * @brief Remove a shaded region by its identifier
+ * @param regionId The identifier returned by addShadedRegion
+ */
+void BTWGraph::removeShadedRegion(int regionId)
+{
+    if (m_shadedRegions.contains(regionId)) {
+        ShadedRegionItem &item = m_shadedRegions[regionId];
+        // Remove graphics item from scene if it exists
+        if (item.polygonItem && graphicsScene) {
+            graphicsScene->removeItem(item.polygonItem);
+            delete item.polygonItem;
+            item.polygonItem = nullptr;
+        }
+        m_shadedRegions.remove(regionId);
+        qDebug() << "BTWGraph: Removed shaded region" << regionId;
+        
+        // Trigger redraw
+        draw();
+    }
+}
+
+/**
+ * @brief Clear all shaded regions
+ */
+void BTWGraph::clearShadedRegions()
+{
+    // Remove all graphics items from scene
+    for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+        if (it.value().polygonItem && graphicsScene) {
+            graphicsScene->removeItem(it.value().polygonItem);
+            delete it.value().polygonItem;
+        }
+    }
+    m_shadedRegions.clear();
+    qDebug() << "BTWGraph: Cleared all shaded regions";
+    
+    // Trigger redraw
+    draw();
+}
+
+/**
+ * @brief Draw all shaded regions using zoom panel sticker values
+ */
+void BTWGraph::drawShadedRegions()
+{
+    if (!graphicsScene || m_shadedRegions.isEmpty() || !dataRangesValid) {
+        return;
+    }
+    
+    // Get time range for Y direction - region spans from top to bottom (all visible timestamps)
+    QDateTime topTime = timeMin.isValid() ? timeMin : QDateTime::currentDateTime();
+    QDateTime bottomTime = timeMax.isValid() ? timeMax : QDateTime::currentDateTime();
+    
+    // Ensure valid time range
+    if (topTime >= bottomTime) {
+        qDebug() << "BTWGraph: Invalid time range for shaded region";
+        return;
+    }
+    
+    // Draw each shaded region
+    for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+        int regionId = it.key();
+        ShadedRegionItem &item = it.value();
+        const ShadedRegionData &data = item.data;
+        
+        // Remove existing polygon item if it exists
+        if (item.polygonItem) {
+            graphicsScene->removeItem(item.polygonItem);
+            delete item.polygonItem;
+            item.polygonItem = nullptr;
+        }
+        
+        // Ensure valid X range
+        if (data.startX >= data.endX) {
+            qDebug() << "BTWGraph: Invalid X range for shaded region" << regionId << "- startX:" << data.startX << "endX:" << data.endX;
+            continue;
+        }
+        
+        // Create polygon for vertical shaded region
+        // Region spans from data.startX to data.endX in X (horizontal boundaries)
+        // and from topTime to bottomTime in Y (vertical, spans all timestamps from top to bottom)
+        QVector<QPointF> polygonPoints;
+        
+        // Top-left corner: (startX, topTime)
+        QPointF topLeft = mapDataToScreen(data.startX, topTime);
+        // Top-right corner: (endX, topTime)
+        QPointF topRight = mapDataToScreen(data.endX, topTime);
+        // Bottom-right corner: (endX, bottomTime)
+        QPointF bottomRight = mapDataToScreen(data.endX, bottomTime);
+        // Bottom-left corner: (startX, bottomTime)
+        QPointF bottomLeft = mapDataToScreen(data.startX, bottomTime);
+        
+        // Only draw if all points are within or near the drawing area
+        bool shouldDraw = false;
+        if (drawingArea.contains(topLeft) || drawingArea.contains(topRight) ||
+            drawingArea.contains(bottomLeft) || drawingArea.contains(bottomRight)) {
+            shouldDraw = true;
+        } else {
+            // Check if region intersects with drawing area
+            QRectF regionRect = QRectF(
+                qMin(qMin(topLeft.x(), topRight.x()), qMin(bottomLeft.x(), bottomRight.x())),
+                qMin(qMin(topLeft.y(), topRight.y()), qMin(bottomLeft.y(), bottomRight.y())),
+                qMax(qMax(topLeft.x(), topRight.x()), qMax(bottomLeft.x(), bottomRight.x())) - qMin(qMin(topLeft.x(), topRight.x()), qMin(bottomLeft.x(), bottomRight.x())),
+                qMax(qMax(topLeft.y(), topRight.y()), qMax(bottomLeft.y(), bottomRight.y())) - qMin(qMin(topLeft.y(), topRight.y()), qMin(bottomLeft.y(), bottomRight.y()))
+            );
+            shouldDraw = drawingArea.intersects(regionRect);
+        }
+        
+        if (shouldDraw) {
+            polygonPoints.append(topLeft);
+            polygonPoints.append(topRight);
+            polygonPoints.append(bottomRight);
+            polygonPoints.append(bottomLeft);
+            
+            // Create polygon item with semi-transparent fill
+            QPolygonF polygon(polygonPoints);
+            QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(polygon);
+            
+            // Set appearance: semi-transparent gray with light border
+            QColor fillColor(128, 128, 128, 80);  // Semi-transparent gray
+            QColor borderColor(200, 200, 200, 150);  // Light gray border
+            
+            polygonItem->setBrush(QBrush(fillColor));
+            polygonItem->setPen(QPen(borderColor, 1));
+            polygonItem->setZValue(500);  // Below markers but above grid
+            
+            graphicsScene->addItem(polygonItem);
+            item.polygonItem = polygonItem;
+            
+            qDebug() << "BTWGraph: Drew vertical shaded region" << regionId << "X range:" << data.startX 
+                     << "to" << data.endX << "Y: full height (top to bottom)";
         }
     }
 }

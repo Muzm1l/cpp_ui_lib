@@ -105,6 +105,49 @@ MainWindow::MainWindow(QWidget *parent)
     // Start the simulator
     simulator->start();
 
+    // Test shaded region API in first tab
+    // Wait a bit for the graph to initialize, then add a test shaded region
+    QTimer::singleShot(2000, this, [this]() {
+        if (graphgrid) {
+            // Find the first GraphContainer
+            QList<GraphContainer*> containers = graphgrid->findChildren<GraphContainer*>();
+            if (!containers.isEmpty()) {
+                GraphContainer* firstContainer = containers.first();
+                if (firstContainer) {
+                    // Get the BTW graph from the container
+                    WaterfallGraph* btwGraphBase = firstContainer->getWaterfallGraph(GraphType::BTW);
+                    if (btwGraphBase) {
+                        BTWGraph* btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+                        if (btwGraph) {
+                            // Get current time for the test
+                            QDateTime currentTime = QDateTime::currentDateTime();
+                            // Add a test vertical shaded region with X range 30.0 to 40.0
+                            // This will create a vertical band spanning from top to bottom
+                            int regionId = btwGraph->addShadedRegion(30.0, 40.0, currentTime);
+                            qDebug() << "MainWindow: Test - Added vertical shaded region" << regionId 
+                                     << "X range: 30.0 to 40.0, Y=" << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                            
+                            // Add another test region with different X range
+                            QTimer::singleShot(1000, this, [btwGraph, currentTime]() {
+                                int regionId2 = btwGraph->addShadedRegion(50.0, 60.0, currentTime);
+                                qDebug() << "MainWindow: Test - Added second vertical shaded region" << regionId2 
+                                         << "X range: 50.0 to 60.0, Y=" << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                            });
+                        } else {
+                            qDebug() << "MainWindow: Test - Could not cast to BTWGraph";
+                        }
+                    } else {
+                        qDebug() << "MainWindow: Test - Could not get BTW graph from container";
+                    }
+                } else {
+                    qDebug() << "MainWindow: Test - First container is null";
+                }
+            } else {
+                qDebug() << "MainWindow: Test - No GraphContainers found";
+            }
+        }
+    });
+
     // Initialize some sample data for the graph
     std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
     std::vector<double> y1_data = {0.0, 2.0, 4.0, 6.0, 8.0};  // Linear growth

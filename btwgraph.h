@@ -11,11 +11,26 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QDateTime>
+#include <QMap>
+#include <QGraphicsPolygonItem>
 #include <vector>
 
 // Forward declarations to avoid circular dependency
 class BTWInteractiveOverlay;
 class InteractiveGraphicsItem;
+class ZoomPanel;
+class GraphContainer;
+
+// Structure to store shaded region data
+struct ShadedRegionData
+{
+    qreal startX;  // Starting X value (left range boundary)
+    qreal endX;    // Ending X value (right range boundary)
+    QDateTime startY;  // Starting Y value (timestamp) - currently not used, region spans full height
+    
+    ShadedRegionData() : startX(0.0), endX(0.0) {}
+    ShadedRegionData(qreal xStart, qreal xEnd, const QDateTime &y) : startX(xStart), endX(xEnd), startY(y) {}
+};
 
 /**
  * @brief BTW Graph component that inherits from waterfallgraph
@@ -48,6 +63,28 @@ public:
      * @param range Range value (Y-axis position) where the symbol should be displayed
      */
     void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
+    
+    /**
+     * @brief Add a shaded region to the graph
+     * The region will be drawn as a vertical band spanning from top to bottom (all timestamps),
+     * with horizontal boundaries defined by the X range values
+     * @param startX Starting X value (left range boundary, e.g., 30.0)
+     * @param endX Ending X value (right range boundary, e.g., 40.0)
+     * @param startY Starting Y value (timestamp) - currently stored but region spans full height
+     * @return Unique identifier for the shaded region
+     */
+    int addShadedRegion(qreal startX, qreal endX, const QDateTime &startY);
+    
+    /**
+     * @brief Remove a shaded region by its identifier
+     * @param regionId The identifier returned by addShadedRegion
+     */
+    void removeShadedRegion(int regionId);
+    
+    /**
+     * @brief Clear all shaded regions
+     */
+    void clearShadedRegions();
 
 public slots:
     void deleteInteractiveMarkers();
@@ -90,6 +127,24 @@ private:
     
     // Store timestamps from automatic markers
     std::vector<QDateTime> m_automaticMarkerTimestamps;
+    
+    // Shaded regions storage (key: region ID, value: region data and graphics item)
+    struct ShadedRegionItem
+    {
+        ShadedRegionData data;
+        QGraphicsPolygonItem *polygonItem;
+        
+        ShadedRegionItem() : polygonItem(nullptr) {}
+        ShadedRegionItem(const ShadedRegionData &d) : data(d), polygonItem(nullptr) {}
+    };
+    QMap<int, ShadedRegionItem> m_shadedRegions;
+    int m_nextRegionId;
+    
+    // Helper method to get zoom panel from parent GraphContainer
+    ZoomPanel* getZoomPanel() const;
+    
+    // Method to draw shaded regions
+    void drawShadedRegions();
 
 signals:
     /**
