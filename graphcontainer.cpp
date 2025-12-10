@@ -622,9 +622,25 @@ bool GraphContainer::hasDataOption(const GraphType graphType) const
 void GraphContainer::updateComboBoxOptions()
 {
     m_comboBox->clear();
-    for (const auto &pair : dataOptions)
+    
+    // Define the desired order of graph types in the combo box
+    std::vector<GraphType> desiredOrder = {
+        GraphType::BTW,  // 1. BTW
+        GraphType::BDW,  // 2. BDW
+        GraphType::BRW,  // 3. BRW
+        GraphType::RTW,  // 4. RTW
+        GraphType::FTW,  // 5. FTW
+        GraphType::FDW,  // 6. FDW
+        GraphType::LTW   // 7. LTW
+    };
+    
+    // Add items in the desired order, only if they exist in dataOptions
+    for (GraphType graphType : desiredOrder)
     {
-        m_comboBox->addItem(graphTypeToString(pair.first));
+        if (dataOptions.find(graphType) != dataOptions.end())
+        {
+            m_comboBox->addItem(graphTypeToString(graphType));
+        }
     }
 }
 
