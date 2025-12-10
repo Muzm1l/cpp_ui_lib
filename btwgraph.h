@@ -160,6 +160,20 @@ signals:
      * @param position The scene position where the marker was clicked
      */
     void manualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a marker is clicked with full data
+     * 
+     * This signal provides all marker data for external integration:
+     * - timestamp: When the marker is positioned in time
+     * - rangeValue: The X-axis range value (horizontal position)
+     * - bearingRate: The bearing rate value shown in the box (rotation angle / 10)
+     * 
+     * @param timestamp The timestamp of the marker
+     * @param rangeValue The range value (X-axis position)
+     * @param bearingRate The bearing rate value (from the box display)
+     */
+    void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
 };
 
 #endif // BTWGRAPH_H

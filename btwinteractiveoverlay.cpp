@@ -52,17 +52,24 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     marker->setPos(position);
     marker->setSize(QSizeF(20, 20));
 
-    // Set custom drawing function for data point - green version without interaction regions
-    marker->setCustomDrawFunction([timestamp, seriesLabel](QPainter *painter, const QRectF &rect) {
+    // Set custom drawing function for data point
+    // The lambda captures the marker pointer to read current color/style settings
+    marker->setCustomDrawFunction([marker, timestamp, seriesLabel](QPainter *painter, const QRectF &rect) {
         Q_UNUSED(timestamp);
         Q_UNUSED(seriesLabel);
         Q_UNUSED(rect);
         
+        // Get color settings from the marker (allows runtime customization)
+        QColor markerColor = marker->getMarkerColor();
+        QColor lineColor = marker->getLineColor();
+        qreal lineWidth = marker->getLineWidth();
+        Qt::PenStyle lineStyle = marker->getLineStyle();
+        
         // Calculate marker radius based on the original size (20x20)
         qreal markerRadius = 10.0; // Half of the 20x20 size
         
-        // Draw green circle outline (transparent fill) at the center of the item
-        painter->setPen(QPen(Qt::green, 2));
+        // Draw circle outline (transparent fill) at the center of the item
+        painter->setPen(QPen(markerColor, lineWidth, lineStyle));
         painter->setBrush(QBrush(Qt::transparent));
         QRectF circleRect(-markerRadius, -markerRadius, 2*markerRadius, 2*markerRadius);
         painter->drawEllipse(circleRect);
@@ -82,8 +89,8 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
         QPointF startPoint = QPointF(-deltaX, -deltaY);
         QPointF endPoint = QPointF(deltaX, deltaY);
         
-        // Draw the angled line in green
-        painter->setPen(QPen(Qt::green, 2));
+        // Draw the angled line with customizable color/style
+        painter->setPen(QPen(lineColor, lineWidth, lineStyle));
         painter->drawLine(startPoint, endPoint);
     });
 
@@ -97,6 +104,13 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     // Store the timestamp in the marker for later retrieval
     // Use QGraphicsItem::setData() with key 0 to store the timestamp
     marker->setData(0, QVariant::fromValue(timestamp));
+    
+    // Store the initial range value for reference (key 1)
+    marker->setData(1, QVariant::fromValue(value));
+    
+    // Enable horizontal-only movement by default
+    // This constrains the marker to move only along the X axis (range), not Y (timestamp)
+    marker->setMovementConstraints(false, true);  // constrainX=false, constrainY=true
 
     // Add to scene
     m_overlayScene->addItem(marker);
@@ -534,4 +548,263 @@ void BTWInteractiveOverlay::removeBearingRateBox(InteractiveGraphicsItem *marker
         }
         m_bearingRateItems.remove(marker);
     }
+}
+
+// ========== Marker Customization API Implementation ==========
+
+void BTWInteractiveOverlay::setMarkerStyle(InteractiveGraphicsItem *marker, 
+                                           const QColor &markerColor,
+                                           const QColor &lineColor,
+                                           qreal lineWidth)
+{
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: setMarkerStyle - marker is null";
+        return;
+    }
+    
+    marker->setMarkerColor(markerColor);
+    marker->setLineColor(lineColor.isValid() ? lineColor : markerColor);
+    marker->setLineWidth(lineWidth);
+    
+    // Update the bearing rate box to match the new color
+    updateBearingRateBox(marker);
+    
+    qDebug() << "BTWInteractiveOverlay: Set marker style - color:" << markerColor << "lineWidth:" << lineWidth;
+}
+
+void BTWInteractiveOverlay::setAllMarkersStyle(const QColor &markerColor,
+                                               const QColor &lineColor,
+                                               qreal lineWidth)
+{
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        setMarkerStyle(marker, markerColor, lineColor, lineWidth);
+    }
+    qDebug() << "BTWInteractiveOverlay: Set all markers style - count:" << m_markers.size();
+}
+
+void BTWInteractiveOverlay::setMarkerLocked(InteractiveGraphicsItem *marker, bool locked)
+{
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: setMarkerLocked - marker is null";
+        return;
+    }
+    
+    marker->setLocked(locked);
+    qDebug() << "BTWInteractiveOverlay: Set marker locked:" << locked;
+}
+
+void BTWInteractiveOverlay::setAllMarkersLocked(bool locked)
+{
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        marker->setLocked(locked);
+    }
+    qDebug() << "BTWInteractiveOverlay: Set all markers locked:" << locked << "count:" << m_markers.size();
+}
+
+void BTWInteractiveOverlay::setMarkerOpacity(InteractiveGraphicsItem *marker, qreal opacity)
+{
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: setMarkerOpacity - marker is null";
+        return;
+    }
+    
+    marker->setMarkerOpacity(opacity);
+    qDebug() << "BTWInteractiveOverlay: Set marker opacity:" << opacity;
+}
+
+void BTWInteractiveOverlay::setAllMarkersOpacity(qreal opacity)
+{
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        marker->setMarkerOpacity(opacity);
+    }
+    qDebug() << "BTWInteractiveOverlay: Set all markers opacity:" << opacity << "count:" << m_markers.size();
+}
+
+InteractiveGraphicsItem* BTWInteractiveOverlay::getMarkerAt(const QPointF &position) const
+{
+    if (!m_overlayScene) {
+        return nullptr;
+    }
+    
+    QGraphicsItem *itemAtPos = m_overlayScene->itemAt(position, QTransform());
+    
+    // Check if the item is one of our markers
+    InteractiveGraphicsItem *marker = dynamic_cast<InteractiveGraphicsItem*>(itemAtPos);
+    if (marker && m_markers.contains(marker)) {
+        return marker;
+    }
+    
+    return nullptr;
+}
+
+void BTWInteractiveOverlay::selectMarkers(const QList<InteractiveGraphicsItem*> &markers)
+{
+    // First clear existing selection
+    clearSelection();
+    
+    // Select the specified markers
+    for (InteractiveGraphicsItem *marker : markers) {
+        if (marker && m_markers.contains(marker)) {
+            marker->setSelected(true);
+        }
+    }
+    
+    qDebug() << "BTWInteractiveOverlay: Selected" << markers.size() << "markers";
+}
+
+QList<InteractiveGraphicsItem*> BTWInteractiveOverlay::getSelectedMarkers() const
+{
+    QList<InteractiveGraphicsItem*> selectedMarkers;
+    
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        if (marker && marker->isSelected()) {
+            selectedMarkers.append(marker);
+        }
+    }
+    
+    return selectedMarkers;
+}
+
+void BTWInteractiveOverlay::clearSelection()
+{
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        if (marker) {
+            marker->setSelected(false);
+        }
+    }
+    qDebug() << "BTWInteractiveOverlay: Cleared selection";
+}
+
+void BTWInteractiveOverlay::moveSelectedMarkers(const QPointF &offset)
+{
+    QList<InteractiveGraphicsItem*> selectedMarkers = getSelectedMarkers();
+    
+    for (InteractiveGraphicsItem *marker : selectedMarkers) {
+        if (marker && !marker->isLocked()) {
+            marker->setPos(marker->pos() + offset);
+            updateBearingRateBox(marker);
+            emit markerMoved(marker, marker->pos());
+        }
+    }
+    
+    qDebug() << "BTWInteractiveOverlay: Moved" << selectedMarkers.size() << "selected markers by" << offset;
+}
+
+void BTWInteractiveOverlay::deleteSelectedMarkers()
+{
+    QList<InteractiveGraphicsItem*> selectedMarkers = getSelectedMarkers();
+    
+    for (InteractiveGraphicsItem *marker : selectedMarkers) {
+        removeMarker(marker);
+    }
+    
+    qDebug() << "BTWInteractiveOverlay: Deleted" << selectedMarkers.size() << "selected markers";
+}
+
+void BTWInteractiveOverlay::setMarkerConstraints(InteractiveGraphicsItem *marker, bool constrainX, bool constrainY)
+{
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: setMarkerConstraints - marker is null";
+        return;
+    }
+    
+    marker->setMovementConstraints(constrainX, constrainY);
+    qDebug() << "BTWInteractiveOverlay: Set marker constraints - constrainX:" << constrainX << "constrainY:" << constrainY;
+}
+
+void BTWInteractiveOverlay::setMarkerBounds(InteractiveGraphicsItem *marker, const QRectF &bounds)
+{
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: setMarkerBounds - marker is null";
+        return;
+    }
+    
+    marker->setMovementBounds(bounds);
+    qDebug() << "BTWInteractiveOverlay: Set marker bounds:" << bounds;
+}
+
+void BTWInteractiveOverlay::syncMarkersWithTimeline()
+{
+    qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline called with" << m_markers.size() << "markers";
+    
+    if (!m_btwGraph) {
+        qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - no BTW graph";
+        return;
+    }
+    
+    int markersUpdated = 0;
+    
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        if (!marker) continue;
+        
+        // Get the stored timestamp from the marker (key 0)
+        QVariant timestampVariant = marker->data(0);
+        if (!timestampVariant.isValid() || !timestampVariant.canConvert<QDateTime>()) {
+            qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker has no valid timestamp";
+            continue;
+        }
+        
+        QDateTime timestamp = timestampVariant.value<QDateTime>();
+        if (!timestamp.isValid()) {
+            qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - timestamp is invalid";
+            continue;
+        }
+        
+        // Get the current X position (range value) - this stays the same
+        qreal currentX = marker->pos().x();
+        
+        // Calculate the range value from current X position
+        qreal rangeValue = m_btwGraph->mapScreenXToRange(currentX);
+        
+        // Map the timestamp and range to new screen position
+        QPointF newScreenPos = m_btwGraph->mapDataToScreen(rangeValue, timestamp);
+        
+        qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker timestamp:" << timestamp.toString()
+                 << "currentPos:" << marker->pos() << "newScreenPos:" << newScreenPos;
+        
+        // Update position using the bypass method to avoid constraint blocking
+        // Keep X the same, only update Y to follow timeline scroll
+        QPointF newPos(currentX, newScreenPos.y());
+        if (newPos != marker->pos()) {
+            // Use setPosWithoutConstraints to bypass the Y constraint
+            marker->setPosWithoutConstraints(newPos);
+            
+            // Update the bearing rate box position
+            updateBearingRateBox(marker);
+            
+            markersUpdated++;
+        }
+    }
+    
+    if (markersUpdated > 0) {
+        qDebug() << "BTWInteractiveOverlay: Synced" << markersUpdated << "markers with timeline";
+        
+        // Force overlay scene update to ensure visual refresh
+        if (m_overlayScene) {
+            m_overlayScene->update();
+        }
+    }
+}
+
+void BTWInteractiveOverlay::setMarkerHorizontalOnly(InteractiveGraphicsItem *marker, bool horizontalOnly)
+{
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: setMarkerHorizontalOnly - marker is null";
+        return;
+    }
+    
+    // Constrain Y movement (vertical) while allowing X movement (horizontal)
+    marker->setMovementConstraints(false, horizontalOnly);  // constrainX=false, constrainY=horizontalOnly
+    
+    qDebug() << "BTWInteractiveOverlay: Set marker horizontal-only:" << horizontalOnly;
+}
+
+void BTWInteractiveOverlay::setAllMarkersHorizontalOnly(bool horizontalOnly)
+{
+    for (InteractiveGraphicsItem *marker : m_markers) {
+        if (marker) {
+            marker->setMovementConstraints(false, horizontalOnly);
+        }
+    }
+    qDebug() << "BTWInteractiveOverlay: Set all markers horizontal-only:" << horizontalOnly << "count:" << m_markers.size();
 }

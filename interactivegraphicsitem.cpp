@@ -19,6 +19,16 @@ InteractiveGraphicsItem::InteractiveGraphicsItem(QGraphicsItem *parent)
     , m_isRotating(false)
     , m_initialRotation(0.0)
     , m_rotateRegionSize(10.0, 10.0)
+    // Initialize customization properties
+    , m_markerColor(Qt::green)
+    , m_lineColor(Qt::green)
+    , m_opacity(1.0)
+    , m_lineStyle(Qt::SolidLine)
+    , m_lineWidth(2.0)
+    , m_locked(false)
+    , m_constrainX(false)
+    , m_constrainY(false)
+    , m_bypassConstraints(false)
 {
     // Set default pens and brushes
     m_dragRegionPen = QPen(Qt::blue, 2, Qt::DashLine);
@@ -28,10 +38,15 @@ InteractiveGraphicsItem::InteractiveGraphicsItem(QGraphicsItem *parent)
 
     // Enable hover events for cursor changes
     setAcceptHoverEvents(true);
-    setFlag(QGraphicsItem::ItemIsMovable, false); // We handle movement ourselves
+    // Enable item interaction flags for proper mouse event handling
+    setFlag(QGraphicsItem::ItemIsMovable, false); // We handle movement ourselves with constraints
     setFlag(QGraphicsItem::ItemIsSelectable, true);
+    setFlag(QGraphicsItem::ItemIsFocusable, true);
     setFlag(QGraphicsItem::ItemSendsGeometryChanges, true);
     setFlag(QGraphicsItem::ItemSendsScenePositionChanges, true);
+    
+    // Accept mouse buttons for direct event handling
+    setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
 
     // Update interaction regions
     updateInteractionRegions();
@@ -191,30 +206,43 @@ InteractiveGraphicsItem::InteractionRegion InteractiveGraphicsItem::getInteracti
 void InteractiveGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        // IMPORTANT: Accept the event to prevent propagation to parent items/views
+        event->accept();
+        
         m_lastMousePos = event->scenePos();
         InteractionRegion region = getInteractionRegion(event->scenePos());
         
         qDebug() << "InteractiveGraphicsItem: Mouse press at" << event->scenePos() 
                  << "local:" << mapFromScene(event->scenePos()) 
-                 << "region:" << region << "boundingRect:" << boundingRect();
+                 << "region:" << region << "boundingRect:" << boundingRect()
+                 << "locked:" << m_locked;
+        
+        // Check if marker is locked
+        if (m_locked) {
+            qDebug() << "InteractiveGraphicsItem: Marker is locked, ignoring interaction";
+            emit regionClicked(region, event->scenePos());
+            return;
+        }
         
         if (region == DragRegion && m_dragEnabled) {
             m_isDragging = true;
             setCursor(Qt::ClosedHandCursor);
+            // Grab mouse to receive all subsequent events
+            grabMouse();
             qDebug() << "InteractiveGraphicsItem: Started dragging";
-            event->accept();
         } else if (region == RotateRegion && m_rotateEnabled) {
             m_isRotating = true;
             m_initialRotation = rotation();
             setCursor(Qt::SizeAllCursor);
+            // Grab mouse to receive all subsequent events
+            grabMouse();
             qDebug() << "InteractiveGraphicsItem: Started rotating";
-            event->accept();
         } else {
             // Emit click signal for any region
             qDebug() << "InteractiveGraphicsItem: Clicked in region:" << region;
             emit regionClicked(region, event->scenePos());
-            event->accept();
         }
+        return; // Don't call base class - we're handling the event completely
     }
     
     QGraphicsItem::mousePressEvent(event);
@@ -222,9 +250,30 @@ void InteractiveGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
 
 void InteractiveGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 {
-    if (m_isDragging && m_dragEnabled) {
+    // Accept all move events when dragging or rotating
+    if (m_isDragging || m_isRotating) {
+        event->accept();
+    }
+    
+    if (m_isDragging && m_dragEnabled && !m_locked) {
         QPointF delta = event->scenePos() - m_lastMousePos;
-        setPos(pos() + delta);
+        
+        // Apply movement constraints
+        QPointF newPos = pos() + delta;
+        if (m_constrainX) {
+            newPos.setX(pos().x());  // Keep current X
+        }
+        if (m_constrainY) {
+            newPos.setY(pos().y());  // Keep current Y
+        }
+        
+        // Apply movement bounds if set
+        if (!m_movementBounds.isNull() && m_movementBounds.isValid()) {
+            newPos.setX(qBound(m_movementBounds.left(), newPos.x(), m_movementBounds.right()));
+            newPos.setY(qBound(m_movementBounds.top(), newPos.y(), m_movementBounds.bottom()));
+        }
+        
+        setPos(newPos);
         m_lastMousePos = event->scenePos();
         
         // Force update to prevent drawing artifacts
@@ -237,8 +286,8 @@ void InteractiveGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
         
         qDebug() << "InteractiveGraphicsItem: Dragging to" << pos();
         emit itemMoved(pos());
-        event->accept();
-    } else if (m_isRotating && m_rotateEnabled) {
+        return; // Don't call base class
+    } else if (m_isRotating && m_rotateEnabled && !m_locked) {
         QPointF center = sceneBoundingRect().center();
         QPointF mousePos = event->scenePos();
         
@@ -259,7 +308,7 @@ void InteractiveGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
         
         qDebug() << "InteractiveGraphicsItem: Rotating to" << rotation() << "degrees";
         emit itemRotated(rotation());
-        event->accept();
+        return; // Don't call base class
     }
     
     QGraphicsItem::mouseMoveEvent(event);
@@ -268,14 +317,23 @@ void InteractiveGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
 void InteractiveGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton) {
+        event->accept();
+        
+        // Release mouse grab
+        ungrabMouse();
+        
         if (m_isDragging) {
             m_isDragging = false;
             setCursor(Qt::OpenHandCursor);
+            qDebug() << "InteractiveGraphicsItem: Finished dragging at" << pos();
+            emit itemMoved(pos());
         } else if (m_isRotating) {
             m_isRotating = false;
             setCursor(Qt::ArrowCursor);
+            qDebug() << "InteractiveGraphicsItem: Finished rotating at" << rotation() << "degrees";
+            emit itemRotated(rotation());
         }
-        event->accept();
+        return; // Don't call base class
     }
     
     QGraphicsItem::mouseReleaseEvent(event);
@@ -362,4 +420,121 @@ QList<QRectF> InteractiveGraphicsItem::getRotateRegions() const
     regions.append(QRectF(region2TopLeft, m_rotateRegionSize));
     
     return regions;
+}
+
+// ========== Customization API Implementation ==========
+
+void InteractiveGraphicsItem::setMarkerColor(const QColor &color)
+{
+    if (m_markerColor != color) {
+        m_markerColor = color;
+        update();  // Trigger repaint
+        emit colorChanged(color);
+        qDebug() << "InteractiveGraphicsItem: Marker color changed to" << color;
+    }
+}
+
+void InteractiveGraphicsItem::setLineColor(const QColor &color)
+{
+    if (m_lineColor != color) {
+        m_lineColor = color;
+        update();  // Trigger repaint
+        emit colorChanged(color);
+        qDebug() << "InteractiveGraphicsItem: Line color changed to" << color;
+    }
+}
+
+void InteractiveGraphicsItem::setMarkerOpacity(qreal opacity)
+{
+    opacity = qBound(0.0, opacity, 1.0);
+    if (!qFuzzyCompare(m_opacity, opacity)) {
+        m_opacity = opacity;
+        setOpacity(opacity);  // Use Qt's built-in opacity
+        emit opacityChanged(opacity);
+        qDebug() << "InteractiveGraphicsItem: Opacity changed to" << opacity;
+    }
+}
+
+void InteractiveGraphicsItem::setLineWidth(qreal width)
+{
+    if (!qFuzzyCompare(m_lineWidth, width)) {
+        m_lineWidth = width;
+        update();  // Trigger repaint
+        qDebug() << "InteractiveGraphicsItem: Line width changed to" << width;
+    }
+}
+
+void InteractiveGraphicsItem::setLineStyle(Qt::PenStyle style)
+{
+    if (m_lineStyle != style) {
+        m_lineStyle = style;
+        update();  // Trigger repaint
+        qDebug() << "InteractiveGraphicsItem: Line style changed";
+    }
+}
+
+void InteractiveGraphicsItem::setLocked(bool locked)
+{
+    if (m_locked != locked) {
+        m_locked = locked;
+        emit lockedChanged(locked);
+        qDebug() << "InteractiveGraphicsItem: Locked state changed to" << locked;
+    }
+}
+
+void InteractiveGraphicsItem::setMovementConstraints(bool constrainX, bool constrainY)
+{
+    m_constrainX = constrainX;
+    m_constrainY = constrainY;
+    qDebug() << "InteractiveGraphicsItem: Movement constraints set - constrainX:" << constrainX << "constrainY:" << constrainY;
+}
+
+void InteractiveGraphicsItem::setMovementBounds(const QRectF &bounds)
+{
+    m_movementBounds = bounds;
+    qDebug() << "InteractiveGraphicsItem: Movement bounds set to" << bounds;
+}
+
+QVariant InteractiveGraphicsItem::itemChange(GraphicsItemChange change, const QVariant &value)
+{
+    if (change == ItemPositionChange && scene()) {
+        QPointF newPos = value.toPointF();
+        
+        // Skip constraints if bypass flag is set (for programmatic updates like timeline sync)
+        if (!m_bypassConstraints) {
+            // Apply constraints (for user-initiated movements)
+            if (m_constrainX) {
+                newPos.setX(pos().x());
+            }
+            if (m_constrainY) {
+                newPos.setY(pos().y());
+            }
+            
+            // Apply bounds
+            if (!m_movementBounds.isNull() && m_movementBounds.isValid()) {
+                newPos.setX(qBound(m_movementBounds.left(), newPos.x(), m_movementBounds.right()));
+                newPos.setY(qBound(m_movementBounds.top(), newPos.y(), m_movementBounds.bottom()));
+            }
+        }
+        
+        return newPos;
+    }
+    
+    if (change == ItemSelectedHasChanged) {
+        if (value.toBool()) {
+            emit markerSelected();
+        } else {
+            emit markerDeselected();
+        }
+    }
+    
+    return QGraphicsItem::itemChange(change, value);
+}
+
+void InteractiveGraphicsItem::setPosWithoutConstraints(const QPointF &pos)
+{
+    // Temporarily bypass constraints for this position update
+    m_bypassConstraints = true;
+    setPos(pos);
+    m_bypassConstraints = false;
 }

@@ -914,6 +914,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::onBTWManualMarkerPlaced);
         connect(btwGraph, &BTWGraph::manualMarkerClicked,
                 this, &GraphContainer::onBTWManualMarkerClicked);
+        
+        // Connect comprehensive marker click signal (forwards timestamp, range, and bearing rate)
+        connect(btwGraph, &BTWGraph::markerClickedWithData,
+                this, &GraphContainer::markerClickedWithData);
+        
         qDebug() << "GraphContainer: Connected BTW marker timestamp signals";
     }
     
