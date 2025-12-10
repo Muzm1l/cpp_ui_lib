@@ -29,6 +29,8 @@ InteractiveGraphicsItem::InteractiveGraphicsItem(QGraphicsItem *parent)
     , m_constrainX(false)
     , m_constrainY(false)
     , m_bypassConstraints(false)
+    // Initialize rotate regions cache as invalid
+    , m_rotateRegionsCacheValid(false)
 {
     // Set default pens and brushes
     m_dragRegionPen = QPen(Qt::blue, 2, Qt::DashLine);
@@ -50,13 +52,10 @@ InteractiveGraphicsItem::InteractiveGraphicsItem(QGraphicsItem *parent)
 
     // Update interaction regions
     updateInteractionRegions();
-
-    qDebug() << "InteractiveGraphicsItem created with size:" << m_size;
 }
 
 InteractiveGraphicsItem::~InteractiveGraphicsItem()
 {
-    qDebug() << "InteractiveGraphicsItem destroyed";
 }
 
 QRectF InteractiveGraphicsItem::boundingRect() const
@@ -161,6 +160,7 @@ void InteractiveGraphicsItem::setSize(const QSizeF &size)
     if (m_size != size) {
         prepareGeometryChange();
         m_size = size;
+        invalidateRotateRegionsCache();
         updateInteractionRegions();
         update();
     }
@@ -397,6 +397,11 @@ QRectF InteractiveGraphicsItem::getRotateRegionRect() const
 
 QList<QRectF> InteractiveGraphicsItem::getRotateRegions() const
 {
+    // Performance optimization: use cached rotate regions if valid
+    if (m_rotateRegionsCacheValid) {
+        return m_cachedRotateRegions;
+    }
+    
     QList<QRectF> regions;
     qreal markerRadius = qMin(m_size.width() / 2, m_size.height() / 2);
     
@@ -419,7 +424,17 @@ QList<QRectF> InteractiveGraphicsItem::getRotateRegions() const
     regions.append(QRectF(region1TopLeft, m_rotateRegionSize));
     regions.append(QRectF(region2TopLeft, m_rotateRegionSize));
     
+    // Cache the result
+    m_cachedRotateRegions = regions;
+    m_rotateRegionsCacheValid = true;
+    
     return regions;
+}
+
+void InteractiveGraphicsItem::invalidateRotateRegionsCache()
+{
+    m_rotateRegionsCacheValid = false;
+    m_cachedRotateRegions.clear();
 }
 
 // ========== Customization API Implementation ==========

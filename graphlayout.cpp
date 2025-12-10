@@ -252,47 +252,48 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
     syncAllTimelineViews();
 
     // Reconnect container -> layout selection signals after disconnects
+    // Use Qt::UniqueConnection to prevent duplicate connections
     for (auto *container : m_graphContainers)
     {
         connect(container, &GraphContainer::TimeSelectionCreated,
-                this, &GraphLayout::onTimeSelectionCreated);
+                this, &GraphLayout::onTimeSelectionCreated, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeSelectionsCleared,
-                this, &GraphLayout::onTimeSelectionsCleared);
+                this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
-                this, &GraphLayout::onContainerIntervalChanged);
+                this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeScopeChanged,
-                this, &GraphLayout::onContainerTimeScopeChanged);
+                this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
         
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
-                this, &GraphLayout::RTWRMarkerTimestampCaptured);
+                this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
-                this, &GraphLayout::RTWSymbolTimestampCaptured);
+                this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::onBTWManualMarkerPlaced);
+                this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::BTWManualMarkerPlaced);
+                this, &GraphLayout::BTWManualMarkerPlaced, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
-                this, &GraphLayout::BTWManualMarkerClicked);
+                this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
         connect(container, &GraphContainer::markerTimestampValueChanged,
-                this, &GraphLayout::markerTimestampValueChanged);
+                this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::markerClickedWithData,
-                this, &GraphLayout::markerClickedWithData);
+                this, &GraphLayout::markerClickedWithData, Qt::UniqueConnection);
         
         // Connect BTW marker sync signals to propagate to all containers
         connect(container, &GraphContainer::BTWMarkerSyncDataChanged,
-                this, &GraphLayout::onBTWMarkerSyncDataChanged);
+                this, &GraphLayout::onBTWMarkerSyncDataChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWMarkerSyncDeleted,
-                this, &GraphLayout::onBTWMarkerSyncDeleted);
+                this, &GraphLayout::onBTWMarkerSyncDeleted, Qt::UniqueConnection);
         
         // Connect shaded region sync signals to propagate to all containers
         connect(container, &GraphContainer::ShadedRegionSyncAdded,
-                this, &GraphLayout::onShadedRegionSyncAdded);
+                this, &GraphLayout::onShadedRegionSyncAdded, Qt::UniqueConnection);
         connect(container, &GraphContainer::ShadedRegionSyncRemoved,
-                this, &GraphLayout::onShadedRegionSyncRemoved);
+                this, &GraphLayout::onShadedRegionSyncRemoved, Qt::UniqueConnection);
         connect(container, &GraphContainer::ShadedRegionsSyncCleared,
-                this, &GraphLayout::onShadedRegionsSyncCleared);
+                this, &GraphLayout::onShadedRegionsSyncCleared, Qt::UniqueConnection);
     }
 }
 
@@ -347,50 +348,49 @@ void GraphLayout::initializeContainers()
     attachContainerDataSources();
     
     // Connect all containers' TimeSelectionCreated and TimeSelectionsCleared signals to our slots
+    // Use Qt::UniqueConnection to prevent duplicate connections
     for (auto *container : m_graphContainers)
     {
         connect(container, &GraphContainer::TimeSelectionCreated,
-                this, &GraphLayout::onTimeSelectionCreated);
+                this, &GraphLayout::onTimeSelectionCreated, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeSelectionsCleared,
-                this, &GraphLayout::onTimeSelectionsCleared);
+                this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
-                this, &GraphLayout::onContainerIntervalChanged);
+                this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeScopeChanged,
-                this, &GraphLayout::onContainerTimeScopeChanged);
+                this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
         
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
-                this, &GraphLayout::RTWRMarkerTimestampCaptured);
+                this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
-                this, &GraphLayout::RTWSymbolTimestampCaptured);
+                this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::onBTWManualMarkerPlaced);
+                this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::BTWManualMarkerPlaced);
+                this, &GraphLayout::BTWManualMarkerPlaced, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
-                this, &GraphLayout::BTWManualMarkerClicked);
+                this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
         connect(container, &GraphContainer::markerTimestampValueChanged,
-                this, &GraphLayout::markerTimestampValueChanged);
+                this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::markerClickedWithData,
-                this, &GraphLayout::markerClickedWithData);
+                this, &GraphLayout::markerClickedWithData, Qt::UniqueConnection);
         
         // Connect BTW marker sync signals to propagate to all containers
         connect(container, &GraphContainer::BTWMarkerSyncDataChanged,
-                this, &GraphLayout::onBTWMarkerSyncDataChanged);
+                this, &GraphLayout::onBTWMarkerSyncDataChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWMarkerSyncDeleted,
-                this, &GraphLayout::onBTWMarkerSyncDeleted);
+                this, &GraphLayout::onBTWMarkerSyncDeleted, Qt::UniqueConnection);
         
         // Connect shaded region sync signals to propagate to all containers
         connect(container, &GraphContainer::ShadedRegionSyncAdded,
-                this, &GraphLayout::onShadedRegionSyncAdded);
+                this, &GraphLayout::onShadedRegionSyncAdded, Qt::UniqueConnection);
         connect(container, &GraphContainer::ShadedRegionSyncRemoved,
-                this, &GraphLayout::onShadedRegionSyncRemoved);
+                this, &GraphLayout::onShadedRegionSyncRemoved, Qt::UniqueConnection);
         connect(container, &GraphContainer::ShadedRegionsSyncCleared,
-                this, &GraphLayout::onShadedRegionsSyncCleared);
+                this, &GraphLayout::onShadedRegionsSyncCleared, Qt::UniqueConnection);
     }
-    
-    qDebug() << "GraphLayout: Connected all containers to time selection and time scope propagation";
 
     registerCursorSyncCallbacks();
 }
@@ -1367,11 +1367,8 @@ void GraphLayout::onContainerTimeScopeChanged(const TimeSelectionSpan &selection
         {
             // Use setTimeScope to update without triggering signals (prevents feedback loops)
             container->setTimeScope(selection);
-            qDebug() << "GraphLayout: Time scope propagated to container";
         }
     }
-    
-    qDebug() << "GraphLayout: Time scope synchronized across all containers";
 }
 
 // void GraphLayout::onCursorTimeChanged(const QDateTime &time)
@@ -1384,15 +1381,12 @@ void GraphLayout::onContainerTimeScopeChanged(const TimeSelectionSpan &selection
 
 void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphLayout: Propagating time selection to all containers";
-    
     // Add the selection to all visible containers
     for (auto *container : m_graphContainers)
     {
         if (container && container->isVisible())
         {
             container->addTimeSelection(selection);
-            qDebug() << "GraphLayout: Selection added to container";
         }
     }
 
@@ -1547,9 +1541,6 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
 
 void GraphLayout::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
 {
-    qDebug() << "GraphLayout: BTW marker sync data changed - ID:" << markerData.id.toString()
-             << "timestamp:" << markerData.timestamp.toString();
-    
     // Get the source container that emitted the signal
     GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
     
@@ -1567,14 +1558,10 @@ void GraphLayout::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData
         // Call the sync slot on other containers
         container->onBTWMarkerSyncDataChanged(markerData);
     }
-    
-    qDebug() << "GraphLayout: Synced BTW marker to" << m_graphContainers.size() - 1 << "other containers";
 }
 
 void GraphLayout::onBTWMarkerSyncDeleted(const QUuid &markerId)
 {
-    qDebug() << "GraphLayout: BTW marker sync deleted - ID:" << markerId.toString();
-    
     // Get the source container that emitted the signal
     GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
     
@@ -1592,15 +1579,10 @@ void GraphLayout::onBTWMarkerSyncDeleted(const QUuid &markerId)
         // Call the sync slot on other containers
         container->onBTWMarkerSyncDeleted(markerId);
     }
-    
-    qDebug() << "GraphLayout: Synced BTW marker deletion to" << m_graphContainers.size() - 1 << "other containers";
 }
 
 void GraphLayout::onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData)
 {
-    qDebug() << "GraphLayout: Shaded region sync added - syncId:" << regionData.syncId.toString()
-             << "X range:" << regionData.startX << "to" << regionData.endX;
-    
     // Get the source container that emitted the signal
     GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
     
@@ -1618,14 +1600,10 @@ void GraphLayout::onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData
         // Call the sync slot on other containers
         container->onShadedRegionSyncAdded(regionData);
     }
-    
-    qDebug() << "GraphLayout: Synced shaded region to" << m_graphContainers.size() - 1 << "other containers";
 }
 
 void GraphLayout::onShadedRegionSyncRemoved(const QUuid &syncId)
 {
-    qDebug() << "GraphLayout: Shaded region sync removed - syncId:" << syncId.toString();
-    
     // Get the source container that emitted the signal
     GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
     
@@ -1643,14 +1621,10 @@ void GraphLayout::onShadedRegionSyncRemoved(const QUuid &syncId)
         // Call the sync slot on other containers
         container->onShadedRegionSyncRemoved(syncId);
     }
-    
-    qDebug() << "GraphLayout: Synced shaded region deletion to" << m_graphContainers.size() - 1 << "other containers";
 }
 
 void GraphLayout::onShadedRegionsSyncCleared()
 {
-    qDebug() << "GraphLayout: Shaded regions sync cleared";
-    
     // Get the source container that emitted the signal
     GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
     
@@ -1668,8 +1642,6 @@ void GraphLayout::onShadedRegionsSyncCleared()
         // Call the sync slot on other containers
         container->onShadedRegionsSyncCleared();
     }
-    
-    qDebug() << "GraphLayout: Synced shaded regions cleared to" << m_graphContainers.size() - 1 << "other containers";
 }
 
 // Chevron label control methods implementation - operate on all visible containers

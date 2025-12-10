@@ -181,8 +181,8 @@ void GraphContainer::onTimerTick()
         m_timelineView->setCurrentTime(currentTime);
     }
 //--------syed----------------
-    // Continuously update graph if showing recent data (within 1 minute of current time)
-    // This ensures data point animation continues after setDataToDataSource is called
+    // Update graph only when there's new data to show (within 1 minute of current time)
+    // Performance optimization: Only redraw when necessary, not on every timer tick
     if (m_currentWaterfallGraph && m_timelineView)
     {
         auto timeRange = m_currentWaterfallGraph->getTimeRange();
@@ -191,10 +191,10 @@ void GraphContainer::onTimerTick()
             QDateTime currentDateTime = QDateTime::currentDateTime();
             qint64 timeDiffMs = timeRange.second.msecsTo(currentDateTime);
             
-            // If showing recent data (within 1 minute), update time range and redraw
+            // If showing recent data (within 1 minute), check for new data
             if (timeDiffMs >= 0 && timeDiffMs < 60000)
             {
-                // Check if we have new data to show
+                // Only redraw if there's actually new data to show
                 if (m_currentWaterfallGraph->getDataSource())
                 {
                     QDateTime latestDataTime = m_currentWaterfallGraph->getDataSource()->getLatestTime();
@@ -214,12 +214,8 @@ void GraphContainer::onTimerTick()
                         // Redraw graph to show updated data
                         redrawWaterfallGraph();
                     }
-                    else
-                    {
-                        // Even if no new data, redraw to keep animation smooth
-                        // This ensures the graph continues updating as time progresses
-                        redrawWaterfallGraph();
-                    }
+                    // NOTE: Removed unconditional redraw - only redraw when new data arrives
+                    // This prevents unnecessary CPU usage from constant full redraws
                 }
             }
         }
@@ -464,7 +460,6 @@ void GraphContainer::redrawWaterfallGraph()
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->draw();
-        qDebug() << "GraphContainer: Triggered waterfall graph redraw for current graph type" << static_cast<int>(currentDataOption);
     }
 }
 
@@ -475,7 +470,6 @@ void GraphContainer::redrawWaterfallGraph(GraphType graphType)
     if (it != m_waterfallGraphs.end() && it->second)
     {
         it->second->draw();
-        qDebug() << "GraphContainer: Triggered waterfall graph redraw for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -1084,8 +1078,6 @@ void GraphContainer::onGraphContainerInFollowModeChanged(bool isInFollowMode)
 
 void GraphContainer::updateTimeInterval(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Updating time interval to" << timeIntervalToString(interval);
-
     // Set flag to prevent TimeScopeChanged from interfering
     m_updatingTimeInterval = true;
 
@@ -1097,7 +1089,6 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         if (pair.second)
         {
             pair.second->setTimeInterval(interval);
-            qDebug() << "GraphContainer: Updated interval for graph type:" << graphTypeToString(pair.first);
         }
     }
 
@@ -1106,42 +1097,35 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->draw();
-        qDebug() << "GraphContainer: Explicitly redrew current waterfall graph after interval update";
     }
 
     // Update the time selection visualizer time interval
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->setTimeLineLength(interval);
-        qDebug() << "TimeSelectionVisualizer updated with interval:" << timeIntervalToString(interval);
     }
 
     // Update the timeline view time interval
     if (m_timelineView)
     {
         m_timelineView->setTimeLineLength(interval);
-        qDebug() << "TimelineView updated with interval:" << timeIntervalToString(interval);
     }
 
     // Ensure timer is still running after interval change to keep animation active
     if (m_timer && !m_timer->isActive())
     {
         m_timer->start();
-        qDebug() << "GraphContainer: Timer restarted after interval change";
     }
 
     // Reset flag after a short delay to allow signals to propagate
     // Use QTimer::singleShot to reset the flag after the current event loop
     QTimer::singleShot(0, this, [this]() {
         m_updatingTimeInterval = false;
-        qDebug() << "GraphContainer: Time interval update complete, TimeScopeChanged handler re-enabled";
     });
 }
 
 void GraphContainer::setTimeInterval(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Setting time interval to" << timeIntervalToString(interval) << "(no signal emission)";
-    
     // Update the interval without emitting signals (for centralized sync from GraphLayout)
     updateTimeInterval(interval);
     
@@ -1151,12 +1135,9 @@ void GraphContainer::setTimeInterval(TimeInterval interval)
 
 void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphContainer: Selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
-
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->addTimeSelection(selection);
-        qDebug() << "GraphContainer: Selection added to timeline selection view";
     }
     else
     {
@@ -1169,8 +1150,6 @@ void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
 
 void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphContainer: Time selection made from" << selection.startTime.toString() << "to" << selection.endTime.toString();
-
     // Emit the TimeSelectionCreated signal for external components
     emit TimeSelectionCreated(selection);
 }
@@ -1182,17 +1161,13 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     // from interfering with the proper time range setup during interval updates
     if (m_updatingTimeInterval)
     {
-        qDebug() << "GraphContainer: Ignoring TimeScopeChanged during interval update";
         return;
     }
 
     if (!m_currentWaterfallGraph)
     {
-        qDebug() << "GraphContainer: Cannot update waterfall graph - no waterfall graph";
         return;
     }
-
-    qDebug() << "GraphContainer: Time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     // Update the waterfall graph's time range to match the visible scope
     // This sets a custom time range, but the graph will still redraw when new data arrives
@@ -1209,8 +1184,6 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
 
     // Emit the signal so GraphLayout hub can propagate to other containers
     emit TimeScopeChanged(selection);
-
-    qDebug() << "GraphContainer: Waterfall graph time range updated and signal emitted";
 }
 
 void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
@@ -1239,8 +1212,6 @@ void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
     // Update local tracking
     m_lastSyncedTimeScope = selection;
     m_hasLastSyncedTimeScope = true;
-
-    qDebug() << "GraphContainer: Time scope set (silent) from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)
@@ -1248,7 +1219,6 @@ void GraphContainer::setMouseSelectionEnabled(bool enabled)
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->setMouseSelectionEnabled(enabled);
-        qDebug() << "GraphContainer: Mouse selection" << (enabled ? "enabled" : "disabled");
     }
 }
 
