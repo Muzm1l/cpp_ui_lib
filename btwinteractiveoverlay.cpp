@@ -2,6 +2,7 @@
 #include "btwgraph.h"
 #include "interactivegraphicsitem.h"
 #include "drawutils.h"
+#include "sharedsyncstate.h"
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGraphicsTextItem>
@@ -116,6 +117,12 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     m_overlayScene->addItem(marker);
     m_markers.append(marker);
     m_markerTypes.append(DataPoint);
+    
+    // Generate and store unique ID for this marker
+    QUuid markerId = QUuid::createUuid();
+    m_markerIds[marker] = markerId;
+    m_idToMarker[markerId] = marker;
+    marker->setData(2, QVariant::fromValue(markerId)); // Store ID in marker data as well (key 2)
 
     // Connect signals
     connectMarkerSignals(marker);
@@ -129,10 +136,20 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     updateBearingRateBox(marker);
 
     qDebug() << "BTWInteractiveOverlay: Added data point marker at" << position << "for series" << seriesLabel;
+    qDebug() << "BTWInteractiveOverlay: Marker ID:" << markerId.toString();
     qDebug() << "BTWInteractiveOverlay: Marker bounding rect:" << marker->boundingRect();
     qDebug() << "BTWInteractiveOverlay: Marker scene pos:" << marker->pos();
     qDebug() << "BTWInteractiveOverlay: Marker scene bounding rect:" << marker->sceneBoundingRect();
     emit markerAdded(marker, DataPoint);
+    
+    // Emit marker data changed signal for sync
+    BTWSyncMarkerData markerData;
+    markerData.id = markerId;
+    markerData.timestamp = timestamp;
+    markerData.rangeValue = m_btwGraph ? m_btwGraph->mapScreenXToRange(position.x()) : 0.0;
+    markerData.bearingRate = marker->rotation() / 10.0;
+    markerData.isDeleted = false;
+    emit markerDataChanged(markerData);
 
     return marker;
 }
@@ -267,6 +284,9 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
     if (index >= 0) {
         MarkerType type = m_markerTypes[index];
         
+        // Get marker ID before deletion for sync signal
+        QUuid markerId = getMarkerId(marker);
+        
         // Remove bearing rate items
         removeBearingRateBox(marker);
         
@@ -278,6 +298,14 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
             m_overlayScene->removeItem(marker);
         }
         
+        // Remove from ID maps
+        if (m_markerIds.contains(marker)) {
+            m_markerIds.remove(marker);
+        }
+        if (!markerId.isNull() && m_idToMarker.contains(markerId)) {
+            m_idToMarker.remove(markerId);
+        }
+        
         // Remove from lists
         m_markers.removeAt(index);
         m_markerTypes.removeAt(index);
@@ -285,8 +313,13 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
         // Delete marker
         delete marker;
         
-        qDebug() << "BTWInteractiveOverlay: Removed marker of type" << type;
+        qDebug() << "BTWInteractiveOverlay: Removed marker of type" << type << "ID:" << markerId.toString();
         emit markerRemoved(marker, type);
+        
+        // Emit sync signal for deletion
+        if (!markerId.isNull()) {
+            emit markerDeleted(markerId);
+        }
     }
 }
 
@@ -406,6 +439,12 @@ void BTWInteractiveOverlay::onMarkerMoved(const QPointF &newPosition)
         // Update bearing rate box position
         updateBearingRateBox(senderMarker);
         emit markerMoved(senderMarker, senderMarker->pos());
+        
+        // Emit sync signal
+        BTWSyncMarkerData markerData = getMarkerData(senderMarker);
+        if (!markerData.id.isNull()) {
+            emit markerDataChanged(markerData);
+        }
     }
 }
 
@@ -418,6 +457,12 @@ void BTWInteractiveOverlay::onMarkerRotated(qreal angle)
         // Update bearing rate box position (it should follow marker but not rotate)
         updateBearingRateBox(senderMarker);
         emit markerRotated(senderMarker, senderMarker->rotation());
+        
+        // Emit sync signal
+        BTWSyncMarkerData markerData = getMarkerData(senderMarker);
+        if (!markerData.id.isNull()) {
+            emit markerDataChanged(markerData);
+        }
     }
 }
 
@@ -807,4 +852,225 @@ void BTWInteractiveOverlay::setAllMarkersHorizontalOnly(bool horizontalOnly)
         }
     }
     qDebug() << "BTWInteractiveOverlay: Set all markers horizontal-only:" << horizontalOnly << "count:" << m_markers.size();
+}
+
+// ========== Marker Sync Methods Implementation ==========
+
+InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSyncMarkerData &markerData)
+{
+    if (!m_overlayScene || !m_btwGraph) {
+        qDebug() << "BTWInteractiveOverlay: Cannot create marker from data - no overlay scene or BTW graph";
+        return nullptr;
+    }
+    
+    // Check if marker with this ID already exists
+    if (m_idToMarker.contains(markerData.id)) {
+        qDebug() << "BTWInteractiveOverlay: Marker with ID" << markerData.id.toString() << "already exists, updating instead";
+        updateMarkerFromData(markerData);
+        return m_idToMarker[markerData.id];
+    }
+    
+    // Convert data coordinates to screen position
+    QPointF screenPos = m_btwGraph->mapDataToScreen(markerData.rangeValue, markerData.timestamp);
+    
+    // Create the marker using similar logic to addDataPointMarker
+    InteractiveGraphicsItem *marker = new InteractiveGraphicsItem();
+    marker->setPos(screenPos);
+    marker->setSize(QSizeF(20, 20));
+    
+    // Set custom drawing function (same as addDataPointMarker)
+    marker->setCustomDrawFunction([marker](QPainter *painter, const QRectF &rect) {
+        Q_UNUSED(rect);
+        
+        QColor markerColor = marker->getMarkerColor();
+        QColor lineColor = marker->getLineColor();
+        qreal lineWidth = marker->getLineWidth();
+        Qt::PenStyle lineStyle = marker->getLineStyle();
+        
+        qreal markerRadius = 10.0;
+        
+        painter->setPen(QPen(markerColor, lineWidth, lineStyle));
+        painter->setBrush(QBrush(Qt::transparent));
+        QRectF circleRect(-markerRadius, -markerRadius, 2*markerRadius, 2*markerRadius);
+        painter->drawEllipse(circleRect);
+        
+        qreal angleDegrees = 0.0;
+        qreal angleRadians = qDegreesToRadians(angleDegrees);
+        qreal lineLength = 5 * markerRadius;
+        
+        qreal deltaX = lineLength * qSin(angleRadians);
+        qreal deltaY = -lineLength * qCos(angleRadians);
+        
+        QPointF startPoint = QPointF(-deltaX, -deltaY);
+        QPointF endPoint = QPointF(deltaX, deltaY);
+        
+        painter->setPen(QPen(lineColor, lineWidth, lineStyle));
+        painter->drawLine(startPoint, endPoint);
+    });
+    
+    // Apply styling
+    marker->setDragRegionPen(m_dataPointPen);
+    marker->setDragRegionBrush(m_dataPointBrush);
+    marker->setShowDragRegion(false);
+    marker->setShowRotateRegion(false);
+    marker->setRotateRegionSize(QSizeF(12, 12));
+    
+    // Store data in marker
+    marker->setData(0, QVariant::fromValue(markerData.timestamp));
+    marker->setData(1, QVariant::fromValue(markerData.rangeValue));
+    marker->setData(2, QVariant::fromValue(markerData.id));
+    
+    // Set bearing rate (rotation)
+    marker->setRotation(markerData.bearingRate * 10.0);
+    
+    // Enable horizontal-only movement
+    marker->setMovementConstraints(false, true);
+    
+    // Add to scene and storage
+    m_overlayScene->addItem(marker);
+    m_markers.append(marker);
+    m_markerTypes.append(DataPoint);
+    m_markerIds[marker] = markerData.id;
+    m_idToMarker[markerData.id] = marker;
+    
+    // Connect signals
+    connectMarkerSignals(marker);
+    
+    // Create bearing rate box
+    updateBearingRateBox(marker);
+    
+    // Update scene
+    if (m_overlayScene) {
+        m_overlayScene->update();
+    }
+    
+    qDebug() << "BTWInteractiveOverlay: Created marker from sync data, ID:" << markerData.id.toString()
+             << "timestamp:" << markerData.timestamp.toString()
+             << "range:" << markerData.rangeValue
+             << "bearingRate:" << markerData.bearingRate;
+    
+    emit markerAdded(marker, DataPoint);
+    
+    return marker;
+}
+
+InteractiveGraphicsItem* BTWInteractiveOverlay::findMarkerById(const QUuid &id) const
+{
+    if (m_idToMarker.contains(id)) {
+        return m_idToMarker[id];
+    }
+    return nullptr;
+}
+
+QUuid BTWInteractiveOverlay::getMarkerId(InteractiveGraphicsItem *marker) const
+{
+    if (!marker) {
+        return QUuid();
+    }
+    
+    if (m_markerIds.contains(marker)) {
+        return m_markerIds[marker];
+    }
+    
+    // Try to get from marker data
+    QVariant idVariant = marker->data(2);
+    if (idVariant.isValid() && idVariant.canConvert<QUuid>()) {
+        return idVariant.value<QUuid>();
+    }
+    
+    return QUuid();
+}
+
+BTWSyncMarkerData BTWInteractiveOverlay::getMarkerData(InteractiveGraphicsItem *marker) const
+{
+    BTWSyncMarkerData data;
+    
+    if (!marker) {
+        return data;
+    }
+    
+    // Get ID
+    data.id = getMarkerId(marker);
+    
+    // Get timestamp
+    QVariant timestampVariant = marker->data(0);
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        data.timestamp = timestampVariant.value<QDateTime>();
+    }
+    
+    // Get range value from current position
+    if (m_btwGraph) {
+        data.rangeValue = m_btwGraph->mapScreenXToRange(marker->scenePos().x());
+    }
+    
+    // Get bearing rate from rotation
+    data.bearingRate = marker->rotation() / 10.0;
+    
+    data.isDeleted = false;
+    
+    return data;
+}
+
+bool BTWInteractiveOverlay::updateMarkerFromData(const BTWSyncMarkerData &markerData)
+{
+    InteractiveGraphicsItem *marker = findMarkerById(markerData.id);
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: Cannot update marker - ID not found:" << markerData.id.toString();
+        return false;
+    }
+    
+    if (!m_btwGraph) {
+        qDebug() << "BTWInteractiveOverlay: Cannot update marker - no BTW graph";
+        return false;
+    }
+    
+    // Convert data coordinates to screen position
+    QPointF screenPos = m_btwGraph->mapDataToScreen(markerData.rangeValue, markerData.timestamp);
+    
+    // Update position without constraints
+    marker->setPosWithoutConstraints(screenPos);
+    
+    // Update rotation (bearing rate)
+    marker->setRotation(markerData.bearingRate * 10.0);
+    
+    // Update stored data
+    marker->setData(0, QVariant::fromValue(markerData.timestamp));
+    marker->setData(1, QVariant::fromValue(markerData.rangeValue));
+    
+    // Update bearing rate box
+    updateBearingRateBox(marker);
+    
+    // Update scene
+    if (m_overlayScene) {
+        m_overlayScene->update();
+    }
+    
+    qDebug() << "BTWInteractiveOverlay: Updated marker from sync data, ID:" << markerData.id.toString();
+    
+    return true;
+}
+
+bool BTWInteractiveOverlay::removeMarkerById(const QUuid &id)
+{
+    InteractiveGraphicsItem *marker = findMarkerById(id);
+    if (!marker) {
+        qDebug() << "BTWInteractiveOverlay: Cannot remove marker - ID not found:" << id.toString();
+        return false;
+    }
+    
+    // Remove from ID maps
+    m_markerIds.remove(marker);
+    m_idToMarker.remove(id);
+    
+    // Remove using existing method (handles bearing rate box, scene, etc.)
+    removeMarker(marker);
+    
+    qDebug() << "BTWInteractiveOverlay: Removed marker by ID:" << id.toString();
+    
+    return true;
+}
+
+bool BTWInteractiveOverlay::hasMarker(const QUuid &id) const
+{
+    return m_idToMarker.contains(id) && m_idToMarker[id] != nullptr;
 }

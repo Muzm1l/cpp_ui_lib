@@ -919,7 +919,13 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(btwGraph, &BTWGraph::markerClickedWithData,
                 this, &GraphContainer::markerClickedWithData);
         
-        qDebug() << "GraphContainer: Connected BTW marker timestamp signals";
+        // Connect BTW marker sync signals (for syncing across containers)
+        connect(btwGraph, &BTWGraph::markerSyncDataChanged,
+                this, &GraphContainer::BTWMarkerSyncDataChanged);
+        connect(btwGraph, &BTWGraph::markerSyncDeleted,
+                this, &GraphContainer::BTWMarkerSyncDeleted);
+        
+        qDebug() << "GraphContainer: Connected BTW marker timestamp and sync signals";
     }
     
     // Connect RTW R marker signal
@@ -1604,6 +1610,44 @@ void GraphContainer::onBTWManualMarkerClicked(const QDateTime &timestamp, const 
 {
     qDebug() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWManualMarkerClicked(timestamp, position);
+}
+
+void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
+{
+    // This is called when receiving sync from another container
+    // Create or update the marker in our BTW graph
+    
+    // Get the BTW graph
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            // Check if marker already exists
+            if (btwGraph->hasMarkerWithSyncId(markerData.id)) {
+                btwGraph->updateMarkerFromSyncData(markerData);
+                qDebug() << "GraphContainer: Updated synced BTW marker:" << markerData.id.toString();
+            } else {
+                btwGraph->createMarkerFromSyncData(markerData);
+                qDebug() << "GraphContainer: Created synced BTW marker:" << markerData.id.toString();
+            }
+        }
+    }
+}
+
+void GraphContainer::onBTWMarkerSyncDeleted(const QUuid &markerId)
+{
+    // This is called when receiving sync from another container
+    // Delete the marker from our BTW graph
+    
+    // Get the BTW graph
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            btwGraph->deleteMarkerBySyncId(markerId);
+            qDebug() << "GraphContainer: Deleted synced BTW marker:" << markerId.toString();
+        }
+    }
 }
 
 // Chevron label control methods implementation
