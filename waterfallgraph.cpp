@@ -3,6 +3,7 @@
 #include <QApplication>
 #include <QPointF>
 #include <QPainter>
+#include <QGraphicsSceneMouseEvent>
 
 /**
  * @brief Construct a new WaterfallGraph::WaterfallGraph object
@@ -1073,22 +1074,37 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
                 }
             }
             
-            // First, try to forward the mouse event to the overlay view if we clicked on an interactive item
-            // This allows interactive markers (like BTW markers) to handle their own events
-            // RTW R markers are in graphicsScene and will be handled in RTWGraph::onMouseClick
+            // Try to dispatch event directly to interactive item in overlay scene
+            // This approach uses QGraphicsSceneMouseEvent for proper Qt graphics event handling
             if (overlayView && overlayScene) {
                 QPointF overlayScenePos = overlayView->mapToScene(event->pos());
                 QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-                // Filter out crosshair items - they should not intercept mouse events
-                // Only forward if we clicked on an actual interactive item (not crosshair, not empty)
-                if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
+                
+                // Filter out crosshair items and selection rect - they should not intercept mouse events
+                if (itemAtPos && 
+                    itemAtPos != crosshairHorizontal && 
+                    itemAtPos != crosshairVertical &&
+                    itemAtPos != selectionRect) {
+                    
                     qDebug() << "WaterfallGraph: Found interactive item at overlay position:" << overlayScenePos << "item:" << itemAtPos;
-                    // Forward the mouse event to the overlay view so the interactive item can handle it
-                    QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
-                    QApplication::postEvent(overlayView, overlayEvent);
-                    return; // Don't process further, let the overlay handle it
+                    
+                    // Create a QGraphicsSceneMouseEvent to dispatch to the item
+                    QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMousePress);
+                    sceneEvent.setScenePos(overlayScenePos);
+                    sceneEvent.setScreenPos(event->globalPos());
+                    sceneEvent.setButton(event->button());
+                    sceneEvent.setButtons(event->buttons());
+                    sceneEvent.setModifiers(event->modifiers());
+                    sceneEvent.setWidget(overlayView->viewport());
+                    
+                    // Send event directly to the scene - the scene will dispatch to the item
+                    QApplication::sendEvent(overlayScene, &sceneEvent);
+                    
+                    if (sceneEvent.isAccepted()) {
+                        qDebug() << "WaterfallGraph: Interactive item accepted the event";
+                        return; // Don't process further, the overlay item is handling it
+                    }
                 }
-                // If no interactive item found, continue to onMouseClick to allow adding new markers
             }
 
             isDragging = true;
@@ -1124,17 +1140,31 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
  */
 void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
 {
-    // First, try to forward the mouse event to the overlay view if we're dragging
-    if (isDragging && overlayView && overlayScene) {
+    // Forward mouse move events to overlay scene for interactive items
+    // This allows InteractiveGraphicsItem to receive move events during drag/rotate
+    if (overlayView && overlayScene) {
         QPointF overlayScenePos = overlayView->mapToScene(event->pos());
-        QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-        // Filter out crosshair items - they should not intercept mouse events
-        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
-            qDebug() << "WaterfallGraph: Forwarding mouse move to overlay item:" << itemAtPos;
-            // Forward the mouse event to the overlay view
-            QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
-            QApplication::postEvent(overlayView, overlayEvent);
-            return; // Don't process further, let the overlay handle it
+        
+        // Check if there's an item with mouse grab (during drag/rotate)
+        QGraphicsItem *mouseGrabberItem = overlayScene->mouseGrabberItem();
+        if (mouseGrabberItem) {
+            // Create a QGraphicsSceneMouseEvent for the move
+            QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMouseMove);
+            sceneEvent.setScenePos(overlayScenePos);
+            sceneEvent.setScreenPos(event->globalPos());
+            sceneEvent.setButton(event->button());
+            sceneEvent.setButtons(event->buttons());
+            sceneEvent.setModifiers(event->modifiers());
+            sceneEvent.setWidget(overlayView->viewport());
+            
+            // Send event to the scene
+            QApplication::sendEvent(overlayScene, &sceneEvent);
+            
+            if (sceneEvent.isAccepted()) {
+                // Update cursor position for crosshair
+                m_lastMousePos = event->pos();
+                return; // Don't process further, the overlay item is handling it
+            }
         }
     }
 
@@ -1274,15 +1304,26 @@ void WaterfallGraph::leaveEvent(QEvent *event)
  */
 void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
 {
-    // First, try to forward the mouse event to the overlay view if we're dragging
-    if (isDragging && overlayView && overlayScene) {
+    // Forward mouse release events to overlay scene for interactive items
+    if (overlayView && overlayScene) {
         QPointF overlayScenePos = overlayView->mapToScene(event->pos());
-        QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-        if (itemAtPos) {
-            qDebug() << "WaterfallGraph: Forwarding mouse release to overlay item:" << itemAtPos;
-            // Forward the mouse event to the overlay view
-            QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
-            QApplication::postEvent(overlayView, overlayEvent);
+        
+        // Check if there's an item with mouse grab (during drag/rotate)
+        QGraphicsItem *mouseGrabberItem = overlayScene->mouseGrabberItem();
+        if (mouseGrabberItem) {
+            // Create a QGraphicsSceneMouseEvent for the release
+            QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMouseRelease);
+            sceneEvent.setScenePos(overlayScenePos);
+            sceneEvent.setScreenPos(event->globalPos());
+            sceneEvent.setButton(event->button());
+            sceneEvent.setButtons(event->buttons());
+            sceneEvent.setModifiers(event->modifiers());
+            sceneEvent.setWidget(overlayView->viewport());
+            
+            // Send event to the scene
+            QApplication::sendEvent(overlayScene, &sceneEvent);
+            
+            qDebug() << "WaterfallGraph: Forwarded mouse release to overlay item:" << mouseGrabberItem;
         }
     }
 

@@ -113,6 +113,13 @@ void BTWGraph::draw()
     // Draw shaded regions
     drawShadedRegions();
     
+    // Sync interactive overlay markers with the new time range
+    // This updates marker Y positions to stay in sync with the timeline
+    if (m_interactiveOverlay) {
+        qDebug() << "BTWGraph::draw() - calling syncMarkersWithTimeline, timeMin:" << timeMin.toString() << "timeMax:" << timeMax.toString();
+        m_interactiveOverlay->syncMarkersWithTimeline();
+    }
+    
     isDrawing = false;
 }
 
@@ -487,7 +494,7 @@ void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &p
         return;
     }
     
-    // First try to get timestamp from marker's stored data
+    // First try to get timestamp from marker's stored data (key 0)
     QVariant timestampVariant = marker->data(0);
     QDateTime timestamp;
     
@@ -500,30 +507,45 @@ void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &p
         timestamp = mapScreenToTime(yPos);
     }
     
+    // Get range value from marker's X position
+    QPointF scenePos = marker->scenePos();
+    qreal rangeValue = mapScreenXToRange(scenePos.x());
+    
+    // Get bearing rate from marker's rotation
+    // The bearing rate is stored as rotation / 10.0 (same as delta value)
+    qreal bearingRate = marker->rotation() / 10.0;
+    
+    // Also check if there's a stored delta value (key 1)
+    QVariant deltaVariant = marker->data(1);
+    if (deltaVariant.isValid() && deltaVariant.canConvert<qreal>()) {
+        // If delta was stored, use it (might be more accurate)
+        bearingRate = deltaVariant.value<qreal>();
+    }
+    
     if (timestamp.isValid()) {
         qDebug() << "========================================";
-        qDebug() << "BTW MANUAL MARKER CLICKED - TIMESTAMP RETURNED";
+        qDebug() << "BTW MANUAL MARKER CLICKED - FULL DATA RETURNED";
         qDebug() << "========================================";
         qDebug() << "BTWGraph: Marker clicked at position:" << position;
-        qDebug() << "BTWGraph: Marker scene position:" << marker->scenePos();
+        qDebug() << "BTWGraph: Marker scene position:" << scenePos;
         qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+        qDebug() << "BTWGraph: RANGE VALUE:" << rangeValue;
+        qDebug() << "BTWGraph: BEARING RATE (Box Value):" << bearingRate;
         qDebug() << "========================================";
         
-        // Get value from marker's X position (range value)
-        QPointF scenePos = marker->scenePos();
-        qreal value = mapScreenXToRange(scenePos.x());
+        // Emit signal for external integration (legacy)
+        emit manualMarkerClicked(timestamp, scenePos);
         
-        qDebug() << "BTWGraph: Emitting markerTimestampValueChanged signal - timestamp:" << timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz") << "value:" << value;
+        // Emit signal for marker timestamp and value (legacy - propagates through GraphContainer -> GraphLayout)
+        emit markerTimestampValueChanged(timestamp, rangeValue);
         
-        // Emit signal for external integration
-        emit manualMarkerClicked(timestamp, marker->scenePos());
+        // Emit new comprehensive signal with all three values
+        emit markerClickedWithData(timestamp, rangeValue, bearingRate);
         
-        // Emit signal for marker timestamp and value (this will propagate through GraphContainer -> GraphLayout)
-        emit markerTimestampValueChanged(timestamp, value);
-        
-        qDebug() << "BTWGraph: markerTimestampValueChanged signal emitted successfully";
+        qDebug() << "BTWGraph: All marker click signals emitted successfully";
     } else {
         qDebug() << "BTWGraph: Marker clicked at:" << position << "- Could not determine timestamp (invalid)";
+        qDebug() << "BTWGraph: Range value:" << rangeValue << "Bearing rate:" << bearingRate;
     }
 }
 

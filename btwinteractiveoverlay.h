@@ -152,6 +152,132 @@ public:
      */
     QGraphicsScene* getOverlayScene() const { return m_overlayScene; }
 
+    // ========== Marker Customization API ==========
+    
+    /**
+     * @brief Set style for a specific marker
+     * @param marker Pointer to the marker
+     * @param markerColor Color of the marker circle
+     * @param lineColor Color of the marker line (defaults to markerColor if not specified)
+     * @param lineWidth Width of the line
+     */
+    void setMarkerStyle(InteractiveGraphicsItem *marker, 
+                       const QColor &markerColor,
+                       const QColor &lineColor = QColor(),
+                       qreal lineWidth = 2.0);
+    
+    /**
+     * @brief Set all markers to specified style
+     * @param markerColor Color of all marker circles
+     * @param lineColor Color of all marker lines (defaults to markerColor if not specified)
+     * @param lineWidth Width of all lines
+     */
+    void setAllMarkersStyle(const QColor &markerColor,
+                           const QColor &lineColor = QColor(),
+                           qreal lineWidth = 2.0);
+    
+    /**
+     * @brief Lock/unlock a specific marker
+     * @param marker Pointer to the marker
+     * @param locked True to lock the marker
+     */
+    void setMarkerLocked(InteractiveGraphicsItem *marker, bool locked);
+    
+    /**
+     * @brief Lock/unlock all markers
+     * @param locked True to lock all markers
+     */
+    void setAllMarkersLocked(bool locked);
+    
+    /**
+     * @brief Set marker opacity
+     * @param marker Pointer to the marker
+     * @param opacity Opacity value (0.0 - 1.0)
+     */
+    void setMarkerOpacity(InteractiveGraphicsItem *marker, qreal opacity);
+    
+    /**
+     * @brief Set all markers opacity
+     * @param opacity Opacity value (0.0 - 1.0)
+     */
+    void setAllMarkersOpacity(qreal opacity);
+    
+    /**
+     * @brief Get marker at position
+     * @param position Scene position to check
+     * @return Pointer to marker at position, or nullptr if none
+     */
+    InteractiveGraphicsItem* getMarkerAt(const QPointF &position) const;
+    
+    /**
+     * @brief Select multiple markers
+     * @param markers List of markers to select
+     */
+    void selectMarkers(const QList<InteractiveGraphicsItem*> &markers);
+    
+    /**
+     * @brief Get list of selected markers
+     * @return List of selected markers
+     */
+    QList<InteractiveGraphicsItem*> getSelectedMarkers() const;
+    
+    /**
+     * @brief Clear marker selection
+     */
+    void clearSelection();
+    
+    /**
+     * @brief Move selected markers by offset
+     * @param offset Offset to move markers
+     */
+    void moveSelectedMarkers(const QPointF &offset);
+    
+    /**
+     * @brief Delete selected markers
+     */
+    void deleteSelectedMarkers();
+    
+    /**
+     * @brief Set movement constraints for a marker
+     * @param marker Pointer to the marker
+     * @param constrainX True to constrain X movement
+     * @param constrainY True to constrain Y movement
+     */
+    void setMarkerConstraints(InteractiveGraphicsItem *marker, bool constrainX, bool constrainY);
+    
+    /**
+     * @brief Set movement bounds for a marker
+     * @param marker Pointer to the marker
+     * @param bounds Rectangle defining valid movement area
+     */
+    void setMarkerBounds(InteractiveGraphicsItem *marker, const QRectF &bounds);
+    
+    /**
+     * @brief Sync marker positions with timeline movement
+     * 
+     * Updates the Y position of all markers based on their stored timestamps
+     * and the current time range of the graph. This should be called after
+     * the graph redraws or time range changes to keep markers in sync.
+     */
+    void syncMarkersWithTimeline();
+    
+    /**
+     * @brief Set horizontal-only movement for a marker
+     * 
+     * Constrains the marker to only move horizontally (along the same timestamp).
+     * Vertical movement is blocked.
+     * 
+     * @param marker Pointer to the marker
+     * @param horizontalOnly True to enable horizontal-only movement
+     */
+    void setMarkerHorizontalOnly(InteractiveGraphicsItem *marker, bool horizontalOnly);
+    
+    /**
+     * @brief Set horizontal-only movement for all markers
+     * @param horizontalOnly True to enable horizontal-only movement for all markers
+     */
+    void setAllMarkersHorizontalOnly(bool horizontalOnly);
+
 signals:
     /**
      * @brief Emitted when a marker is added

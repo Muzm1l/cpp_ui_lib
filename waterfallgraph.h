@@ -143,7 +143,6 @@ protected:
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
     void drawBTWSymbols();
-    QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
 
     // State machine for rendering
     enum class RenderState {
@@ -251,8 +250,11 @@ private slots:
     void updateCursorLayer();
 
 public:
-    // Mouse selection control
+    // Coordinate mapping methods (public for overlay sync)
     qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
+    QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const; // Convert data to screen coordinates
+    
+    // Mouse selection control
     void setMouseSelectionEnabled(bool enabled);
     bool isMouseSelectionEnabled() const;
 

@@ -131,7 +131,124 @@ public:
      */
     InteractionRegion getInteractionRegion(const QPointF &pos) const;
 
+    // ========== Marker Customization API ==========
+    
+    /**
+     * @brief Set marker color (circle/shape color)
+     * @param color The color to set
+     */
+    void setMarkerColor(const QColor &color);
+    
+    /**
+     * @brief Get marker color
+     * @return Current marker color
+     */
+    QColor getMarkerColor() const { return m_markerColor; }
+    
+    /**
+     * @brief Set marker line color
+     * @param color The color to set
+     */
+    void setLineColor(const QColor &color);
+    
+    /**
+     * @brief Get marker line color
+     * @return Current line color
+     */
+    QColor getLineColor() const { return m_lineColor; }
+    
+    /**
+     * @brief Set marker opacity (0.0 - 1.0)
+     * @param opacity The opacity value
+     */
+    void setMarkerOpacity(qreal opacity);
+    
+    /**
+     * @brief Get marker opacity
+     * @return Current opacity value
+     */
+    qreal getMarkerOpacity() const { return m_opacity; }
+    
+    /**
+     * @brief Set marker line width
+     * @param width The line width in pixels
+     */
+    void setLineWidth(qreal width);
+    
+    /**
+     * @brief Get marker line width
+     * @return Current line width
+     */
+    qreal getLineWidth() const { return m_lineWidth; }
+    
+    /**
+     * @brief Set marker line style
+     * @param style The Qt pen style
+     */
+    void setLineStyle(Qt::PenStyle style);
+    
+    /**
+     * @brief Get marker line style
+     * @return Current line style
+     */
+    Qt::PenStyle getLineStyle() const { return m_lineStyle; }
+    
+    /**
+     * @brief Lock/unlock marker movement
+     * @param locked True to lock the marker
+     */
+    void setLocked(bool locked);
+    
+    /**
+     * @brief Check if marker is locked
+     * @return True if marker is locked
+     */
+    bool isLocked() const { return m_locked; }
+    
+    /**
+     * @brief Set constraints on movement
+     * @param constrainX True to constrain X movement
+     * @param constrainY True to constrain Y movement
+     */
+    void setMovementConstraints(bool constrainX, bool constrainY);
+    
+    /**
+     * @brief Set movement bounds
+     * @param bounds Rectangle defining valid movement area
+     */
+    void setMovementBounds(const QRectF &bounds);
+    
+    /**
+     * @brief Get movement bounds
+     * @return Current movement bounds
+     */
+    QRectF getMovementBounds() const { return m_movementBounds; }
+    
+    /**
+     * @brief Check if marker is currently being dragged
+     * @return True if dragging
+     */
+    bool isDragging() const { return m_isDragging; }
+    
+    /**
+     * @brief Check if marker is currently being rotated
+     * @return True if rotating
+     */
+    bool isRotating() const { return m_isRotating; }
+    
+    /**
+     * @brief Set position while bypassing movement constraints
+     * 
+     * This is used for programmatic position updates (like timeline sync)
+     * that should not be blocked by user movement constraints.
+     * 
+     * @param pos New position
+     */
+    void setPosWithoutConstraints(const QPointF &pos);
+
 protected:
+    // Override itemChange for movement constraints
+    QVariant itemChange(GraphicsItemChange change, const QVariant &value) override;
     // Mouse event handlers
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override;
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
@@ -159,6 +276,34 @@ signals:
      * @param position Position of the click
      */
     void regionClicked(InteractionRegion region, const QPointF &position);
+    
+    /**
+     * @brief Emitted when marker color changes
+     * @param newColor The new color
+     */
+    void colorChanged(const QColor &newColor);
+    
+    /**
+     * @brief Emitted when marker opacity changes
+     * @param newOpacity The new opacity
+     */
+    void opacityChanged(qreal newOpacity);
+    
+    /**
+     * @brief Emitted when marker locked state changes
+     * @param locked The new locked state
+     */
+    void lockedChanged(bool locked);
+    
+    /**
+     * @brief Emitted when marker is selected
+     */
+    void markerSelected();
+    
+    /**
+     * @brief Emitted when marker is deselected
+     */
+    void markerDeselected();
 
 private:
     // Item properties
@@ -185,6 +330,18 @@ private:
     bool m_isRotating;
     QPointF m_lastMousePos;
     qreal m_initialRotation;
+    
+    // Customization properties
+    QColor m_markerColor;
+    QColor m_lineColor;
+    qreal m_opacity;
+    Qt::PenStyle m_lineStyle;
+    qreal m_lineWidth;
+    bool m_locked;
+    bool m_constrainX;
+    bool m_constrainY;
+    QRectF m_movementBounds;
+    bool m_bypassConstraints;  // Flag to temporarily bypass constraints for programmatic updates
 
     // Helper methods
     void updateInteractionRegions();
