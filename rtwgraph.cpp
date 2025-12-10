@@ -102,7 +102,7 @@ void RTWGraph::draw()
                 {
                     // RTW R markers are now manually placed through data source - no automatic generation
                     // Draw data as scatterplot for other series
-                    drawScatterplot(seriesLabel, getSeriesColor(seriesLabel), 3.0, Qt::black);
+                    drawScatterplot(seriesLabel, getSeriesColor(seriesLabel), 4.0, Qt::black);
                 }
             }
         }
