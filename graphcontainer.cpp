@@ -1,4 +1,5 @@
 #include "graphcontainer.h"
+#include "btwinteractiveoverlay.h"
 #include <QDebug>
 #include <QTimer>
 #include <stdexcept>
@@ -1553,6 +1554,22 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
     {
         qreal centerStickerValue = m_zoomPanel->getCenterLabelValue();
         m_currentWaterfallGraph->setZeroAxisValue(centerStickerValue);
+    }
+
+    // Sync BTW markers with the new zoom range
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end())
+    {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph)
+        {
+            BTWInteractiveOverlay *overlay = btwGraph->getInteractiveOverlay();
+            if (overlay)
+            {
+                overlay->syncMarkersWithTimeline();
+                qDebug() << "GraphContainer: Synced BTW markers with zoom panel";
+            }
+        }
     }
 
     qDebug() << "GraphContainer: Custom Y range set directly from interpolated bounds and time range updated";
