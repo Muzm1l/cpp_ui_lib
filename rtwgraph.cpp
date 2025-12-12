@@ -118,6 +118,9 @@ void RTWGraph::draw()
     // Draw RTW symbols
     drawRTWSymbols();
     
+    // Draw BTW symbols (magenta circles from BTW graph markers)
+    drawBTWSymbols();
+    
     isDrawing = false;
 }
 
