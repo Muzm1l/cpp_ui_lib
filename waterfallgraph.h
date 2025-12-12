@@ -4,6 +4,7 @@
 #include "drawutils.h"
 #include "timelineutils.h"
 #include "waterfalldata.h"
+#include "btwsymboldrawing.h"
 #include <QColor>
 #include <QCoreApplication>
 #include <QFont>
@@ -143,6 +144,9 @@ protected:
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
     void drawBTWSymbols();
+    
+    // Cached BTW symbol drawing (magenta circles)
+    BTWSymbolDrawing m_btwSymbols;
 
     // State machine for rendering
     enum class RenderState {
