@@ -1248,12 +1248,6 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     
     // Notify cursor time cleared
     notifyCursorTimeChanged(QDateTime());
-    
-    // Stop cursor layer timer when mouse leaves to reduce CPU usage
-    if (cursorUpdateTimer && cursorUpdateTimer->isActive())
-    {
-        cursorUpdateTimer->stop();
-    }
 }
 
 /**
@@ -1377,7 +1371,11 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         cursorScene->setSceneRect(0, 0, this->size().width(), this->size().height());
     }
 
-    // Don't start cursor timer here - it will be started when mouse enters widget
+    // Start cursor update timer if cursor layer is enabled
+    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
+    {
+        cursorUpdateTimer->start();
+    }
 
     // Update graphics dimensions now that we're visible
     updateGraphicsDimensions();
