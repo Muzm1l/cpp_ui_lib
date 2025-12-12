@@ -813,24 +813,28 @@ void BTWInteractiveOverlay::syncMarkersWithTimeline()
             continue;
         }
         
-        // Get the current X position (range value) - this stays the same
-        qreal currentX = marker->pos().x();
+        // Get the stored range value from the marker (key 1)
+        QVariant rangeVariant = marker->data(1);
+        qreal rangeValue = 0.0;
+        if (rangeVariant.isValid() && rangeVariant.canConvert<qreal>()) {
+            rangeValue = rangeVariant.value<qreal>();
+        } else {
+            // Fallback: calculate range from current X position (less accurate after zoom)
+            qreal currentX = marker->pos().x();
+            rangeValue = m_btwGraph->mapScreenXToRange(currentX);
+            qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker has no stored range, calculated:" << rangeValue;
+        }
         
-        // Calculate the range value from current X position
-        qreal rangeValue = m_btwGraph->mapScreenXToRange(currentX);
-        
-        // Map the timestamp and range to new screen position
+        // Map the stored range and timestamp to new screen position
         QPointF newScreenPos = m_btwGraph->mapDataToScreen(rangeValue, timestamp);
         
         qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker timestamp:" << timestamp.toString()
-                 << "currentPos:" << marker->pos() << "newScreenPos:" << newScreenPos;
+                 << "range:" << rangeValue << "currentPos:" << marker->pos() << "newScreenPos:" << newScreenPos;
         
-        // Update position using the bypass method to avoid constraint blocking
-        // Keep X the same, only update Y to follow timeline scroll
-        QPointF newPos(currentX, newScreenPos.y());
-        if (newPos != marker->pos()) {
-            // Use setPosWithoutConstraints to bypass the Y constraint
-            marker->setPosWithoutConstraints(newPos);
+        // Update both X and Y positions based on stored data values
+        if (newScreenPos != marker->pos()) {
+            // Use setPosWithoutConstraints to bypass constraints
+            marker->setPosWithoutConstraints(newScreenPos);
             
             // Update the bearing rate box position
             updateBearingRateBox(marker);
