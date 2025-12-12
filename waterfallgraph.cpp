@@ -787,7 +787,7 @@ void WaterfallGraph::transitionToAppropriateState()
 
 /**
  * @brief Draw BTW symbols (magenta circles) from data source
- *
+ * Uses cached pixmap from BTWSymbolDrawing for better performance
  */
 void WaterfallGraph::drawBTWSymbols()
 {
@@ -825,7 +825,14 @@ void WaterfallGraph::drawBTWSymbols()
         visibleSymbols = btwSymbols;
     }
     
-    // Draw symbols using a simple magenta circle (we'll create it inline since BTWSymbolDrawing is BTW-specific)
+    // Get cached magenta circle pixmap
+    const QPixmap& symbolPixmap = m_btwSymbols.get(BTWSymbolDrawing::SymbolType::MagentaCircle);
+    if (symbolPixmap.isNull())
+    {
+        return;
+    }
+    
+    // Draw symbols using cached pixmap for better performance
     for (const auto& symbolData : visibleSymbols)
     {
         // Map symbol position to screen coordinates
@@ -837,15 +844,14 @@ void WaterfallGraph::drawBTWSymbols()
             continue;
         }
         
-        // Draw a simple magenta circle
-        QGraphicsEllipseItem *magentaCircle = new QGraphicsEllipseItem();
-        qreal circleSize = 8.0; // Small circle, 8 pixels diameter
-        magentaCircle->setRect(screenPos.x() - circleSize/2, screenPos.y() - circleSize/2, circleSize, circleSize);
-        magentaCircle->setPen(QPen(QColor(255, 0, 255), 2)); // Magenta color
-        magentaCircle->setBrush(QBrush(QColor(255, 0, 255))); // Filled magenta
-        magentaCircle->setZValue(1003); // Above markers but below interactive items
+        // Create a graphics pixmap item using cached pixmap
+        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
         
-        graphicsScene->addItem(magentaCircle);
+        // Center the symbol on the data point
+        pixmapItem->setPos(screenPos.x() - symbolPixmap.width()/2, screenPos.y() - symbolPixmap.height()/2);
+        pixmapItem->setZValue(1003); // Above markers but below interactive items
+        
+        graphicsScene->addItem(pixmapItem);
     }
 
     // If only ranges need update
