@@ -438,6 +438,13 @@ void BTWInteractiveOverlay::onMarkerMoved(const QPointF &newPosition)
     if (senderMarker) {
         // Update bearing rate box position
         updateBearingRateBox(senderMarker);
+        
+        // Update the stored range value when marker is moved horizontally
+        if (m_btwGraph) {
+            qreal newRangeValue = m_btwGraph->mapScreenXToRange(senderMarker->scenePos().x());
+            senderMarker->setData(1, QVariant::fromValue(newRangeValue));
+        }
+        
         emit markerMoved(senderMarker, senderMarker->pos());
         
         // Emit sync signal
