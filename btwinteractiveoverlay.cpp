@@ -10,7 +10,6 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QVariant>
-#include <QDebug>
 
 BTWInteractiveOverlay::BTWInteractiveOverlay(BTWGraph *btwGraph, QObject *parent)
     : QObject(parent)
@@ -20,32 +19,22 @@ BTWInteractiveOverlay::BTWInteractiveOverlay(BTWGraph *btwGraph, QObject *parent
     // Get the overlay scene from the BTW graph
     if (m_btwGraph) {
         m_overlayScene = m_btwGraph->getOverlayScene();
-        if (m_overlayScene) {
-            qDebug() << "BTWInteractiveOverlay: Connected to overlay scene";
-        } else {
-            qDebug() << "BTWInteractiveOverlay: Warning - overlay scene is null";
-        }
-    } else {
-        qDebug() << "BTWInteractiveOverlay: Warning - BTW graph is null";
     }
 
     // Setup default styles
     setupDefaultStyles();
-
-    qDebug() << "BTWInteractiveOverlay created";
 }
 
 BTWInteractiveOverlay::~BTWInteractiveOverlay()
 {
-    qDebug() << "BTWInteractiveOverlay destroyed";
 }
 
 InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF &position, const QDateTime &timestamp, qreal value, const QString &seriesLabel)
 {
     Q_UNUSED(value); // Not used yet but may be used for bearing rate calculation in future
+    Q_UNUSED(seriesLabel);
     
     if (!m_overlayScene) {
-        qDebug() << "BTWInteractiveOverlay: Cannot add marker - no overlay scene";
         return nullptr;
     }
 
@@ -55,9 +44,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
 
     // Set custom drawing function for data point
     // The lambda captures the marker pointer to read current color/style settings
-    marker->setCustomDrawFunction([marker, timestamp, seriesLabel](QPainter *painter, const QRectF &rect) {
-        Q_UNUSED(timestamp);
-        Q_UNUSED(seriesLabel);
+    marker->setCustomDrawFunction([marker](QPainter *painter, const QRectF &rect) {
         Q_UNUSED(rect);
         
         // Get color settings from the marker (allows runtime customization)
@@ -135,11 +122,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     // Create bearing rate box for the marker
     updateBearingRateBox(marker);
 
-    qDebug() << "BTWInteractiveOverlay: Added data point marker at" << position << "for series" << seriesLabel;
-    qDebug() << "BTWInteractiveOverlay: Marker ID:" << markerId.toString();
-    qDebug() << "BTWInteractiveOverlay: Marker bounding rect:" << marker->boundingRect();
-    qDebug() << "BTWInteractiveOverlay: Marker scene pos:" << marker->pos();
-    qDebug() << "BTWInteractiveOverlay: Marker scene bounding rect:" << marker->sceneBoundingRect();
     emit markerAdded(marker, DataPoint);
     
     // Emit marker data changed signal for sync
@@ -157,7 +139,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
 InteractiveGraphicsItem* BTWInteractiveOverlay::addReferenceLineMarker(const QPointF &startPos, const QPointF &endPos, const QString &label)
 {
     if (!m_overlayScene) {
-        qDebug() << "BTWInteractiveOverlay: Cannot add marker - no overlay scene";
         return nullptr;
     }
 
@@ -194,7 +175,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addReferenceLineMarker(const QPo
     // Connect signals
     connectMarkerSignals(marker);
 
-    qDebug() << "BTWInteractiveOverlay: Added reference line marker from" << startPos << "to" << endPos;
     emit markerAdded(marker, ReferenceLine);
 
     return marker;
@@ -203,7 +183,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addReferenceLineMarker(const QPo
 InteractiveGraphicsItem* BTWInteractiveOverlay::addAnnotationMarker(const QPointF &position, const QString &text, const QColor &color)
 {
     if (!m_overlayScene) {
-        qDebug() << "BTWInteractiveOverlay: Cannot add marker - no overlay scene";
         return nullptr;
     }
 
@@ -239,7 +218,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addAnnotationMarker(const QPoint
     // Connect signals
     connectMarkerSignals(marker);
 
-    qDebug() << "BTWInteractiveOverlay: Added annotation marker at" << position << "with text:" << text;
     emit markerAdded(marker, Annotation);
 
     return marker;
@@ -248,7 +226,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addAnnotationMarker(const QPoint
 InteractiveGraphicsItem* BTWInteractiveOverlay::addCustomMarker(const QPointF &position, const QSizeF &size)
 {
     if (!m_overlayScene) {
-        qDebug() << "BTWInteractiveOverlay: Cannot add marker - no overlay scene";
         return nullptr;
     }
 
@@ -268,7 +245,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addCustomMarker(const QPointF &p
     // Connect signals
     connectMarkerSignals(marker);
 
-    qDebug() << "BTWInteractiveOverlay: Added custom marker at" << position << "with size" << size;
     emit markerAdded(marker, CustomMarker);
 
     return marker;
@@ -313,7 +289,6 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
         // Delete marker
         delete marker;
         
-        qDebug() << "BTWInteractiveOverlay: Removed marker of type" << type << "ID:" << markerId.toString();
         emit markerRemoved(marker, type);
         
         // Emit sync signal for deletion
@@ -325,8 +300,6 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
 
 void BTWInteractiveOverlay::clearAllMarkers()
 {
-    qDebug() << "BTWInteractiveOverlay: Clearing all markers";
-    
     // Disconnect all signals and remove all markers
     for (InteractiveGraphicsItem *marker : m_markers) {
         // Remove bearing rate items
@@ -347,8 +320,6 @@ void BTWInteractiveOverlay::clearAllMarkers()
     if (m_overlayScene) {
         m_overlayScene->update();
     }
-    
-    qDebug() << "BTWInteractiveOverlay: All markers cleared";
 }
 
 QList<InteractiveGraphicsItem*> BTWInteractiveOverlay::getMarkers(MarkerType type) const
@@ -628,7 +599,6 @@ void BTWInteractiveOverlay::setMarkerStyle(InteractiveGraphicsItem *marker,
                                            qreal lineWidth)
 {
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: setMarkerStyle - marker is null";
         return;
     }
     
@@ -638,8 +608,6 @@ void BTWInteractiveOverlay::setMarkerStyle(InteractiveGraphicsItem *marker,
     
     // Update the bearing rate box to match the new color
     updateBearingRateBox(marker);
-    
-    qDebug() << "BTWInteractiveOverlay: Set marker style - color:" << markerColor << "lineWidth:" << lineWidth;
 }
 
 void BTWInteractiveOverlay::setAllMarkersStyle(const QColor &markerColor,
@@ -649,18 +617,15 @@ void BTWInteractiveOverlay::setAllMarkersStyle(const QColor &markerColor,
     for (InteractiveGraphicsItem *marker : m_markers) {
         setMarkerStyle(marker, markerColor, lineColor, lineWidth);
     }
-    qDebug() << "BTWInteractiveOverlay: Set all markers style - count:" << m_markers.size();
 }
 
 void BTWInteractiveOverlay::setMarkerLocked(InteractiveGraphicsItem *marker, bool locked)
 {
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: setMarkerLocked - marker is null";
         return;
     }
     
     marker->setLocked(locked);
-    qDebug() << "BTWInteractiveOverlay: Set marker locked:" << locked;
 }
 
 void BTWInteractiveOverlay::setAllMarkersLocked(bool locked)
@@ -668,18 +633,15 @@ void BTWInteractiveOverlay::setAllMarkersLocked(bool locked)
     for (InteractiveGraphicsItem *marker : m_markers) {
         marker->setLocked(locked);
     }
-    qDebug() << "BTWInteractiveOverlay: Set all markers locked:" << locked << "count:" << m_markers.size();
 }
 
 void BTWInteractiveOverlay::setMarkerOpacity(InteractiveGraphicsItem *marker, qreal opacity)
 {
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: setMarkerOpacity - marker is null";
         return;
     }
     
     marker->setMarkerOpacity(opacity);
-    qDebug() << "BTWInteractiveOverlay: Set marker opacity:" << opacity;
 }
 
 void BTWInteractiveOverlay::setAllMarkersOpacity(qreal opacity)
@@ -687,7 +649,6 @@ void BTWInteractiveOverlay::setAllMarkersOpacity(qreal opacity)
     for (InteractiveGraphicsItem *marker : m_markers) {
         marker->setMarkerOpacity(opacity);
     }
-    qDebug() << "BTWInteractiveOverlay: Set all markers opacity:" << opacity << "count:" << m_markers.size();
 }
 
 InteractiveGraphicsItem* BTWInteractiveOverlay::getMarkerAt(const QPointF &position) const
@@ -718,8 +679,6 @@ void BTWInteractiveOverlay::selectMarkers(const QList<InteractiveGraphicsItem*> 
             marker->setSelected(true);
         }
     }
-    
-    qDebug() << "BTWInteractiveOverlay: Selected" << markers.size() << "markers";
 }
 
 QList<InteractiveGraphicsItem*> BTWInteractiveOverlay::getSelectedMarkers() const
@@ -742,7 +701,6 @@ void BTWInteractiveOverlay::clearSelection()
             marker->setSelected(false);
         }
     }
-    qDebug() << "BTWInteractiveOverlay: Cleared selection";
 }
 
 void BTWInteractiveOverlay::moveSelectedMarkers(const QPointF &offset)
@@ -756,8 +714,6 @@ void BTWInteractiveOverlay::moveSelectedMarkers(const QPointF &offset)
             emit markerMoved(marker, marker->pos());
         }
     }
-    
-    qDebug() << "BTWInteractiveOverlay: Moved" << selectedMarkers.size() << "selected markers by" << offset;
 }
 
 void BTWInteractiveOverlay::deleteSelectedMarkers()
@@ -767,38 +723,29 @@ void BTWInteractiveOverlay::deleteSelectedMarkers()
     for (InteractiveGraphicsItem *marker : selectedMarkers) {
         removeMarker(marker);
     }
-    
-    qDebug() << "BTWInteractiveOverlay: Deleted" << selectedMarkers.size() << "selected markers";
 }
 
 void BTWInteractiveOverlay::setMarkerConstraints(InteractiveGraphicsItem *marker, bool constrainX, bool constrainY)
 {
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: setMarkerConstraints - marker is null";
         return;
     }
     
     marker->setMovementConstraints(constrainX, constrainY);
-    qDebug() << "BTWInteractiveOverlay: Set marker constraints - constrainX:" << constrainX << "constrainY:" << constrainY;
 }
 
 void BTWInteractiveOverlay::setMarkerBounds(InteractiveGraphicsItem *marker, const QRectF &bounds)
 {
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: setMarkerBounds - marker is null";
         return;
     }
     
     marker->setMovementBounds(bounds);
-    qDebug() << "BTWInteractiveOverlay: Set marker bounds:" << bounds;
 }
 
 void BTWInteractiveOverlay::syncMarkersWithTimeline()
 {
-    qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline called with" << m_markers.size() << "markers";
-    
     if (!m_btwGraph) {
-        qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - no BTW graph";
         return;
     }
     
@@ -810,13 +757,11 @@ void BTWInteractiveOverlay::syncMarkersWithTimeline()
         // Get the stored timestamp from the marker (key 0)
         QVariant timestampVariant = marker->data(0);
         if (!timestampVariant.isValid() || !timestampVariant.canConvert<QDateTime>()) {
-            qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker has no valid timestamp";
             continue;
         }
         
         QDateTime timestamp = timestampVariant.value<QDateTime>();
         if (!timestamp.isValid()) {
-            qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - timestamp is invalid";
             continue;
         }
         
@@ -829,14 +774,10 @@ void BTWInteractiveOverlay::syncMarkersWithTimeline()
             // Fallback: calculate range from current X position (less accurate after zoom)
             qreal currentX = marker->pos().x();
             rangeValue = m_btwGraph->mapScreenXToRange(currentX);
-            qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker has no stored range, calculated:" << rangeValue;
         }
         
         // Map the stored range and timestamp to new screen position
         QPointF newScreenPos = m_btwGraph->mapDataToScreen(rangeValue, timestamp);
-        
-        qDebug() << "BTWInteractiveOverlay: syncMarkersWithTimeline - marker timestamp:" << timestamp.toString()
-                 << "range:" << rangeValue << "currentPos:" << marker->pos() << "newScreenPos:" << newScreenPos;
         
         // Update both X and Y positions based on stored data values
         if (newScreenPos != marker->pos()) {
@@ -851,8 +792,6 @@ void BTWInteractiveOverlay::syncMarkersWithTimeline()
     }
     
     if (markersUpdated > 0) {
-        qDebug() << "BTWInteractiveOverlay: Synced" << markersUpdated << "markers with timeline";
-        
         // Force overlay scene update to ensure visual refresh
         if (m_overlayScene) {
             m_overlayScene->update();
@@ -863,14 +802,11 @@ void BTWInteractiveOverlay::syncMarkersWithTimeline()
 void BTWInteractiveOverlay::setMarkerHorizontalOnly(InteractiveGraphicsItem *marker, bool horizontalOnly)
 {
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: setMarkerHorizontalOnly - marker is null";
         return;
     }
     
     // Constrain Y movement (vertical) while allowing X movement (horizontal)
     marker->setMovementConstraints(false, horizontalOnly);  // constrainX=false, constrainY=horizontalOnly
-    
-    qDebug() << "BTWInteractiveOverlay: Set marker horizontal-only:" << horizontalOnly;
 }
 
 void BTWInteractiveOverlay::setAllMarkersHorizontalOnly(bool horizontalOnly)
@@ -880,7 +816,6 @@ void BTWInteractiveOverlay::setAllMarkersHorizontalOnly(bool horizontalOnly)
             marker->setMovementConstraints(false, horizontalOnly);
         }
     }
-    qDebug() << "BTWInteractiveOverlay: Set all markers horizontal-only:" << horizontalOnly << "count:" << m_markers.size();
 }
 
 // ========== Marker Sync Methods Implementation ==========
@@ -888,13 +823,11 @@ void BTWInteractiveOverlay::setAllMarkersHorizontalOnly(bool horizontalOnly)
 InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSyncMarkerData &markerData)
 {
     if (!m_overlayScene || !m_btwGraph) {
-        qDebug() << "BTWInteractiveOverlay: Cannot create marker from data - no overlay scene or BTW graph";
         return nullptr;
     }
     
     // Check if marker with this ID already exists
     if (m_idToMarker.contains(markerData.id)) {
-        qDebug() << "BTWInteractiveOverlay: Marker with ID" << markerData.id.toString() << "already exists, updating instead";
         updateMarkerFromData(markerData);
         return m_idToMarker[markerData.id];
     }
@@ -973,11 +906,6 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
         m_overlayScene->update();
     }
     
-    qDebug() << "BTWInteractiveOverlay: Created marker from sync data, ID:" << markerData.id.toString()
-             << "timestamp:" << markerData.timestamp.toString()
-             << "range:" << markerData.rangeValue
-             << "bearingRate:" << markerData.bearingRate;
-    
     emit markerAdded(marker, DataPoint);
     
     return marker;
@@ -1044,12 +972,10 @@ bool BTWInteractiveOverlay::updateMarkerFromData(const BTWSyncMarkerData &marker
 {
     InteractiveGraphicsItem *marker = findMarkerById(markerData.id);
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: Cannot update marker - ID not found:" << markerData.id.toString();
         return false;
     }
     
     if (!m_btwGraph) {
-        qDebug() << "BTWInteractiveOverlay: Cannot update marker - no BTW graph";
         return false;
     }
     
@@ -1074,8 +1000,6 @@ bool BTWInteractiveOverlay::updateMarkerFromData(const BTWSyncMarkerData &marker
         m_overlayScene->update();
     }
     
-    qDebug() << "BTWInteractiveOverlay: Updated marker from sync data, ID:" << markerData.id.toString();
-    
     return true;
 }
 
@@ -1083,7 +1007,6 @@ bool BTWInteractiveOverlay::removeMarkerById(const QUuid &id)
 {
     InteractiveGraphicsItem *marker = findMarkerById(id);
     if (!marker) {
-        qDebug() << "BTWInteractiveOverlay: Cannot remove marker - ID not found:" << id.toString();
         return false;
     }
     
@@ -1093,8 +1016,6 @@ bool BTWInteractiveOverlay::removeMarkerById(const QUuid &id)
     
     // Remove using existing method (handles bearing rate box, scene, etc.)
     removeMarker(marker);
-    
-    qDebug() << "BTWInteractiveOverlay: Removed marker by ID:" << id.toString();
     
     return true;
 }

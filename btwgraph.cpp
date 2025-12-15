@@ -7,7 +7,6 @@
 #include "graphtype.h"
 #include "zoompanel.h"
 #include "sharedsyncstate.h"
-#include <QDebug>
 #include <QRandomGenerator>
 #include <QPainter>
 #include <QPixmap>
@@ -26,8 +25,6 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     , symbols(40)  // Initialize BTW symbol cache
     , m_nextRegionId(1)
 {
-    qDebug() << "BTWGraph constructor called";
-    
     // Setup interactive overlay
     setupInteractiveOverlay();
 }
@@ -38,7 +35,6 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 BTWGraph::~BTWGraph()
 {
-    qDebug() << "BTWGraph destructor called";
 }
 
 /**
@@ -52,7 +48,6 @@ void BTWGraph::draw()
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "BTWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -119,7 +114,6 @@ void BTWGraph::draw()
     // Sync interactive overlay markers with the new time range
     // This updates marker Y positions to stay in sync with the timeline
     if (m_interactiveOverlay) {
-        qDebug() << "BTWGraph::draw() - calling syncMarkersWithTimeline, timeMin:" << timeMin.toString() << "timeMax:" << timeMax.toString();
         m_interactiveOverlay->syncMarkersWithTimeline();
     }
     
@@ -135,20 +129,14 @@ void BTWGraph::draw()
  */
 void BTWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "BTWGraph mouse clicked at scene position:" << scenePos;
-    
     // Check if we clicked on an existing interactive marker in the overlay scene
     // The overlay scene and graphics scene share the same coordinate system
     if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
         QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
         // Filter out crosshair items - they should not prevent marker creation
         if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
-            qDebug() << "BTWGraph: Clicked on existing interactive item:" << itemAtPos << "letting it handle the event";
             // Don't add a new marker, let the interactive item handle the click
             return;
-        } else {
-            qDebug() << "BTWGraph: No interactive item found at position:" << scenePos;
-            qDebug() << "BTWGraph: Overlay scene items count:" << m_interactiveOverlay->getOverlayScene()->items().size();
         }
     }
     
@@ -163,7 +151,6 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         // If timestamp is invalid, fallback to current time
         if (!timestamp.isValid()) {
             timestamp = QDateTime::currentDateTime();
-            qDebug() << "BTWGraph: Could not map Y position to timestamp, using current time";
         }
         
         // Get value from X position (range value)
@@ -171,8 +158,6 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         QString seriesLabel = "BTW-Click";
         
         m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
-        
-        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos << "with timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") << "value:" << value;
         
         // Emit signal for marker timestamp and value
         if (timestamp.isValid()) {
@@ -191,7 +176,6 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
  */
 void BTWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "BTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -204,8 +188,6 @@ void BTWGraph::drawBTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("BTW-1"), Qt::red, 4.0, Qt::white);
-
-    qDebug() << "BTW scatterplot drawn";
 }
 
 /**
@@ -215,7 +197,6 @@ void BTWGraph::drawBTWScatterplot()
 void BTWGraph::drawCustomCircleMarkers()
 {
     if (!dataSource || !graphicsScene) {
-        qDebug() << "BTW: drawCustomCircleMarkers early return - no dataSource or graphicsScene";
         return;
     }
 
@@ -224,7 +205,6 @@ void BTWGraph::drawCustomCircleMarkers()
     std::vector<BTWMarkerData> btwMarkers = dataSource->getBTWMarkers();
     
     if (btwMarkers.empty()) {
-        qDebug() << "BTW: No manually placed markers in data source";
         return;
     }
 
@@ -243,14 +223,10 @@ void BTWGraph::drawCustomCircleMarkers()
     }
 
     if (visibleMarkers.empty()) {
-        qDebug() << "BTW: No visible markers within time range";
         return;
     }
 
     // Draw circle markers for each visible marker
-    int markersDrawn = 0;
-    qDebug() << "BTW: Drawing" << visibleMarkers.size() << "manually placed markers";
-    
     for (const auto& markerData : visibleMarkers) {
         QDateTime timestamp = markerData.timestamp;
         qreal range = markerData.range;
@@ -322,12 +298,8 @@ void BTWGraph::drawCustomCircleMarkers()
             textOutline->setZValue(1001);
             
             graphicsScene->addItem(textOutline);
-            
-            markersDrawn++;
         }
     }
-    
-    qDebug() << "BTW: Drew" << markersDrawn << "manually placed circle markers";
 }
 
 /**
@@ -381,26 +353,22 @@ void BTWGraph::setupInteractiveOverlay()
             this, &BTWGraph::markerSyncDataChanged);
     connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerDeleted,
             this, &BTWGraph::markerSyncDeleted);
-    
-    qDebug() << "BTWGraph: Interactive overlay setup complete";
 }
 
 void BTWGraph::deleteInteractiveMarkers()
 {
     if (!m_interactiveOverlay) {
-        qDebug() << "BTWGraph: deleteInteractiveMarkers called but overlay not available";
         return;
     }
 
-    qDebug() << "BTWGraph: Clearing all interactive markers";
     m_interactiveOverlay->clearAllMarkers();
 }
 
 
 void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
 {
+    Q_UNUSED(type);
     if (!marker) {
-        qDebug() << "BTWGraph: Marker added - NULL marker, type:" << type;
         return;
     }
     
@@ -418,18 +386,8 @@ void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
     }
     
     if (timestamp.isValid()) {
-        qDebug() << "========================================";
-        qDebug() << "BTW MANUAL MARKER PLACED - TIMESTAMP RETURNED";
-        qDebug() << "========================================";
-        qDebug() << "BTWGraph: Marker added, type:" << type;
-        qDebug() << "BTWGraph: Marker scene position:" << marker->scenePos();
-        qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-        qDebug() << "========================================";
-        
         // Emit signal for external integration
         emit manualMarkerPlaced(timestamp, marker->scenePos());
-    } else {
-        qDebug() << "BTWGraph: Marker added, type:" << type << "- Could not determine timestamp (invalid)";
     }
 }
 
@@ -437,17 +395,13 @@ void BTWGraph::onMarkerRemoved(InteractiveGraphicsItem *marker, int type)
 {
     Q_UNUSED(marker);
     Q_UNUSED(type);
-    qDebug() << "BTWGraph: Marker removed, type:" << type;
 }
 
 void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &newPosition)
 {
     if (!marker) {
-        qDebug() << "BTWGraph: Marker moved - NULL marker";
         return;
     }
-    
-    qDebug() << "BTWGraph: Marker moved to:" << newPosition;
     
     // Extract timestamp from marker's stored data
     QVariant timestampVariant = marker->data(0);
@@ -464,18 +418,15 @@ void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &new
     // Update magenta circles when green marker is moved
     if (timestamp.isValid()) {
         emit manualMarkerPlaced(timestamp, newPosition);
-        qDebug() << "BTWGraph: Emitted manualMarkerPlaced signal for moved marker at timestamp" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
 }
 
 void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
 {
+    Q_UNUSED(angle);
     if (!marker) {
-        qDebug() << "BTWGraph: Marker rotated - NULL marker";
         return;
     }
-    
-    qDebug() << "BTWGraph: Marker rotated by:" << angle << "degrees";
     
     // Extract timestamp from marker's stored data
     QVariant timestampVariant = marker->data(0);
@@ -493,14 +444,13 @@ void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
     // Update magenta circles when green marker is rotated (position might have changed)
     if (timestamp.isValid()) {
         emit manualMarkerPlaced(timestamp, marker->scenePos());
-        qDebug() << "BTWGraph: Emitted manualMarkerPlaced signal for rotated marker at timestamp" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
 }
 
 void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
 {
+    Q_UNUSED(position);
     if (!marker) {
-        qDebug() << "BTWGraph: Marker clicked - NULL marker";
         return;
     }
     
@@ -533,16 +483,6 @@ void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &p
     }
     
     if (timestamp.isValid()) {
-        qDebug() << "========================================";
-        qDebug() << "BTW MANUAL MARKER CLICKED - FULL DATA RETURNED";
-        qDebug() << "========================================";
-        qDebug() << "BTWGraph: Marker clicked at position:" << position;
-        qDebug() << "BTWGraph: Marker scene position:" << scenePos;
-        qDebug() << "BTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-        qDebug() << "BTWGraph: RANGE VALUE:" << rangeValue;
-        qDebug() << "BTWGraph: BEARING RATE (Box Value):" << bearingRate;
-        qDebug() << "========================================";
-        
         // Emit signal for external integration (legacy)
         emit manualMarkerClicked(timestamp, scenePos);
         
@@ -551,11 +491,6 @@ void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &p
         
         // Emit new comprehensive signal with all three values
         emit markerClickedWithData(timestamp, rangeValue, bearingRate);
-        
-        qDebug() << "BTWGraph: All marker click signals emitted successfully";
-    } else {
-        qDebug() << "BTWGraph: Marker clicked at:" << position << "- Could not determine timestamp (invalid)";
-        qDebug() << "BTWGraph: Range value:" << rangeValue << "Bearing rate:" << bearingRate;
     }
 }
 
@@ -569,13 +504,10 @@ void BTWGraph::addBTWSymbol(const QString &symbolName, const QDateTime &timestam
     // Store symbol in dataSource (WaterfallData) so it persists with track data
     if (!dataSource)
     {
-        qDebug() << "BTW: Cannot add symbol - no data source set";
         return;
     }
     
     dataSource->addBTWSymbol(symbolName, timestamp, range);
-    
-    qDebug() << "BTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "to data source";
     
     // Trigger redraw
     draw();
@@ -663,6 +595,8 @@ void BTWGraph::drawBTWSymbols()
 
 void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue)
 {
+    Q_UNUSED(btwValue);
+    
     // Find parent GraphContainer to access GraphLayout
     QWidget *parent = this->parentWidget();
     if (!parent) return;
@@ -796,6 +730,8 @@ ZoomPanel* BTWGraph::getZoomPanel() const
  */
 int BTWGraph::addShadedRegion(qreal startX, qreal endX, const QDateTime &startY)
 {
+    Q_UNUSED(startY);
+    
     int regionId = m_nextRegionId++;
     ShadedRegionData regionData(startX, endX, startY);
     ShadedRegionItem regionItem(regionData);
@@ -803,9 +739,6 @@ int BTWGraph::addShadedRegion(qreal startX, qreal endX, const QDateTime &startY)
     
     // Store reverse lookup for sync ID
     m_syncIdToRegionId[regionItem.syncId] = regionId;
-    
-    qDebug() << "BTWGraph: Added shaded region" << regionId << "syncId:" << regionItem.syncId.toString()
-             << "X range:" << startX << "to" << endX << "Y:" << startY.toString("yyyy-MM-dd hh:mm:ss.zzz");
     
     // Trigger redraw to show the new region
     draw();
@@ -839,7 +772,6 @@ void BTWGraph::removeShadedRegion(int regionId)
         m_syncIdToRegionId.remove(syncId);
         
         m_shadedRegions.remove(regionId);
-        qDebug() << "BTWGraph: Removed shaded region" << regionId << "syncId:" << syncId.toString();
         
         // Trigger redraw
         draw();
@@ -863,7 +795,6 @@ void BTWGraph::clearShadedRegions()
     }
     m_shadedRegions.clear();
     m_syncIdToRegionId.clear();
-    qDebug() << "BTWGraph: Cleared all shaded regions";
     
     // Trigger redraw
     draw();
@@ -887,13 +818,11 @@ void BTWGraph::drawShadedRegions()
     
     // Ensure valid time range
     if (topTime >= bottomTime) {
-        qDebug() << "BTWGraph: Invalid time range for shaded region";
         return;
     }
     
     // Draw each shaded region
     for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
-        int regionId = it.key();
         ShadedRegionItem &item = it.value();
         const ShadedRegionData &data = item.data;
         
@@ -906,7 +835,6 @@ void BTWGraph::drawShadedRegions()
         
         // Ensure valid X range
         if (data.startX >= data.endX) {
-            qDebug() << "BTWGraph: Invalid X range for shaded region" << regionId << "- startX:" << data.startX << "endX:" << data.endX;
             continue;
         }
         
@@ -981,9 +909,6 @@ void BTWGraph::drawShadedRegions()
             
             graphicsScene->addItem(polygonItem);
             item.polygonItem = polygonItem;
-            
-            qDebug() << "BTWGraph: Drew hatched shaded region" << regionId << "X range:" << data.startX 
-                     << "to" << data.endX << "Y: full height (top to bottom)";
         }
     }
 }
@@ -993,24 +918,18 @@ void BTWGraph::drawShadedRegions()
 bool BTWGraph::createMarkerFromSyncData(const BTWSyncMarkerData &markerData)
 {
     if (!m_interactiveOverlay) {
-        qDebug() << "BTWGraph: Cannot create marker from sync data - no overlay";
         return false;
     }
     
     // Check if marker already exists
     if (m_interactiveOverlay->hasMarker(markerData.id)) {
-        qDebug() << "BTWGraph: Marker already exists, updating instead - ID:" << markerData.id.toString();
         return updateMarkerFromSyncData(markerData);
     }
     
     InteractiveGraphicsItem *marker = m_interactiveOverlay->createMarkerFromData(markerData);
     if (!marker) {
-        qDebug() << "BTWGraph: Failed to create marker from sync data - ID:" << markerData.id.toString();
         return false;
     }
-    
-    qDebug() << "BTWGraph: Created marker from sync data - ID:" << markerData.id.toString()
-             << "timestamp:" << markerData.timestamp.toString();
     
     return true;
 }
@@ -1018,35 +937,19 @@ bool BTWGraph::createMarkerFromSyncData(const BTWSyncMarkerData &markerData)
 bool BTWGraph::updateMarkerFromSyncData(const BTWSyncMarkerData &markerData)
 {
     if (!m_interactiveOverlay) {
-        qDebug() << "BTWGraph: Cannot update marker from sync data - no overlay";
         return false;
     }
     
-    bool result = m_interactiveOverlay->updateMarkerFromData(markerData);
-    if (result) {
-        qDebug() << "BTWGraph: Updated marker from sync data - ID:" << markerData.id.toString();
-    } else {
-        qDebug() << "BTWGraph: Failed to update marker from sync data - ID:" << markerData.id.toString();
-    }
-    
-    return result;
+    return m_interactiveOverlay->updateMarkerFromData(markerData);
 }
 
 bool BTWGraph::deleteMarkerBySyncId(const QUuid &markerId)
 {
     if (!m_interactiveOverlay) {
-        qDebug() << "BTWGraph: Cannot delete marker - no overlay";
         return false;
     }
     
-    bool result = m_interactiveOverlay->removeMarkerById(markerId);
-    if (result) {
-        qDebug() << "BTWGraph: Deleted marker by sync ID:" << markerId.toString();
-    } else {
-        qDebug() << "BTWGraph: Failed to delete marker by sync ID:" << markerId.toString();
-    }
-    
-    return result;
+    return m_interactiveOverlay->removeMarkerById(markerId);
 }
 
 bool BTWGraph::hasMarkerWithSyncId(const QUuid &markerId) const
@@ -1064,7 +967,6 @@ int BTWGraph::createShadedRegionFromSyncData(const ShadedRegionSyncData &regionD
 {
     // Check if region with this sync ID already exists
     if (m_syncIdToRegionId.contains(regionData.syncId)) {
-        qDebug() << "BTWGraph: Shaded region with sync ID already exists:" << regionData.syncId.toString();
         return m_syncIdToRegionId[regionData.syncId];
     }
     
@@ -1077,9 +979,6 @@ int BTWGraph::createShadedRegionFromSyncData(const ShadedRegionSyncData &regionD
     m_shadedRegions[regionId] = regionItem;
     m_syncIdToRegionId[regionData.syncId] = regionId;
     
-    qDebug() << "BTWGraph: Created shaded region from sync data - localId:" << regionId 
-             << "syncId:" << regionData.syncId.toString() << "X range:" << regionData.startX << "to" << regionData.endX;
-    
     // Trigger redraw to show the new region
     draw();
     
@@ -1089,7 +988,6 @@ int BTWGraph::createShadedRegionFromSyncData(const ShadedRegionSyncData &regionD
 bool BTWGraph::deleteShadedRegionBySyncId(const QUuid &syncId)
 {
     if (!m_syncIdToRegionId.contains(syncId)) {
-        qDebug() << "BTWGraph: Cannot delete shaded region - sync ID not found:" << syncId.toString();
         return false;
     }
     
@@ -1108,8 +1006,6 @@ bool BTWGraph::deleteShadedRegionBySyncId(const QUuid &syncId)
         // Remove from both maps
         m_syncIdToRegionId.remove(syncId);
         m_shadedRegions.remove(regionId);
-        
-        qDebug() << "BTWGraph: Deleted shaded region by sync ID:" << syncId.toString();
         
         // Trigger redraw
         draw();
