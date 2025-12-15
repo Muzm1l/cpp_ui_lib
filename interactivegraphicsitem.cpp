@@ -188,11 +188,9 @@ InteractiveGraphicsItem::InteractionRegion InteractiveGraphicsItem::getInteracti
         for (int i = 0; i < rotateRegions.size(); ++i) {
             const QRectF &region = rotateRegions[i];
             if (region.contains(localPos)) {
-                qDebug() << "InteractiveGraphicsItem: Found rotation region" << i << "at" << localPos << "in region" << region;
                 return RotateRegion;
             }
         }
-        qDebug() << "InteractiveGraphicsItem: No rotation region found at" << localPos << "regions:" << rotateRegions;
     }
     
     // If not in rotate region but within the item, it's in the drag region
@@ -212,14 +210,8 @@ void InteractiveGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
         m_lastMousePos = event->scenePos();
         InteractionRegion region = getInteractionRegion(event->scenePos());
         
-        qDebug() << "InteractiveGraphicsItem: Mouse press at" << event->scenePos() 
-                 << "local:" << mapFromScene(event->scenePos()) 
-                 << "region:" << region << "boundingRect:" << boundingRect()
-                 << "locked:" << m_locked;
-        
         // Check if marker is locked
         if (m_locked) {
-            qDebug() << "InteractiveGraphicsItem: Marker is locked, ignoring interaction";
             emit regionClicked(region, event->scenePos());
             return;
         }
@@ -229,17 +221,14 @@ void InteractiveGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent *event)
             setCursor(Qt::ClosedHandCursor);
             // Grab mouse to receive all subsequent events
             grabMouse();
-            qDebug() << "InteractiveGraphicsItem: Started dragging";
         } else if (region == RotateRegion && m_rotateEnabled) {
             m_isRotating = true;
             m_initialRotation = rotation();
             setCursor(Qt::SizeAllCursor);
             // Grab mouse to receive all subsequent events
             grabMouse();
-            qDebug() << "InteractiveGraphicsItem: Started rotating";
         } else {
             // Emit click signal for any region
-            qDebug() << "InteractiveGraphicsItem: Clicked in region:" << region;
             emit regionClicked(region, event->scenePos());
         }
         return; // Don't call base class - we're handling the event completely
@@ -284,7 +273,6 @@ void InteractiveGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
             scene()->update();
         }
         
-        qDebug() << "InteractiveGraphicsItem: Dragging to" << pos();
         emit itemMoved(pos());
         return; // Don't call base class
     } else if (m_isRotating && m_rotateEnabled && !m_locked) {
@@ -306,7 +294,6 @@ void InteractiveGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
             scene()->update();
         }
         
-        qDebug() << "InteractiveGraphicsItem: Rotating to" << rotation() << "degrees";
         emit itemRotated(rotation());
         return; // Don't call base class
     }
@@ -325,12 +312,10 @@ void InteractiveGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent *event)
         if (m_isDragging) {
             m_isDragging = false;
             setCursor(Qt::OpenHandCursor);
-            qDebug() << "InteractiveGraphicsItem: Finished dragging at" << pos();
             emit itemMoved(pos());
         } else if (m_isRotating) {
             m_isRotating = false;
             setCursor(Qt::ArrowCursor);
-            qDebug() << "InteractiveGraphicsItem: Finished rotating at" << rotation() << "degrees";
             emit itemRotated(rotation());
         }
         return; // Don't call base class
@@ -368,8 +353,6 @@ void InteractiveGraphicsItem::updateInteractionRegions()
     
     // Rotate region is in the bottom-right corner
     m_rotateRegion = getRotateRegionRect();
-    
-    qDebug() << "InteractiveGraphicsItem: Updated regions - Drag:" << m_dragRegion << "Rotate:" << m_rotateRegion;
 }
 
 void InteractiveGraphicsItem::updateCursor(InteractionRegion region)
@@ -445,7 +428,6 @@ void InteractiveGraphicsItem::setMarkerColor(const QColor &color)
         m_markerColor = color;
         update();  // Trigger repaint
         emit colorChanged(color);
-        qDebug() << "InteractiveGraphicsItem: Marker color changed to" << color;
     }
 }
 
@@ -455,7 +437,6 @@ void InteractiveGraphicsItem::setLineColor(const QColor &color)
         m_lineColor = color;
         update();  // Trigger repaint
         emit colorChanged(color);
-        qDebug() << "InteractiveGraphicsItem: Line color changed to" << color;
     }
 }
 
@@ -466,7 +447,6 @@ void InteractiveGraphicsItem::setMarkerOpacity(qreal opacity)
         m_opacity = opacity;
         setOpacity(opacity);  // Use Qt's built-in opacity
         emit opacityChanged(opacity);
-        qDebug() << "InteractiveGraphicsItem: Opacity changed to" << opacity;
     }
 }
 
@@ -475,7 +455,6 @@ void InteractiveGraphicsItem::setLineWidth(qreal width)
     if (!qFuzzyCompare(m_lineWidth, width)) {
         m_lineWidth = width;
         update();  // Trigger repaint
-        qDebug() << "InteractiveGraphicsItem: Line width changed to" << width;
     }
 }
 
@@ -484,7 +463,6 @@ void InteractiveGraphicsItem::setLineStyle(Qt::PenStyle style)
     if (m_lineStyle != style) {
         m_lineStyle = style;
         update();  // Trigger repaint
-        qDebug() << "InteractiveGraphicsItem: Line style changed";
     }
 }
 
@@ -493,7 +471,6 @@ void InteractiveGraphicsItem::setLocked(bool locked)
     if (m_locked != locked) {
         m_locked = locked;
         emit lockedChanged(locked);
-        qDebug() << "InteractiveGraphicsItem: Locked state changed to" << locked;
     }
 }
 
@@ -501,13 +478,11 @@ void InteractiveGraphicsItem::setMovementConstraints(bool constrainX, bool const
 {
     m_constrainX = constrainX;
     m_constrainY = constrainY;
-    qDebug() << "InteractiveGraphicsItem: Movement constraints set - constrainX:" << constrainX << "constrainY:" << constrainY;
 }
 
 void InteractiveGraphicsItem::setMovementBounds(const QRectF &bounds)
 {
     m_movementBounds = bounds;
-    qDebug() << "InteractiveGraphicsItem: Movement bounds set to" << bounds;
 }
 
 QVariant InteractiveGraphicsItem::itemChange(GraphicsItemChange change, const QVariant &value)
