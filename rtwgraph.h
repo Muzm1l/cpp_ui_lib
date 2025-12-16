@@ -55,6 +55,14 @@ signals:
      * @param position The scene position where the marker was clicked
      */
     void rMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+
+    /**
+     * @brief Emitted when an RTW symbol is clicked
+     * @param timestamp The timestamp of the clicked RTW symbol
+     * @param position The scene position where the symbol was clicked
+     * @param symbolName The name of the clicked symbol
+     */
+    void rtwSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
 };
 
 #endif // RTWGRAPH_H

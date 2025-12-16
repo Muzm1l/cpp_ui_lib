@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QEvent>
 #include <QMouseEvent>
@@ -187,7 +188,7 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
-    void enterEvent(QEnterEvent* event) override;
+    void enterEvent(QEvent* event) override;
 
 private:
     QTime m_timeLineLength = QTime(0, 15, 0); // Default to 15 minutes
@@ -238,6 +239,22 @@ private:
     // Manoeuvre overlay
     ManoeuvreOverlay *m_manoeuvreOverlay;
 
+    // Application start time - timestamps before this should not be displayed
+    QDateTime m_applicationStartTime;
+
+    // Cached timestamp labels for performance (avoid recalculating on every paint)
+    struct CachedTimestampLabel {
+        QString text;
+        qreal normalizedY;  // 0.0 = top, 1.0 = bottom
+    };
+    std::vector<CachedTimestampLabel> m_cachedTimestampLabels;
+    QDateTime m_lastCachedWindowStart;
+    QDateTime m_lastCachedWindowEnd;
+
+    // Cached background pixmap for performance (avoid redrawing static elements on every paint)
+    QPixmap m_cachedBackground;
+    bool m_backgroundNeedsRedraw = true;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -251,6 +268,9 @@ private:
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
     void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
     void drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea);
+    void drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea);
+    void updateCachedTimestampLabels();
+    void renderBackgroundToCache();
     
     // Slider methods (following zoom slider pattern)
     void createSliderIndicator();
@@ -341,11 +361,16 @@ public:
 
     // Manoeuvre methods
     void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    
+    // Absolute/Relative time mode control
+    void setIsAbsoluteTime(bool isAbsoluteTime);
+    bool getIsAbsoluteTime() const { return m_isAbsoluteTime; }
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
     void TimeScopeChanged(const TimeSelectionSpan& selection);
     void GraphContainerInFollowModeChanged(bool isInFollowMode);
+    void AbsoluteTimeModeChanged(bool isAbsoluteTime);
 
 private:
     QPushButton* m_intervalChangeButton;

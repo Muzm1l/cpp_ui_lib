@@ -25,10 +25,14 @@ public:
         BOT,
         BOTC,
         BOTF,
-        BOTD
+        BOTD,
+        YellowCircle1,
+        YellowCircle2,
+        YellowCircle3,
+        YellowCircle4
     };
 
-    RTWSymbolDrawing(int baseSize = 40);  // size in pixels
+    RTWSymbolDrawing(int baseSize = 20);  // size in pixels (reduced from 40)
 
     void draw(QPainter* p, QPointF pos, SymbolType type);
     const QPixmap& get(SymbolType type) const;
@@ -60,6 +64,10 @@ private:
     QPixmap BOTC();
     QPixmap BOTF();
     QPixmap BOTD();
+    QPixmap makeYellowCircle1();
+    QPixmap makeYellowCircle2();
+    QPixmap makeYellowCircle3();
+    QPixmap makeYellowCircle4();
 
     // helpers
     QPixmap blank();

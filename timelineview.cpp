@@ -229,9 +229,12 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContain
     // Enable mouse tracking for slider interaction
     setMouseTracking(true);
 
+    // Store the application start time - timestamps before this will not be displayed
+    m_applicationStartTime = QDateTime::currentDateTime();
+    
     // Initialize slider state: from "(now - interval)" to "now" (default 15 minutes)
     // Position slider at top (Y=0) representing the most recent time window
-    QDateTime now = QDateTime::currentDateTime();
+    QDateTime now = m_applicationStartTime;
     int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
     QDateTime startTime = now.addSecs(-intervalSeconds);
     TimeSelectionSpan initialWindow(startTime, now);
@@ -311,6 +314,9 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // Recreate all drawing objects with new parameters
     // This will automatically calculate optimal divisions based on current area
     createDrawingObjects();
+    
+    // Invalidate background cache since interval changed
+    m_backgroundNeedsRedraw = true;
 
     // Force an update to ensure animation continues after interval change
     // This is critical to resume the animation after interval customization
@@ -335,6 +341,8 @@ void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
     if (m_timelineViewMode == TimelineViewMode::FOLLOW_MODE)
     {
         updatePixelSpeed();
+        // Invalidate background cache since smooth offset changes with time
+        m_backgroundNeedsRedraw = true;
     }
     
     // Don't update visualization if dragging (preserve dragged position)
@@ -652,27 +660,85 @@ QString TimelineView::getChevronLabel3() const
     return QString();
 }
 
+void TimelineVisualizerWidget::renderBackgroundToCache()
+{
+    if (rect().isEmpty())
+    {
+        return;
+    }
+    
+    // Create pixmap matching widget size
+    m_cachedBackground = QPixmap(rect().size());
+    m_cachedBackground.fill(Qt::black);
+    
+    QPainter painter(&m_cachedBackground);
+    painter.setRenderHint(QPainter::Antialiasing);
+    
+    // Calculate smooth offset to determine which segments to draw
+    double smoothOffset = calculateSmoothOffset();
+    double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
+    
+    // Calculate which segments should be visible
+    int firstVisibleSegment = static_cast<int>(-smoothOffset / segmentHeight);
+    int lastVisibleSegment = firstVisibleSegment + m_numberOfDivisions;
+    
+    // Draw segments that are visible (ticks only, no labels)
+    for (auto *segmentDrawer : m_segmentDrawers)
+    {
+        if (segmentDrawer)
+        {
+            int segmentNumber = segmentDrawer->getSegmentNumber();
+            if (segmentNumber >= firstVisibleSegment && segmentNumber < lastVisibleSegment)
+            {
+                // Update the segment drawer with current state
+                segmentDrawer->setDrawArea(rect());
+                segmentDrawer->setTimelineLength(m_timeLineLength);
+                segmentDrawer->setCurrentTime(m_currentTime);
+                segmentDrawer->setNumberOfDivisions(m_numberOfDivisions);
+                segmentDrawer->setIsAbsoluteTime(m_isAbsoluteTime);
+                segmentDrawer->setSmoothOffset(smoothOffset);
+                segmentDrawer->update();
+                
+                // Draw the segment using QPainter (ticks only)
+                drawSegmentWithPainter(painter, segmentDrawer);
+            }
+        }
+    }
+    
+    // Draw border
+    painter.setPen(QPen(QColor(150, 150, 150), 1));
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    
+    // Draw slider indicator if visible
+    if (m_sliderVisible)
+    {
+        QRect sliderRect = SliderGeometry::calculateSliderRect(
+            rect().height(), rect().width(), m_timeLineLength,
+            m_sliderState.getYPosition());
+        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
+        painter.fillRect(sliderRect, sliderColor);
+    }
+    
+    // Draw regular interval timestamps
+    drawRegularIntervalTimestamps(painter, rect());
+    
+    // Draw navtime labels if sync state is available
+    if (m_syncState && m_syncState->hasCurrentNavTime)
+    {
+        drawNavTimeLabels(painter, rect());
+    }
+    
+    m_backgroundNeedsRedraw = false;
+}
+
 void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
 {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Fill with black background
-    painter.fillRect(rect(), QColor(0, 0, 0));
-
-    // Calculate smooth offset to determine which segments to draw
+    // Segment management still needs to happen (creating/removing segments as they scroll)
     double smoothOffset = calculateSmoothOffset();
     double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
-
-    // Debug output for segment height calculation
-    static int debugCounter = 0;
-    if (debugCounter++ % 60 == 0)
-    { // Print every 60 frames to avoid spam
-        // qDebug() << "PaintEvent - Widget rect:" << rect()
-        //          << "Divisions:" << m_numberOfDivisions
-        //          << "Segment height:" << segmentHeight
-        //          << "Time interval:" << timeIntervalToString(m_timeInterval);
-    }
 
     // Remove segments that have gone completely out of view (below the bottom)
     auto it = m_segmentDrawers.begin();
@@ -687,6 +753,7 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
             {
                 delete segmentDrawer;
                 it = m_segmentDrawers.erase(it);
+                m_backgroundNeedsRedraw = true; // Invalidate cache when segments change
                 continue;
             }
         }
@@ -722,6 +789,7 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
                 minSegmentNumber, m_timeLineLength, m_currentTime, m_numberOfDivisions, m_isAbsoluteTime, rect());
             segmentDrawer->setShowRelativeLabel(m_showRelativeLabels);
             m_segmentDrawers.push_back(segmentDrawer);
+            m_backgroundNeedsRedraw = true; // Invalidate cache when segments change
         }
 
         // Add segments below the current range if needed
@@ -732,79 +800,22 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
                 maxSegmentNumber, m_timeLineLength, m_currentTime, m_numberOfDivisions, m_isAbsoluteTime, rect());
             segmentDrawer->setShowRelativeLabel(m_showRelativeLabels);
             m_segmentDrawers.push_back(segmentDrawer);
+            m_backgroundNeedsRedraw = true; // Invalidate cache when segments change
         }
     }
 
-    // Calculate which segments should be visible to fill the entire area
-    // We need to ensure we have exactly m_numberOfDivisions segments covering the full height
-    int firstVisibleSegment = static_cast<int>(-smoothOffset / segmentHeight);
-    int lastVisibleSegment = firstVisibleSegment + m_numberOfDivisions;
-
-    // Draw segments that are visible (including those that might be partially off-screen due to smooth shifting)
-    for (auto *segmentDrawer : m_segmentDrawers)
+    // Redraw background cache if needed (size changed or content invalidated)
+    if (m_backgroundNeedsRedraw || m_cachedBackground.size() != rect().size())
     {
-        if (segmentDrawer)
-        {
-            int segmentNumber = segmentDrawer->getSegmentNumber();
-            // Calculate Y position for this segment with smooth offset (shift down)
-            double y = segmentNumber * segmentHeight + smoothOffset;
-
-            // Only draw if the segment is within the visible range
-            if (segmentNumber >= firstVisibleSegment && segmentNumber < lastVisibleSegment)
-            {
-                // Update the segment drawer with current state
-                segmentDrawer->setDrawArea(rect());
-                segmentDrawer->setTimelineLength(m_timeLineLength);
-                segmentDrawer->setCurrentTime(m_currentTime);
-                segmentDrawer->setNumberOfDivisions(m_numberOfDivisions);
-                segmentDrawer->setIsAbsoluteTime(m_isAbsoluteTime);
-                segmentDrawer->setSmoothOffset(smoothOffset);
-                segmentDrawer->update();
-
-                // Draw the segment using QPainter
-                drawSegmentWithPainter(painter, segmentDrawer);
-            }
-        }
+        renderBackgroundToCache();
     }
 
-    // Debug: Check if we're covering the entire area
-    static int debugCounter2 = 0;
-    if (debugCounter2++ % 60 == 0)
-    {
-        // qDebug() << "Segment coverage check - Widget height:" << rect().height()
-        //          << "Total segments:" << m_segmentDrawers.size()
-        //          << "Divisions:" << m_numberOfDivisions
-        //          << "Segment height:" << segmentHeight
-        //          << "Total coverage:" << (m_numberOfDivisions * segmentHeight)
-        //          << "First visible:" << firstVisibleSegment
-        //          << "Last visible:" << lastVisibleSegment
-        //          << "Smooth offset:" << smoothOffset;
-    }
-
-    // Draw a border to make it more visible
-    painter.setPen(QPen(QColor(150, 150, 150), 1));
-    painter.drawRect(rect().adjusted(0, 0, -1, -1));
-
-    // Draw slider indicator using geometry helper
-    // Only draw if slider is visible
-    if (m_sliderVisible)
-    {
-        QRect sliderRect = SliderGeometry::calculateSliderRect(
-            rect().height(), rect().width(), m_timeLineLength,
-            m_sliderState.getYPosition());
-        
-        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
-        painter.fillRect(sliderRect, sliderColor);
-    }
-
-    // Draw navtime labels if sync state is available
-    if (m_syncState && m_syncState->hasCurrentNavTime)
-    {
-        drawNavTimeLabels(painter, rect());
-    }
+    // Fast blit of cached background (all static elements)
+    painter.drawPixmap(0, 0, m_cachedBackground);
     
-    // Draw crosshair timestamp label if visible
-    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid() && m_crosshairYPosition >= 0 && m_crosshairYPosition <= rect().height())
+    // Draw only the crosshair timestamp label on top (lightweight, changes with mouse movement)
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid() && 
+        m_crosshairYPosition >= 0 && m_crosshairYPosition <= rect().height())
     {
         drawCrosshairTimestampLabel(painter, rect());
     }
@@ -817,6 +828,9 @@ void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
     // Recreate drawing objects with new dimensions
     // qDebug() << "Widget resized to:" << size();
     createDrawingObjects();
+    
+    // Invalidate background cache since size changed
+    m_backgroundNeedsRedraw = true;
     
     // Update slider state for new size (clamp position to new bounds)
     m_sliderState.clampToBounds(rect().height(), m_timeLineLength);
@@ -848,31 +862,8 @@ void TimelineVisualizerWidget::drawSegmentWithPainter(QPainter &painter, Timelin
     // Calculate Y position for this segment with smooth offset (shift down)
     double y = segmentNumber * segmentHeight + smoothOffset;
 
-    // Only show labels on every third section (0, 3, 6, 9, 12, ...)
-    bool shouldShowLabel = (segmentNumber % 3 == 0);
-
-    if (shouldShowLabel && segmentDrawer->isLabelSet())
-    {
-        // Use the fixed label that was set during construction
-        QString timestamp = segmentDrawer->getFixedLabel();
-        if (!timestamp.isEmpty())
-        {
-            // Set text color to white for visibility on dark background
-            painter.setPen(QPen(QColor(255, 255, 255), 1));
-
-            // Calculate text metrics
-            QFontMetrics fm(painter.font());
-            int textWidth = fm.horizontalAdvance(timestamp);
-            int textHeight = fm.height();
-
-            // Calculate center position for the text within the segment
-            int centerX = (drawArea.width() - textWidth) / 2;
-            int centerY = static_cast<int>(y + segmentHeight / 2 + textHeight / 2);
-
-            // Draw the timestamp centered in the segment
-            painter.drawText(QPoint(centerX, centerY), timestamp);
-        }
-    }
+    // Labels are now drawn by drawRegularIntervalTimestamps() for regular clock intervals
+    // This method only draws ticks
 
     // Draw two ticks which are 15% of the segment width
     int tickWidth = static_cast<int>(drawArea.width() * 0.15);
@@ -938,9 +929,6 @@ void TimelineVisualizerWidget::updateCrosshairTimestamp(const QDateTime &timesta
     m_crosshairTimestamp = timestamp;
     m_crosshairYPosition = yPosition;
     m_showCrosshairTimestamp = timestamp.isValid();
-    
-    qDebug() << "TimelineVisualizerWidget: updateCrosshairTimestamp - timestamp" << timestamp.toString("HH:mm:ss.zzz")
-             << "Y position" << yPosition << "valid" << timestamp.isValid() << "show" << m_showCrosshairTimestamp;
     
     update(); // Trigger repaint
 }
@@ -1059,6 +1047,9 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
     
+    // Invalidate background cache since time window changed
+    m_backgroundNeedsRedraw = true;
+    
     // Update manoeuvre overlay time range
     if (m_manoeuvreOverlay)
     {
@@ -1135,6 +1126,9 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
         
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+        
+        // Invalidate background cache since slider position changed during drag
+        m_backgroundNeedsRedraw = true;
         
         // Update manoeuvre overlay time range during drag
         if (m_manoeuvreOverlay)
@@ -1219,6 +1213,9 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
         
+        // Invalidate background cache since slider position changed
+        m_backgroundNeedsRedraw = true;
+        
         // Update manoeuvre overlay time range after drag ends
         if (m_manoeuvreOverlay)
         {
@@ -1251,7 +1248,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
     QWidget::mouseReleaseEvent(event);
 }
 
-void TimelineVisualizerWidget::enterEvent(QEnterEvent* event)
+void TimelineVisualizerWidget::enterEvent(QEvent* event)
 {
     QWidget::enterEvent(event);
     // Cursor will be updated in mouseMoveEvent
@@ -1274,6 +1271,9 @@ void TimelineVisualizerWidget::setTimelineViewMode(TimelineViewMode mode)
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
         
+        // Invalidate background cache since slider position changed
+        m_backgroundNeedsRedraw = true;
+        
         // Update manoeuvre overlay time range
         if (m_manoeuvreOverlay && newWindow.startTime.isValid() && newWindow.endTime.isValid())
         {
@@ -1292,6 +1292,9 @@ void TimelineVisualizerWidget::setTimeWindowSilent(const TimeSelectionSpan& wind
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+    
+    // Invalidate background cache since time window changed
+    m_backgroundNeedsRedraw = true;
     
     // Update manoeuvre overlay time range
     if (m_manoeuvreOverlay && window.startTime.isValid() && window.endTime.isValid())
@@ -1436,21 +1439,17 @@ void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, co
 {
     if (!m_showCrosshairTimestamp)
     {
-        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - m_showCrosshairTimestamp is false";
         return;
     }
     
     if (!m_crosshairTimestamp.isValid())
     {
-        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - timestamp is invalid";
         return;
     }
     
     // Check if Y position is within visible area (allow boundary values)
     if (m_crosshairYPosition < 0 || m_crosshairYPosition > drawArea.height())
     {
-        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - Y position" << m_crosshairYPosition 
-                 << "out of bounds [0," << drawArea.height() << "]";
         return;
     }
     
@@ -1477,9 +1476,107 @@ void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, co
     
     // Draw the timestamp text
     painter.drawText(QPoint(centerX, centerY), labelText);
+}
+
+void TimelineVisualizerWidget::updateCachedTimestampLabels()
+{
+    m_cachedTimestampLabels.clear();
     
-    qDebug() << "TimelineVisualizerWidget: Drew crosshair timestamp label at Y" << m_crosshairYPosition 
-             << "with text" << labelText << "in drawArea" << drawArea;
+    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
+    if (!visibleWindow.startTime.isValid() || !visibleWindow.endTime.isValid())
+    {
+        return;
+    }
+    
+    QDateTime windowStart = visibleWindow.startTime;
+    QDateTime windowEnd = visibleWindow.endTime;
+    if (windowStart > windowEnd)
+    {
+        std::swap(windowStart, windowEnd);
+    }
+    
+    qint64 windowDurationMs = windowStart.msecsTo(windowEnd);
+    if (windowDurationMs <= 0)
+    {
+        return;
+    }
+    
+    // Helper to add a label to cache
+    auto addLabel = [&](const QDateTime& time) {
+        if (time >= windowStart && time <= windowEnd)
+        {
+            qint64 timeFromEndMs = time.msecsTo(windowEnd);
+            qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(windowDurationMs);
+            normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+            
+            CachedTimestampLabel label;
+            label.text = time.toString("HH:mm");
+            label.normalizedY = normalizedY;
+            m_cachedTimestampLabels.push_back(label);
+        }
+    };
+    
+    // Add application start time as anchor
+    if (m_applicationStartTime.isValid())
+    {
+        addLabel(m_applicationStartTime);
+    }
+    
+    // Calculate regular interval labels
+    QDateTime effectiveWindowStart = windowStart;
+    if (m_applicationStartTime.isValid() && windowStart < m_applicationStartTime)
+    {
+        effectiveWindowStart = m_applicationStartTime;
+    }
+    
+    int spacingMinutes = getLabelSpacingMinutes(m_timeInterval);
+    qint64 spacingSeconds = spacingMinutes * 60;
+    
+    qint64 startSeconds = effectiveWindowStart.toMSecsSinceEpoch() / 1000;
+    qint64 firstLabelSeconds = ((startSeconds / spacingSeconds) + 1) * spacingSeconds;
+    
+    QDateTime labelTime = QDateTime::fromMSecsSinceEpoch(firstLabelSeconds * 1000);
+    QDateTime endTime = windowEnd.addSecs(spacingSeconds);
+    
+    while (labelTime <= endTime)
+    {
+        addLabel(labelTime);
+        labelTime = labelTime.addSecs(spacingSeconds);
+    }
+    
+    m_lastCachedWindowStart = windowStart;
+    m_lastCachedWindowEnd = windowEnd;
+}
+
+void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea)
+{
+    // Check if cache needs update (only recalculate when time window changes)
+    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
+    if (visibleWindow.startTime != m_lastCachedWindowStart || 
+        visibleWindow.endTime != m_lastCachedWindowEnd)
+    {
+        updateCachedTimestampLabels();
+    }
+    
+    if (m_cachedTimestampLabels.empty())
+    {
+        return;
+    }
+    
+    // Draw cached labels - fast path (no QDateTime operations)
+    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    QFontMetrics fm(painter.font());
+    int textHeight = fm.height();
+    
+    for (const auto& label : m_cachedTimestampLabels)
+    {
+        int yPosition = static_cast<int>(label.normalizedY * drawArea.height());
+        int textWidth = fm.horizontalAdvance(label.text);
+        int centerX = (drawArea.width() - textWidth) / 2;
+        int centerY = yPosition + textHeight / 4;
+        
+        painter.drawText(QPoint(centerX, centerY), label.text);
+    }
 }
 
 TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
@@ -1630,6 +1727,18 @@ void TimelineView::onTimerTick()
     {
         m_visualizerWidget->setCurrentTime(currentTime);
     }
+    
+    // Update absolute/relative time mode from sync state if available
+    if (m_syncState && m_syncState->hasAbsoluteTime)
+    {
+        if (m_isAbsoluteTime != m_syncState->isAbsoluteTime)
+        {
+            // Update without emitting signal to avoid feedback loop
+            m_isAbsoluteTime = m_syncState->isAbsoluteTime;
+            m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
+            updateTimeModeButtonText(m_isAbsoluteTime);
+        }
+    }
 
     // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
@@ -1671,6 +1780,16 @@ void TimelineView::onTimeModeButtonClicked()
     m_isAbsoluteTime = !m_isAbsoluteTime;
     m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
     updateTimeModeButtonText(m_isAbsoluteTime);
+    
+    // Update sync state if available
+    if (m_syncState)
+    {
+        m_syncState->isAbsoluteTime = m_isAbsoluteTime;
+        m_syncState->hasAbsoluteTime = true;
+    }
+    
+    // Emit signal to sync with other timeline views
+    emit AbsoluteTimeModeChanged(m_isAbsoluteTime);
 }
 
 void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
@@ -1880,6 +1999,24 @@ void TimelineView::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
     if (m_visualizerWidget)
     {
         m_visualizerWidget->setManoeuvres(manoeuvres);
+    }
+}
+
+void TimelineView::setIsAbsoluteTime(bool isAbsoluteTime)
+{
+    // Only update if the value has changed to avoid unnecessary updates
+    if (m_isAbsoluteTime != isAbsoluteTime)
+    {
+        m_isAbsoluteTime = isAbsoluteTime;
+        m_visualizerWidget->setShowRelativeLabels(!m_isAbsoluteTime);
+        updateTimeModeButtonText(m_isAbsoluteTime);
+        
+        // Update sync state if available
+        if (m_syncState)
+        {
+            m_syncState->isAbsoluteTime = m_isAbsoluteTime;
+            m_syncState->hasAbsoluteTime = true;
+        }
     }
 }
 

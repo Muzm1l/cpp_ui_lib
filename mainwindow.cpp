@@ -35,6 +35,58 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
+    
+    // Create container widget for top bar with label and buttons
+    QWidget* topBarWidget = new QWidget(ui->originalTab);
+    topBarWidget->setObjectName("topBarWidget");
+    topBarWidget->setGeometry(QRect(10, 10, 1200, 50));
+    
+    // Create horizontal layout for buttons and timestamp label
+    QHBoxLayout* topLayout = new QHBoxLayout(topBarWidget);
+    topLayout->setContentsMargins(0, 0, 0, 0);
+    topLayout->setSpacing(10);
+    
+    // Create label to display marker timestamp in first tab
+    markerTimestampLabel = new QLabel("Marker Timestamp: --", topBarWidget);
+    markerTimestampLabel->setObjectName("markerTimestampLabel");
+    markerTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid yellow; border-radius: 4px; }");
+    markerTimestampLabel->setMinimumWidth(400);
+    
+    // Add label to layout
+    topLayout->addWidget(markerTimestampLabel);
+    
+    // Connect marker timestamp signal from graphgrid to update label
+    connect(graphgrid, &GraphLayout::markerTimestampValueChanged,
+            [this](const QDateTime &timestamp, qreal value) {
+                if (markerTimestampLabel && timestamp.isValid()) {
+                    QString timestampStr = timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz");
+                    markerTimestampLabel->setText(QString("Marker Timestamp: %1 | Value: %2").arg(timestampStr).arg(value, 0, 'f', 2));
+                    qDebug() << "Marker timestamp updated:" << timestampStr << "Value:" << value;
+                }
+            });
+
+    // Create label to display RTW symbol timestamp when clicked
+    rtwSymbolTimestampLabel = new QLabel("RTW Symbol: --", topBarWidget);
+    rtwSymbolTimestampLabel->setObjectName("rtwSymbolTimestampLabel");
+    rtwSymbolTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid cyan; border-radius: 4px; }");
+    rtwSymbolTimestampLabel->setMinimumWidth(450);
+    
+    // Add label to layout
+    topLayout->addWidget(rtwSymbolTimestampLabel);
+    
+    // Connect RTW symbol timestamp signal from graphgrid to update label
+    connect(graphgrid, &GraphLayout::RTWSymbolTimestampCaptured,
+            [this](const QDateTime &timestamp, const QPointF &position, const QString &symbolName) {
+                if (rtwSymbolTimestampLabel && timestamp.isValid()) {
+                    QString timestampStr = timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz");
+                    rtwSymbolTimestampLabel->setText(QString("RTW Symbol: %1 | Timestamp: %2 | Pos: (%3, %4)")
+                        .arg(symbolName)
+                        .arg(timestampStr)
+                        .arg(position.x(), 0, 'f', 1)
+                        .arg(position.y(), 0, 'f', 1));
+                    qDebug() << "RTW Symbol clicked:" << symbolName << "Timestamp:" << timestampStr << "Position:" << position;
+                }
+            });
 
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
@@ -52,6 +104,49 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Start the simulator
     simulator->start();
+
+    // Test shaded region API in first tab
+    // Wait a bit for the graph to initialize, then add a test shaded region
+    QTimer::singleShot(2000, this, [this]() {
+        if (graphgrid) {
+            // Find the first GraphContainer
+            QList<GraphContainer*> containers = graphgrid->findChildren<GraphContainer*>();
+            if (!containers.isEmpty()) {
+                GraphContainer* firstContainer = containers.first();
+                if (firstContainer) {
+                    // Get the BTW graph from the container
+                    WaterfallGraph* btwGraphBase = firstContainer->getWaterfallGraph(GraphType::BTW);
+                    if (btwGraphBase) {
+                        BTWGraph* btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+                        if (btwGraph) {
+                            // Get current time for the test
+                            QDateTime currentTime = QDateTime::currentDateTime();
+                            // Add a test vertical shaded region with X range 30.0 to 40.0
+                            // This will create a vertical band spanning from top to bottom
+                            int regionId = btwGraph->addShadedRegion(30.0, 40.0, currentTime);
+                            qDebug() << "MainWindow: Test - Added vertical shaded region" << regionId 
+                                     << "X range: 30.0 to 40.0, Y=" << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                            
+                            // Add another test region with different X range
+                            QTimer::singleShot(1000, this, [btwGraph, currentTime]() {
+                                int regionId2 = btwGraph->addShadedRegion(50.0, 60.0, currentTime);
+                                qDebug() << "MainWindow: Test - Added second vertical shaded region" << regionId2 
+                                         << "X range: 50.0 to 60.0, Y=" << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                            });
+                        } else {
+                            qDebug() << "MainWindow: Test - Could not cast to BTWGraph";
+                        }
+                    } else {
+                        qDebug() << "MainWindow: Test - Could not get BTW graph from container";
+                    }
+                } else {
+                    qDebug() << "MainWindow: Test - First container is null";
+                }
+            } else {
+                qDebug() << "MainWindow: Test - No GraphContainers found";
+            }
+        }
+    });
 
     // Initialize some sample data for the graph
     std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
@@ -138,6 +233,11 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Setup manoeuvre button
     setupManoeuvreButton();
+
+    // Add a test RTW symbol to the graph layout
+    QDateTime testSymbolTime = QDateTime::currentDateTime().addSecs(-120); // 2 minutes ago
+    graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
+    qDebug() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -151,23 +251,74 @@ void MainWindow::setupTimeSelectionHistory()
 
 void MainWindow::setupManoeuvreButton()
 {
+    // Find the top bar widget and its layout
+    QWidget* topBarWidget = ui->originalTab->findChild<QWidget*>("topBarWidget");
+    if (!topBarWidget) {
+        qWarning() << "Top bar widget not found, creating new one";
+        topBarWidget = new QWidget(ui->originalTab);
+        topBarWidget->setObjectName("topBarWidget");
+        topBarWidget->setGeometry(QRect(10, 10, 1200, 50));
+    }
+    
+    // Get or create the horizontal layout
+    QHBoxLayout* topLayout = qobject_cast<QHBoxLayout*>(topBarWidget->layout());
+    if (!topLayout) {
+        topLayout = new QHBoxLayout(topBarWidget);
+        topLayout->setContentsMargins(0, 0, 0, 0);
+        topLayout->setSpacing(10);
+        
+        // Add the timestamp label if it exists and isn't already in a layout
+        if (markerTimestampLabel && markerTimestampLabel->parent() == topBarWidget) {
+            topLayout->addWidget(markerTimestampLabel);
+        }
+        // Add the RTW symbol timestamp label if it exists and isn't already in a layout
+        if (rtwSymbolTimestampLabel && rtwSymbolTimestampLabel->parent() == topBarWidget) {
+            topLayout->addWidget(rtwSymbolTimestampLabel);
+        }
+    }
+    
     // Create button to add manoeuvres
-    addManoeuvreButton = new QPushButton("Add Manoeuvre", ui->originalTab);
+    addManoeuvreButton = new QPushButton("Add Manoeuvre", topBarWidget);
     addManoeuvreButton->setObjectName("addManoeuvreButton");
-    addManoeuvreButton->setGeometry(QRect(10, 10, 150, 30)); // Position at top-left of originalTab
+    addManoeuvreButton->setFixedSize(150, 30);
     
     // Connect button click to slot
     connect(addManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onAddManoeuvreButtonClicked);
     
     // Create button to clear manoeuvres
-    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", ui->originalTab);
+    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", topBarWidget);
     clearManoeuvresButton->setObjectName("clearManoeuvresButton");
-    clearManoeuvresButton->setGeometry(QRect(170, 10, 150, 30)); // Position next to add button
+    clearManoeuvresButton->setFixedSize(150, 30);
     
     // Connect button click to slot
     connect(clearManoeuvresButton, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
     
-    qDebug() << "Manoeuvre buttons created and connected";
+    // Create button to start manoeuvre drawing (new API)
+    startManoeuvreButton = new QPushButton("Start Manoeuvre", topBarWidget);
+    startManoeuvreButton->setObjectName("startManoeuvreButton");
+    startManoeuvreButton->setFixedSize(150, 30);
+    startManoeuvreButton->setStyleSheet("QPushButton { background-color: #28a745; color: white; font-weight: bold; }");
+    
+    // Connect button click to slot
+    connect(startManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onStartManoeuvreButtonClicked);
+    
+    // Create button to end manoeuvre drawing (new API)
+    endManoeuvreButton = new QPushButton("End Manoeuvre", topBarWidget);
+    endManoeuvreButton->setObjectName("endManoeuvreButton");
+    endManoeuvreButton->setFixedSize(150, 30);
+    endManoeuvreButton->setStyleSheet("QPushButton { background-color: #dc3545; color: white; font-weight: bold; }");
+    
+    // Connect button click to slot
+    connect(endManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onEndManoeuvreButtonClicked);
+    
+    // Add buttons to the layout
+    topLayout->addWidget(addManoeuvreButton);
+    topLayout->addWidget(clearManoeuvresButton);
+    topLayout->addWidget(startManoeuvreButton);
+    topLayout->addWidget(endManoeuvreButton);
+    topLayout->addStretch(); // Add stretch to push everything to the left
+    
+    qDebug() << "Manoeuvre buttons created and connected in horizontal layout";
 }
 
 void MainWindow::onAddManoeuvreButtonClicked()
@@ -200,6 +351,40 @@ void MainWindow::onClearManoeuvresButtonClicked()
     graphgrid->clearManoeuvres();
     
     qDebug() << "MainWindow: Cleared all manoeuvres";
+}
+
+void MainWindow::onStartManoeuvreButtonClicked()
+{
+    // Start a manoeuvre drawing session with current time and random parameters
+    QDateTime startTime = QDateTime::currentDateTime();
+    
+    // Generate dummy data: bearing (0-360), speed (10-30), depth (50-200)
+    int bearing = (std::rand() % 360);      // Random bearing 0-359
+    int speed = 10 + (std::rand() % 21);     // Random speed 10-30
+    int depth = 50 + (std::rand() % 151);    // Random depth 50-200
+    
+    // Call the new API to start manoeuvre drawing
+    graphgrid->startManoeuvreDrawing(startTime, bearing, speed, depth);
+    
+    qDebug() << "MainWindow: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << bearing
+             << "speed:" << speed
+             << "depth:" << depth;
+}
+
+void MainWindow::onEndManoeuvreButtonClicked()
+{
+    // End the current manoeuvre drawing session with current time
+    QDateTime endTime = QDateTime::currentDateTime();
+    
+    // Call the new API to end manoeuvre drawing
+    graphgrid->endManoeuvreDrawing(endTime);
+    
+    qDebug() << "MainWindow: Ended manoeuvre drawing - endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss");
+    
+    // Show current manoeuvre count
+    auto manoeuvres = graphgrid->getManoeuvres();
+    qDebug() << "MainWindow: Total manoeuvres:" << manoeuvres.size();
 }
 
 void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
@@ -991,7 +1176,11 @@ protected:
             RTWSymbolDrawing::SymbolType::BOT,
             RTWSymbolDrawing::SymbolType::BOTC,
             RTWSymbolDrawing::SymbolType::BOTF,
-            RTWSymbolDrawing::SymbolType::BOTD
+            RTWSymbolDrawing::SymbolType::BOTD,
+            RTWSymbolDrawing::SymbolType::YellowCircle1,
+            RTWSymbolDrawing::SymbolType::YellowCircle2,
+            RTWSymbolDrawing::SymbolType::YellowCircle3,
+            RTWSymbolDrawing::SymbolType::YellowCircle4
             
         };
 
@@ -1016,7 +1205,11 @@ protected:
             "BFT",
             "BRAT",
             "Wavy Circle (Green)",
-            "Scallop Ellipse (Green)"
+            "Scallop Ellipse (Green)",
+            "Yellow Circle 1",
+            "Yellow Circle 2",
+            "Yellow Circle 3",
+            "Yellow Circle 4"
         };
 
         for (int i = 0; i < symbolTypes.size(); ++i)

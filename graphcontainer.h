@@ -20,6 +20,7 @@
 #include <QHBoxLayout>
 #include <QString>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <functional>
@@ -61,6 +62,9 @@ public:
     void setGraphViewSize(int width, int height);
     QSize getGraphViewSize() const;
     QSize getTotalContainerSize() const;
+    
+    // Get the combined height of combo box and zoom panel
+    int getComboBoxAndZoomPanelHeight() const;
 
 
     // Data access methods
@@ -168,9 +172,19 @@ public slots:
     
     // Marker timestamp slots
     void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
+    
+    // BTW Marker sync slots (called when syncing markers from other containers)
+    void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    void onBTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // Shaded region sync slots (called when syncing regions from other containers)
+    void onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    void onShadedRegionSyncRemoved(const QUuid &syncId);
+    void onShadedRegionsSyncCleared();
     // Unified data change notification handler
     void onDataChanged(GraphType graphType);
 
@@ -200,8 +214,62 @@ signals:
     
     // Marker timestamp signals
     void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
     void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    /**
+     * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
+     * @param timestamp The timestamp of the marker
+     * @param value The value (range) of the marker
+     */
+    void markerTimestampValueChanged(const QDateTime &timestamp, qreal value);
+    
+    /**
+     * @brief Emitted when a marker is clicked with full data
+     * 
+     * This signal provides all marker data for external integration:
+     * - timestamp: When the marker is positioned in time
+     * - rangeValue: The X-axis range value (horizontal position)
+     * - bearingRate: The bearing rate value shown in the box (rotation angle / 10)
+     * 
+     * @param timestamp The timestamp of the marker
+     * @param rangeValue The range value (X-axis position)
+     * @param bearingRate The bearing rate value (from the box display)
+     */
+    void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+    
+    // ========== BTW Marker Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a BTW marker's data changes and needs to be synced
+     * @param markerData The current state of the marker
+     */
+    void BTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Emitted when a BTW marker is deleted and needs to be synced
+     * @param markerId The unique ID of the deleted marker
+     */
+    void BTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // ========== Shaded Region Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a shaded region is added and needs to be synced
+     * @param regionData The shaded region data to sync
+     */
+    void ShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Emitted when a shaded region is removed and needs to be synced
+     * @param syncId The global sync ID of the removed region
+     */
+    void ShadedRegionSyncRemoved(const QUuid &syncId);
+    
+    /**
+     * @brief Emitted when all shaded regions are cleared
+     */
+    void ShadedRegionsSyncCleared();
 
 private:
     QHBoxLayout *m_mainLayout;

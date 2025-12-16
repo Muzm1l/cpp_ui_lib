@@ -11,11 +11,29 @@
 #include <QGroupBox>
 #include <QLabel>
 #include <QDateTime>
+#include <QMap>
+#include <QUuid>
+#include <QGraphicsPolygonItem>
 #include <vector>
 
 // Forward declarations to avoid circular dependency
 class BTWInteractiveOverlay;
 class InteractiveGraphicsItem;
+class ZoomPanel;
+class GraphContainer;
+struct BTWSyncMarkerData;
+struct ShadedRegionSyncData;
+
+// Structure to store shaded region data
+struct ShadedRegionData
+{
+    qreal startX;  // Starting X value (left range boundary)
+    qreal endX;    // Ending X value (right range boundary)
+    QDateTime startY;  // Starting Y value (timestamp) - currently not used, region spans full height
+    
+    ShadedRegionData() : startX(0.0), endX(0.0) {}
+    ShadedRegionData(qreal xStart, qreal xEnd, const QDateTime &y) : startX(xStart), endX(xEnd), startY(y) {}
+};
 
 /**
  * @brief BTW Graph component that inherits from waterfallgraph
@@ -41,6 +59,59 @@ public:
      */
     std::vector<QDateTime> getAutomaticMarkerTimestamps() const;
     
+    // ========== Marker Sync Methods ==========
+    
+    /**
+     * @brief Create a marker from sync data (called when syncing from another container)
+     * @param markerData The BTW marker data
+     * @return true if marker was created successfully
+     */
+    bool createMarkerFromSyncData(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Update a marker from sync data
+     * @param markerData The updated marker data
+     * @return true if marker was found and updated
+     */
+    bool updateMarkerFromSyncData(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Delete a marker by its sync ID
+     * @param markerId The unique ID of the marker to delete
+     * @return true if marker was found and deleted
+     */
+    bool deleteMarkerBySyncId(const QUuid &markerId);
+    
+    /**
+     * @brief Check if a marker with the given sync ID exists
+     * @param markerId The unique ID to check
+     * @return true if marker exists
+     */
+    bool hasMarkerWithSyncId(const QUuid &markerId) const;
+    
+    // ========== Shaded Region Sync Methods ==========
+    
+    /**
+     * @brief Create a shaded region from sync data (called when syncing from another container)
+     * @param regionData The shaded region sync data
+     * @return The local region ID, or -1 if creation failed
+     */
+    int createShadedRegionFromSyncData(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Delete a shaded region by its sync ID
+     * @param syncId The global sync ID of the region to delete
+     * @return true if region was found and deleted
+     */
+    bool deleteShadedRegionBySyncId(const QUuid &syncId);
+    
+    /**
+     * @brief Check if a shaded region with the given sync ID exists
+     * @param syncId The global sync ID to check
+     * @return true if region exists
+     */
+    bool hasShadedRegionWithSyncId(const QUuid &syncId) const;
+    
     /**
      * @brief Add a BTW symbol to the graph
      * @param symbolName Name of the symbol (e.g., "MagentaCircle")
@@ -48,6 +119,28 @@ public:
      * @param range Range value (Y-axis position) where the symbol should be displayed
      */
     void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
+    
+    /**
+     * @brief Add a shaded region to the graph
+     * The region will be drawn as a vertical band spanning from top to bottom (all timestamps),
+     * with horizontal boundaries defined by the X range values
+     * @param startX Starting X value (left range boundary, e.g., 30.0)
+     * @param endX Ending X value (right range boundary, e.g., 40.0)
+     * @param startY Starting Y value (timestamp) - currently stored but region spans full height
+     * @return Unique identifier for the shaded region
+     */
+    int addShadedRegion(qreal startX, qreal endX, const QDateTime &startY);
+    
+    /**
+     * @brief Remove a shaded region by its identifier
+     * @param regionId The identifier returned by addShadedRegion
+     */
+    void removeShadedRegion(int regionId);
+    
+    /**
+     * @brief Clear all shaded regions
+     */
+    void clearShadedRegions();
 
 public slots:
     void deleteInteractiveMarkers();
@@ -90,6 +183,26 @@ private:
     
     // Store timestamps from automatic markers
     std::vector<QDateTime> m_automaticMarkerTimestamps;
+    
+    // Shaded regions storage (key: region ID, value: region data and graphics item)
+    struct ShadedRegionItem
+    {
+        ShadedRegionData data;
+        QGraphicsPolygonItem *polygonItem;
+        QUuid syncId;  // Global sync identifier for syncing across containers
+        
+        ShadedRegionItem() : polygonItem(nullptr) {}
+        ShadedRegionItem(const ShadedRegionData &d) : data(d), polygonItem(nullptr), syncId(QUuid::createUuid()) {}
+    };
+    QMap<int, ShadedRegionItem> m_shadedRegions;
+    QMap<QUuid, int> m_syncIdToRegionId;  // Reverse lookup: sync ID to local region ID
+    int m_nextRegionId;
+    
+    // Helper method to get zoom panel from parent GraphContainer
+    ZoomPanel* getZoomPanel() const;
+    
+    // Method to draw shaded regions
+    void drawShadedRegions();
 
 signals:
     /**
@@ -105,6 +218,53 @@ signals:
      * @param position The scene position where the marker was clicked
      */
     void manualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a marker is clicked with full data
+     * 
+     * This signal provides all marker data for external integration:
+     * - timestamp: When the marker is positioned in time
+     * - rangeValue: The X-axis range value (horizontal position)
+     * - bearingRate: The bearing rate value shown in the box (rotation angle / 10)
+     * 
+     * @param timestamp The timestamp of the marker
+     * @param rangeValue The range value (X-axis position)
+     * @param bearingRate The bearing rate value (from the box display)
+     */
+    void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+    
+    // ========== Marker Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a marker's data changes and needs to be synced
+     * @param markerData The current state of the marker
+     */
+    void markerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Emitted when a marker is deleted and needs to be synced
+     * @param markerId The unique ID of the deleted marker
+     */
+    void markerSyncDeleted(const QUuid &markerId);
+    
+    // ========== Shaded Region Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a shaded region is added and needs to be synced
+     * @param regionData The shaded region data to sync
+     */
+    void shadedRegionAdded(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Emitted when a shaded region is removed and needs to be synced
+     * @param syncId The global sync ID of the removed region
+     */
+    void shadedRegionRemoved(const QUuid &syncId);
+    
+    /**
+     * @brief Emitted when all shaded regions are cleared
+     */
+    void shadedRegionsCleared();
 };
 
 #endif // BTWGRAPH_H

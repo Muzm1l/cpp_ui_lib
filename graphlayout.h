@@ -110,6 +110,29 @@ public:
     void clearManoeuvres();
     std::vector<Manoeuvre> getManoeuvres() const;
 
+    /**
+     * @brief Starts drawing a manoeuvre
+     *
+     * Begins a new manoeuvre drawing session with the specified start time and parameters.
+     * The manoeuvre will be completed when endManoeuvreDrawing() is called.
+     *
+     * @param startTime The start time of the manoeuvre
+     * @param bearing The bearing in degrees (0-359)
+     * @param speed The speed value
+     * @param depth The depth value
+     */
+    void startManoeuvreDrawing(const QDateTime &startTime, int bearing, int speed, int depth);
+
+    /**
+     * @brief Ends drawing a manoeuvre
+     *
+     * Completes the current manoeuvre drawing session with the specified end time.
+     * The manoeuvre will be added to the graph layout.
+     *
+     * @param endTime The end time of the manoeuvre
+     */
+    void endManoeuvreDrawing(const QDateTime &endTime);
+
     // Set range limits methods
     void setHardRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
     void removeHardRangeLimits(const GraphType graphType);
@@ -140,6 +163,39 @@ public:
     // Clear BTW manual markers (interactive overlay markers)
     void clearBTWManualMarkers();
     
+    // ========== Shaded Region API ==========
+    
+    /**
+     * @brief Add a shaded region to all BTW graphs
+     * 
+     * The shaded region will be drawn as a cross-hatched vertical band
+     * spanning from top to bottom (all timestamps), with horizontal 
+     * boundaries defined by the X range values.
+     * 
+     * @param startX Starting X value (left range boundary)
+     * @param endX Ending X value (right range boundary)
+     * @return The sync ID of the created region (can be used for removal)
+     */
+    QUuid addShadedRegionToAllBTW(qreal startX, qreal endX);
+    
+    /**
+     * @brief Remove a shaded region from all BTW graphs by sync ID
+     * @param syncId The global sync ID of the region to remove
+     * @return true if region was found and removed
+     */
+    bool removeShadedRegionFromAllBTW(const QUuid &syncId);
+    
+    /**
+     * @brief Clear all shaded regions from all BTW graphs
+     */
+    void clearAllShadedRegions();
+    
+    /**
+     * @brief Get all active shaded regions
+     * @return Vector of shaded region sync data
+     */
+    std::vector<ShadedRegionSyncData> getAllShadedRegions() const;
+    
     // Redraw specific graph
     void redrawGraph(const GraphType &graphType);
     
@@ -154,6 +210,15 @@ public slots:
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    
+    // BTW Marker sync slots - propagate markers to all containers
+    void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    void onBTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // Shaded region sync slots - propagate regions to all containers
+    void onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    void onShadedRegionSyncRemoved(const QUuid &syncId);
+    void onShadedRegionsSyncCleared();
 
 public slots:
     void onContainerIntervalChanged(TimeInterval interval);
@@ -189,6 +254,13 @@ private:
     // Container synchronization state
     GraphContainerSyncState m_syncState;
 
+    // Manoeuvre drawing state
+    bool m_manoeuvreDrawingInProgress; ///< Flag indicating if a manoeuvre is currently being drawn
+    QDateTime m_currentManoeuvreStartTime; ///< Start time of the manoeuvre being drawn
+    int m_currentManoeuvreBearing; ///< Bearing of the manoeuvre being drawn
+    int m_currentManoeuvreSpeed; ///< Speed of the manoeuvre being drawn
+    int m_currentManoeuvreDepth; ///< Depth of the manoeuvre being drawn
+
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionsCleared();
@@ -200,6 +272,14 @@ signals:
      * @param position The scene position where the marker was clicked
      */
     void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when an RTW symbol is clicked
+     * @param timestamp The timestamp of the clicked RTW symbol
+     * @param position The scene position where the symbol was clicked
+     * @param symbolName The name of the clicked symbol
+     */
+    void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
     
     /**
      * @brief Emitted when a BTW manual marker is placed
@@ -214,6 +294,27 @@ signals:
      * @param position The scene position where the marker was clicked
      */
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
+     * @param timestamp The timestamp of the marker
+     * @param value The value (range) of the marker
+     */
+    void markerTimestampValueChanged(const QDateTime &timestamp, qreal value);
+    
+    /**
+     * @brief Emitted when a marker is clicked with full data
+     * 
+     * This signal provides all marker data for external integration:
+     * - timestamp: When the marker is positioned in time
+     * - rangeValue: The X-axis range value (horizontal position)  
+     * - bearingRate: The bearing rate value shown in the box (rotation angle / 10)
+     * 
+     * @param timestamp The timestamp of the marker
+     * @param rangeValue The range value (X-axis position)
+     * @param bearingRate The bearing rate value (from the box display)
+     */
+    void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
 };
 
 #endif // GRAPHLAYOUT_H

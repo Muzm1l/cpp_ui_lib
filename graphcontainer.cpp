@@ -1,4 +1,5 @@
 #include "graphcontainer.h"
+#include "btwinteractiveoverlay.h"
 #include <QDebug>
 #include <QTimer>
 #include <stdexcept>
@@ -181,8 +182,8 @@ void GraphContainer::onTimerTick()
         m_timelineView->setCurrentTime(currentTime);
     }
 //--------syed----------------
-    // Continuously update graph if showing recent data (within 1 minute of current time)
-    // This ensures data point animation continues after setDataToDataSource is called
+    // Update graph only when there's new data to show (within 1 minute of current time)
+    // Performance optimization: Only redraw when necessary, not on every timer tick
     if (m_currentWaterfallGraph && m_timelineView)
     {
         auto timeRange = m_currentWaterfallGraph->getTimeRange();
@@ -191,10 +192,10 @@ void GraphContainer::onTimerTick()
             QDateTime currentDateTime = QDateTime::currentDateTime();
             qint64 timeDiffMs = timeRange.second.msecsTo(currentDateTime);
             
-            // If showing recent data (within 1 minute), update time range and redraw
+            // If showing recent data (within 1 minute), check for new data
             if (timeDiffMs >= 0 && timeDiffMs < 60000)
             {
-                // Check if we have new data to show
+                // Only redraw if there's actually new data to show
                 if (m_currentWaterfallGraph->getDataSource())
                 {
                     QDateTime latestDataTime = m_currentWaterfallGraph->getDataSource()->getLatestTime();
@@ -214,12 +215,8 @@ void GraphContainer::onTimerTick()
                         // Redraw graph to show updated data
                         redrawWaterfallGraph();
                     }
-                    else
-                    {
-                        // Even if no new data, redraw to keep animation smooth
-                        // This ensures the graph continues updating as time progresses
-                        redrawWaterfallGraph();
-                    }
+                    // NOTE: Removed unconditional redraw - only redraw when new data arrives
+                    // This prevents unnecessary CPU usage from constant full redraws
                 }
             }
         }
@@ -353,6 +350,25 @@ QSize GraphContainer::getTotalContainerSize() const
     return QSize(totalWidth, totalHeight);
 }
 
+int GraphContainer::getComboBoxAndZoomPanelHeight() const
+{
+    if (!m_comboBox || !m_zoomPanel)
+    {
+        return 0;
+    }
+    
+    // Get combo box height
+    int comboboxHeight = m_comboBox->sizeHint().height();
+    
+    // Zoom panel height matches combo box height
+    int zoompanelHeight = m_zoomPanel->maximumHeight();
+    
+    // Return combined height (they are stacked vertically, so add them)
+    // Also account for any spacing between them in the layout
+    // The layout spacing is 0, so just add the heights
+    return comboboxHeight + zoompanelHeight;
+}
+
 // Container geometry methods
 void GraphContainer::setContainerHeight(int height)
 {
@@ -445,7 +461,6 @@ void GraphContainer::redrawWaterfallGraph()
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->draw();
-        qDebug() << "GraphContainer: Triggered waterfall graph redraw for current graph type" << static_cast<int>(currentDataOption);
     }
 }
 
@@ -456,7 +471,6 @@ void GraphContainer::redrawWaterfallGraph(GraphType graphType)
     if (it != m_waterfallGraphs.end() && it->second)
     {
         it->second->draw();
-        qDebug() << "GraphContainer: Triggered waterfall graph redraw for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -603,9 +617,25 @@ bool GraphContainer::hasDataOption(const GraphType graphType) const
 void GraphContainer::updateComboBoxOptions()
 {
     m_comboBox->clear();
-    for (const auto &pair : dataOptions)
+    
+    // Define the desired order of graph types in the combo box
+    std::vector<GraphType> desiredOrder = {
+        GraphType::BTW,  // 1. BTW
+        GraphType::BDW,  // 2. BDW
+        GraphType::BRW,  // 3. BRW
+        GraphType::RTW,  // 4. RTW
+        GraphType::FTW,  // 5. FTW
+        GraphType::FDW,  // 6. FDW
+        GraphType::LTW   // 7. LTW
+    };
+    
+    // Add items in the desired order, only if they exist in dataOptions
+    for (GraphType graphType : desiredOrder)
     {
-        m_comboBox->addItem(graphTypeToString(pair.first));
+        if (dataOptions.find(graphType) != dataOptions.end())
+        {
+            m_comboBox->addItem(graphTypeToString(graphType));
+        }
     }
 }
 
@@ -629,6 +659,10 @@ void GraphContainer::setupEventConnections()
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
+        
+        // Connect marker timestamp and value changes
+        connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
+                this, &GraphContainer::markerTimestampValueChanged);
         
         // Connect crosshair position changes to update zoompanel label
         pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
@@ -690,6 +724,10 @@ void GraphContainer::setupEventConnectionsForWaterfallGraph()
     // Connect WaterfallGraph selection events
     connect(m_currentWaterfallGraph, &WaterfallGraph::SelectionCreated,
             this, &GraphContainer::onSelectionCreated);
+    
+    // Connect marker timestamp and value changes
+    connect(m_currentWaterfallGraph, &WaterfallGraph::markerTimestampValueChanged,
+            this, &GraphContainer::markerTimestampValueChanged);
 
     qDebug() << "GraphContainer: Event connections established for waterfall graph";
 }
@@ -756,6 +794,10 @@ void GraphContainer::createAllWaterfallGraphs()
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
                 this, &GraphContainer::onSelectionCreated);
+        
+        // Connect marker timestamp and value changes
+        connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
+                this, &GraphContainer::markerTimestampValueChanged);
     }
     
     qDebug() << "GraphContainer: Created all waterfall graph instances";
@@ -867,7 +909,26 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::onBTWManualMarkerPlaced);
         connect(btwGraph, &BTWGraph::manualMarkerClicked,
                 this, &GraphContainer::onBTWManualMarkerClicked);
-        qDebug() << "GraphContainer: Connected BTW marker timestamp signals";
+        
+        // Connect comprehensive marker click signal (forwards timestamp, range, and bearing rate)
+        connect(btwGraph, &BTWGraph::markerClickedWithData,
+                this, &GraphContainer::markerClickedWithData);
+        
+        // Connect BTW marker sync signals (for syncing across containers)
+        connect(btwGraph, &BTWGraph::markerSyncDataChanged,
+                this, &GraphContainer::BTWMarkerSyncDataChanged);
+        connect(btwGraph, &BTWGraph::markerSyncDeleted,
+                this, &GraphContainer::BTWMarkerSyncDeleted);
+        
+        // Connect BTW shaded region sync signals
+        connect(btwGraph, &BTWGraph::shadedRegionAdded,
+                this, &GraphContainer::ShadedRegionSyncAdded);
+        connect(btwGraph, &BTWGraph::shadedRegionRemoved,
+                this, &GraphContainer::ShadedRegionSyncRemoved);
+        connect(btwGraph, &BTWGraph::shadedRegionsCleared,
+                this, &GraphContainer::ShadedRegionsSyncCleared);
+        
+        qDebug() << "GraphContainer: Connected BTW marker and shaded region sync signals";
     }
     
     // Connect RTW R marker signal
@@ -875,6 +936,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(rtwGraph, &RTWGraph::rMarkerTimestampCaptured,
                 this, &GraphContainer::onRTWRMarkerTimestampCaptured);
         qDebug() << "GraphContainer: Connected RTW R marker timestamp signal";
+        
+        // Connect RTW symbol signal
+        connect(rtwGraph, &RTWGraph::rtwSymbolTimestampCaptured,
+                this, &GraphContainer::onRTWSymbolTimestampCaptured);
+        qDebug() << "GraphContainer: Connected RTW symbol timestamp signal";
     }
 }
 
@@ -1013,8 +1079,6 @@ void GraphContainer::onGraphContainerInFollowModeChanged(bool isInFollowMode)
 
 void GraphContainer::updateTimeInterval(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Updating time interval to" << timeIntervalToString(interval);
-
     // Set flag to prevent TimeScopeChanged from interfering
     m_updatingTimeInterval = true;
 
@@ -1026,7 +1090,6 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         if (pair.second)
         {
             pair.second->setTimeInterval(interval);
-            qDebug() << "GraphContainer: Updated interval for graph type:" << graphTypeToString(pair.first);
         }
     }
 
@@ -1035,42 +1098,35 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->draw();
-        qDebug() << "GraphContainer: Explicitly redrew current waterfall graph after interval update";
     }
 
     // Update the time selection visualizer time interval
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->setTimeLineLength(interval);
-        qDebug() << "TimeSelectionVisualizer updated with interval:" << timeIntervalToString(interval);
     }
 
     // Update the timeline view time interval
     if (m_timelineView)
     {
         m_timelineView->setTimeLineLength(interval);
-        qDebug() << "TimelineView updated with interval:" << timeIntervalToString(interval);
     }
 
     // Ensure timer is still running after interval change to keep animation active
     if (m_timer && !m_timer->isActive())
     {
         m_timer->start();
-        qDebug() << "GraphContainer: Timer restarted after interval change";
     }
 
     // Reset flag after a short delay to allow signals to propagate
     // Use QTimer::singleShot to reset the flag after the current event loop
     QTimer::singleShot(0, this, [this]() {
         m_updatingTimeInterval = false;
-        qDebug() << "GraphContainer: Time interval update complete, TimeScopeChanged handler re-enabled";
     });
 }
 
 void GraphContainer::setTimeInterval(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Setting time interval to" << timeIntervalToString(interval) << "(no signal emission)";
-    
     // Update the interval without emitting signals (for centralized sync from GraphLayout)
     updateTimeInterval(interval);
     
@@ -1080,12 +1136,9 @@ void GraphContainer::setTimeInterval(TimeInterval interval)
 
 void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphContainer: Selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
-
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->addTimeSelection(selection);
-        qDebug() << "GraphContainer: Selection added to timeline selection view";
     }
     else
     {
@@ -1098,8 +1151,6 @@ void GraphContainer::onSelectionCreated(const TimeSelectionSpan &selection)
 
 void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphContainer: Time selection made from" << selection.startTime.toString() << "to" << selection.endTime.toString();
-
     // Emit the TimeSelectionCreated signal for external components
     emit TimeSelectionCreated(selection);
 }
@@ -1111,17 +1162,13 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     // from interfering with the proper time range setup during interval updates
     if (m_updatingTimeInterval)
     {
-        qDebug() << "GraphContainer: Ignoring TimeScopeChanged during interval update";
         return;
     }
 
     if (!m_currentWaterfallGraph)
     {
-        qDebug() << "GraphContainer: Cannot update waterfall graph - no waterfall graph";
         return;
     }
-
-    qDebug() << "GraphContainer: Time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     // Update the waterfall graph's time range to match the visible scope
     // This sets a custom time range, but the graph will still redraw when new data arrives
@@ -1138,8 +1185,6 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
 
     // Emit the signal so GraphLayout hub can propagate to other containers
     emit TimeScopeChanged(selection);
-
-    qDebug() << "GraphContainer: Waterfall graph time range updated and signal emitted";
 }
 
 void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
@@ -1168,8 +1213,6 @@ void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
     // Update local tracking
     m_lastSyncedTimeScope = selection;
     m_hasLastSyncedTimeScope = true;
-
-    qDebug() << "GraphContainer: Time scope set (silent) from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)
@@ -1177,7 +1220,6 @@ void GraphContainer::setMouseSelectionEnabled(bool enabled)
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->setMouseSelectionEnabled(enabled);
-        qDebug() << "GraphContainer: Mouse selection" << (enabled ? "enabled" : "disabled");
     }
 }
 
@@ -1514,6 +1556,22 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
         m_currentWaterfallGraph->setZeroAxisValue(centerStickerValue);
     }
 
+    // Sync BTW markers with the new zoom range
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end())
+    {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph)
+        {
+            BTWInteractiveOverlay *overlay = btwGraph->getInteractiveOverlay();
+            if (overlay)
+            {
+                overlay->syncMarkersWithTimeline();
+                qDebug() << "GraphContainer: Synced BTW markers with zoom panel";
+            }
+        }
+    }
+
     qDebug() << "GraphContainer: Custom Y range set directly from interpolated bounds and time range updated";
 }
 
@@ -1530,6 +1588,13 @@ void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, c
     emit RTWRMarkerTimestampCaptured(timestamp, position);
 }
 
+void GraphContainer::onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName)
+{
+    qDebug() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") 
+             << "symbol:" << symbolName;
+    emit RTWSymbolTimestampCaptured(timestamp, position, symbolName);
+}
+
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
 {
     qDebug() << "GraphContainer: BTW manual marker placed:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
@@ -1540,6 +1605,95 @@ void GraphContainer::onBTWManualMarkerClicked(const QDateTime &timestamp, const 
 {
     qDebug() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWManualMarkerClicked(timestamp, position);
+}
+
+void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
+{
+    // This is called when receiving sync from another container
+    // Create or update the marker in our BTW graph
+    
+    // Get the BTW graph
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            // Check if marker already exists
+            if (btwGraph->hasMarkerWithSyncId(markerData.id)) {
+                btwGraph->updateMarkerFromSyncData(markerData);
+                qDebug() << "GraphContainer: Updated synced BTW marker:" << markerData.id.toString();
+            } else {
+                btwGraph->createMarkerFromSyncData(markerData);
+                qDebug() << "GraphContainer: Created synced BTW marker:" << markerData.id.toString();
+            }
+        }
+    }
+}
+
+void GraphContainer::onBTWMarkerSyncDeleted(const QUuid &markerId)
+{
+    // This is called when receiving sync from another container
+    // Delete the marker from our BTW graph
+    
+    // Get the BTW graph
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            btwGraph->deleteMarkerBySyncId(markerId);
+            qDebug() << "GraphContainer: Deleted synced BTW marker:" << markerId.toString();
+        }
+    }
+}
+
+void GraphContainer::onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData)
+{
+    // This is called when receiving sync from another container
+    // Create the shaded region in our BTW graph
+    
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            // Check if region already exists
+            if (!btwGraph->hasShadedRegionWithSyncId(regionData.syncId)) {
+                btwGraph->createShadedRegionFromSyncData(regionData);
+                qDebug() << "GraphContainer: Created synced shaded region:" << regionData.syncId.toString();
+            }
+        }
+    }
+}
+
+void GraphContainer::onShadedRegionSyncRemoved(const QUuid &syncId)
+{
+    // This is called when receiving sync from another container
+    // Delete the shaded region from our BTW graph
+    
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            btwGraph->deleteShadedRegionBySyncId(syncId);
+            qDebug() << "GraphContainer: Deleted synced shaded region:" << syncId.toString();
+        }
+    }
+}
+
+void GraphContainer::onShadedRegionsSyncCleared()
+{
+    // This is called when receiving sync from another container
+    // Clear all shaded regions from our BTW graph
+    // Note: We need a method that clears without emitting signals to avoid loops
+    
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end()) {
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
+        if (btwGraph) {
+            // For now, we'll need to track and delete each region individually
+            // to avoid emitting new clear signals
+            qDebug() << "GraphContainer: Shaded regions sync cleared received";
+            // Note: Full implementation would require a clearWithoutSignal method
+        }
+    }
 }
 
 // Chevron label control methods implementation

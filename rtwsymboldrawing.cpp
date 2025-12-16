@@ -7,6 +7,8 @@
 #include <QDebug>
 #include <cmath>
 
+static const int RTW_SYMBOL_FONT_SIZE = 10;
+
 RTWSymbolDrawing::RTWSymbolDrawing(int baseSize)
     : size(baseSize)
 {
@@ -58,6 +60,10 @@ void RTWSymbolDrawing::generateAll()
     cache[SymbolType::BOTC]      = BOTC();
     cache[SymbolType::BOTF]       = BOTF();
     cache[SymbolType::BOTD]       = BOTD();
+    cache[SymbolType::YellowCircle1] = makeYellowCircle1();
+    cache[SymbolType::YellowCircle2] = makeYellowCircle2();
+    cache[SymbolType::YellowCircle3] = makeYellowCircle3();
+    cache[SymbolType::YellowCircle4] = makeYellowCircle4();
 }
 
 /* ----------------- Helpers ----------------- */
@@ -73,7 +79,7 @@ static QFont makeFont()
 {
     QFont f("Noto Serif");
     f.setBold(true);
-    f.setPointSize(14);
+    f.setPointSize(RTW_SYMBOL_FONT_SIZE);
     // Improve font rendering
     f.setStyleStrategy(QFont::StyleStrategy(QFont::PreferAntialias | QFont::PreferQuality));
     f.setStyleHint(QFont::Serif);
@@ -91,7 +97,7 @@ QPixmap RTWSymbolDrawing::makeTM()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::white);
     p.drawRect(box);
 
@@ -109,7 +115,7 @@ QPixmap RTWSymbolDrawing::makeDP()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::white);
     p.drawRect(box);
 
@@ -127,7 +133,7 @@ QPixmap RTWSymbolDrawing::makeLY()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::white);
     p.drawRect(box);
 
@@ -146,10 +152,10 @@ QPixmap RTWSymbolDrawing::makeCircleI()
     p.setRenderHint(QPainter::Antialiasing);
 
     p.setPen(QPen(Qt::cyan, 2));
-    p.drawEllipse(QRectF(4, 4, size-8, size-8));
+    p.drawEllipse(QRectF(3, 3, size-6, size-6));
 
     p.setFont(makeFont());
-    p.drawText(QRectF(4, 4, size-8, size-8), Qt::AlignCenter, "I");
+    p.drawText(QRectF(3, 3, size-6, size-6), Qt::AlignCenter, "I");
 
     return pix;
 }
@@ -165,9 +171,9 @@ QPixmap RTWSymbolDrawing::makeTriangle()
     p.setRenderHint(QPainter::Antialiasing);
 
     QPolygonF tri;
-    tri << QPointF(size/2, 4)
-        << QPointF(4, size-4)
-        << QPointF(size-4, size-4);
+    tri << QPointF(size/2, 3)
+        << QPointF(3, size-3)
+        << QPointF(size-3, size-3);
 
     p.setPen(Qt::white);        // Border color
     p.setBrush(Qt::white);      // Solid fill
@@ -186,7 +192,7 @@ QPixmap RTWSymbolDrawing::makeRectR()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::cyan);
     p.drawRect(box);
 
@@ -204,7 +210,7 @@ QPixmap RTWSymbolDrawing::makeEllipsePP()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF ellipseRect(4, 10, size-8, size-20); // Ellipse: wider than tall
+    QRectF ellipseRect(3, 9, size-6, size-18); // Ellipse: wider than tall
     qreal centerX = ellipseRect.center().x();
     qreal centerY = ellipseRect.center().y();
     qreal radiusX = ellipseRect.width() / 2.0;  // Horizontal radius
@@ -251,7 +257,7 @@ QPixmap RTWSymbolDrawing::makeEllipsePP()
     p.drawPath(wavyPath);
 
      // add a text in the center of the circle
-     QRectF textRect(4, 4, size-8, size-8);
+     QRectF textRect(3, 3, size-6, size-6);
      p.setFont(makeFont());
      p.drawText(textRect, Qt::AlignCenter, "PP");
  
@@ -267,7 +273,7 @@ QPixmap RTWSymbolDrawing::makeRectX()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::cyan);
     p.drawRect(box);
 
@@ -285,7 +291,7 @@ QPixmap RTWSymbolDrawing::makeRectA()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::red);
     p.drawRect(box);
 
@@ -304,7 +310,7 @@ QPixmap RTWSymbolDrawing::makeRectAPurple()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(QColor(128, 0, 128)); // Purple color
     p.drawRect(box);
     
@@ -324,7 +330,7 @@ QPixmap RTWSymbolDrawing::makeRectK()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::cyan);
     p.drawRect(box);
     
@@ -342,7 +348,7 @@ QPixmap RTWSymbolDrawing::makeCircleRYellow()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF circleRect(4, 4, size-8, size-8);
+    QRectF circleRect(3, 3, size-6, size-6);
     qreal centerX = circleRect.center().x();
     qreal centerY = circleRect.center().y();
     qreal radius = circleRect.width() / 2.0;
@@ -391,7 +397,7 @@ QPixmap RTWSymbolDrawing::makeCircleRYellow()
     // p.drawText(, Qt::AlignCenter, "PP");
 
     // add a text in the center of the circle
-    QRectF textRect(4, 4, size-8, size-8);
+    QRectF textRect(3, 3, size-6, size-6);
     p.setFont(makeFont());
     p.drawText(textRect, Qt::AlignCenter, "R");
 
@@ -407,7 +413,7 @@ QPixmap RTWSymbolDrawing::makeDoubleBarYellow()
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(QPen(Qt::yellow, 2));
     // Draw two vertical parallel lines
     qreal centerX = box.center().x();
@@ -428,7 +434,7 @@ QPixmap RTWSymbolDrawing::R(){
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
     
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(QColor(255, 165, 0)); // Orange color
     
     p.setFont(makeFont());
@@ -446,7 +452,7 @@ QPixmap RTWSymbolDrawing::L(){
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::green);
     p.drawEllipse(box);
 
@@ -463,7 +469,7 @@ QPixmap RTWSymbolDrawing::BOT(){
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::green);
     p.drawRect(box);
     
@@ -480,7 +486,7 @@ QPixmap RTWSymbolDrawing::BOTC(){
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::green);
     
     p.setFont(makeFont());
@@ -496,7 +502,7 @@ QPixmap RTWSymbolDrawing::BOTF(){
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::green);
     
     p.setFont(makeFont());
@@ -514,11 +520,103 @@ QPixmap RTWSymbolDrawing::BOTD(){
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF box(4, 4, size-8, size-8);
+    QRectF box(3, 3, size-6, size-6);
     p.setPen(Qt::green);
     
     p.setFont(makeFont());
     p.drawText(box, Qt::AlignCenter, "D");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 1
+QPixmap RTWSymbolDrawing::makeYellowCircle1()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(3, 3, size-6, size-6);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 1 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "1");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 2
+QPixmap RTWSymbolDrawing::makeYellowCircle2()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(3, 3, size-6, size-6);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 2 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "2");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 3
+QPixmap RTWSymbolDrawing::makeYellowCircle3()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(3, 3, size-6, size-6);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 3 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "3");
+
+    return pix;
+}
+
+// Yellow solid circle with white number 4
+QPixmap RTWSymbolDrawing::makeYellowCircle4()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(3, 3, size-6, size-6);
+    
+    // Draw solid yellow circle
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::yellow);
+    p.drawEllipse(circleRect);
+    
+    // Draw white number 4 in center
+    p.setPen(Qt::white);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, "4");
 
     return pix;
 }

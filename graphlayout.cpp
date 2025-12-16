@@ -52,6 +52,13 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, 
 
     // Initialize the graph containers layout
     setLayoutType(layoutType);
+
+    // Initialize manoeuvre drawing state
+    m_manoeuvreDrawingInProgress = false;
+    m_currentManoeuvreStartTime = QDateTime();
+    m_currentManoeuvreBearing = 0;
+    m_currentManoeuvreSpeed = 0;
+    m_currentManoeuvreDepth = 0;
 }
 
 GraphLayout::~GraphLayout()
@@ -245,27 +252,48 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
     syncAllTimelineViews();
 
     // Reconnect container -> layout selection signals after disconnects
+    // Use Qt::UniqueConnection to prevent duplicate connections
     for (auto *container : m_graphContainers)
     {
         connect(container, &GraphContainer::TimeSelectionCreated,
-                this, &GraphLayout::onTimeSelectionCreated);
+                this, &GraphLayout::onTimeSelectionCreated, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeSelectionsCleared,
-                this, &GraphLayout::onTimeSelectionsCleared);
+                this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
-                this, &GraphLayout::onContainerIntervalChanged);
+                this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeScopeChanged,
-                this, &GraphLayout::onContainerTimeScopeChanged);
+                this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
         
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
-                this, &GraphLayout::RTWRMarkerTimestampCaptured);
+                this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
+                this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::onBTWManualMarkerPlaced);
+                this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::BTWManualMarkerPlaced);
+                this, &GraphLayout::BTWManualMarkerPlaced, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
-                this, &GraphLayout::BTWManualMarkerClicked);
+                this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
+        connect(container, &GraphContainer::markerTimestampValueChanged,
+                this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
+        connect(container, &GraphContainer::markerClickedWithData,
+                this, &GraphLayout::markerClickedWithData, Qt::UniqueConnection);
+        
+        // Connect BTW marker sync signals to propagate to all containers
+        connect(container, &GraphContainer::BTWMarkerSyncDataChanged,
+                this, &GraphLayout::onBTWMarkerSyncDataChanged, Qt::UniqueConnection);
+        connect(container, &GraphContainer::BTWMarkerSyncDeleted,
+                this, &GraphLayout::onBTWMarkerSyncDeleted, Qt::UniqueConnection);
+        
+        // Connect shaded region sync signals to propagate to all containers
+        connect(container, &GraphContainer::ShadedRegionSyncAdded,
+                this, &GraphLayout::onShadedRegionSyncAdded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::ShadedRegionSyncRemoved,
+                this, &GraphLayout::onShadedRegionSyncRemoved, Qt::UniqueConnection);
+        connect(container, &GraphContainer::ShadedRegionsSyncCleared,
+                this, &GraphLayout::onShadedRegionsSyncCleared, Qt::UniqueConnection);
     }
 }
 
@@ -320,30 +348,49 @@ void GraphLayout::initializeContainers()
     attachContainerDataSources();
     
     // Connect all containers' TimeSelectionCreated and TimeSelectionsCleared signals to our slots
+    // Use Qt::UniqueConnection to prevent duplicate connections
     for (auto *container : m_graphContainers)
     {
         connect(container, &GraphContainer::TimeSelectionCreated,
-                this, &GraphLayout::onTimeSelectionCreated);
+                this, &GraphLayout::onTimeSelectionCreated, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeSelectionsCleared,
-                this, &GraphLayout::onTimeSelectionsCleared);
+                this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
-                this, &GraphLayout::onContainerIntervalChanged);
+                this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeScopeChanged,
-                this, &GraphLayout::onContainerTimeScopeChanged);
+                this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
         
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
-                this, &GraphLayout::RTWRMarkerTimestampCaptured);
+                this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
+                this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::onBTWManualMarkerPlaced);
+                this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
-                this, &GraphLayout::BTWManualMarkerPlaced);
+                this, &GraphLayout::BTWManualMarkerPlaced, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerClicked,
-                this, &GraphLayout::BTWManualMarkerClicked);
+                this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
+        connect(container, &GraphContainer::markerTimestampValueChanged,
+                this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
+        connect(container, &GraphContainer::markerClickedWithData,
+                this, &GraphLayout::markerClickedWithData, Qt::UniqueConnection);
+        
+        // Connect BTW marker sync signals to propagate to all containers
+        connect(container, &GraphContainer::BTWMarkerSyncDataChanged,
+                this, &GraphLayout::onBTWMarkerSyncDataChanged, Qt::UniqueConnection);
+        connect(container, &GraphContainer::BTWMarkerSyncDeleted,
+                this, &GraphLayout::onBTWMarkerSyncDeleted, Qt::UniqueConnection);
+        
+        // Connect shaded region sync signals to propagate to all containers
+        connect(container, &GraphContainer::ShadedRegionSyncAdded,
+                this, &GraphLayout::onShadedRegionSyncAdded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::ShadedRegionSyncRemoved,
+                this, &GraphLayout::onShadedRegionSyncRemoved, Qt::UniqueConnection);
+        connect(container, &GraphContainer::ShadedRegionsSyncCleared,
+                this, &GraphLayout::onShadedRegionsSyncCleared, Qt::UniqueConnection);
     }
-    
-    qDebug() << "GraphLayout: Connected all containers to time selection and time scope propagation";
 
     registerCursorSyncCallbacks();
 }
@@ -363,16 +410,23 @@ void GraphLayout::attachContainerDataSources()
 
 void GraphLayout::updateLayoutSizing()
 {
-    // Get the current geometry of this GraphLayout widget
-    QSize currentSize = size();
-    if (currentSize.isEmpty()) {
-        // If size is not set yet, use the minimum size hint
-        currentSize = minimumSizeHint();
+    // Standard sizes for layout types
+    // x = combined width of timelineview (64) and history selection (32) = 96
+    const int x = 64 + 32; // Timeline view width + history selection width
+    const int standardHeight = 900;
+    
+    // Get combo box and zoom panel height from first visible container
+    int comboBoxAndZoomPanelHeight = 0;
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible())
+        {
+            comboBoxAndZoomPanelHeight = container->getComboBoxAndZoomPanelHeight();
+            break; // Use height from first visible container (all should be the same)
+        }
     }
     
-    int availableHeight = currentSize.height();
-    
-    // Calculate container heights based on layout type and available space
+    // Calculate container heights based on layout type
     int containerHeight = 0;
     int numRows = 1;
     
@@ -400,10 +454,33 @@ void GraphLayout::updateLayoutSizing()
     if (numRows > 0) {
         // Calculate height per row, accounting for spacing between rows
         int spacingHeight = (numRows > 1) ? (numRows - 1) : 0; // 1px spacing between rows
-        containerHeight = (availableHeight - spacingHeight) / numRows;
+        containerHeight = (standardHeight - spacingHeight) / numRows;
         
         // Ensure minimum height
         containerHeight = qMax(containerHeight, 200);
+        
+        // Calculate graph height by subtracting combo box and zoom panel height from container height
+        // This ensures graphs are symmetrical and fill the remaining space
+        int graphHeight = containerHeight - comboBoxAndZoomPanelHeight;
+        
+        // Ensure graph has minimum height
+        graphHeight = qMax(graphHeight, 100);
+        
+        // Set graph view size for all containers to ensure symmetrical graphs
+        // Preserve each container's existing width
+        for (auto *container : m_graphContainers)
+        {
+            if (container && container->isVisible())
+            {
+                int graphWidth = container->getGraphViewSize().width();
+                // If width is not set yet, use default
+                if (graphWidth <= 0)
+                {
+                    graphWidth = 226; // Default width
+                }
+                container->setGraphViewSize(graphWidth, graphHeight);
+            }
+        }
     }
     
     // Set container heights for all visible containers
@@ -415,200 +492,99 @@ void GraphLayout::updateLayoutSizing()
         }
     }
     
-    // Calculate widths based on formula: totalWidth = N_Columns * container_width + 64
-    // (64 is the timeline view width)
-    int numColumns = 0;
-    int containerWidth = 0;
+    // Set container widths and total width based on standard sizes
+    int totalWidth = 0;
     const int timelineViewWidth = 64; // Timeline view width
     
     switch (m_layoutType)
     {
     case LayoutType::GPW1W:
-        numColumns = 1;
+        // 1W: Width: 226 + x; h = 900
+        if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
+            m_graphContainers[0]->setContainerWidth(226 + x);
+        }
+        totalWidth = 226 + x;
         break;
+        
     case LayoutType::GPW2WH:
-        numColumns = 2;
+        // GPW2W: 226 + x + 226; h = 900
+        for (int i = 0; i < 2; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 0) {
+                    m_graphContainers[i]->setContainerWidth(226);
+                } else {
+                    m_graphContainers[i]->setContainerWidth(226 + x);
+                }
+            }
+        }
+        totalWidth = 226 + x + 226;
         break;
+        
     case LayoutType::NOGPW2WH:
-        numColumns = 2;
+        // NOGPW2WH: 580 + 582 + x; H = 900
+        for (int i = 0; i < 2; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 0) {
+                    m_graphContainers[i]->setContainerWidth(580);
+                } else {
+                    m_graphContainers[i]->setContainerWidth(582 + x);
+                }
+            }
+        }
+        totalWidth = 580 + 582 + x;
         break;
+        
     case LayoutType::GPW4WH:
-        numColumns = 4;
+        // GPW4WH: 290 + 290 + x + 290 + 290
+        for (int i = 0; i < 4; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 2) {
+                    // Third container (index 2) has timeline view, so gets extra width
+                    m_graphContainers[i]->setContainerWidth(290 + x);
+                } else {
+                    m_graphContainers[i]->setContainerWidth(290);
+                }
+            }
+        }
+        totalWidth = 290 + 290 + x + 290 + 290;
         break;
+        
     case LayoutType::GPW2WV:
-        numColumns = 1; // Stacked vertically, so 1 column
+        // GPW4WV: 226 + x; h = 900
+        if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
+            m_graphContainers[0]->setContainerWidth(226 + x);
+        }
+        if (m_graphContainers[2] && m_graphContainers[2]->isVisible()) {
+            m_graphContainers[2]->setContainerWidth(226 + x);
+        }
+        totalWidth = 226 + x;
         break;
+        
     case LayoutType::GPW4W:
-        numColumns = 2; // 2x2 grid, so 2 columns
+        // GPW4W: 226 + x + 226; h = 900
+        for (int i = 0; i < 4; ++i) {
+            if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
+                if (i == 1 || i == 3) {
+                    // Second container in each row has timeline view, so gets extra width
+                    m_graphContainers[i]->setContainerWidth(226 + x);
+                } else {
+                    // First container in each row gets standard width (no timeline view)
+                    m_graphContainers[i]->setContainerWidth(226);
+                }
+            }
+        }
+        totalWidth = 226 + x + 226;
         break;
+        
     case LayoutType::HIDDEN:
-        numColumns = 0;
+        totalWidth = 0;
         break;
     }
     
-    if (numColumns > 0) {
-        // Calculate container width from available space
-        // Formula: totalWidth = N_Columns * container_width + timelineViewWidth
-        // So: container_width = (totalWidth - timelineViewWidth) / N_Columns
-        int availableWidth = currentSize.width();
-        
-        // If the current width seems too large (likely from a previous layout with more columns),
-        // try using parent widget's available space or container's graph view size as a base
-        if (!m_graphContainers.empty() && m_graphContainers[0])
-        {
-            QSize graphViewSize = m_graphContainers[0]->getGraphViewSize();
-            int baseContainerWidth = graphViewSize.width();
-            
-            // Check if current width calculation would result in an unreasonably wide container
-            // (more than 2x the base width suggests we're using the wrong base width)
-            int calculatedWidth = (availableWidth - timelineViewWidth) / numColumns;
-            if (calculatedWidth > baseContainerWidth * 2)
-            {
-                // Try to use parent widget's available space if available
-                QWidget *parent = parentWidget();
-                if (parent)
-                {
-                    int parentWidth = parent->width();
-                    if (parentWidth > 0)
-                    {
-                        int parentBasedWidth = (parentWidth - timelineViewWidth) / numColumns;
-                        // Use parent-based width if it's more reasonable
-                        if (parentBasedWidth <= baseContainerWidth * 2 && parentBasedWidth >= baseContainerWidth)
-                        {
-                            containerWidth = parentBasedWidth;
-                        }
-                        else
-                        {
-                            // Fall back to base container width from graph view size
-                            containerWidth = baseContainerWidth;
-                        }
-                    }
-                    else
-                    {
-                        // Use the base container width from graph view size
-                        containerWidth = baseContainerWidth;
-                    }
-                }
-                else
-                {
-                    // Use the base container width from graph view size
-                    containerWidth = baseContainerWidth;
-                }
-            }
-            else
-            {
-                containerWidth = calculatedWidth;
-            }
-        }
-        else
-        {
-            containerWidth = (availableWidth - timelineViewWidth) / numColumns;
-        }
-        
-        // Ensure minimum width
-        containerWidth = qMax(containerWidth, 200);
-        
-        // Set container widths based on layout type
-        switch (m_layoutType)
-        {
-        case LayoutType::GPW1W:
-            if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
-                m_graphContainers[0]->setContainerWidth(containerWidth + timelineViewWidth);
-            }
-            break;
-        case LayoutType::GPW2WH:
-            for (int i = 0; i < 2; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    } else {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::NOGPW2WH:
-            for (int i = 0; i < 2; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 0) {
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    } else {
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::GPW4WH:
-            for (int i = 0; i < 4; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 2) {
-                        // Third container (index 2) has timeline view, so gets extra width
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    } else {
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::GPW2WV:
-            // For vertical stacking, both containers should have the same width
-            // Containers 0 and 2 are used in GPW2WV layout
-            if (m_graphContainers[0] && m_graphContainers[0]->isVisible()) {
-                m_graphContainers[0]->setContainerWidth(containerWidth + timelineViewWidth);
-            }
-            if (m_graphContainers[2] && m_graphContainers[2]->isVisible()) {
-                m_graphContainers[2]->setContainerWidth(containerWidth + timelineViewWidth);
-            }
-            break;
-        case LayoutType::GPW4W:
-            // For 2x2 grid, second container in each row has timeline view, so gets extra width
-            for (int i = 0; i < 4; ++i) {
-                if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
-                    if (i == 1 || i == 3) {
-                        // Second container in each row has timeline view, so gets extra width
-                        m_graphContainers[i]->setContainerWidth(containerWidth + timelineViewWidth);
-                    } else {
-                        // First container in each row gets standard width (no timeline view)
-                        m_graphContainers[i]->setContainerWidth(containerWidth);
-                    }
-                }
-            }
-            break;
-        case LayoutType::HIDDEN:
-            break;
-        }
-        
-        // Calculate and set total width based on layout type
-        int totalWidth = 0;
-        switch (m_layoutType)
-        {
-        case LayoutType::GPW1W:
-            totalWidth = containerWidth + timelineViewWidth;
-            break;
-        case LayoutType::GPW2WH:
-            // Container 0: no timeline view, Container 1: has timeline view
-            totalWidth = containerWidth + (containerWidth + timelineViewWidth);
-            break;
-        case LayoutType::NOGPW2WH:
-            // Container 0: no timeline view, Container 1: has timeline view
-            totalWidth = containerWidth + (containerWidth + timelineViewWidth);
-            break;
-        case LayoutType::GPW4WH:
-            // Container 2 (3rd container) has timeline view, so gets extra width
-            totalWidth = containerWidth + containerWidth + (containerWidth + timelineViewWidth) + containerWidth;
-            break;
-        case LayoutType::GPW2WV:
-            totalWidth = containerWidth + timelineViewWidth; // Both containers have same width with timeline view
-            break;
-        case LayoutType::GPW4W:
-            // 2x2 grid: second container in each row has timeline view, so gets extra width
-            totalWidth = containerWidth + (containerWidth + timelineViewWidth); // Row 1: standard + (standard + timelineViewWidth)
-            break;
-        case LayoutType::HIDDEN:
-            totalWidth = 0;
-            break;
-        }
+    // Set fixed width and height for the GraphLayout widget
+    if (m_layoutType != LayoutType::HIDDEN) {
         setFixedWidth(totalWidth);
+        setFixedHeight(standardHeight);
     }
     
     updateGeometry();
@@ -1178,6 +1154,16 @@ void GraphLayout::syncAllTimelineViews()
             }
         }
         
+        // Disconnect AbsoluteTimeModeChanged connections to other timeline views
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
+        {
+            if (i != j && timelineViewPairs[j].second)
+            {
+                disconnect(sourceTimelineView, &TimelineView::AbsoluteTimeModeChanged,
+                          timelineViewPairs[j].second, &TimelineView::setIsAbsoluteTime);
+            }
+        }
+        
         // Disconnect TimeScopeChanged connections to other timeline views
         for (size_t j = 0; j < timelineViewPairs.size(); ++j)
         {
@@ -1227,6 +1213,11 @@ void GraphLayout::syncAllTimelineViews()
                 // Use Qt::UniqueConnection to prevent duplicate connections
                 connect(timelineViewPairs[i].second, &TimelineView::TimeIntervalChanged,
                         timelineViewPairs[j].second, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
+                
+                // Connect AbsoluteTimeModeChanged signal to setIsAbsoluteTime
+                // This ensures all timeline views' abs/rel buttons stay in sync
+                connect(timelineViewPairs[i].second, &TimelineView::AbsoluteTimeModeChanged,
+                        timelineViewPairs[j].second, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
             }
         }
     }
@@ -1376,11 +1367,8 @@ void GraphLayout::onContainerTimeScopeChanged(const TimeSelectionSpan &selection
         {
             // Use setTimeScope to update without triggering signals (prevents feedback loops)
             container->setTimeScope(selection);
-            qDebug() << "GraphLayout: Time scope propagated to container";
         }
     }
-    
-    qDebug() << "GraphLayout: Time scope synchronized across all containers";
 }
 
 // void GraphLayout::onCursorTimeChanged(const QDateTime &time)
@@ -1393,15 +1381,12 @@ void GraphLayout::onContainerTimeScopeChanged(const TimeSelectionSpan &selection
 
 void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphLayout: Propagating time selection to all containers";
-    
     // Add the selection to all visible containers
     for (auto *container : m_graphContainers)
     {
         if (container && container->isVisible())
         {
             container->addTimeSelection(selection);
-            qDebug() << "GraphLayout: Selection added to container";
         }
     }
 
@@ -1552,6 +1537,111 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
     // Add magenta circle (BTW symbol) to all graphs at this timestamp
     // The range parameter is not needed - we'll find the data point at this timestamp in each graph
     addBTWSymbolToAllGraphs(timestamp, 0.0); // Range parameter is ignored, we find it from data points
+}
+
+void GraphLayout::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
+{
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state (m_syncState is a direct object, not a pointer)
+    m_syncState.addOrUpdateBTWMarker(markerData);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onBTWMarkerSyncDataChanged(markerData);
+    }
+}
+
+void GraphLayout::onBTWMarkerSyncDeleted(const QUuid &markerId)
+{
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state (m_syncState is a direct object, not a pointer)
+    m_syncState.removeBTWMarker(markerId);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onBTWMarkerSyncDeleted(markerId);
+    }
+}
+
+void GraphLayout::onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData)
+{
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state
+    m_syncState.addOrUpdateShadedRegion(regionData);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onShadedRegionSyncAdded(regionData);
+    }
+}
+
+void GraphLayout::onShadedRegionSyncRemoved(const QUuid &syncId)
+{
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state
+    m_syncState.removeShadedRegion(syncId);
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onShadedRegionSyncRemoved(syncId);
+    }
+}
+
+void GraphLayout::onShadedRegionsSyncCleared()
+{
+    // Get the source container that emitted the signal
+    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
+    
+    // Update sync state
+    m_syncState.clearShadedRegions();
+    
+    // Propagate to all other containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container) continue;
+        
+        // Skip the source container to avoid infinite loop
+        if (container == sourceContainer) continue;
+        
+        // Call the sync slot on other containers
+        container->onShadedRegionsSyncCleared();
+    }
 }
 
 // Chevron label control methods implementation - operate on all visible containers
@@ -1735,6 +1825,66 @@ void GraphLayout::clearManoeuvres()
 std::vector<Manoeuvre> GraphLayout::getManoeuvres() const
 {
     return m_syncState.manoeuvres;
+}
+
+void GraphLayout::startManoeuvreDrawing(const QDateTime &startTime, int bearing, int speed, int depth)
+{
+    // Store the start time and parameters for the manoeuvre being drawn
+    m_currentManoeuvreStartTime = startTime;
+    m_currentManoeuvreBearing = bearing;
+    m_currentManoeuvreSpeed = speed;
+    m_currentManoeuvreDepth = depth;
+    m_manoeuvreDrawingInProgress = true;
+    
+    qDebug() << "GraphLayout: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << bearing
+             << "speed:" << speed
+             << "depth:" << depth;
+}
+
+void GraphLayout::endManoeuvreDrawing(const QDateTime &endTime)
+{
+    // Check if a manoeuvre drawing is in progress
+    if (!m_manoeuvreDrawingInProgress)
+    {
+        qWarning() << "GraphLayout: endManoeuvreDrawing() called but no manoeuvre drawing in progress";
+        return;
+    }
+    
+    // Validate that start time is before end time
+    if (!m_currentManoeuvreStartTime.isValid() || !endTime.isValid())
+    {
+        qWarning() << "GraphLayout: Invalid start or end time for manoeuvre";
+        m_manoeuvreDrawingInProgress = false;
+        return;
+    }
+    
+    if (m_currentManoeuvreStartTime >= endTime)
+    {
+        qWarning() << "GraphLayout: Start time must be before end time for manoeuvre";
+        m_manoeuvreDrawingInProgress = false;
+        return;
+    }
+    
+    // Create the manoeuvre with the stored start time and parameters, and the provided end time
+    Manoeuvre manoeuvre(m_currentManoeuvreStartTime, endTime, 
+                        m_currentManoeuvreBearing, m_currentManoeuvreSpeed, m_currentManoeuvreDepth);
+    
+    // Add manoeuvre to graph layout
+    addManoeuvre(manoeuvre);
+    
+    qDebug() << "GraphLayout: Ended manoeuvre drawing - startTime:" << m_currentManoeuvreStartTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss")
+             << "bearing:" << m_currentManoeuvreBearing
+             << "speed:" << m_currentManoeuvreSpeed
+             << "depth:" << m_currentManoeuvreDepth;
+    
+    // Reset the drawing state
+    m_manoeuvreDrawingInProgress = false;
+    m_currentManoeuvreStartTime = QDateTime();
+    m_currentManoeuvreBearing = 0;
+    m_currentManoeuvreSpeed = 0;
+    m_currentManoeuvreDepth = 0;
 }
 
 QString GraphLayout::getChevronLabel1(const QString &containerLabel) const
@@ -2062,6 +2212,150 @@ void GraphLayout::clearBTWManualMarkers()
     redrawAllGraphs();
     
     qDebug() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
+}
+
+// ========== Shaded Region API Implementation ==========
+
+QUuid GraphLayout::addShadedRegionToAllBTW(qreal startX, qreal endX)
+{
+    qDebug() << "GraphLayout: Adding shaded region to all BTW graphs - X range:" << startX << "to" << endX;
+    
+    QUuid syncId;
+    bool firstRegion = true;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container (even if not currently displayed)
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                if (firstRegion)
+                {
+                    // First BTW graph creates the region and generates the sync ID
+                    int regionId = btwGraph->addShadedRegion(startX, endX, QDateTime());
+                    
+                    // Get the sync ID from the created region
+                    // We need to access it through the internal storage
+                    // For now, create a sync ID here and use it
+                    syncId = QUuid::createUuid();
+                    
+                    qDebug() << "GraphLayout: Created shaded region in first BTW graph, regionId:" << regionId
+                             << "syncId:" << syncId.toString();
+                    firstRegion = false;
+                }
+                else
+                {
+                    // Other BTW graphs receive the region via sync
+                    // Since we already emitted the signal from the first graph,
+                    // the sync system should handle it
+                    // But for direct API calls, we create it directly
+                    ShadedRegionSyncData syncData;
+                    syncData.syncId = syncId;
+                    syncData.startX = startX;
+                    syncData.endX = endX;
+                    syncData.isDeleted = false;
+                    
+                    if (!btwGraph->hasShadedRegionWithSyncId(syncId))
+                    {
+                        btwGraph->createShadedRegionFromSyncData(syncData);
+                    }
+                }
+            }
+        }
+    }
+    
+    // Update sync state
+    if (!syncId.isNull())
+    {
+        ShadedRegionSyncData syncData;
+        syncData.syncId = syncId;
+        syncData.startX = startX;
+        syncData.endX = endX;
+        syncData.isDeleted = false;
+        m_syncState.addOrUpdateShadedRegion(syncData);
+    }
+    
+    qDebug() << "GraphLayout: Added shaded region to all BTW graphs, syncId:" << syncId.toString();
+    return syncId;
+}
+
+bool GraphLayout::removeShadedRegionFromAllBTW(const QUuid &syncId)
+{
+    qDebug() << "GraphLayout: Removing shaded region from all BTW graphs - syncId:" << syncId.toString();
+    
+    bool removed = false;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                if (btwGraph->deleteShadedRegionBySyncId(syncId))
+                {
+                    removed = true;
+                    qDebug() << "GraphLayout: Removed shaded region from BTW graph";
+                }
+            }
+        }
+    }
+    
+    // Update sync state
+    m_syncState.removeShadedRegion(syncId);
+    
+    qDebug() << "GraphLayout: Shaded region removal complete, success:" << removed;
+    return removed;
+}
+
+void GraphLayout::clearAllShadedRegions()
+{
+    qDebug() << "GraphLayout: Clearing all shaded regions from all BTW graphs";
+    
+    int regionsCleared = 0;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                btwGraph->clearShadedRegions();
+                regionsCleared++;
+                qDebug() << "GraphLayout: Cleared shaded regions in BTW graph";
+            }
+        }
+    }
+    
+    // Clear sync state
+    m_syncState.clearShadedRegions();
+    
+    qDebug() << "GraphLayout: Cleared shaded regions from" << regionsCleared << "BTW graph(s)";
+}
+
+std::vector<ShadedRegionSyncData> GraphLayout::getAllShadedRegions() const
+{
+    return m_syncState.getActiveShadedRegions();
 }
 
 void GraphLayout::redrawGraph(const GraphType &graphType)

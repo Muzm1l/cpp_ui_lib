@@ -4,6 +4,7 @@
 #include "drawutils.h"
 #include "timelineutils.h"
 #include "waterfalldata.h"
+#include "btwsymboldrawing.h"
 #include <QColor>
 #include <QCoreApplication>
 #include <QFont>
@@ -16,6 +17,10 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QGraphicsTextItem>
 #include <QGraphicsView>
+#include <QGraphicsPixmapItem>
+#include <QPixmap>
+#include <QMap>
+#include <QPair>
 #include <QMouseEvent>
 #include <QPainterPath>
 #include <QPalette>
@@ -92,7 +97,7 @@ protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     // Override mouse move to track cursor for crosshair
-    void enterEvent(QEnterEvent *event) override;
+    void enterEvent(QEvent *event) override;
     void leaveEvent(QEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
 
@@ -139,7 +144,9 @@ protected:
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
     void drawBTWSymbols();
-    QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const;
+    
+    // Cached BTW symbol drawing (magenta circles)
+    BTWSymbolDrawing m_btwSymbols;
 
     // State machine for rendering
     enum class RenderState {
@@ -184,6 +191,12 @@ protected:
     // Multi-series support
     std::map<QString, QColor> seriesColors;
     std::map<QString, bool> seriesVisibility;
+    
+    // Cached point pixmaps by (color, size) for efficient rendering
+    // Key format: "color_r_g_b_a_size" (e.g., "255_0_255_255_3.0")
+    QMap<QString, QPixmap> pointPixmapCache;
+    QString getPointPixmapKey(const QColor &color, qreal size) const;
+    QPixmap getPointPixmap(const QColor &color, qreal size);
 
     // Incremental rendering support
     RenderState m_renderState;
@@ -241,8 +254,11 @@ private slots:
     void updateCursorLayer();
 
 public:
-    // Mouse selection control
+    // Coordinate mapping methods (public for overlay sync)
     qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
+    QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const; // Convert data to screen coordinates
+    
+    // Mouse selection control
     void setMouseSelectionEnabled(bool enabled);
     bool isMouseSelectionEnabled() const;
 
@@ -301,7 +317,7 @@ public:
     void drawAxisLine(const QPointF &startPos, const QPointF &endPos, const QColor &color = QColor(255, 255, 255, 128));
     void drawCharacterLabel(const QString &text, const QPointF &position, const QColor &color = Qt::white, int fontSize = 12);
     void drawTriangleMarker(const QPointF &position, const QColor &fillColor = Qt::red, const QColor &outlineColor = Qt::black, qreal size = 8.0);
-    void drawScatterplot(const QString &seriesLabel, const QColor &pointColor = Qt::white, qreal pointSize = 3.0, const QColor &outlineColor = Qt::black);
+    void drawScatterplot(const QString &seriesLabel, const QColor &pointColor = Qt::white, qreal pointSize = 4.0, const QColor &outlineColor = Qt::black);
 
     // Multi-series support methods
     void setSeriesColor(const QString &seriesLabel, const QColor &color);
@@ -312,6 +328,12 @@ public:
 
 signals:
     void SelectionCreated(const TimeSelectionSpan &selection);
+    /**
+     * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
+     * @param timestamp The timestamp of the marker
+     * @param value The value (range) of the marker
+     */
+    void markerTimestampValueChanged(const QDateTime &timestamp, qreal value);
 };
 
 #endif // WATERFALLGRAPH_H

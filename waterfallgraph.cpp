@@ -2,6 +2,8 @@
 #include "waterfalldata.h"  // For BTWSymbolData
 #include <QApplication>
 #include <QPointF>
+#include <QPainter>
+#include <QGraphicsSceneMouseEvent>
 
 /**
  * @brief Construct a new WaterfallGraph::WaterfallGraph object
@@ -57,6 +59,14 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_rangeUpdateNeeded(false),
     m_zeroAxisValue(0.0)
 {
+    // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
+    // Using default size (4x4 pixel rectangle)
+    const qreal defaultPointSize = 4.0;
+    getPointPixmap(Qt::cyan, defaultPointSize);
+    getPointPixmap(Qt::red, defaultPointSize);
+    getPointPixmap(Qt::green, defaultPointSize);
+    getPointPixmap(Qt::yellow, defaultPointSize);
+    
     // Remove all margins and padding for snug fit
     setContentsMargins(0, 0, 0, 0);
 
@@ -218,13 +228,13 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     cursorUpdateTimer->setInterval(16); // 60fps
     connect(cursorUpdateTimer, &QTimer::timeout, this, &WaterfallGraph::updateCursorLayer);
 
-    // Debug: Print initial state
-    qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
-    qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
-    qDebug() << "WaterfallGraph constructor - graphicsView:" << graphicsView;
+    // Debug: Print initial state (commented out for performance)
+    // qDebug() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
+    // qDebug() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
+    // qDebug() << "WaterfallGraph constructor - graphicsView:" << graphicsView;
 
     // Initial setup will happen in showEvent
-    qDebug() << "Constructor - Widget size:" << this->size();
+    // qDebug() << "Constructor - Widget size:" << this->size();
 }
 
 /**
@@ -628,13 +638,15 @@ int WaterfallGraph::getGridDivisions() const
  */
 void WaterfallGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "Mouse clicked at scene position:" << scenePos;
+    // qDebug() << "Mouse clicked at scene position:" << scenePos;  // Commented for performance
+    Q_UNUSED(scenePos);
     // This is a virtual function that can be overridden in derived classes
 }
 
 void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "Mouse dragged to scene position:" << scenePos;
+    // qDebug() << "Mouse dragged to scene position:" << scenePos;  // Commented for performance
+    Q_UNUSED(scenePos);
     // This is a virtual function that can be overridden in derived classes
 }
 
@@ -775,21 +787,18 @@ void WaterfallGraph::transitionToAppropriateState()
 
 /**
  * @brief Draw BTW symbols (magenta circles) from data source
- *
+ * Uses cached pixmap from BTWSymbolDrawing for better performance
  */
 void WaterfallGraph::drawBTWSymbols()
 {
     // Follow the same pattern as RTW symbols - read symbols from dataSource
     if (!graphicsScene || !dataSource)
     {
-        qDebug() << "WaterfallGraph: drawBTWSymbols - no graphicsScene or dataSource";
         return;
     }
     
     // Get symbols from dataSource
     std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
-    
-    qDebug() << "WaterfallGraph: drawBTWSymbols - found" << btwSymbols.size() << "BTW symbols in data source";
     
     if (btwSymbols.empty())
     {
@@ -800,10 +809,6 @@ void WaterfallGraph::drawBTWSymbols()
     std::vector<BTWSymbolData> visibleSymbols;
     bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
-    qDebug() << "WaterfallGraph: drawBTWSymbols - timeRangeValid:" << timeRangeValid 
-             << "timeMin:" << (timeMin.isValid() ? timeMin.toString() : "invalid")
-             << "timeMax:" << (timeMax.isValid() ? timeMax.toString() : "invalid");
-    
     if (timeRangeValid)
     {
         for (const auto& symbolData : btwSymbols)
@@ -812,54 +817,42 @@ void WaterfallGraph::drawBTWSymbols()
             {
                 visibleSymbols.push_back(symbolData);
             }
-            else
-            {
-                qDebug() << "WaterfallGraph: Symbol filtered out - timestamp" << symbolData.timestamp.toString() 
-                         << "not in range [" << timeMin.toString() << "," << timeMax.toString() << "]";
-            }
         }
     }
     else
     {
         // If time range is not valid, show all symbols (they might be needed for initialization)
         visibleSymbols = btwSymbols;
-        qDebug() << "WaterfallGraph: Time range not valid, showing all" << visibleSymbols.size() << "symbols";
     }
     
-    qDebug() << "WaterfallGraph: drawBTWSymbols - drawing" << visibleSymbols.size() << "visible symbols";
+    // Get cached magenta circle pixmap
+    const QPixmap& symbolPixmap = m_btwSymbols.get(BTWSymbolDrawing::SymbolType::MagentaCircle);
+    if (symbolPixmap.isNull())
+    {
+        return;
+    }
     
-    int symbolsDrawn = 0;
-    // Draw symbols using a simple magenta circle (we'll create it inline since BTWSymbolDrawing is BTW-specific)
+    // Draw symbols using cached pixmap for better performance
     for (const auto& symbolData : visibleSymbols)
     {
         // Map symbol position to screen coordinates
         QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
         
-        qDebug() << "WaterfallGraph: Symbol at timestamp" << symbolData.timestamp.toString() 
-                 << "range" << symbolData.range << "mapped to screen position" << screenPos;
-        
         // Check if point is within visible area
         if (!drawingArea.contains(screenPos))
         {
-            qDebug() << "WaterfallGraph: Symbol filtered out - screen position" << screenPos 
-                     << "not in drawing area" << drawingArea;
             continue;
         }
         
-        // Draw a simple magenta circle
-        QGraphicsEllipseItem *magentaCircle = new QGraphicsEllipseItem();
-        qreal circleSize = 8.0; // Small circle, 8 pixels diameter
-        magentaCircle->setRect(screenPos.x() - circleSize/2, screenPos.y() - circleSize/2, circleSize, circleSize);
-        magentaCircle->setPen(QPen(QColor(255, 0, 255), 2)); // Magenta color
-        magentaCircle->setBrush(QBrush(QColor(255, 0, 255))); // Filled magenta
-        magentaCircle->setZValue(1003); // Above markers but below interactive items
+        // Create a graphics pixmap item using cached pixmap
+        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
         
-        graphicsScene->addItem(magentaCircle);
-        symbolsDrawn++;
-        qDebug() << "WaterfallGraph: Drew magenta circle at" << screenPos;
+        // Center the symbol on the data point
+        pixmapItem->setPos(screenPos.x() - symbolPixmap.width()/2, screenPos.y() - symbolPixmap.height()/2);
+        pixmapItem->setZValue(1003); // Above markers but below interactive items
+        
+        graphicsScene->addItem(pixmapItem);
     }
-    
-    qDebug() << "WaterfallGraph: drawBTWSymbols - drew" << symbolsDrawn << "magenta circles";
 
     // If only ranges need update
     if (m_rangeUpdateNeeded || !dataRangesValid)
@@ -969,13 +962,6 @@ void WaterfallGraph::updateGraphicsDimensions()
 
         // Redraw the scene
         draw();
-
-        qDebug() << "Graphics dimensions updated successfully to:" << widgetSize;
-        qDebug() << "Scene rect is now:" << graphicsScene->sceneRect();
-    }
-    else
-    {
-        qDebug() << "Widget size is invalid, skipping update";
     }
 }
 
@@ -987,7 +973,6 @@ void WaterfallGraph::setupDrawingArea()
 {
     // Set up the drawing area to cover the entire scene
     drawingArea = graphicsScene->sceneRect();
-    qDebug() << "Drawing area set to:" << drawingArea;
 }
 
 /**
@@ -1030,33 +1015,64 @@ void WaterfallGraph::drawGrid()
  */
 void WaterfallGraph::mousePressEvent(QMouseEvent *event)
 {
-    qDebug() << "Mouse press event - button:" << event->button() << "mouseSelectionEnabled:" << mouseSelectionEnabled;
-
     if (event->button() == Qt::LeftButton)
     {
         // Convert widget coordinates to scene coordinates
         QPointF scenePos = graphicsView->mapToScene(event->pos());
-        qDebug() << "Scene position:" << scenePos << "drawingArea:" << drawingArea;
 
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
         {
-            // First, try to forward the mouse event to the overlay view if we clicked on an interactive item
-            // This allows interactive markers (like BTW markers) to handle their own events
-            // RTW R markers are in graphicsScene and will be handled in RTWGraph::onMouseClick
+            // Check if we clicked on a magenta circle (BTW symbol) in graphicsScene
+            if (graphicsScene) {
+                QGraphicsItem *itemAtPos = graphicsScene->itemAt(scenePos, QTransform());
+                if (itemAtPos) {
+                    QGraphicsEllipseItem *ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(itemAtPos);
+                    if (ellipseItem) {
+                        // Check if it's a magenta circle by checking the brush color
+                        QBrush brush = ellipseItem->brush();
+                        if (brush.color() == QColor(255, 0, 255)) { // Magenta color
+                            // This is a magenta circle - extract timestamp and value
+                            QDateTime timestamp = mapScreenToTime(scenePos.y());
+                            qreal value = mapScreenXToRange(scenePos.x());
+                            
+                            if (timestamp.isValid()) {
+                                emit markerTimestampValueChanged(timestamp, value);
+                            }
+                            return; // Don't process further
+                        }
+                    }
+                }
+            }
+            
+            // Try to dispatch event directly to interactive item in overlay scene
+            // This approach uses QGraphicsSceneMouseEvent for proper Qt graphics event handling
             if (overlayView && overlayScene) {
                 QPointF overlayScenePos = overlayView->mapToScene(event->pos());
                 QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-                // Filter out crosshair items - they should not intercept mouse events
-                // Only forward if we clicked on an actual interactive item (not crosshair, not empty)
-                if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
-                    qDebug() << "WaterfallGraph: Found interactive item at overlay position:" << overlayScenePos << "item:" << itemAtPos;
-                    // Forward the mouse event to the overlay view so the interactive item can handle it
-                    QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
-                    QApplication::postEvent(overlayView, overlayEvent);
-                    return; // Don't process further, let the overlay handle it
+                
+                // Filter out crosshair items and selection rect - they should not intercept mouse events
+                if (itemAtPos && 
+                    itemAtPos != crosshairHorizontal && 
+                    itemAtPos != crosshairVertical &&
+                    itemAtPos != selectionRect) {
+                    
+                    // Create a QGraphicsSceneMouseEvent to dispatch to the item
+                    QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMousePress);
+                    sceneEvent.setScenePos(overlayScenePos);
+                    sceneEvent.setScreenPos(event->globalPos());
+                    sceneEvent.setButton(event->button());
+                    sceneEvent.setButtons(event->buttons());
+                    sceneEvent.setModifiers(event->modifiers());
+                    sceneEvent.setWidget(overlayView->viewport());
+                    
+                    // Send event directly to the scene - the scene will dispatch to the item
+                    QApplication::sendEvent(overlayScene, &sceneEvent);
+                    
+                    if (sceneEvent.isAccepted()) {
+                        return; // Don't process further, the overlay item is handling it
+                    }
                 }
-                // If no interactive item found, continue to onMouseClick to allow adding new markers
             }
 
             isDragging = true;
@@ -1065,12 +1081,7 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
             // Start selection if mouse selection is enabled
             if (mouseSelectionEnabled)
             {
-                qDebug() << "Starting selection...";
                 startSelection(scenePos);
-            }
-            else
-            {
-                qDebug() << "Mouse selection is disabled";
             }
 
             onMouseClick(scenePos);
@@ -1092,17 +1103,31 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
  */
 void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
 {
-    // First, try to forward the mouse event to the overlay view if we're dragging
-    if (isDragging && overlayView && overlayScene) {
+    // Forward mouse move events to overlay scene for interactive items
+    // This allows InteractiveGraphicsItem to receive move events during drag/rotate
+    if (overlayView && overlayScene) {
         QPointF overlayScenePos = overlayView->mapToScene(event->pos());
-        QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-        // Filter out crosshair items - they should not intercept mouse events
-        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
-            qDebug() << "WaterfallGraph: Forwarding mouse move to overlay item:" << itemAtPos;
-            // Forward the mouse event to the overlay view
-            QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
-            QApplication::postEvent(overlayView, overlayEvent);
-            return; // Don't process further, let the overlay handle it
+        
+        // Check if there's an item with mouse grab (during drag/rotate)
+        QGraphicsItem *mouseGrabberItem = overlayScene->mouseGrabberItem();
+        if (mouseGrabberItem) {
+            // Create a QGraphicsSceneMouseEvent for the move
+            QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMouseMove);
+            sceneEvent.setScenePos(overlayScenePos);
+            sceneEvent.setScreenPos(event->globalPos());
+            sceneEvent.setButton(event->button());
+            sceneEvent.setButtons(event->buttons());
+            sceneEvent.setModifiers(event->modifiers());
+            sceneEvent.setWidget(overlayView->viewport());
+            
+            // Send event to the scene
+            QApplication::sendEvent(overlayScene, &sceneEvent);
+            
+            if (sceneEvent.isAccepted()) {
+                // Update cursor position for crosshair
+                m_lastMousePos = event->pos();
+                return; // Don't process further, the overlay item is handling it
+            }
         }
     }
 
@@ -1164,7 +1189,7 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
  *
  * @param event
  */
-void WaterfallGraph::enterEvent(QEnterEvent *event)
+void WaterfallGraph::enterEvent(QEvent *event)
 {
     QWidget::enterEvent(event);
     
@@ -1188,13 +1213,11 @@ void WaterfallGraph::enterEvent(QEnterEvent *event)
         }
     }
     
-    // Ensure cursor layer timer is running
-    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
+    // Ensure cursor layer timer is running when mouse is inside widget
+    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
     {
         cursorUpdateTimer->start();
     }
-    
-    qDebug() << "Mouse entered WaterfallGraph widget";
 }
 
 /**
@@ -1231,8 +1254,6 @@ void WaterfallGraph::leaveEvent(QEvent *event)
     
     // Notify cursor time cleared
     notifyCursorTimeChanged(QDateTime());
-    
-    qDebug() << "Mouse left WaterfallGraph widget";
 }
 
 /**
@@ -1242,15 +1263,24 @@ void WaterfallGraph::leaveEvent(QEvent *event)
  */
 void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
 {
-    // First, try to forward the mouse event to the overlay view if we're dragging
-    if (isDragging && overlayView && overlayScene) {
+    // Forward mouse release events to overlay scene for interactive items
+    if (overlayView && overlayScene) {
         QPointF overlayScenePos = overlayView->mapToScene(event->pos());
-        QGraphicsItem *itemAtPos = overlayScene->itemAt(overlayScenePos, QTransform());
-        if (itemAtPos) {
-            qDebug() << "WaterfallGraph: Forwarding mouse release to overlay item:" << itemAtPos;
-            // Forward the mouse event to the overlay view
-            QMouseEvent *overlayEvent = new QMouseEvent(event->type(), event->pos(), event->globalPos(), event->button(), event->buttons(), event->modifiers());
-            QApplication::postEvent(overlayView, overlayEvent);
+        
+        // Check if there's an item with mouse grab (during drag/rotate)
+        QGraphicsItem *mouseGrabberItem = overlayScene->mouseGrabberItem();
+        if (mouseGrabberItem) {
+            // Create a QGraphicsSceneMouseEvent for the release
+            QGraphicsSceneMouseEvent sceneEvent(QEvent::GraphicsSceneMouseRelease);
+            sceneEvent.setScenePos(overlayScenePos);
+            sceneEvent.setScreenPos(event->globalPos());
+            sceneEvent.setButton(event->button());
+            sceneEvent.setButtons(event->buttons());
+            sceneEvent.setModifiers(event->modifiers());
+            sceneEvent.setWidget(overlayView->viewport());
+            
+            // Send event to the scene
+            QApplication::sendEvent(overlayScene, &sceneEvent);
         }
     }
 
@@ -1306,8 +1336,6 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
 
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
-
-    qDebug() << "Resize event - New size:" << size();
 }
 
 /**
@@ -1318,11 +1346,6 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
 void WaterfallGraph::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
-
-    // This is called when the widget becomes visible
-    qDebug() << "showEvent - Widget size:" << this->size();
-    qDebug() << "showEvent - Graphics view size:" << graphicsView->size();
-    qDebug() << "showEvent - crosshairEnabled:" << crosshairEnabled;
 
     // Ensure graphics view fits the widget exactly
     if (graphicsView)
@@ -1337,7 +1360,6 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         overlayView->raise();
         overlayView->show();
         overlayView->update(); // Force a repaint
-        qDebug() << "showEvent - Overlay view geometry:" << overlayView->geometry() << "visible:" << overlayView->isVisible();
     }
 
     // Ensure cursor view also fits the widget exactly and is positioned on top
@@ -1347,7 +1369,6 @@ void WaterfallGraph::showEvent(QShowEvent *event)
         cursorView->raise(); // Ensure it's above overlayView
         cursorView->show();
         cursorView->update();
-        qDebug() << "showEvent - Cursor view geometry:" << cursorView->geometry() << "visible:" << cursorView->isVisible();
     }
 
     // Update cursor scene rect to match widget dimensions
@@ -1980,11 +2001,73 @@ void WaterfallGraph::drawTriangleMarker(const QPointF &position, const QColor &f
 }
 
 /**
+ * @brief Generate a cache key for a point pixmap based on color and size
+ * 
+ * @param color The color of the point
+ * @param size The size (diameter) of the point
+ * @return QString A unique key for this color/size combination
+ */
+QString WaterfallGraph::getPointPixmapKey(const QColor &color, qreal size) const
+{
+    return QString("%1_%2_%3_%4_%5")
+        .arg(color.red())
+        .arg(color.green())
+        .arg(color.blue())
+        .arg(color.alpha())
+        .arg(size);
+}
+
+/**
+ * @brief Get or create a cached pixmap for a point with given color and size
+ * 
+ * This avoids creating new pixmaps for each point, significantly improving performance
+ * when drawing many points (e.g., 1000 points with same color/size).
+ * 
+ * @param color The color of the point
+ * @param size The size (diameter) of the point
+ * @return QPixmap The cached pixmap for this color/size combination
+ */
+QPixmap WaterfallGraph::getPointPixmap(const QColor &color, qreal size)
+{
+    QString key = getPointPixmapKey(color, size);
+    
+    // Check if we already have this pixmap cached
+    if (pointPixmapCache.contains(key))
+    {
+        return pointPixmapCache[key];
+    }
+    
+    // Create a new pixmap for this color/size combination
+    // For smallest possible rectangle, use exact size (no padding needed for rectangles)
+    int pixmapSize = qMax(1, static_cast<int>(size)); // Minimum 1 pixel
+    QPixmap pixmap(pixmapSize, pixmapSize);
+    pixmap.fill(Qt::transparent);
+    
+    QPainter painter(&pixmap);
+    // No antialiasing for smallest rectangles - we want crisp 1x1 or 2x2 pixel rectangles
+    // Use CompositionMode_Source to prevent color blending when points overlap
+    painter.setCompositionMode(QPainter::CompositionMode_Source);
+    
+    // Draw the rectangle (smallest possible - 1x1 or 2x2 pixels)
+    QRectF rect(0, 0, size, size);
+    painter.setBrush(QBrush(color));
+    painter.setPen(QPen(Qt::transparent, 0));
+    painter.drawRect(rect);
+    
+    painter.end();
+    
+    // Cache the pixmap for future use
+    pointPixmapCache[key] = pixmap;
+    
+    return pixmap;
+}
+
+/**
  * @brief Draw a scatterplot for the default data series.
  *
  * @param pointColor The color of the scatterplot points (default: white)
- * @param pointSize The size of the scatterplot points (default: 3.0)
- * @param outlineColor The outline color of the scatterplot points (default: black)
+ * @param pointSize The size of the scatterplot points (default: 4.0 for 4x4 pixel rectangle)
+ * @param outlineColor The outline color of the scatterplot points (default: black, unused for rectangles)
  */
 void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &pointColor, qreal pointSize, const QColor &outlineColor)
 {
@@ -2023,16 +2106,19 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         return;
     }
 
-    // Draw scatterplot points
+    // Get cached pixmap for this color/size combination (creates if doesn't exist)
+    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
+    
+    // Draw scatterplot points using cached pixmaps
+    // This is much more efficient than creating individual QGraphicsEllipseItem for each point
     for (const auto &dataPoint : visibleData)
     {
         QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
 
-        // Create a circle for the scatterplot point
-        QGraphicsEllipseItem *point = new QGraphicsEllipseItem();
-        point->setRect(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2, pointSize, pointSize);
-        point->setPen(QPen(outlineColor, 0)); // No stroke (width 0)
-        point->setBrush(QBrush(pointColor));
+        // Create pixmap item using cached pixmap
+        QGraphicsPixmapItem *point = new QGraphicsPixmapItem(pointPixmap);
+        // Center the pixmap on the screen point
+        point->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
         point->setZValue(120); // Draw above data lines but below markers
 
         graphicsScene->addItem(point);
@@ -2137,11 +2223,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     const auto &yData = dataSource->getYDataSeries(seriesLabel);
     const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
-    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << yData.size() << "yData points and" << timestamps.size() << "timestamps";
-
     if (yData.empty() || timestamps.empty())
     {
-        qDebug() << "No data available for series:" << seriesLabel;
         return;
     }
 
@@ -2155,12 +2238,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         }
     }
 
-    qDebug() << "drawDataSeries: Series" << seriesLabel << "has" << visibleData.size() << "visible data points within time range"
-             << timeMin.toString() << "to" << timeMax.toString();
-
     if (visibleData.empty())
     {
-        qDebug() << "No data points within current time range for series:" << seriesLabel;
         return;
     }
 
@@ -2174,7 +2253,6 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
         QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
         m_seriesPointItems[seriesLabel].push_back(pointItem);
-        qDebug() << "Data series" << seriesLabel << "drawn with 1 visible point";
         return;
     }
 
@@ -2205,8 +2283,6 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
         pointItems.push_back(pointItem);
     }
-
-    qDebug() << "Data series" << seriesLabel << "drawn with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
 }
 
 // Multi-series support methods implementation
@@ -2220,7 +2296,6 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &color)
 {
     seriesColors[seriesLabel] = color;
-    qDebug() << "Series color set for" << seriesLabel << "to" << color.name();
 }
 
 /**
@@ -2255,7 +2330,6 @@ QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 void WaterfallGraph::setSeriesVisible(const QString &seriesLabel, bool visible)
 {
     seriesVisibility[seriesLabel] = visible;
-    qDebug() << "Series visibility set for" << seriesLabel << "to" << (visible ? "visible" : "hidden");
 }
 
 /**
