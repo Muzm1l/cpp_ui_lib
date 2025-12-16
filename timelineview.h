@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QEvent>
 #include <QMouseEvent>
@@ -241,6 +242,19 @@ private:
     // Application start time - timestamps before this should not be displayed
     QDateTime m_applicationStartTime;
 
+    // Cached timestamp labels for performance (avoid recalculating on every paint)
+    struct CachedTimestampLabel {
+        QString text;
+        qreal normalizedY;  // 0.0 = top, 1.0 = bottom
+    };
+    std::vector<CachedTimestampLabel> m_cachedTimestampLabels;
+    QDateTime m_lastCachedWindowStart;
+    QDateTime m_lastCachedWindowEnd;
+
+    // Cached background pixmap for performance (avoid redrawing static elements on every paint)
+    QPixmap m_cachedBackground;
+    bool m_backgroundNeedsRedraw = true;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -255,6 +269,8 @@ private:
     void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
     void drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea);
     void drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea);
+    void updateCachedTimestampLabels();
+    void renderBackgroundToCache();
     
     // Slider methods (following zoom slider pattern)
     void createSliderIndicator();
