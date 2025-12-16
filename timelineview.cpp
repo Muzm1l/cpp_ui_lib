@@ -229,9 +229,12 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContain
     // Enable mouse tracking for slider interaction
     setMouseTracking(true);
 
+    // Store the application start time - timestamps before this will not be displayed
+    m_applicationStartTime = QDateTime::currentDateTime();
+    
     // Initialize slider state: from "(now - interval)" to "now" (default 15 minutes)
     // Position slider at top (Y=0) representing the most recent time window
-    QDateTime now = QDateTime::currentDateTime();
+    QDateTime now = m_applicationStartTime;
     int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
     QDateTime startTime = now.addSecs(-intervalSeconds);
     TimeSelectionSpan initialWindow(startTime, now);
@@ -797,7 +800,11 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
         painter.fillRect(sliderRect, sliderColor);
     }
 
-    // Draw navtime labels if sync state is available
+    // Draw regular interval timestamps (snapped to round clock values)
+    // These are drawn at regular intervals and filtered to hide times before app start
+    drawRegularIntervalTimestamps(painter, rect());
+
+    // Draw navtime labels if sync state is available (may overlay regular timestamps)
     if (m_syncState && m_syncState->hasCurrentNavTime)
     {
         drawNavTimeLabels(painter, rect());
@@ -848,31 +855,8 @@ void TimelineVisualizerWidget::drawSegmentWithPainter(QPainter &painter, Timelin
     // Calculate Y position for this segment with smooth offset (shift down)
     double y = segmentNumber * segmentHeight + smoothOffset;
 
-    // Only show labels on every third section (0, 3, 6, 9, 12, ...)
-    bool shouldShowLabel = (segmentNumber % 3 == 0);
-
-    if (shouldShowLabel && segmentDrawer->isLabelSet())
-    {
-        // Use the fixed label that was set during construction
-        QString timestamp = segmentDrawer->getFixedLabel();
-        if (!timestamp.isEmpty())
-        {
-            // Set text color to white for visibility on dark background
-            painter.setPen(QPen(QColor(255, 255, 255), 1));
-
-            // Calculate text metrics
-            QFontMetrics fm(painter.font());
-            int textWidth = fm.horizontalAdvance(timestamp);
-            int textHeight = fm.height();
-
-            // Calculate center position for the text within the segment
-            int centerX = (drawArea.width() - textWidth) / 2;
-            int centerY = static_cast<int>(y + segmentHeight / 2 + textHeight / 2);
-
-            // Draw the timestamp centered in the segment
-            painter.drawText(QPoint(centerX, centerY), timestamp);
-        }
-    }
+    // Labels are now drawn by drawRegularIntervalTimestamps() for regular clock intervals
+    // This method only draws ticks
 
     // Draw two ticks which are 15% of the segment width
     int tickWidth = static_cast<int>(drawArea.width() * 0.15);
@@ -938,9 +922,6 @@ void TimelineVisualizerWidget::updateCrosshairTimestamp(const QDateTime &timesta
     m_crosshairTimestamp = timestamp;
     m_crosshairYPosition = yPosition;
     m_showCrosshairTimestamp = timestamp.isValid();
-    
-    qDebug() << "TimelineVisualizerWidget: updateCrosshairTimestamp - timestamp" << timestamp.toString("HH:mm:ss.zzz")
-             << "Y position" << yPosition << "valid" << timestamp.isValid() << "show" << m_showCrosshairTimestamp;
     
     update(); // Trigger repaint
 }
@@ -1436,21 +1417,17 @@ void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, co
 {
     if (!m_showCrosshairTimestamp)
     {
-        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - m_showCrosshairTimestamp is false";
         return;
     }
     
     if (!m_crosshairTimestamp.isValid())
     {
-        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - timestamp is invalid";
         return;
     }
     
     // Check if Y position is within visible area (allow boundary values)
     if (m_crosshairYPosition < 0 || m_crosshairYPosition > drawArea.height())
     {
-        qDebug() << "TimelineVisualizerWidget: drawCrosshairTimestampLabel - Y position" << m_crosshairYPosition 
-                 << "out of bounds [0," << drawArea.height() << "]";
         return;
     }
     
@@ -1477,9 +1454,87 @@ void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, co
     
     // Draw the timestamp text
     painter.drawText(QPoint(centerX, centerY), labelText);
+}
+
+void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea)
+{
+    // Get the visible time window from slider state
+    TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
     
-    qDebug() << "TimelineVisualizerWidget: Drew crosshair timestamp label at Y" << m_crosshairYPosition 
-             << "with text" << labelText << "in drawArea" << drawArea;
+    if (!visibleWindow.startTime.isValid() || !visibleWindow.endTime.isValid())
+    {
+        return;
+    }
+    
+    // Ensure startTime < endTime
+    QDateTime windowStart = visibleWindow.startTime;
+    QDateTime windowEnd = visibleWindow.endTime;
+    if (windowStart > windowEnd)
+    {
+        std::swap(windowStart, windowEnd);
+    }
+    
+    // Clamp window start to application start time - don't show timestamps before app started
+    // This affects where labels are drawn, not which labels exist
+    QDateTime effectiveWindowStart = windowStart;
+    if (m_applicationStartTime.isValid() && windowStart < m_applicationStartTime)
+    {
+        effectiveWindowStart = m_applicationStartTime;
+    }
+    
+    // Get label spacing in minutes based on current time interval
+    int spacingMinutes = getLabelSpacingMinutes(m_timeInterval);
+    qint64 spacingSeconds = spacingMinutes * 60;
+    
+    // Find the first label time that's >= effectiveWindowStart, snapped to regular interval
+    // This ensures labels are at round clock values (e.g., 12:00, 12:03, 12:06)
+    qint64 startSeconds = effectiveWindowStart.toMSecsSinceEpoch() / 1000;
+    qint64 firstLabelSeconds = ((startSeconds / spacingSeconds) + 1) * spacingSeconds;
+    
+    // Generate labels from first label to window end
+    QDateTime labelTime = QDateTime::fromMSecsSinceEpoch(firstLabelSeconds * 1000);
+    QDateTime endTime = windowEnd.addSecs(spacingSeconds); // Add buffer to include edge labels
+    
+    // Get window duration for Y position calculation (use original window for positioning)
+    qint64 windowDurationMs = windowStart.msecsTo(windowEnd);
+    if (windowDurationMs <= 0)
+    {
+        return;
+    }
+    
+    // Set text color to white for visibility on dark background
+    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    QFontMetrics fm(painter.font());
+    
+    while (labelTime <= endTime)
+    {
+        // Only draw if label is within the visible window
+        if (labelTime >= windowStart && labelTime <= windowEnd)
+        {
+            // Calculate Y position: windowEnd is at top (Y=0), windowStart is at bottom (Y=height)
+            qint64 timeFromEndMs = labelTime.msecsTo(windowEnd);
+            qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(windowDurationMs);
+            normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+            
+            int yPosition = static_cast<int>(normalizedY * drawArea.height());
+            
+            // Format the timestamp as HH:mm
+            QString labelText = labelTime.toString("HH:mm");
+            
+            // Calculate text metrics
+            int textWidth = fm.horizontalAdvance(labelText);
+            int textHeight = fm.height();
+            
+            // Calculate center position for the text
+            int centerX = (drawArea.width() - textWidth) / 2;
+            int centerY = yPosition + textHeight / 4; // Slight offset for vertical centering
+            
+            // Draw the timestamp
+            painter.drawText(QPoint(centerX, centerY), labelText);
+        }
+        
+        labelTime = labelTime.addSecs(spacingSeconds);
+    }
 }
 
 TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)

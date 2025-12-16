@@ -238,6 +238,9 @@ private:
     // Manoeuvre overlay
     ManoeuvreOverlay *m_manoeuvreOverlay;
 
+    // Application start time - timestamps before this should not be displayed
+    QDateTime m_applicationStartTime;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -251,6 +254,7 @@ private:
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
     void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
     void drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea);
+    void drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea);
     
     // Slider methods (following zoom slider pattern)
     void createSliderIndicator();
