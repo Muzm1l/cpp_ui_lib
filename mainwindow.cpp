@@ -703,8 +703,11 @@ void MainWindow::setupSCWWindow()
     tabLayout->setContentsMargins(0, 0, 0, 0);
     tabLayout->setSpacing(0);
     
-    // Create SCWWindow in the new tab
-    scwWindow = new SCWWindow(scwTab, timeUpdateTimer);
+    // Get sync state from graphlayout for timeline synchronization
+    GraphContainerSyncState *syncState = graphgrid ? graphgrid->getSyncState() : nullptr;
+    
+    // Create SCWWindow in the new tab with sync state
+    scwWindow = new SCWWindow(scwTab, timeUpdateTimer, syncState);
     scwWindow->setObjectName("scwWindow");
     
     // Set size policy to allow SCWWindow to expand and fill available space
@@ -718,6 +721,12 @@ void MainWindow::setupSCWWindow()
     
     // Add the tab to the tab widget
     ui->tabWidget->addTab(scwTab, "SCW Window");
+    
+    // Sync SCW timeline view with GraphLayout timeline views
+    if (graphgrid && scwWindow->getTimelineView())
+    {
+        graphgrid->syncExternalTimelineView(scwWindow->getTimelineView());
+    }
     
     // Create SCWSimulator to populate graphs every second
     // Use the same timeUpdateTimer which fires every second

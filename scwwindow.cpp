@@ -257,8 +257,8 @@ SCW_SERIES_ADOPTED stringToScwSeriesAdopted(const QString& str)
         return SCW_SERIES_ADOPTED::ADOPTED; // Default
 }
 
-SCWWindow::SCWWindow(QWidget* parent, QTimer* timer)
-    : QWidget(parent), m_mainLayout(nullptr), m_timelineView(nullptr), m_timer(timer)
+SCWWindow::SCWWindow(QWidget* parent, QTimer* timer, GraphContainerSyncState *syncState)
+    : QWidget(parent), m_mainLayout(nullptr), m_timelineView(nullptr), m_timer(timer), m_syncState(syncState)
 {
     // Initialize arrays
     for (int i = 0; i < 8; ++i)
@@ -282,6 +282,13 @@ SCWWindow::SCWWindow(QWidget* parent, QTimer* timer)
     
     // Setup waterfall graphs
     setupWaterfallGraphs();
+    
+    // Connect timer to tick handler for sync state updates
+    if (m_timer)
+    {
+        connect(m_timer, &QTimer::timeout, this, &SCWWindow::onTimerTick, Qt::UniqueConnection);
+        qDebug() << "SCWWindow: Connected timer to onTimerTick";
+    }
     
     qDebug() << "SCWWindow created successfully";
 }
@@ -409,8 +416,8 @@ void SCWWindow::setupLayout()
     m_mainLayout->setContentsMargins(0, 0, 0, 0);
     m_mainLayout->setSpacing(5);
     
-    // Create TimelineView
-    m_timelineView = new TimelineView(this, m_timer, nullptr, false, false);
+    // Create TimelineView with sync state
+    m_timelineView = new TimelineView(this, m_timer, m_syncState, false, false);
     m_timelineView->setObjectName("scwTimelineView");
     
     // Set size policy for TimelineView - fixed width, expanding height
@@ -643,6 +650,8 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[0]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[0]->setCrosshairEnabled(false);
         m_waterfallGraphs[0]->setCursorLayerEnabled(false);
+        m_waterfallGraphs[0]->setCustomYRange(-20.0, 20.0);
+        m_waterfallGraphs[0]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[0]->setDataSource(*adoptedDataSource);
         m_waterfallGraphs[0]->installEventFilter(this);
         m_seriesLayouts[0]->addWidget(m_waterfallGraphs[0], 1);
@@ -675,6 +684,8 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[windowIndex]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[windowIndex]->setCrosshairEnabled(false);
         m_waterfallGraphs[windowIndex]->setCursorLayerEnabled(false);
+        m_waterfallGraphs[windowIndex]->setCustomYRange(-20.0, 20.0);
+        m_waterfallGraphs[windowIndex]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[windowIndex]->setDataSource(*dataSource);
         m_waterfallGraphs[windowIndex]->installEventFilter(this);
         m_seriesLayouts[windowIndex]->addWidget(m_waterfallGraphs[windowIndex], 1);
@@ -693,6 +704,8 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[5]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[5]->setCrosshairEnabled(false);
         m_waterfallGraphs[5]->setCursorLayerEnabled(false);
+        m_waterfallGraphs[5]->setCustomYRange(-20.0, 20.0);
+        m_waterfallGraphs[5]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[5]->setDataSource(*dataSourceB);
         m_waterfallGraphs[5]->installEventFilter(this);
         m_seriesLayouts[5]->addWidget(m_waterfallGraphs[5], 1);
@@ -710,6 +723,8 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[6]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[6]->setCrosshairEnabled(false);
         m_waterfallGraphs[6]->setCursorLayerEnabled(false);
+        m_waterfallGraphs[6]->setCustomYRange(-20.0, 20.0);
+        m_waterfallGraphs[6]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[6]->setDataSource(*dataSourceA);
         m_waterfallGraphs[6]->installEventFilter(this);
         m_seriesLayouts[6]->addWidget(m_waterfallGraphs[6], 1);
@@ -727,6 +742,8 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[7]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[7]->setCrosshairEnabled(false);
         m_waterfallGraphs[7]->setCursorLayerEnabled(false);
+        m_waterfallGraphs[7]->setCustomYRange(-20.0, 20.0);
+        m_waterfallGraphs[7]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[7]->setDataSource(*dataSourceE);
         m_waterfallGraphs[7]->installEventFilter(this);
         m_seriesLayouts[7]->addWidget(m_waterfallGraphs[7], 1);
@@ -1192,5 +1209,120 @@ void SCWWindow::onWindow8ButtonClicked()
 {
     switchWindow8Series();
     // Note: Selection only happens when clicking on the graph, not the button
+}
+
+void SCWWindow::onTimerTick()
+{
+    // Read from sync state and update all WaterfallGraphs
+    // This reduces compute by batching updates and only updating when sync state changes
+    if (!m_syncState)
+    {
+        return;
+    }
+    
+    // Track previous values to avoid unnecessary updates
+    static TimeInterval lastInterval = TimeInterval::FifteenMinutes;
+    static TimeSelectionSpan lastTimeScope;
+    static bool hasLastTimeScope = false;
+    
+    // Update time interval from sync state if changed
+    if (m_syncState->hasInterval && m_syncState->currentInterval != lastInterval)
+    {
+        lastInterval = m_syncState->currentInterval;
+        
+        // Update all WaterfallGraphs' time intervals
+        for (int i = 0; i < 8; ++i)
+        {
+            if (m_waterfallGraphs[i])
+            {
+                m_waterfallGraphs[i]->setTimeInterval(lastInterval);
+            }
+        }
+        
+        qDebug() << "SCWWindow: Updated all WaterfallGraphs with new time interval from sync state:" << static_cast<int>(lastInterval);
+    }
+    
+    // Update time scope from sync state if changed
+    if (m_syncState->hasTimeScope)
+    {
+        bool timeScopeChanged = !hasLastTimeScope || 
+                                lastTimeScope.startTime != m_syncState->currentTimeScope.startTime ||
+                                lastTimeScope.endTime != m_syncState->currentTimeScope.endTime;
+        
+        if (timeScopeChanged)
+        {
+            lastTimeScope = m_syncState->currentTimeScope;
+            hasLastTimeScope = true;
+            
+            // Update all WaterfallGraphs' time ranges
+            for (int i = 0; i < 8; ++i)
+            {
+                if (m_waterfallGraphs[i])
+                {
+                    m_waterfallGraphs[i]->setTimeRange(lastTimeScope.startTime, lastTimeScope.endTime);
+                }
+            }
+            
+            qDebug() << "SCWWindow: Updated all WaterfallGraphs with new time scope from sync state:" 
+                     << lastTimeScope.startTime.toString() << "to" << lastTimeScope.endTime.toString();
+        }
+    }
+}
+
+void SCWWindow::clearAllGraphs()
+{
+    qDebug() << "SCWWindow: clearAllGraphs() - clearing all data from all graphs";
+    
+    // Clear all data sources
+    for (auto it = m_dataSourcesAdopted.begin(); it != m_dataSourcesAdopted.end(); ++it)
+    {
+        if (it.value())
+        {
+            it.value()->clearAllDataSeries();
+        }
+    }
+    
+    for (auto it = m_dataSourcesR.begin(); it != m_dataSourcesR.end(); ++it)
+    {
+        if (it.value())
+        {
+            it.value()->clearAllDataSeries();
+        }
+    }
+    
+    for (auto it = m_dataSourcesB.begin(); it != m_dataSourcesB.end(); ++it)
+    {
+        if (it.value())
+        {
+            it.value()->clearAllDataSeries();
+        }
+    }
+    
+    for (auto it = m_dataSourcesA.begin(); it != m_dataSourcesA.end(); ++it)
+    {
+        if (it.value())
+        {
+            it.value()->clearAllDataSeries();
+        }
+    }
+    
+    for (auto it = m_dataSourcesE.begin(); it != m_dataSourcesE.end(); ++it)
+    {
+        if (it.value())
+        {
+            it.value()->clearAllDataSeries();
+        }
+    }
+    
+    // Trigger redraws on all waterfall graphs
+    for (int i = 0; i < 8; ++i)
+    {
+        if (m_waterfallGraphs[i])
+        {
+            m_waterfallGraphs[i]->update();
+        }
+    }
+    
+    qDebug() << "SCWWindow: clearAllGraphs() completed - all data cleared from all 16 data sources";
 }
 

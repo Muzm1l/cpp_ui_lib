@@ -87,6 +87,12 @@ public:
     
     // Timeline view syncing methods
     void syncAllTimelineViews();
+    
+    // Sync an external timeline view with all timeline views in this layout
+    void syncExternalTimelineView(TimelineView *externalTimelineView);
+    
+    // Get sync state pointer for external synchronization
+    GraphContainerSyncState* getSyncState() { return &m_syncState; }
 
     // Chevron label control methods - operate on all visible containers
     void setChevronLabel1(const QString &label);

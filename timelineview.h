@@ -310,6 +310,13 @@ public:
         m_visualizerWidget->setTimeInterval(interval);
         updateButtonText(interval);
         
+        // Update sync state if available (when called from signal, keeps sync state in sync)
+        if (m_syncState)
+        {
+            m_syncState->currentInterval = interval;
+            m_syncState->hasInterval = true;
+        }
+        
         // Ensure timer is still running after interval change to keep animation active
         // This is critical - restart timer explicitly to resume animation
         ensureTimerRunning();

@@ -1739,6 +1739,18 @@ void TimelineView::onTimerTick()
             updateTimeModeButtonText(m_isAbsoluteTime);
         }
     }
+    
+    // Update time interval from sync state if available
+    if (m_syncState && m_syncState->hasInterval && m_visualizerWidget)
+    {
+        // Get current interval from visualizer widget
+        TimeInterval currentInterval = m_visualizerWidget->getTimeInterval();
+        if (currentInterval != m_syncState->currentInterval)
+        {
+            // Update without emitting signal to avoid feedback loop
+            setTimeLineLength(m_syncState->currentInterval);
+        }
+    }
 
     // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
@@ -1770,6 +1782,13 @@ void TimelineView::onIntervalButtonClicked()
     TimeInterval nextInterval = intervals[intervalIndex];
     m_visualizerWidget->setTimeInterval(nextInterval);
     updateButtonText(nextInterval);
+
+    // Update sync state if available
+    if (m_syncState)
+    {
+        m_syncState->currentInterval = nextInterval;
+        m_syncState->hasInterval = true;
+    }
 
     // Trigger the intervalChanged signal
     emit TimeIntervalChanged(nextInterval);
@@ -1803,6 +1822,13 @@ void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection
     // Ensure we emit a valid timespan with proper start and end times
     if (selection.startTime.isValid() && selection.endTime.isValid())
     {
+        // Update sync state if available (for sync state pattern)
+        if (m_syncState)
+        {
+            m_syncState->currentTimeScope = selection;
+            m_syncState->hasTimeScope = true;
+        }
+        
         emit TimeScopeChanged(selection);
     }
 

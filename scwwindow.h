@@ -4,6 +4,7 @@
 #include "timelineview.h"
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
+#include "sharedsyncstate.h"
 #include <QHBoxLayout>
 #include <QMap>
 #include <QPushButton>
@@ -70,7 +71,7 @@ class SCWWindow : public QWidget
     Q_OBJECT
 
 public:
-    explicit SCWWindow(QWidget *parent = nullptr, QTimer *timer = nullptr);
+    explicit SCWWindow(QWidget *parent = nullptr, QTimer *timer = nullptr, GraphContainerSyncState *syncState = nullptr);
     ~SCWWindow();
 
     // Data management APIs
@@ -84,6 +85,12 @@ public:
     void addDataPoints(SCW_SERIES_A series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void setDataPoints(SCW_SERIES_E series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_E series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    
+    // Clear all graphs - clears all data from all data sources
+    void clearAllGraphs();
+    
+    // Get timeline view for external synchronization
+    TimelineView* getTimelineView() const { return m_timelineView; }
 
 signals:
     void seriesSelected(const QString &seriesName);
@@ -112,6 +119,9 @@ private:
     // Timer for TimelineView
     QTimer *m_timer;
     
+    // Sync state for timeline synchronization
+    GraphContainerSyncState *m_syncState;
+    
     // Current series indices for cycling windows (6, 7, 8)
     int m_currentSeriesBIndex = 0;  // Window 6: cycles through SCW_SERIES_B
     int m_currentSeriesAIndex = 0;  // Window 7: cycles through SCW_SERIES_A
@@ -136,6 +146,9 @@ private:
     void switchWindow6Series();
     void switchWindow7Series();
     void switchWindow8Series();
+    
+    // Timer tick handler to sync from sync state
+    void onTimerTick();
 
 private slots:
     void onWindow1ButtonClicked();  // Select window 1 (ADOPTED)

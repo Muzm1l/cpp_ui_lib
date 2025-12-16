@@ -1290,6 +1290,48 @@ void GraphLayout::syncAllTimelineViews()
     qDebug() << "GraphLayout: Timeline views synced successfully";
 }
 
+void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
+{
+    if (!externalTimelineView)
+    {
+        qWarning() << "GraphLayout: Cannot sync null external timeline view";
+        return;
+    }
+    
+    qDebug() << "GraphLayout: Syncing external timeline view with all timeline views";
+    
+    // Get all timeline views from graphlayout containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container && container->isVisible() && container->getShowTimelineView())
+        {
+            TimelineView *graphTimelineView = container->getTimelineView();
+            if (graphTimelineView)
+            {
+                // Connect abs/rel button signals bidirectionally
+                connect(externalTimelineView, &TimelineView::AbsoluteTimeModeChanged,
+                        graphTimelineView, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
+                connect(graphTimelineView, &TimelineView::AbsoluteTimeModeChanged,
+                        externalTimelineView, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
+                
+                // Also sync time scope changes
+                connect(externalTimelineView, &TimelineView::TimeScopeChanged,
+                        graphTimelineView, &TimelineView::setVisibleTimeWindow, Qt::UniqueConnection);
+                connect(graphTimelineView, &TimelineView::TimeScopeChanged,
+                        externalTimelineView, &TimelineView::setVisibleTimeWindow, Qt::UniqueConnection);
+                
+                // Sync time interval changes
+                connect(externalTimelineView, &TimelineView::TimeIntervalChanged,
+                        graphTimelineView, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
+                connect(graphTimelineView, &TimelineView::TimeIntervalChanged,
+                        externalTimelineView, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
+            }
+        }
+    }
+    
+    qDebug() << "GraphLayout: External timeline view synced successfully";
+}
+
 void GraphLayout::onTimerTick()
 {
     setCurrentTime(QTime::currentTime());
