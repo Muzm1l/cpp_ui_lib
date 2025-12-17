@@ -2256,6 +2256,150 @@ void GraphLayout::clearBTWManualMarkers()
     qDebug() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
 }
 
+// ========== BTW Horizontal Line API Implementation ==========
+
+void GraphLayout::setBTWHorizontalLineMode(const GraphType &graphType, bool enabled)
+{
+    if (graphType != GraphType::BTW) {
+        qWarning() << "GraphLayout: setBTWHorizontalLineMode called for non-BTW graph type";
+        return;
+    }
+    
+    qDebug() << "GraphLayout: Setting BTW horizontal line mode to" << enabled;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                btwGraph->setHorizontalLineMode(enabled);
+            }
+        }
+    }
+}
+
+QUuid GraphLayout::addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color, qreal width)
+{
+    if (graphType != GraphType::BTW) {
+        qWarning() << "GraphLayout: addBTWHorizontalLine called for non-BTW graph type";
+        return QUuid();
+    }
+    
+    qDebug() << "GraphLayout: Adding BTW horizontal line at time" << timestamp.toString();
+    
+    QUuid lineId;
+    bool lineAdded = false;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                lineId = btwGraph->addHorizontalLine(timestamp, color, width);
+                lineAdded = true;
+            }
+        }
+    }
+    
+    if (lineAdded) {
+        // Redraw all graphs to show the line
+        redrawAllGraphs();
+    }
+    
+    return lineId;
+}
+
+bool GraphLayout::removeBTWHorizontalLine(const GraphType &graphType, const QUuid &lineId)
+{
+    if (graphType != GraphType::BTW) {
+        qWarning() << "GraphLayout: removeBTWHorizontalLine called for non-BTW graph type";
+        return false;
+    }
+    
+    qDebug() << "GraphLayout: Removing BTW horizontal line ID" << lineId.toString();
+    
+    bool lineRemoved = false;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                if (btwGraph->removeHorizontalLine(lineId)) {
+                    lineRemoved = true;
+                }
+            }
+        }
+    }
+    
+    if (lineRemoved) {
+        // Redraw all graphs
+        redrawAllGraphs();
+    }
+    
+    return lineRemoved;
+}
+
+void GraphLayout::clearBTWHorizontalLines(const GraphType &graphType)
+{
+    if (graphType != GraphType::BTW) {
+        qWarning() << "GraphLayout: clearBTWHorizontalLines called for non-BTW graph type";
+        return;
+    }
+    
+    qDebug() << "GraphLayout: Clearing all BTW horizontal lines";
+    
+    int linesCleared = 0;
+    
+    // Iterate through all containers to find BTW graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        
+        // Get the BTW graph from the container
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                btwGraph->clearHorizontalLines();
+                linesCleared++;
+            }
+        }
+    }
+    
+    // Redraw all graphs
+    redrawAllGraphs();
+    
+    qDebug() << "GraphLayout: Cleared BTW horizontal lines from" << linesCleared << "graph(s)";
+}
+
 // ========== Shaded Region API Implementation ==========
 
 QUuid GraphLayout::addShadedRegionToAllBTW(qreal startX, qreal endX)

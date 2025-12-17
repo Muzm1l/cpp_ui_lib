@@ -17,9 +17,10 @@ The widget manages multiple data series organized into four categories (R, B, A,
 3. [API Reference](#api-reference)
 4. [Events and Signals](#events-and-signals)
 5. [Usage Guide](#usage-guide)
-6. [Integration with MainWindow](#integration-with-mainwindow)
-7. [Simulator Integration](#simulator-integration)
-8. [Window Selection](#window-selection)
+6. [Synchronization with GraphLayout](#synchronization-with-graphlayout)
+7. [Integration with MainWindow](#integration-with-mainwindow)
+8. [Simulator Integration](#simulator-integration)
+9. [Window Selection](#window-selection)
 
 ---
 
@@ -142,21 +143,38 @@ enum class SCW_SERIES_E
 ### Constructor
 
 ```cpp
-explicit SCWWindow(QWidget *parent = nullptr, QTimer *timer = nullptr);
+explicit SCWWindow(QWidget *parent = nullptr, QTimer *timer = nullptr, GraphContainerSyncState *syncState = nullptr);
 ```
 
 **Parameters:**
 - `parent`: Parent widget (typically a tab widget)
 - `timer`: QTimer instance for TimelineView synchronization (optional, can be nullptr)
+- `syncState`: Pointer to shared `GraphContainerSyncState` for synchronization with GraphLayout (optional, can be nullptr)
 
 **Description:**
 Creates a new `SCWWindow` instance, initializes all data sources, sets up the layout, and configures all waterfall graphs. The widget is configured to expand and fill available space.
+
+If `syncState` is provided, the SCWWindow's `TimelineView` will synchronize with the shared state, allowing it to stay in sync with GraphLayout timeline views (time interval, time scope, absolute/relative mode).
 
 **Example:**
 ```cpp
 QTimer* timer = new QTimer(this);
 timer->setInterval(1000); // 1 second
 SCWWindow* scwWindow = new SCWWindow(parentWidget, timer);
+```
+
+**Example with Sync State:**
+```cpp
+// Get sync state from GraphLayout
+GraphContainerSyncState* syncState = graphLayout->getSyncState();
+
+// Create SCWWindow with sync state
+SCWWindow* scwWindow = new SCWWindow(parentWidget, timer, syncState);
+
+// Sync the timeline views
+if (graphLayout && scwWindow->getTimelineView()) {
+    graphLayout->syncExternalTimelineView(scwWindow->getTimelineView());
+}
 ```
 
 ---
@@ -305,6 +323,45 @@ void addDataPoints(SCW_SERIES_E series,
 
 **Description:**
 Appends new data points to the specified E series. If the series is currently displayed in window 7, the graph performs an incremental redraw.
+
+---
+
+### Utility APIs
+
+#### `TimelineView* getTimelineView() const`
+
+Returns a pointer to the internal `TimelineView` instance used by `SCWWindow`.
+
+**Returns:** Pointer to the `TimelineView`, or `nullptr` if not initialized
+
+**Description:**
+This method provides access to the `TimelineView` for synchronization purposes. Use this when you need to sync the SCW timeline with external timeline views (e.g., from `GraphLayout`).
+
+**Example:**
+```cpp
+// Get the timeline view for synchronization
+TimelineView* scwTimelineView = scwWindow->getTimelineView();
+if (scwTimelineView && graphLayout) {
+    graphLayout->syncExternalTimelineView(scwTimelineView);
+}
+```
+
+---
+
+#### `void clearAllGraphs()`
+
+Clears all data from all graphs in the `SCWWindow`.
+
+**Description:**
+This method clears all data points from all 16 data sources (4 RULER series, 5 B series, 2 A series, and 5 E series) and triggers a redraw of all graphs. This is useful for resetting the view or clearing old data.
+
+**Example:**
+```cpp
+// Clear all graphs
+scwWindow->clearAllGraphs();
+```
+
+**Note:** This only clears the data points. It does not clear markers, symbols, or other annotations that may be present on the graphs.
 
 ---
 
@@ -474,8 +531,11 @@ void MainWindow::setupSCWWindow()
     tabLayout->setContentsMargins(0, 0, 0, 0);
     tabLayout->setSpacing(0);
     
-    // Create SCWWindow in the new tab
-    scwWindow = new SCWWindow(scwTab, timeUpdateTimer);
+    // Get sync state from GraphLayout for timeline synchronization
+    GraphContainerSyncState* syncState = graphgrid ? graphgrid->getSyncState() : nullptr;
+    
+    // Create SCWWindow in the new tab with sync state
+    scwWindow = new SCWWindow(scwTab, timeUpdateTimer, syncState);
     scwWindow->setObjectName("scwWindow");
     scwWindow->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
     
@@ -486,11 +546,22 @@ void MainWindow::setupSCWWindow()
     // Add the tab to the tab widget
     ui->tabWidget->addTab(scwTab, "SCW Window");
     
+    // Sync SCW timeline view with GraphLayout timeline views
+    if (graphgrid && scwWindow->getTimelineView()) {
+        graphgrid->syncExternalTimelineView(scwWindow->getTimelineView());
+    }
+    
     // Optional: Create and start simulator
     scwSimulator = new SCWSimulator(this, timeUpdateTimer, scwWindow);
     scwSimulator->start();
 }
 ```
+
+**Key Points:**
+1. Get sync state from `GraphLayout` using `getSyncState()`
+2. Pass sync state to `SCWWindow` constructor
+3. Call `syncExternalTimelineView()` to establish bidirectional synchronization
+4. This ensures timeline views stay synchronized across tabs
 
 ### Key Points
 

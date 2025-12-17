@@ -24,6 +24,7 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     , m_interactiveOverlay(nullptr)
     , symbols(40)  // Initialize BTW symbol cache
     , m_nextRegionId(1)
+    , m_horizontalLineMode(false)
 {
     // Setup interactive overlay
     setupInteractiveOverlay();
@@ -59,6 +60,21 @@ void BTWGraph::draw()
     // Clear polygon item pointers since clear() will delete them
     for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
         it.value().polygonItem = nullptr;
+    }
+    
+    // Clear horizontal line items from scene before clearing
+    // Note: graphicsScene->clear() will delete all items, so we need to null out pointers
+    // and recreate them in drawHorizontalLines()
+    for (auto &line : m_horizontalLines) {
+        if (line.lineItem) {
+            // Remove from scene before clear() deletes it
+            if (graphicsScene->items().contains(line.lineItem)) {
+                graphicsScene->removeItem(line.lineItem);
+            }
+            // Delete the item since clear() will delete it anyway
+            delete line.lineItem;
+            line.lineItem = nullptr;  // Will be recreated in drawHorizontalLines()
+        }
     }
     
     graphicsScene->clear();
@@ -138,6 +154,27 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
             // Don't add a new marker, let the interactive item handle the click
             return;
         }
+    }
+    
+    // Horizontal line mode: draw line at clicked Y position (time)
+    // Note: In BTW graphs, a "horizontal line" means constant time (horizontal on screen)
+    // We use the Y position to determine the time, then draw a line spanning full width
+    if (m_horizontalLineMode) {
+        // Get time from Y position
+        QDateTime timestamp = mapScreenToTime(scenePos.y());
+        if (!timestamp.isValid()) {
+            timestamp = QDateTime::currentDateTime();
+        }
+        
+        // Add horizontal line at this timestamp
+        QUuid lineId = addHorizontalLine(timestamp);
+        
+        // Emit signal for horizontal line placement
+        emit horizontalLinePlaced(lineId, timestamp);
+        
+        // Redraw to show the line (will use cached items)
+        draw();
+        return;  // Don't add marker in line mode
     }
     
     // Only add a marker if we clicked on empty space (no interactive items)
@@ -1019,4 +1056,111 @@ bool BTWGraph::deleteShadedRegionBySyncId(const QUuid &syncId)
 bool BTWGraph::hasShadedRegionWithSyncId(const QUuid &syncId) const
 {
     return m_syncIdToRegionId.contains(syncId);
+}
+
+// ========== Horizontal Line Management ==========
+
+void BTWGraph::setHorizontalLineMode(bool enabled)
+{
+    m_horizontalLineMode = enabled;
+    qDebug() << "BTWGraph: Horizontal line mode" << (enabled ? "enabled" : "disabled");
+}
+
+bool BTWGraph::isHorizontalLineMode() const
+{
+    return m_horizontalLineMode;
+}
+
+QUuid BTWGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width)
+{
+    HorizontalLineItem lineItem(timestamp, color, width);
+    m_horizontalLines.append(lineItem);
+    
+    qDebug() << "BTWGraph: Added horizontal line at time:" << timestamp.toString() << "ID:" << lineItem.id.toString();
+    
+    // New line doesn't have a cached item yet - will be created in next draw()
+    // No need to invalidate existing cached items
+    
+    return lineItem.id;
+}
+
+bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
+{
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].id == lineId) {
+            // Remove graphics item if it exists
+            if (m_horizontalLines[i].lineItem) {
+                if (graphicsScene) {
+                    graphicsScene->removeItem(m_horizontalLines[i].lineItem);
+                }
+                delete m_horizontalLines[i].lineItem;
+            }
+            
+            m_horizontalLines.removeAt(i);
+            qDebug() << "BTWGraph: Removed horizontal line ID:" << lineId.toString();
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+void BTWGraph::clearHorizontalLines()
+{
+    // Remove all graphics items
+    for (auto &line : m_horizontalLines) {
+        if (line.lineItem) {
+            if (graphicsScene) {
+                graphicsScene->removeItem(line.lineItem);
+            }
+            delete line.lineItem;
+            line.lineItem = nullptr;
+        }
+    }
+    
+    m_horizontalLines.clear();
+    qDebug() << "BTWGraph: Cleared all horizontal lines";
+}
+
+void BTWGraph::drawHorizontalLines()
+{
+    if (!graphicsScene || !dataRangesValid || drawingArea.isEmpty()) {
+        return;
+    }
+    
+    // Update or create cached line items
+    for (auto &line : m_horizontalLines) {
+        // Calculate screen Y position from timestamp (horizontal line = constant time)
+        qreal screenY = mapTimeToY(line.timestamp);
+        
+        // Skip if timestamp is outside visible range
+        if (screenY < 0 || screenY < drawingArea.top() || screenY > drawingArea.bottom()) {
+            // Line is outside visible range, but keep the cached item
+            // Just hide it or remove it from scene
+            if (line.lineItem && graphicsScene->items().contains(line.lineItem)) {
+                graphicsScene->removeItem(line.lineItem);
+            }
+            continue;
+        }
+        
+        // Clamp to drawing area
+        screenY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), screenY));
+        
+        if (line.lineItem) {
+            // Update existing cached line - just update position
+            line.lineItem->setLine(drawingArea.left(), screenY, drawingArea.right(), screenY);
+            
+            // Re-add to scene if it was removed
+            if (!graphicsScene->items().contains(line.lineItem)) {
+                graphicsScene->addItem(line.lineItem);
+            }
+        } else {
+            // Create new cached line item (horizontal line spanning full width)
+            line.lineItem = new QGraphicsLineItem(drawingArea.left(), screenY, drawingArea.right(), screenY);
+            line.lineItem->setPen(QPen(line.color, line.width));
+            line.lineItem->setZValue(1000);  // Above data, below markers
+            
+            graphicsScene->addItem(line.lineItem);
+        }
+    }
 }

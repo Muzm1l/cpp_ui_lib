@@ -141,6 +141,41 @@ public:
      * @brief Clear all shaded regions
      */
     void clearShadedRegions();
+    
+    // ========== Horizontal Line Management ==========
+    
+    /**
+     * @brief Set horizontal line mode (when enabled, clicks draw lines instead of markers)
+     * @param enabled True to enable horizontal line mode, false for marker mode
+     */
+    void setHorizontalLineMode(bool enabled);
+    
+    /**
+     * @brief Check if horizontal line mode is enabled
+     * @return True if horizontal line mode is enabled
+     */
+    bool isHorizontalLineMode() const;
+    
+    /**
+     * @brief Add a horizontal line at a specific time
+     * @param timestamp The time when the line should be drawn (horizontal line = constant time)
+     * @param color The color of the line (default: yellow)
+     * @param width The width of the line (default: 2.0)
+     * @return Unique identifier for the line
+     */
+    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::yellow, qreal width = 2.0);
+    
+    /**
+     * @brief Remove a horizontal line by its ID
+     * @param lineId The unique identifier of the line to remove
+     * @return True if the line was found and removed
+     */
+    bool removeHorizontalLine(const QUuid &lineId);
+    
+    /**
+     * @brief Clear all horizontal lines
+     */
+    void clearHorizontalLines();
 
 public slots:
     void deleteInteractiveMarkers();
@@ -203,6 +238,26 @@ private:
     
     // Method to draw shaded regions
     void drawShadedRegions();
+    
+    // Method to draw horizontal lines (cached)
+    void drawHorizontalLines();
+    
+    // Horizontal line storage structure
+    struct HorizontalLineItem
+    {
+        QDateTime timestamp;  // Time when the line should be drawn (horizontal line = constant time)
+        QColor color;  // Line color
+        qreal width;   // Line width
+        QUuid id;      // Unique identifier
+        QGraphicsLineItem *lineItem;  // Cached graphics item
+        
+        HorizontalLineItem() : color(Qt::yellow), width(2.0), lineItem(nullptr) {}
+        HorizontalLineItem(const QDateTime &ts, const QColor &c, qreal w) 
+            : timestamp(ts), color(c), width(w), id(QUuid::createUuid()), lineItem(nullptr) {}
+    };
+    
+    QList<HorizontalLineItem> m_horizontalLines;  // Store horizontal lines
+    bool m_horizontalLineMode;  // Toggle between marker and line mode
 
 signals:
     /**
@@ -265,6 +320,21 @@ signals:
      * @brief Emitted when all shaded regions are cleared
      */
     void shadedRegionsCleared();
+    
+    // ========== Horizontal Line Signals ==========
+    
+    /**
+     * @brief Emitted when a horizontal line is placed
+     * @param lineId The unique identifier of the line
+     * @param timestamp The time when the line was placed
+     */
+    void horizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
+    
+    /**
+     * @brief Emitted when a horizontal line is removed
+     * @param lineId The unique identifier of the removed line
+     */
+    void horizontalLineRemoved(const QUuid &lineId);
 };
 
 #endif // BTWGRAPH_H

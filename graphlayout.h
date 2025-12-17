@@ -11,6 +11,8 @@
 #include <QTimer>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QColor>
+#include <QUuid>
 #include <map>
 #include <vector>
 #include "sharedsyncstate.h"
@@ -168,6 +170,39 @@ public:
     
     // Clear BTW manual markers (interactive overlay markers)
     void clearBTWManualMarkers();
+    
+    // ========== BTW Horizontal Line Management ==========
+    
+    /**
+     * @brief Set horizontal line mode for BTW graphs (when enabled, clicks draw lines instead of markers)
+     * @param graphType The graph type (should be BTW)
+     * @param enabled True to enable horizontal line mode, false for marker mode
+     */
+    void setBTWHorizontalLineMode(const GraphType &graphType, bool enabled);
+    
+    /**
+     * @brief Add a horizontal line to a BTW graph at a specific time
+     * @param graphType The graph type (should be BTW)
+     * @param timestamp The time when the line should be drawn
+     * @param color The color of the line (default: yellow)
+     * @param width The width of the line (default: 2.0)
+     * @return Unique identifier for the line
+     */
+    QUuid addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color = Qt::yellow, qreal width = 2.0);
+    
+    /**
+     * @brief Remove a horizontal line from a BTW graph by its ID
+     * @param graphType The graph type (should be BTW)
+     * @param lineId The unique identifier of the line to remove
+     * @return True if the line was found and removed
+     */
+    bool removeBTWHorizontalLine(const GraphType &graphType, const QUuid &lineId);
+    
+    /**
+     * @brief Clear all horizontal lines from a BTW graph
+     * @param graphType The graph type (should be BTW)
+     */
+    void clearBTWHorizontalLines(const GraphType &graphType);
     
     // ========== Shaded Region API ==========
     
