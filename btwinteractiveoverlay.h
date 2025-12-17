@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QGraphicsScene>
 #include <QGraphicsItem>
+#include <QGraphicsPixmapItem>
 #include <QPointF>
 #include <QDateTime>
 #include <QPen>
@@ -12,6 +13,7 @@
 #include <QList>
 #include <QMap>
 #include <QUuid>
+#include <QPixmap>
 #include <QDebug>
 
 // Forward declarations
@@ -421,6 +423,8 @@ private:
     QMap<InteractiveGraphicsItem*, QList<QGraphicsItem*>> m_bearingRateItems; // Maps each marker to its bearing rate items
     QMap<InteractiveGraphicsItem*, QUuid> m_markerIds; // Maps markers to their unique IDs
     QMap<QUuid, InteractiveGraphicsItem*> m_idToMarker; // Reverse lookup: ID to marker
+    QMap<InteractiveGraphicsItem*, qreal> m_previousRotation; // Maps each marker to its previous rotation value for direction detection
+    QMap<InteractiveGraphicsItem*, QString> m_previousPrefix; // Maps each marker to its previous prefix (R/L) to maintain when no change
 
     // Styling
     QPen m_dataPointPen;
@@ -438,6 +442,11 @@ private:
     void disconnectMarkerSignals(InteractiveGraphicsItem *marker);
     void updateBearingRateBox(InteractiveGraphicsItem *marker);
     void removeBearingRateBox(InteractiveGraphicsItem *marker);
+    
+    // Caching for bearing rate text rendering
+    static QMap<QString, QPixmap> s_textPixmapCache;  // Static cache for all possible text values
+    static QFont s_cachedFont;  // Font used for cached text
+    static QPixmap getCachedTextPixmap(const QString &text);  // Get or create cached pixmap for text
 };
 
 #endif // BTWINTERACTIVEOVERLAY_H

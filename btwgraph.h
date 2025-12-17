@@ -141,7 +141,7 @@ public:
      * @brief Clear all shaded regions
      */
     void clearShadedRegions();
-    
+
     // ========== Horizontal Line Management ==========
     
     /**

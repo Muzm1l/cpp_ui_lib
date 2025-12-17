@@ -24,17 +24,30 @@ The bearing rate box value is calculated in `BTWInteractiveOverlay::updateBearin
 // Location: btwinteractiveoverlay.cpp, updateBearingRateBox() function
 
 // Step 1: Get the marker's rotation angle (in degrees)
-qreal bearingRate = marker->rotation();
+qreal rawRotation = marker->rotation();
 
-// Step 2: Determine the prefix (R=Right/positive, L=Left/negative, empty=zero)
-QString prefix = (0 == bearingRate) ? "" : (bearingRate >= 0) ? "R" : "L";
+// Step 2: Normalize rotation to 0-359 degrees (one full rotation = 360 values: 0 to 359)
+qreal normalizedRotation = rawRotation;
+while (normalizedRotation < 0) {
+    normalizedRotation += 360.0;
+}
+while (normalizedRotation >= 360.0) {
+    normalizedRotation -= 360.0;
+}
 
-// Step 3: Format the absolute value with no decimal places
-QString displayValue = (bearingRate >= 0) 
-    ? QString::number(bearingRate, 'f', 0) 
-    : QString::number(-bearingRate, 'f', 0);
+// Step 3: Determine prefix based on rotation direction:
+// Clockwise = increasing (0→359), values 0-179 = "R"
+// Anti-clockwise = decreasing (359→0), values 180-359 = "L"
+// 0 degrees = no prefix
+QString prefix = "";
+if (normalizedRotation > 0 && normalizedRotation < 180) {
+    prefix = "R";  // Clockwise (increasing 0→359)
+} else if (normalizedRotation >= 180 && normalizedRotation < 360) {
+    prefix = "L";  // Anti-clockwise (decreasing 359→0)
+}
 
-// Step 4: Combine prefix and value
+// Step 4: Format the display value (normalized rotation, no decimal places)
+QString displayValue = QString::number(normalizedRotation, 'f', 0);
 QString bearingRateText = prefix + displayValue;
 ```
 
@@ -42,9 +55,10 @@ QString bearingRateText = prefix + displayValue;
 
 | Component | Formula | Description |
 |-----------|---------|-------------|
-| **Raw Value** | `marker->rotation()` | Qt rotation angle in degrees |
-| **Display Value** | `abs(rotation)` | Absolute value, no decimals |
-| **Prefix** | `rotation > 0 → "R"`, `rotation < 0 → "L"`, `rotation == 0 → ""` | Direction indicator |
+| **Raw Value** | `marker->rotation()` | Qt rotation angle in degrees (can be any value) |
+| **Normalized Value** | `normalize(rotation)` to 0-359 | Normalized to one full rotation (0-359, 360 values) |
+| **Display Value** | `normalizedRotation` | Normalized value, no decimals |
+| **Prefix** | `0-179° → "R"`, `180-359° → "L"`, `0° → ""` | Direction indicator: R=Clockwise (increasing), L=Anti-clockwise (decreasing) |
 
 ---
 
@@ -204,13 +218,29 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
 
 ## Notes
 
-1. **Rotation Range**: Qt's `rotation()` function returns values in degrees. The `InteractiveGraphicsItem` allows full 360° rotation in either direction.
+1. **Rotation Range**: One full rotation = 360 values (0 to 359 degrees). Qt's `rotation()` function can return any value, which is normalized to 0-359.
 
-2. **Coordinate System**: 
-   - Positive rotation = clockwise = "R" (Right)
-   - Negative rotation = counter-clockwise = "L" (Left)
+2. **Rotation Direction**:
+   - **Clockwise** = increasing rotation (0→359 degrees)
+   - **Anti-clockwise** = decreasing rotation (359→0 degrees)
 
-3. **Sync Consistency**: If you change the conversion factor, ensure the same factor is used in both extraction (`/ factor`) and application (`* factor`) to maintain sync consistency.
+3. **L/R Assignment**:
+   - **Clockwise rotation** (increasing 0→359): Values 0-179 degrees → "R" prefix
+   - **Anti-clockwise rotation** (decreasing 359→0): Values 180-359 degrees → "L" prefix
+   - **0 degrees** = no prefix (no rotation)
 
-4. **Units**: The current implementation treats the rotation angle directly as the bearing rate value. If your application requires specific units (e.g., degrees/hour, mrad/s), apply the appropriate conversion factor.
+4. **Normalization**: The rotation is normalized to 0-359 degrees using modulo arithmetic:
+   - Values < 0: Add 360 until in range
+   - Values ≥ 360: Subtract 360 until in range
+
+5. **Sync Consistency**: If you change the conversion factor, ensure the same factor is used in both extraction (`/ factor`) and application (`* factor`) to maintain sync consistency.
+
+6. **Units**: The current implementation treats the rotation angle directly as the bearing rate value. If your application requires specific units (e.g., degrees/hour, mrad/s), apply the appropriate conversion factor.
+
+7. **Examples**:
+   - Rotation = 45° → Display: "R45" (clockwise, increasing)
+   - Rotation = 200° → Display: "L200" (anti-clockwise, decreasing)
+   - Rotation = 0° → Display: "0" (no prefix)
+   - Rotation = -30° → Normalized to 330° → Display: "L330" (anti-clockwise, decreasing)
+   - Rotation = 450° → Normalized to 90° → Display: "R90" (clockwise, increasing)
 

@@ -6,10 +6,17 @@
 #include <QGraphicsScene>
 #include <QGraphicsView>
 #include <QGraphicsTextItem>
+#include <QGraphicsPixmapItem>
 #include <QGraphicsRectItem>
 #include <QFont>
 #include <QFontMetrics>
+#include <QPainter>
+#include <QPixmap>
 #include <QVariant>
+
+// Static cache initialization
+QMap<QString, QPixmap> BTWInteractiveOverlay::s_textPixmapCache;
+QFont BTWInteractiveOverlay::s_cachedFont;
 
 BTWInteractiveOverlay::BTWInteractiveOverlay(BTWGraph *btwGraph, QObject *parent)
     : QObject(parent)
@@ -282,6 +289,10 @@ void BTWInteractiveOverlay::removeMarker(InteractiveGraphicsItem *marker)
             m_idToMarker.remove(markerId);
         }
         
+        // Remove previous rotation and prefix tracking
+        m_previousRotation.remove(marker);
+        m_previousPrefix.remove(marker);
+        
         // Remove from lists
         m_markers.removeAt(index);
         m_markerTypes.removeAt(index);
@@ -315,6 +326,8 @@ void BTWInteractiveOverlay::clearAllMarkers()
     m_markers.clear();
     m_markerTypes.clear();
     m_bearingRateItems.clear();
+    m_previousRotation.clear();  // Clear previous rotation tracking
+    m_previousPrefix.clear();    // Clear previous prefix tracking
     
     // Force scene update to remove any drawing artifacts
     if (m_overlayScene) {
@@ -506,45 +519,114 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
     // Get marker position (use scene position for absolute coordinates)
     QPointF markerPos = marker->scenePos();
     qreal markerRadius = 10.0; // Match the marker radius in addDataPointMarker
-    qreal bearingRate = marker->rotation(); // Use the rotation angle as the bearing rate
+    qreal currentRotation = marker->rotation(); // Get current rotation angle
     
-    // Format the bearing rate text with R/L prefix (no decimal places)
-    QString prefix = (0 == bearingRate) ? "" : (bearingRate >= 0) ? "R" : "L";
-    QString displayValue = (bearingRate >= 0) ? QString::number(bearingRate, 'f', 0) : QString::number(-bearingRate, 'f', 0);
+    // Normalize rotation to 0-359 degrees (one full rotation = 360 values: 0 to 359)
+    qreal normalizedRotation = currentRotation;
+    while (normalizedRotation < 0) {
+        normalizedRotation += 360.0;
+    }
+    while (normalizedRotation >= 360.0) {
+        normalizedRotation -= 360.0;
+    }
+    
+    // Determine prefix based on rotation direction (increasing = R, decreasing = L)
+    QString prefix = "";
+    if (normalizedRotation == 0) {
+        prefix = "";  // No prefix for 0 degrees
+    } else {
+        // Check if we have a previous rotation value to compare
+        if (m_previousRotation.contains(marker)) {
+            qreal prevRotation = m_previousRotation[marker];
+            qreal normalizedPrev = prevRotation;
+            while (normalizedPrev < 0) {
+                normalizedPrev += 360.0;
+            }
+            while (normalizedPrev >= 360.0) {
+                normalizedPrev -= 360.0;
+            }
+            
+            // Calculate difference, handling wrap-around
+            // Use a small epsilon to handle floating point precision issues
+            qreal diff = normalizedRotation - normalizedPrev;
+            
+            // Handle very small differences (floating point precision) as no change
+            if (qAbs(diff) < 0.001) {
+                diff = 0.0;
+            }
+            
+            // Handle wrap-around cases:
+            // - If diff > 180: wrapped from 0→359 (anti-clockwise, decreasing) → L
+            // - If diff < -180: wrapped from 359→0 (clockwise, increasing) → R
+            // - Otherwise: normal case, use diff sign
+            bool isWrapped = false;
+            if (diff > 180.0) {
+                // Wrapped from 0→359 (anti-clockwise, decreasing)
+                diff = diff - 360.0;  // Now negative, indicating decrease
+                isWrapped = true;
+            } else if (diff < -180.0) {
+                // Wrapped from 359→0 (clockwise, increasing)
+                diff = diff + 360.0;  // Now positive, indicating increase
+                isWrapped = true;
+            }
+            
+            // Determine direction based on difference
+            // R for increasing (clockwise: 0→359), L for decreasing (anti-clockwise: 359→0)
+            if (diff > 0) {
+                prefix = "R";  // Increasing (clockwise: 0→359)
+            } else if (diff < 0) {
+                prefix = "L";  // Decreasing (anti-clockwise: 359→0)
+            } else {
+                // No change, keep previous prefix if available
+                if (m_previousPrefix.contains(marker)) {
+                    prefix = m_previousPrefix[marker];  // Maintain previous prefix
+                } else {
+                    // First time with no change, default based on value
+                    prefix = (normalizedRotation > 0) ? "R" : "";
+                }
+            }
+        } else {
+            // First time seeing this marker, default based on value
+            // Default to R for positive values (assuming clockwise start)
+            prefix = (normalizedRotation > 0) ? "R" : "";
+        }
+        
+        // Store current rotation and prefix for next comparison
+        m_previousRotation[marker] = currentRotation;
+        m_previousPrefix[marker] = prefix;
+    }
+    
+    // Format the display value (normalized rotation, no decimal places)
+    QString displayValue = QString::number(normalizedRotation, 'f', 0);
     QString bearingRateText = prefix + displayValue;
     
-    // Set up font
-    QFont font;
-    font.setPointSizeF(8.0);
-    font.setBold(true);
+    // Get cached pixmap for this text (L0-L359, R0-R359, or 0)
+    QPixmap textPixmap = getCachedTextPixmap(bearingRateText);
     
-    // Calculate text dimensions
-    QFontMetrics fm(font);
-    QRectF textRect = fm.boundingRect(bearingRateText);
+    // Calculate text dimensions from cached pixmap
+    QRectF textRect = textPixmap.rect();
     
     // Position text to the left of the marker (centered vertically)
     qreal textX = markerPos.x() - textRect.width() - markerRadius - 7;
     qreal textY = markerPos.y() - textRect.height() / 2;
     
     // Performance optimization: Reuse existing items instead of deleting and recreating
-    QGraphicsTextItem *textLabel = nullptr;
+    QGraphicsPixmapItem *textLabel = nullptr;
     QGraphicsRectItem *textOutline = nullptr;
     
     if (m_bearingRateItems.contains(marker) && m_bearingRateItems[marker].size() >= 2) {
         // Reuse existing items
-        textLabel = qgraphicsitem_cast<QGraphicsTextItem*>(m_bearingRateItems[marker].at(0));
+        textLabel = qgraphicsitem_cast<QGraphicsPixmapItem*>(m_bearingRateItems[marker].at(0));
         textOutline = qgraphicsitem_cast<QGraphicsRectItem*>(m_bearingRateItems[marker].at(1));
     }
     
     if (textLabel) {
-        // Update existing text label
-        textLabel->setPlainText(bearingRateText);
+        // Update existing pixmap item
+        textLabel->setPixmap(textPixmap);
         textLabel->setPos(textX, textY);
     } else {
-        // Create new text label
-        textLabel = new QGraphicsTextItem(bearingRateText);
-        textLabel->setFont(font);
-        textLabel->setDefaultTextColor(Qt::green);
+        // Create new pixmap item
+        textLabel = new QGraphicsPixmapItem(textPixmap);
         textLabel->setPos(textX, textY);
         textLabel->setZValue(1002);
         m_overlayScene->addItem(textLabel);
@@ -570,6 +652,41 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
         items.append(textOutline);
         m_bearingRateItems[marker] = items;
     }
+}
+
+QPixmap BTWInteractiveOverlay::getCachedTextPixmap(const QString &text)
+{
+    // Check if pixmap is already cached
+    if (s_textPixmapCache.contains(text)) {
+        return s_textPixmapCache[text];
+    }
+    
+    // Initialize font if not already set
+    if (s_cachedFont.pointSizeF() == -1) {
+        s_cachedFont.setPointSizeF(8.0);
+        s_cachedFont.setBold(true);
+    }
+    
+    // Create pixmap for this text
+    QFontMetrics fm(s_cachedFont);
+    QRect textRect = fm.boundingRect(text);
+    
+    // Add some padding for better rendering
+    QPixmap pixmap(textRect.width() + 4, textRect.height() + 4);
+    pixmap.fill(Qt::transparent);
+    
+    // Draw text on pixmap
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setFont(s_cachedFont);
+    painter.setPen(Qt::green);
+    painter.drawText(2, textRect.height() + 2, text);
+    painter.end();
+    
+    // Cache the pixmap
+    s_textPixmapCache[text] = pixmap;
+    
+    return pixmap;
 }
 
 void BTWInteractiveOverlay::removeBearingRateBox(InteractiveGraphicsItem *marker)
