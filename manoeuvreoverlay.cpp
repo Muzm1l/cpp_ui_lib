@@ -125,14 +125,17 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     
     int widgetWidth = rect().width();
     
+    // Cyan color for all drawing
+    QColor cyanColor(0, 255, 255);
+    
     // Draw plain horizontal line at START time (manoeuvre start)
     QGraphicsLineItem *startLineItem = new QGraphicsLineItem(0, startY, widgetWidth, startY);
-    startLineItem->setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width
+    startLineItem->setPen(QPen(cyanColor, 3));
     m_scene->addItem(startLineItem);
     
     // Chevron parameters
     double chevronWidthPercent = 0.4; // 40% of widget width
-    int chevronHeight = 8;
+    int chevronHeight = 16; // Doubled from 8
     int chevronBoxHeight = 30;
     
     int chevronWidth = static_cast<int>(widgetWidth * chevronWidthPercent);
@@ -164,13 +167,13 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     
     // Create and add chevron polygon item
     QGraphicsPolygonItem *chevronItem = new QGraphicsPolygonItem(chevronPolygon);
-    chevronItem->setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width
-    chevronItem->setBrush(Qt::NoBrush); // No fill, just outline
+    chevronItem->setPen(QPen(cyanColor, 3));
+    chevronItem->setBrush(Qt::NoBrush);
     m_scene->addItem(chevronItem);
     
-    // Draw text labels on the chevron (bearing, speed, depth)
+    // Draw text labels - font size doubled (14 pixels)
     QFont labelFont;
-    labelFont.setPixelSize(chevronHeight - 1); // 7 pixels
+    labelFont.setPixelSize(14);
     labelFont.setBold(false);
     QFontMetrics fm(labelFont);
     
@@ -178,7 +181,7 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     QString speedText = QString::number(manoeuvre.speed);
     QGraphicsTextItem *speedLabel = new QGraphicsTextItem(speedText);
     speedLabel->setFont(labelFont);
-    speedLabel->setDefaultTextColor(QColor(0, 100, 255));
+    speedLabel->setDefaultTextColor(cyanColor);
     int speedWidth = fm.horizontalAdvance(speedText);
     int speedX = tipX - speedWidth / 2;
     int speedY = chevronBoxTopY + 8;
@@ -189,10 +192,10 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     QString bearingText = QString::number(manoeuvre.bearing);
     QGraphicsTextItem *bearingLabel = new QGraphicsTextItem(bearingText);
     bearingLabel->setFont(labelFont);
-    bearingLabel->setDefaultTextColor(QColor(0, 100, 255));
+    bearingLabel->setDefaultTextColor(cyanColor);
     int bearingWidth = fm.horizontalAdvance(bearingText);
     int bearingX = chevronX - bearingWidth / 2;
-    int bearingY = chevronTipY - 15;
+    int bearingY = chevronTipY - 20;
     bearingLabel->setPos(bearingX, bearingY);
     m_scene->addItem(bearingLabel);
     
@@ -200,10 +203,10 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     QString depthText = QString::number(manoeuvre.depth);
     QGraphicsTextItem *depthLabel = new QGraphicsTextItem(depthText);
     depthLabel->setFont(labelFont);
-    depthLabel->setDefaultTextColor(QColor(0, 100, 255));
+    depthLabel->setDefaultTextColor(cyanColor);
     int depthWidth = fm.horizontalAdvance(depthText);
     int depthX = (chevronX + chevronWidth) - depthWidth / 2;
-    int depthY = chevronTipY - 15;
+    int depthY = chevronTipY - 20;
     depthLabel->setPos(depthX, depthY);
     m_scene->addItem(depthLabel);
 }

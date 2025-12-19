@@ -1266,25 +1266,11 @@ void WaterfallGraph::cleanupScatterplotItems(const QString &seriesLabel)
  */
 void WaterfallGraph::cleanupAllScatterplotItems()
 {
-    if (!graphicsScene)
-    {
-        return;
-    }
-    
+    // Clear maps without accessing items - they may have been deleted by graphicsScene->clear()
+    // The items will be properly deleted when graphicsScene->clear() is called in draw()
+    // This prevents use-after-free crashes from stale pointers
     for (auto &pair : m_seriesScatterplotItems)
     {
-        for (QGraphicsPixmapItem *item : pair.second)
-        {
-            if (item)
-            {
-                // Check if item belongs to this scene before removing
-                if (item->scene() == graphicsScene)
-                {
-                    graphicsScene->removeItem(item);
-                }
-                delete item;
-            }
-        }
         pair.second.clear();
     }
     m_seriesScatterplotItems.clear();
