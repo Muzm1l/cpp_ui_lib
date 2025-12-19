@@ -187,7 +187,30 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     // Note: In BTW graphs, a "horizontal line" means constant time (horizontal on screen)
     // We use the Y position to determine the time, then draw a line spanning full width
     if (m_horizontalLineMode) {
-        // Get time from Y position
+        // First, check if click is on an existing horizontal line (click-to-delete)
+        // Use cached lineItem for efficient hit detection
+        const qreal hitThreshold = 5.0; // pixels - click within 5px of line to delete
+        qreal clickedY = scenePos.y();
+        
+        for (int i = 0; i < m_horizontalLines.size(); ++i) {
+            if (m_horizontalLines[i].lineItem) {
+                // Get line Y position directly from cached graphics item
+                qreal lineY = m_horizontalLines[i].lineItem->line().y1();
+                if (qAbs(clickedY - lineY) <= hitThreshold) {
+                    // Click is on existing line - delete it
+                    QUuid lineId = m_horizontalLines[i].id;
+                    removeHorizontalLine(lineId);
+                    emit horizontalLineRemoved(lineId);
+                    qDebug() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString();
+                    
+                    // Redraw to remove the line
+                    draw();
+                    return;
+                }
+            }
+        }
+        
+        // No existing line at click position - add new line
         QDateTime timestamp = mapScreenToTime(scenePos.y());
         if (!timestamp.isValid()) {
             timestamp = QDateTime::currentDateTime();

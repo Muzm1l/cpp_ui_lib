@@ -6,6 +6,7 @@ The BTW Horizontal Line API allows you to draw horizontal lines on BTW (Bit Time
 
 **Key Features:**
 - Draw horizontal lines by clicking on BTW graphs (when mode is enabled)
+- Delete horizontal lines by clicking on them (click-to-delete)
 - Programmatically add, remove, and clear horizontal lines
 - Lines are cached for performance optimization
 - Separate from manual markers - lines don't interfere with marker functionality
@@ -264,14 +265,24 @@ private slots:
 
 The horizontal line mode and manual marker mode are mutually exclusive:
 
-- **Horizontal Line Mode Enabled:** Clicking on BTW graphs draws horizontal lines
+- **Horizontal Line Mode Enabled:** Clicking on BTW graphs draws horizontal lines or deletes existing lines
 - **Horizontal Line Mode Disabled:** Clicking on BTW graphs creates manual markers (default behavior)
+
+### Click-to-Delete Behavior
+
+When horizontal line mode is enabled, clicking on the graph has two behaviors:
+
+1. **Click on empty space:** Creates a new horizontal line at the clicked position
+2. **Click on existing line:** Deletes the clicked line (within 5 pixel threshold)
+
+This provides an intuitive way to manage lines without needing to track line IDs or use separate delete controls.
 
 **Example:**
 ```cpp
 // Enable line mode
 graphLayout->setBTWHorizontalLineMode(GraphType::BTW, true);
-// User clicks -> horizontal line is drawn
+// User clicks on empty space -> horizontal line is drawn
+// User clicks on existing line -> line is deleted
 
 // Disable line mode
 graphLayout->setBTWHorizontalLineMode(GraphType::BTW, false);
@@ -382,6 +393,16 @@ Horizontal lines are cached internally for performance. The `QGraphicsLineItem` 
 
 This caching mechanism ensures efficient rendering even with many lines.
 
+### Click-to-Delete Performance
+
+The click-to-delete feature is optimized for minimal performance impact:
+- Uses cached `QGraphicsLineItem` objects for hit detection (no recalculation)
+- Simple distance check (O(1) per line)
+- Only checks visible lines (those with valid cached items)
+- Total complexity is O(n) where n is the number of lines (typically very small)
+
+The hit detection threshold is 5 pixels, providing a good balance between precision and ease of use.
+
 ### Best Practices
 
 1. **Limit Line Count:** While there's no hard limit, consider removing old lines periodically to maintain performance
@@ -413,8 +434,8 @@ for (const QDateTime &timestamp : timestamps) {
 | **Storage** | Separate storage system | Stored in BTWInteractiveOverlay |
 | **Mode** | Requires mode toggle | Default behavior |
 | **Use Case** | Time reference lines | Point markers with range/delta |
-| **Interaction** | Click to draw line | Click to place marker |
-| **Removal** | Via API with line ID | Via interactive overlay |
+| **Interaction** | Click to draw line, click on line to delete | Click to place marker |
+| **Removal** | Click on line (or via API with line ID) | Via interactive overlay |
 
 **Note:** Horizontal lines and manual markers can coexist - they are stored and managed separately. However, when horizontal line mode is enabled, clicking will draw lines instead of markers.
 
