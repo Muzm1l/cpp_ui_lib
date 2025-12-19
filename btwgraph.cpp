@@ -54,38 +54,52 @@ void BTWGraph::draw()
     
     isDrawing = true;
 
-    // Clear existing items - ensure complete clearing before drawing
-    // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
-    // Shaded region polygon items will be recreated in drawShadedRegions() from stored data
-    // Clear polygon item pointers since clear() will delete them
-    for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
-        it.value().polygonItem = nullptr;
-    }
+    // Only perform full clear for FULL_REDRAW state
+    // For INCREMENTAL_UPDATE or RANGE_UPDATE_ONLY, keep existing items and just update positions
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
     
-    // Clear horizontal line items from scene before clearing
-    // Note: graphicsScene->clear() will delete all items, so we need to null out pointers
-    // and recreate them in drawHorizontalLines()
-    for (auto &line : m_horizontalLines) {
-        if (line.lineItem) {
-            // Remove from scene before clear() deletes it
-            if (graphicsScene->items().contains(line.lineItem)) {
-                graphicsScene->removeItem(line.lineItem);
-            }
-            // Delete the item since clear() will delete it anyway
-            delete line.lineItem;
-            line.lineItem = nullptr;  // Will be recreated in drawHorizontalLines()
+    if (needsFullClear)
+    {
+        // Clear existing items - ensure complete clearing before drawing
+        // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
+        // Shaded region polygon items will be recreated in drawShadedRegions() from stored data
+        // Clear polygon item pointers since clear() will delete them
+        for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+            it.value().polygonItem = nullptr;
         }
+        
+        // Clear horizontal line items from scene before clearing
+        // Note: graphicsScene->clear() will delete all items, so we need to null out pointers
+        // and recreate them in drawHorizontalLines()
+        for (auto &line : m_horizontalLines) {
+            if (line.lineItem) {
+                // Remove from scene before clear() deletes it
+                if (graphicsScene->items().contains(line.lineItem)) {
+                    graphicsScene->removeItem(line.lineItem);
+                }
+                // Delete the item since clear() will delete it anyway
+                delete line.lineItem;
+                line.lineItem = nullptr;  // Will be recreated in drawHorizontalLines()
+            }
+        }
+        
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+        
+        // Clear stored timestamps when redrawing (markers will be recreated)
+        m_automaticMarkerTimestamps.clear();
     }
-    
-    graphicsScene->clear();
-    graphicsScene->update(); // Force immediate update to ensure clearing is visible
-    
-    // Clear stored timestamps when redrawing (markers will be recreated)
-    m_automaticMarkerTimestamps.clear();
     
     setupDrawingArea();
 
-    if (gridEnabled)
+    // Grid only needs to be redrawn on full redraw
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
@@ -95,6 +109,7 @@ void BTWGraph::draw()
         updateDataRanges();
         
         // Draw scatterplots for each series with their respective colors
+        // drawScatterplot() respects the render state internally
         std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
         for (const QString &seriesLabel : seriesLabels)
         {
@@ -105,11 +120,16 @@ void BTWGraph::draw()
                 if (seriesLabel == "ADOPTED")
                 {
                     // Draw curve for ADOPTED series without points
-                    drawDataLine(seriesLabel, false);
+                    // Only redraw line on full clear
+                    if (needsFullClear)
+                    {
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
                     // Draw scatterplot for other series
+                    // This respects render state and does incremental updates when possible
                     drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
 
@@ -118,20 +138,27 @@ void BTWGraph::draw()
         }
     }
     
-    // Draw BTW symbols (magenta circles from other graphs)
-    drawBTWSymbols();
-    
-    // Draw manually placed BTW markers from data source
-    drawCustomCircleMarkers();
-    
-    // Draw shaded regions
-    drawShadedRegions();
+    // These items only need redrawing on full clear
+    if (needsFullClear)
+    {
+        // Draw BTW symbols (magenta circles from other graphs)
+        drawBTWSymbols();
+        
+        // Draw manually placed BTW markers from data source
+        drawCustomCircleMarkers();
+        
+        // Draw shaded regions
+        drawShadedRegions();
+    }
     
     // Sync interactive overlay markers with the new time range
     // This updates marker Y positions to stay in sync with the timeline
     if (m_interactiveOverlay) {
         m_interactiveOverlay->syncMarkersWithTimeline();
     }
+    
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
     
     isDrawing = false;
 }
@@ -720,11 +747,11 @@ void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwVa
                 // Add magenta circle symbol to this graph's data source
                 dataSource->addBTWSymbol("MagentaCircle", timestamp, dataValue);
                 
-                // Trigger redraw of the graph
+                // Trigger full redraw of the graph since we added new data
                 WaterfallGraph *graph = otherContainer->getCurrentWaterfallGraph();
                 if (graph && graph->getDataSource() == dataSource)
                 {
-                    graph->draw();
+                    graph->forceFullRedraw();
                 }
             }
         }

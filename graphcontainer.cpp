@@ -1093,11 +1093,11 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         }
     }
 
-    // Explicitly redraw the current waterfall graph to ensure visual update
-    // (setTimeInterval already calls draw(), but this ensures it's definitely updated)
+    // Explicitly redraw the current waterfall graph with full redraw
+    // Time interval change requires full redraw since visible data changes significantly
     if (m_currentWaterfallGraph)
     {
-        m_currentWaterfallGraph->draw();
+        m_currentWaterfallGraph->forceFullRedraw();
     }
 
     // Update the time selection visualizer time interval
@@ -1171,8 +1171,12 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     }
 
     // Update the waterfall graph's time range to match the visible scope
-    // This sets a custom time range, but the graph will still redraw when new data arrives
+    // setTimeRange() no longer auto-draws - it sets INCREMENTAL_UPDATE state
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
+    
+    // Trigger incremental redraw - this will use the state machine to efficiently
+    // update only what changed rather than clearing and recreating everything
+    m_currentWaterfallGraph->draw();
 
     // Update shared sync state so other containers can be synchronized
     if (m_syncState)
@@ -1202,7 +1206,12 @@ void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
     }
 
     // Update the waterfall graph's time range to match the visible scope
+    // setTimeRange() no longer auto-draws - it sets INCREMENTAL_UPDATE state
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
+    
+    // Trigger incremental redraw - this will use the state machine to efficiently
+    // update only what changed rather than clearing and recreating everything
+    m_currentWaterfallGraph->draw();
 
     // Update timeline view slider position to match the time scope
     if (m_timelineView)
@@ -1486,9 +1495,11 @@ void GraphContainer::onDataChanged(GraphType graphType)
         // Update zoom panel limits to reflect new data ranges
         initializeZoomPanelLimits();
 
-        // Force redraw of the waterfall graph
-        // This is critical - ensure graph redraws when new data arrives, even after time range changes
-        redrawWaterfallGraph();
+        // Force full redraw of the waterfall graph when new data arrives
+        if (m_currentWaterfallGraph)
+        {
+            m_currentWaterfallGraph->forceFullRedraw();
+        }
         
         // Ensure timer is running to continue animation after data update
         if (m_timer && !m_timer->isActive())

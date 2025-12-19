@@ -55,13 +55,24 @@ void RTWGraph::draw()
     
     isDrawing = true;
 
-    // Clear existing items - ensure complete clearing before drawing
-    graphicsScene->clear();
-    graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    // Only perform full clear for FULL_REDRAW state
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
+    
+    if (needsFullClear)
+    {
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    }
     
     setupDrawingArea();
 
-    if (gridEnabled)
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
@@ -94,14 +105,17 @@ void RTWGraph::draw()
             {
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw ADOPTED series as line
-                    qDebug() << "RTW: draw() - drawing ADOPTED series as line";
-                    drawDataLine(seriesLabel, false);
+                    // Draw ADOPTED series as line (only on full redraw)
+                    if (needsFullClear)
+                    {
+                        qDebug() << "RTW: draw() - drawing ADOPTED series as line";
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
                     // RTW R markers are now manually placed through data source - no automatic generation
-                    // Draw data as scatterplot for other series
+                    // Draw data as scatterplot for other series - respects render state internally
                     drawScatterplot(seriesLabel, getSeriesColor(seriesLabel), 4.0, Qt::black);
                 }
             }
@@ -112,14 +126,21 @@ void RTWGraph::draw()
         qDebug() << "RTW: draw() - no dataSource or dataSource is empty";
     }
 
-    // Draw manually placed RTW R markers from data source
-    drawCustomRMarkers();
+    // These items only need redrawing on full clear
+    if (needsFullClear)
+    {
+        // Draw manually placed RTW R markers from data source
+        drawCustomRMarkers();
+        
+        // Draw RTW symbols
+        drawRTWSymbols();
+        
+        // Draw BTW symbols (magenta circles from BTW graph markers)
+        drawBTWSymbols();
+    }
     
-    // Draw RTW symbols
-    drawRTWSymbols();
-    
-    // Draw BTW symbols (magenta circles from BTW graph markers)
-    drawBTWSymbols();
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
     
     isDrawing = false;
 }

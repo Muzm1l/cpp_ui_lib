@@ -299,6 +299,9 @@ void WaterfallGraph::setDataSource(WaterfallData &dataSource)
 {
     // Invalidate visible data cache since data source is changing
     invalidateAllVisibleDataCache();
+    
+    // Cleanup all graphics items since data source is changing
+    cleanupAllScatterplotItems();
 
     this->dataSource = &dataSource;
     // New data source requires full redraw (automatically marks all series dirty)
@@ -722,11 +725,40 @@ void WaterfallGraph::drawIncremental()
             break;
 
         case RenderState::FULL_REDRAW:
-            // Clear scene and graphics item maps
-            graphicsScene->clear();
+            // Remove all graphics items per-series (don't clear entire scene - preserves overlay/cursor layers)
+            // Cleanup scatterplot items
+            cleanupAllScatterplotItems();
+            
+            // Cleanup path items
+            for (auto &pair : m_seriesPathItems)
+            {
+                if (pair.second)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (pair.second->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(pair.second);
+                    }
+                    delete pair.second;
+                }
+            }
             m_seriesPathItems.clear();
+            
+            // Cleanup point items
             for (auto &pair : m_seriesPointItems)
             {
+                for (QGraphicsEllipseItem *item : pair.second)
+                {
+                    if (item)
+                    {
+                        // Check if item belongs to this scene before removing
+                        if (item->scene() == graphicsScene)
+                        {
+                            graphicsScene->removeItem(item);
+                        }
+                        delete item;
+                    }
+                }
                 pair.second.clear();
             }
             m_seriesPointItems.clear();
@@ -870,18 +902,22 @@ void WaterfallGraph::drawBTWSymbols()
 }
 
 /**
- * @brief Set the render state, with FULL_REDRAW taking precedence.
+ * @brief Set the render state, with FULL_REDRAW taking precedence during drawing.
  *
+ * CLEAN can always be set (used at end of draw() to reset state).
+ * FULL_REDRAW can always be set (used when full redraw is needed).
+ * INCREMENTAL_UPDATE/RANGE_UPDATE_ONLY cannot downgrade FULL_REDRAW (FULL_REDRAW takes precedence).
  */
 void WaterfallGraph::setRenderState(RenderState newState)
 {
-    // FULL_REDRAW can only be set explicitly, never downgraded
-    if (m_renderState == RenderState::FULL_REDRAW && newState != RenderState::FULL_REDRAW)
+    // CLEAN can always be set - this is used to reset state after draw() completes
+    if (newState == RenderState::CLEAN)
     {
-        return; // Don't downgrade from FULL_REDRAW
+        m_renderState = RenderState::CLEAN;
+        return;
     }
-
-    // FULL_REDRAW always supersedes
+    
+    // FULL_REDRAW always supersedes and can always be set
     if (newState == RenderState::FULL_REDRAW)
     {
         m_renderState = RenderState::FULL_REDRAW;
@@ -889,7 +925,26 @@ void WaterfallGraph::setRenderState(RenderState newState)
         return;
     }
 
+    // For INCREMENTAL_UPDATE and RANGE_UPDATE_ONLY:
+    // Don't downgrade from FULL_REDRAW (FULL_REDRAW takes precedence)
+    if (m_renderState == RenderState::FULL_REDRAW)
+    {
+        return; // Keep FULL_REDRAW, don't downgrade to incremental
+    }
+
     m_renderState = newState;
+}
+
+/**
+ * @brief Force a full redraw of the graph.
+ *
+ * Sets the render state to FULL_REDRAW and calls draw().
+ * Use this when data changes significantly or after initial setup.
+ */
+void WaterfallGraph::forceFullRedraw()
+{
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
 }
 
 /**
@@ -1167,6 +1222,397 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     // Update tracking
     m_cachedDataSize[seriesLabel] = yData.size();
     m_lastProcessedIndex[seriesLabel] = yData.size();
+}
+
+// ============================================================================
+// Incremental Graphics Item Management (State Machine Based)
+// ============================================================================
+
+/**
+ * @brief Cleanup scatterplot items for a specific series.
+ * 
+ * Removes all scatterplot items from scene and deletes them.
+ * 
+ * @param seriesLabel The series to cleanup
+ */
+void WaterfallGraph::cleanupScatterplotItems(const QString &seriesLabel)
+{
+    if (!graphicsScene)
+    {
+        return;
+    }
+    
+    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
+    if (itemIt != m_seriesScatterplotItems.end())
+    {
+        for (QGraphicsPixmapItem *item : itemIt->second)
+        {
+            if (item)
+            {
+                // Check if item belongs to this scene before removing
+                if (item->scene() == graphicsScene)
+                {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+        itemIt->second.clear();
+    }
+}
+
+/**
+ * @brief Cleanup all scatterplot items for all series.
+ */
+void WaterfallGraph::cleanupAllScatterplotItems()
+{
+    if (!graphicsScene)
+    {
+        return;
+    }
+    
+    for (auto &pair : m_seriesScatterplotItems)
+    {
+        for (QGraphicsPixmapItem *item : pair.second)
+        {
+            if (item)
+            {
+                // Check if item belongs to this scene before removing
+                if (item->scene() == graphicsScene)
+                {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+        pair.second.clear();
+    }
+    m_seriesScatterplotItems.clear();
+}
+
+/**
+ * @brief Update scatterplot item positions when time range changes.
+ * 
+ * Updates positions of existing items without creating/destroying them.
+ * 
+ * @param seriesLabel The series to update
+ * @param visibleData Current visible data points
+ * @param pointSize Size of points for positioning
+ */
+void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
+                                                     const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                                     qreal pointSize)
+{
+    if (!graphicsScene)
+    {
+        return;
+    }
+    
+    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
+    if (itemIt == m_seriesScatterplotItems.end())
+    {
+        return;
+    }
+    
+    std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
+    
+    // Update positions for all existing items
+    for (size_t i = 0; i < items.size() && i < visibleData.size(); ++i)
+    {
+        if (items[i])
+        {
+            const auto &dataPoint = visibleData[i];
+            if (!dataPoint.second.isValid())
+            {
+                continue;
+            }
+            
+            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+            if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+            {
+                continue;
+            }
+            
+            items[i]->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
+        }
+    }
+}
+
+/**
+ * @brief Remove scatterplot items that are outside the new time range (sliding window).
+ * 
+ * When time range moves forward, removes items for points that are now too old.
+ * Uses binary search to efficiently find the cutoff point.
+ * 
+ * @param seriesLabel The series to update
+ * @param oldTimeMin Previous minimum time
+ * @param newTimeMin New minimum time
+ */
+void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLabel,
+                                                         const QDateTime &oldTimeMin,
+                                                         const QDateTime &newTimeMin)
+{
+    if (newTimeMin <= oldTimeMin)
+    {
+        return; // Range moved backward or unchanged - full refilter will handle it
+    }
+    
+    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
+    if (itemIt == m_seriesScatterplotItems.end())
+    {
+        return;
+    }
+    
+    // Get cached visible data to find which items to remove
+    auto cacheIt = m_cachedVisibleData.find(seriesLabel);
+    if (cacheIt == m_cachedVisibleData.end())
+    {
+        return;
+    }
+    
+    const std::vector<std::pair<qreal, QDateTime>> &cachedData = cacheIt->second;
+    std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
+    
+    // Use binary search to find first item that should be kept (>= newTimeMin)
+    size_t firstKeepIndex = 0;
+    for (size_t i = 0; i < cachedData.size(); ++i)
+    {
+        if (cachedData[i].second >= newTimeMin)
+        {
+            firstKeepIndex = i;
+            break;
+        }
+    }
+    
+    // Remove items before firstKeepIndex
+    for (size_t i = 0; i < firstKeepIndex && i < items.size(); ++i)
+    {
+        if (items[i])
+        {
+            // Check if item belongs to this scene before removing
+            if (items[i]->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(items[i]);
+            }
+            delete items[i];
+        }
+    }
+    
+    // Shift remaining items to front of vector
+    if (firstKeepIndex > 0 && firstKeepIndex < items.size())
+    {
+        std::vector<QGraphicsPixmapItem*> keptItems;
+        keptItems.reserve(items.size() - firstKeepIndex);
+        for (size_t i = firstKeepIndex; i < items.size(); ++i)
+        {
+            keptItems.push_back(items[i]);
+        }
+        items = std::move(keptItems);
+    }
+    else if (firstKeepIndex >= items.size())
+    {
+        // All items should be removed
+        for (QGraphicsPixmapItem *item : items)
+        {
+            if (item)
+            {
+                // Check if item belongs to this scene before removing
+                if (item->scene() == graphicsScene)
+                {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+        items.clear();
+    }
+}
+
+/**
+ * @brief Update scatterplot items with full rebuild (for FULL_REDRAW state).
+ * 
+ * Removes all existing items and creates new ones for all visible data points.
+ * 
+ * @param seriesLabel The series to update
+ * @param visibleData All visible data points
+ * @param pointColor Color for points
+ * @param pointSize Size of points
+ */
+void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
+                                                 const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                                 const QColor &pointColor, qreal pointSize)
+{
+    if (!graphicsScene)
+    {
+        return;
+    }
+    
+    // Remove all existing items
+    cleanupScatterplotItems(seriesLabel);
+    
+    if (visibleData.empty())
+    {
+        return;
+    }
+    
+    // Get cached pixmap
+    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
+    
+    // Create items for all visible points
+    std::vector<QGraphicsPixmapItem*> &items = m_seriesScatterplotItems[seriesLabel];
+    items.reserve(visibleData.size());
+    
+    for (const auto &dataPoint : visibleData)
+    {
+        if (!dataPoint.second.isValid())
+        {
+            continue; // Skip invalid timestamps
+        }
+        
+        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        {
+            continue; // Skip invalid screen coordinates
+        }
+        
+        QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pointPixmap);
+        item->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
+        item->setZValue(120);
+        graphicsScene->addItem(item);
+        items.push_back(item);
+    }
+}
+
+/**
+ * @brief Update scatterplot items incrementally (for INCREMENTAL_UPDATE state).
+ * 
+ * Only creates items for new data points, updates positions of existing items,
+ * and removes items for points that left the visible range.
+ * 
+ * @param seriesLabel The series to update
+ * @param newVisibleData Current visible data points
+ * @param pointColor Color for points
+ * @param pointSize Size of points
+ */
+void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabel,
+                                                         const std::vector<std::pair<qreal, QDateTime>> &newVisibleData,
+                                                         const QColor &pointColor, qreal pointSize)
+{
+    if (!graphicsScene)
+    {
+        return;
+    }
+    
+    if (newVisibleData.empty())
+    {
+        // No visible data - remove all items
+        cleanupScatterplotItems(seriesLabel);
+        return;
+    }
+    
+    // For incremental updates, we need to match items to data points by timestamp
+    // since the time range might have changed. If the data is completely different,
+    // fall back to full rebuild.
+    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
+    if (itemIt == m_seriesScatterplotItems.end() || itemIt->second.empty())
+    {
+        // No existing items - do full rebuild
+        updateScatterplotItemsFull(seriesLabel, newVisibleData, pointColor, pointSize);
+        return;
+    }
+    
+    // Get cached visible data to match by timestamp
+    auto cacheIt = m_cachedVisibleData.find(seriesLabel);
+    if (cacheIt == m_cachedVisibleData.end())
+    {
+        // No cache - do full rebuild
+        updateScatterplotItemsFull(seriesLabel, newVisibleData, pointColor, pointSize);
+        return;
+    }
+    
+    const std::vector<std::pair<qreal, QDateTime>> &oldVisibleData = cacheIt->second;
+    std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
+    
+    // If the data sets are too different, do full rebuild
+    // This happens when time range changes significantly
+    if (oldVisibleData.size() != items.size())
+    {
+        updateScatterplotItemsFull(seriesLabel, newVisibleData, pointColor, pointSize);
+        return;
+    }
+    
+    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
+    
+    // Match items to new data by timestamp (assuming data is sorted by time)
+    // For now, do a simple index-based update if counts match
+    // TODO: Implement proper timestamp-based matching for better performance
+    size_t oldCount = items.size();
+    size_t newCount = newVisibleData.size();
+    
+    // Update positions for matching items
+    size_t updateCount = std::min(oldCount, newCount);
+    for (size_t i = 0; i < updateCount; ++i)
+    {
+        if (items[i] && i < newVisibleData.size())
+        {
+            const auto &dataPoint = newVisibleData[i];
+            if (!dataPoint.second.isValid())
+            {
+                continue;
+            }
+            
+            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+            if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+            {
+                continue;
+            }
+            
+            items[i]->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
+        }
+    }
+    
+    if (newCount > oldCount)
+    {
+        // New points added - create items for new ones only
+        items.reserve(newCount);
+        for (size_t i = oldCount; i < newCount; ++i)
+        {
+            const auto &dataPoint = newVisibleData[i];
+            if (!dataPoint.second.isValid())
+            {
+                continue;
+            }
+            
+            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+            if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+            {
+                continue;
+            }
+            
+            QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pointPixmap);
+            item->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
+            item->setZValue(120);
+            graphicsScene->addItem(item);
+            items.push_back(item);
+        }
+    }
+    else if (newCount < oldCount)
+    {
+        // Points removed - delete excess items
+        for (size_t i = newCount; i < oldCount; ++i)
+        {
+            if (items[i])
+            {
+                // Check if item belongs to this scene before removing
+                if (items[i]->scene() == graphicsScene)
+                {
+                    graphicsScene->removeItem(items[i]);
+                }
+                delete items[i];
+            }
+        }
+        items.resize(newCount);
+    }
 }
 
 /**
@@ -1726,14 +2172,36 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
     {
         return QPointF(0, 0);
     }
+    
+    if (!timestamp.isValid() || !timeMax.isValid() || !timeMin.isValid())
+    {
+        return QPointF(0, 0);
+    }
 
     // Map y-value to x-coordinate (horizontal position)
+    if (!qIsFinite(yValue) || (yMax - yMin) <= 0.0)
+    {
+        return QPointF(0, 0);
+    }
+    
     qreal x = drawingArea.left() + ((yValue - yMin) / (yMax - yMin)) * drawingArea.width();
 
     // Map timestamp to y-coordinate (vertical position, top to bottom)
     // Use fixed time interval instead of data range
+    qint64 timeIntervalMs = getTimeIntervalMs();
+    if (timeIntervalMs <= 0)
+    {
+        return QPointF(0, 0);
+    }
+    
     qint64 timeOffset = timestamp.msecsTo(timeMax); // Time from current time (top) to data point
-    qreal y = drawingArea.top() + (timeOffset / (qreal)getTimeIntervalMs()) * drawingArea.height();
+    qreal y = drawingArea.top() + (timeOffset / (qreal)timeIntervalMs) * drawingArea.height();
+
+    // Validate result
+    if (!qIsFinite(x) || !qIsFinite(y))
+    {
+        return QPointF(0, 0);
+    }
 
     return QPointF(x, y);
 }
@@ -1777,6 +2245,35 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     if (yData.empty() || timestamps.empty())
     {
         qDebug() << "drawDataLine: no data available for series" << seriesLabel;
+        // Cleanup any existing items for this series
+        auto pathIt = m_seriesPathItems.find(seriesLabel);
+        if (pathIt != m_seriesPathItems.end() && pathIt->second)
+        {
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            m_seriesPathItems.erase(pathIt);
+        }
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (pointIt != m_seriesPointItems.end())
+        {
+            for (QGraphicsEllipseItem *item : pointIt->second)
+            {
+                if (item)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointIt->second.clear();
+        }
         return;
     }
 
@@ -1809,16 +2306,115 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     if (visibleData.empty())
     {
         qDebug() << "drawDataLine: no visible points within current time range for series" << seriesLabel;
+        // Cleanup any existing items for this series
+        auto pathIt = m_seriesPathItems.find(seriesLabel);
+        if (pathIt != m_seriesPathItems.end() && pathIt->second)
+        {
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            m_seriesPathItems.erase(pathIt);
+        }
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (pointIt != m_seriesPointItems.end())
+        {
+            for (QGraphicsEllipseItem *item : pointIt->second)
+            {
+                if (item)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointIt->second.clear();
+        }
         return;
     }
+
+    // Clean up old items on FULL_REDRAW
+    if (m_renderState == RenderState::FULL_REDRAW)
+    {
+        auto pathIt = m_seriesPathItems.find(seriesLabel);
+        if (pathIt != m_seriesPathItems.end() && pathIt->second)
+        {
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            m_seriesPathItems.erase(pathIt);
+        }
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (pointIt != m_seriesPointItems.end())
+        {
+            for (QGraphicsEllipseItem *item : pointIt->second)
+            {
+                if (item)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointIt->second.clear();
+        }
+    }
+
+    QColor seriesColor = getSeriesColor(seriesLabel);
 
     if (visibleData.size() < 2)
     {
         // Draw a single point if we only have one data point
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-        QColor seriesColor = getSeriesColor(seriesLabel);
-        QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        {
+            return;
+        }
+        
+        // Update or create single point item
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (pointIt == m_seriesPointItems.end() || pointIt->second.empty() || m_renderState == RenderState::FULL_REDRAW)
+        {
+            // Remove old point if exists
+            if (pointIt != m_seriesPointItems.end() && !pointIt->second.empty())
+            {
+                for (QGraphicsEllipseItem *item : pointIt->second)
+                {
+                    if (item)
+                    {
+                        // Check if item belongs to this scene before removing
+                        if (item->scene() == graphicsScene)
+                        {
+                            graphicsScene->removeItem(item);
+                        }
+                        delete item;
+                    }
+                }
+                pointIt->second.clear();
+            }
+            QPen pointPen(seriesColor, 0); // No stroke (width 0)
+            QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+            m_seriesPointItems[seriesLabel].push_back(pointItem);
+        }
+        else
+        {
+            // Update existing point position
+            if (pointIt->second[0])
+            {
+                pointIt->second[0]->setRect(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4);
+            }
+        }
         qDebug() << "Data line drawn for series" << seriesLabel << "with 1 visible point";
         return;
     }
@@ -1826,29 +2422,158 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     // Create a path for the line
     QPainterPath path;
     QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+    if (firstPoint.isNull() || !qIsFinite(firstPoint.x()) || !qIsFinite(firstPoint.y()))
+    {
+        return;
+    }
     path.moveTo(firstPoint);
 
     // Add lines connecting all visible data points
     for (size_t i = 1; i < visibleData.size(); ++i)
     {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+        if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+        {
+            continue; // Skip invalid points
+        }
         path.lineTo(point);
     }
 
-    // Draw the line
-    QColor seriesColor = getSeriesColor(seriesLabel);
-    QPen linePen(seriesColor, 2);
-    graphicsScene->addPath(path, linePen);
+    // Update or create path item
+    auto pathIt = m_seriesPathItems.find(seriesLabel);
+    if (pathIt != m_seriesPathItems.end() && pathIt->second)
+    {
+        if (m_renderState == RenderState::INCREMENTAL_UPDATE || m_renderState == RenderState::RANGE_UPDATE_ONLY)
+        {
+            // Update existing path
+            pathIt->second->setPath(path);
+        }
+        else
+        {
+            // FULL_REDRAW: recreate
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            QPen linePen(seriesColor, 2);
+            QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
+            m_seriesPathItems[seriesLabel] = pathItem;
+        }
+    }
+    else
+    {
+        // Create new path
+        QPen linePen(seriesColor, 2);
+        QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
+        m_seriesPathItems[seriesLabel] = pathItem;
+    }
 
     // Draw data points if enabled
     if (plotPoints)
     {
-        // Draw data points
-        QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        for (size_t i = 0; i < visibleData.size(); ++i)
+        std::vector<QGraphicsEllipseItem*> &pointItems = m_seriesPointItems[seriesLabel];
+        size_t oldPointCount = pointItems.size();
+        size_t newPointCount = visibleData.size();
+        
+        if (m_renderState == RenderState::FULL_REDRAW || oldPointCount == 0)
         {
-            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-            graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+            // Remove all and recreate
+            for (QGraphicsEllipseItem *item : pointItems)
+            {
+                if (item)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointItems.clear();
+            pointItems.reserve(newPointCount);
+            
+            QPen pointPen(seriesColor, 0); // No stroke (width 0)
+            for (size_t i = 0; i < newPointCount; ++i)
+            {
+                QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                {
+                    continue; // Skip invalid points
+                }
+                QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+                pointItems.push_back(pointItem);
+            }
+        }
+        else if (m_renderState == RenderState::INCREMENTAL_UPDATE)
+        {
+            // Update positions for existing items, add new ones, remove excess
+            size_t updateCount = std::min(oldPointCount, newPointCount);
+            for (size_t i = 0; i < updateCount; ++i)
+            {
+                if (pointItems[i])
+                {
+                    QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                    if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                    {
+                        continue;
+                    }
+                    pointItems[i]->setRect(point.x() - 1, point.y() - 1, 2, 2);
+                }
+            }
+            
+            if (newPointCount > oldPointCount)
+            {
+                // Add new points
+                pointItems.reserve(newPointCount);
+                QPen pointPen(seriesColor, 0);
+                for (size_t i = oldPointCount; i < newPointCount; ++i)
+                {
+                    QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                    if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                    {
+                        continue;
+                    }
+                    QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+                    pointItems.push_back(pointItem);
+                }
+            }
+            else if (newPointCount < oldPointCount)
+            {
+                // Remove excess points
+                for (size_t i = newPointCount; i < oldPointCount; ++i)
+                {
+                    if (pointItems[i])
+                    {
+                        // Check if item belongs to this scene before removing
+                        if (pointItems[i]->scene() == graphicsScene)
+                        {
+                            graphicsScene->removeItem(pointItems[i]);
+                        }
+                        delete pointItems[i];
+                    }
+                }
+                pointItems.resize(newPointCount);
+            }
+        }
+        else
+        {
+            // RANGE_UPDATE_ONLY or CLEAN: just update positions
+            size_t updateCount = std::min(oldPointCount, newPointCount);
+            for (size_t i = 0; i < updateCount; ++i)
+            {
+                if (pointItems[i])
+                {
+                    QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                    if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                    {
+                        continue;
+                    }
+                    pointItems[i]->setRect(point.x() - 1, point.y() - 1, 2, 2);
+                }
+            }
         }
     }
 
@@ -2378,29 +3103,35 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
 
     if (visibleData.empty())
     {
+        // No visible data - cleanup items if they exist
+        cleanupScatterplotItems(seriesLabel);
         qDebug() << "No data points within current time range for default scatterplot";
         return;
     }
 
-    // Get cached pixmap for this color/size combination (creates if doesn't exist)
-    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
+    // Use state machine to determine update strategy
+    // Check if we have existing items
+    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
+    bool hasExistingItems = (itemIt != m_seriesScatterplotItems.end() && !itemIt->second.empty());
     
-    // Draw scatterplot points using cached pixmaps
-    // This is much more efficient than creating individual QGraphicsEllipseItem for each point
-    for (const auto &dataPoint : visibleData)
+    if (m_renderState == RenderState::FULL_REDRAW || !hasExistingItems)
     {
-        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
-
-        // Create pixmap item using cached pixmap
-        QGraphicsPixmapItem *point = new QGraphicsPixmapItem(pointPixmap);
-        // Center the pixmap on the screen point
-        point->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
-        point->setZValue(120); // Draw above data lines but below markers
-
-        graphicsScene->addItem(point);
+        // Full rebuild: remove all, create all
+        updateScatterplotItemsFull(seriesLabel, visibleData, pointColor, pointSize);
+    }
+    else if (m_renderState == RenderState::INCREMENTAL_UPDATE)
+    {
+        // Incremental: update positions, add new, remove old
+        updateScatterplotItemsIncremental(seriesLabel, visibleData, pointColor, pointSize);
+    }
+    else
+    {
+        // CLEAN or RANGE_UPDATE_ONLY: just update positions if time range changed
+        updateScatterplotItemPositions(seriesLabel, visibleData, pointSize);
     }
 
-    qDebug() << "Default scatterplot drawn with" << visibleData.size() << "points";
+    qDebug() << "Scatterplot drawn with" << visibleData.size() << "points (state:" 
+             << static_cast<int>(m_renderState) << ")";
 }
 
 /**
@@ -2473,28 +3204,43 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         return;
     }
 
-    // Remove existing graphics items for this series if they exist (for incremental updates)
-    auto pathIt = m_seriesPathItems.find(seriesLabel);
-    if (pathIt != m_seriesPathItems.end() && pathIt->second)
+    // Use state machine to determine update strategy
+    // Only remove/recreate items on FULL_REDRAW, otherwise update incrementally
+    if (m_renderState == RenderState::FULL_REDRAW)
     {
-        graphicsScene->removeItem(pathIt->second);
-        delete pathIt->second;
-        m_seriesPathItems.erase(pathIt);
-    }
-
-    auto pointIt = m_seriesPointItems.find(seriesLabel);
-    if (pointIt != m_seriesPointItems.end())
-    {
-        for (QGraphicsEllipseItem *item : pointIt->second)
+        // Remove existing graphics items for this series
+        auto pathIt = m_seriesPathItems.find(seriesLabel);
+        if (pathIt != m_seriesPathItems.end() && pathIt->second)
         {
-            if (item)
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
             {
-                graphicsScene->removeItem(item);
-                delete item;
+                graphicsScene->removeItem(pathIt->second);
             }
+            delete pathIt->second;
+            m_seriesPathItems.erase(pathIt);
         }
-        pointIt->second.clear();
+
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (pointIt != m_seriesPointItems.end())
+        {
+            for (QGraphicsEllipseItem *item : pointIt->second)
+            {
+                if (item)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointIt->second.clear();
+        }
     }
+    // For INCREMENTAL_UPDATE, we'll update positions and add/remove items as needed below
+    // For CLEAN/RANGE_UPDATE_ONLY, we'll just update positions
 
     const auto &yData = dataSource->getYDataSeries(seriesLabel);
     const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
@@ -2525,48 +3271,223 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 
     if (visibleData.empty())
     {
+        // No visible data - cleanup items if they exist
+        auto pathIt = m_seriesPathItems.find(seriesLabel);
+        if (pathIt != m_seriesPathItems.end() && pathIt->second)
+        {
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            m_seriesPathItems.erase(pathIt);
+        }
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (pointIt != m_seriesPointItems.end())
+        {
+            for (QGraphicsEllipseItem *item : pointIt->second)
+            {
+                if (item)
+                {
+                    // Check if item belongs to this scene before removing
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointIt->second.clear();
+        }
         return;
     }
 
     // Get series color
     QColor seriesColor = getSeriesColor(seriesLabel);
 
+    // Handle path item (line connecting points)
     if (visibleData.size() < 2)
     {
-        // Draw a single point if we only have one data point
-        QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-        QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-        m_seriesPointItems[seriesLabel].push_back(pointItem);
+        // Single point - no path needed, just draw point
+        // Remove path if exists
+        auto pathIt = m_seriesPathItems.find(seriesLabel);
+        if (pathIt != m_seriesPathItems.end() && pathIt->second)
+        {
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            m_seriesPathItems.erase(pathIt);
+        }
+        
+        // Handle single point item
+        auto pointIt = m_seriesPointItems.find(seriesLabel);
+        if (m_renderState == RenderState::FULL_REDRAW || pointIt == m_seriesPointItems.end() || pointIt->second.empty())
+        {
+            // Create new point
+            if (pointIt != m_seriesPointItems.end())
+            {
+                for (QGraphicsEllipseItem *item : pointIt->second)
+                {
+                    if (item)
+                    {
+                        // Check if item belongs to this scene before removing
+                        if (item->scene() == graphicsScene)
+                        {
+                            graphicsScene->removeItem(item);
+                        }
+                        delete item;
+                    }
+                }
+                pointIt->second.clear();
+            }
+            QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+            QPen pointPen(seriesColor, 0);
+            QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+            m_seriesPointItems[seriesLabel].push_back(pointItem);
+        }
+        else
+        {
+            // Update position of existing point
+            if (!pointIt->second.empty() && pointIt->second[0])
+            {
+                QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+                pointIt->second[0]->setRect(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4);
+            }
+        }
         return;
     }
 
-    // Create a path for the line
+    // Multiple points - create/update path
     QPainterPath path;
     QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
     path.moveTo(firstPoint);
-
-    // Add lines connecting all visible data points
     for (size_t i = 1; i < visibleData.size(); ++i)
     {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         path.lineTo(point);
     }
 
-    // Draw the line and store reference
-    QPen linePen(seriesColor, 2);
-    QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
-    m_seriesPathItems[seriesLabel] = pathItem;
-
-    // Draw data points and store references
-    QPen pointPen(seriesColor, 0); // No stroke (width 0)
-    std::vector<QGraphicsEllipseItem*> &pointItems = m_seriesPointItems[seriesLabel];
-    pointItems.reserve(visibleData.size());
-    for (size_t i = 0; i < visibleData.size(); ++i)
+    // Update or create path item
+    auto pathIt = m_seriesPathItems.find(seriesLabel);
+    if (pathIt != m_seriesPathItems.end() && pathIt->second)
     {
-        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
-        pointItems.push_back(pointItem);
+        // Update existing path
+        if (m_renderState == RenderState::INCREMENTAL_UPDATE || m_renderState == RenderState::RANGE_UPDATE_ONLY)
+        {
+            pathIt->second->setPath(path);
+        }
+        else
+        {
+            // FULL_REDRAW: recreate
+            // Check if item belongs to this scene before removing
+            if (pathIt->second->scene() == graphicsScene)
+            {
+                graphicsScene->removeItem(pathIt->second);
+            }
+            delete pathIt->second;
+            QPen linePen(seriesColor, 2);
+            QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
+            m_seriesPathItems[seriesLabel] = pathItem;
+        }
+    }
+    else
+    {
+        // Create new path
+        QPen linePen(seriesColor, 2);
+        QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
+        m_seriesPathItems[seriesLabel] = pathItem;
+    }
+
+    // Handle point items (ellipses at each data point)
+    std::vector<QGraphicsEllipseItem*> &pointItems = m_seriesPointItems[seriesLabel];
+    size_t oldPointCount = pointItems.size();
+    size_t newPointCount = visibleData.size();
+    
+    if (m_renderState == RenderState::FULL_REDRAW || oldPointCount == 0)
+    {
+        // Remove all and recreate
+        for (QGraphicsEllipseItem *item : pointItems)
+        {
+            if (item)
+            {
+                // Check if item belongs to this scene before removing
+                if (item->scene() == graphicsScene)
+                {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+        pointItems.clear();
+        pointItems.reserve(newPointCount);
+        
+        QPen pointPen(seriesColor, 0);
+        for (size_t i = 0; i < newPointCount; ++i)
+        {
+            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+            QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+            pointItems.push_back(pointItem);
+        }
+    }
+    else if (m_renderState == RenderState::INCREMENTAL_UPDATE)
+    {
+        // Update positions for existing items, add new ones, remove excess
+        QPen pointPen(seriesColor, 0);
+        
+        // Update positions for all existing items
+        for (size_t i = 0; i < oldPointCount && i < newPointCount; ++i)
+        {
+            if (pointItems[i])
+            {
+                QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                pointItems[i]->setRect(point.x() - 1, point.y() - 1, 2, 2);
+            }
+        }
+        
+        // Add new items if count increased
+        if (newPointCount > oldPointCount)
+        {
+            pointItems.reserve(newPointCount);
+            for (size_t i = oldPointCount; i < newPointCount; ++i)
+            {
+                QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
+                pointItems.push_back(pointItem);
+            }
+        }
+        // Remove excess items if count decreased
+        else if (newPointCount < oldPointCount)
+        {
+            for (size_t i = newPointCount; i < oldPointCount; ++i)
+            {
+                if (pointItems[i])
+                {
+                    // Check if item belongs to this scene before removing
+                    if (pointItems[i]->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(pointItems[i]);
+                    }
+                    delete pointItems[i];
+                }
+            }
+            pointItems.resize(newPointCount);
+        }
+    }
+    else
+    {
+        // CLEAN or RANGE_UPDATE_ONLY: just update positions
+        for (size_t i = 0; i < pointItems.size() && i < newPointCount; ++i)
+        {
+            if (pointItems[i])
+            {
+                QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+                pointItems[i]->setRect(point.x() - 1, point.y() - 1, 2, 2);
+            }
+        }
     }
 }
 
@@ -2813,12 +3734,18 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
         return;
     }
 
+    // Check if range actually changed
+    bool rangeChanged = (this->timeMin != timeMin || this->timeMax != timeMax);
+    
+    if (!rangeChanged)
+    {
+        // No change - skip update entirely
+        return;
+    }
+
     // Only invalidate visible data cache if the effective time range actually changes.
     // This avoids unnecessary full refilters when callers repeat the same range.
-    if (this->timeMin != timeMin || this->timeMax != timeMax)
-    {
-        invalidateAllVisibleDataCache();
-    }
+    invalidateAllVisibleDataCache();
 
     customTimeMin = timeMin;
     customTimeMax = timeMax;
@@ -2828,11 +3755,10 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
     this->timeMin = timeMin;
     this->timeMax = timeMax;
 
-    // Time range change requires full redraw (automatically marks all series dirty)
-    setRenderState(RenderState::FULL_REDRAW);
-
-    // Force redraw to show new time range
-    draw();
+    // Time range change uses incremental update - existing items can be repositioned
+    // rather than clearing everything and recreating from scratch.
+    // Caller is responsible for calling draw() if needed.
+    setRenderState(RenderState::INCREMENTAL_UPDATE);
 
     qDebug() << "Custom time range set to:" << timeMin.toString() << "to" << timeMax.toString();
 }
@@ -2844,6 +3770,8 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
  */
 void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
 {
+    bool rangeChanged = false;
+    
     if (customTimeRangeEnabled)
     {
         // Only invalidate cache if effective time range actually changes
@@ -2852,19 +3780,23 @@ void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
             invalidateAllVisibleDataCache();
             customTimeMax = timeMax;
             this->timeMax = timeMax;
+            rangeChanged = true;
         }
     }
     else
     {
         // If not using custom range, set it based on data
         setTimeRangeFromData();
+        rangeChanged = true;
     }
 
-    // Time range change requires full redraw (automatically marks all series dirty)
-    setRenderState(RenderState::FULL_REDRAW);
+    if (!rangeChanged)
+    {
+        return;
+    }
 
-    // Force redraw to show new time range
-    draw();
+    // Time range change uses incremental update - caller is responsible for draw()
+    setRenderState(RenderState::INCREMENTAL_UPDATE);
 
     qDebug() << "Time max set to:" << timeMax.toString();
 }
@@ -2876,6 +3808,8 @@ void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
  */
 void WaterfallGraph::setTimeMin(const QDateTime &timeMin)
 {
+    bool rangeChanged = false;
+    
     if (customTimeRangeEnabled)
     {
         // Only invalidate cache if effective time range actually changes
@@ -2884,19 +3818,23 @@ void WaterfallGraph::setTimeMin(const QDateTime &timeMin)
             invalidateAllVisibleDataCache();
             customTimeMin = timeMin;
             this->timeMin = timeMin;
+            rangeChanged = true;
         }
     }
     else
     {
         // If not using custom range, set it based on data
         setTimeRangeFromData();
+        rangeChanged = true;
     }
 
-    // Time range change requires full redraw (automatically marks all series dirty)
-    setRenderState(RenderState::FULL_REDRAW);
+    if (!rangeChanged)
+    {
+        return;
+    }
 
-    // Force redraw to show new time range
-    draw();
+    // Time range change uses incremental update - caller is responsible for draw()
+    setRenderState(RenderState::INCREMENTAL_UPDATE);
 
     qDebug() << "Time min set to:" << timeMin.toString();
 }

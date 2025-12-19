@@ -175,6 +175,21 @@ protected:
     size_t findFirstVisibleIndex(const std::vector<QDateTime> &timestamps, const QDateTime &timeMin) const;
     size_t findLastVisibleIndex(const std::vector<QDateTime> &timestamps, const QDateTime &timeMax) const;
 
+    // Incremental graphics item management (State Machine Based)
+    void updateScatterplotItemsIncremental(const QString &seriesLabel, 
+                                           const std::vector<std::pair<qreal, QDateTime>> &newVisibleData,
+                                           const QColor &pointColor, qreal pointSize);
+    void updateScatterplotItemsFull(const QString &seriesLabel,
+                                    const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                    const QColor &pointColor, qreal pointSize);
+    void removeScatterplotItemsOutsideRange(const QString &seriesLabel, 
+                                            const QDateTime &oldTimeMin, const QDateTime &newTimeMin);
+    void updateScatterplotItemPositions(const QString &seriesLabel,
+                                        const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                        qreal pointSize);
+    void cleanupScatterplotItems(const QString &seriesLabel);
+    void cleanupAllScatterplotItems();
+
     // Data range tracking
     qreal yMin, yMax;
     QDateTime timeMin, timeMax;
@@ -213,6 +228,8 @@ protected:
     std::set<QString> m_dirtySeries;
     std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
     std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;
+    // Track scatterplot pixmap items per series for incremental updates
+    std::map<QString, std::vector<QGraphicsPixmapItem*>> m_seriesScatterplotItems;
 
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
     // Avoids O(n) filtering on every draw by caching already-filtered data
@@ -327,6 +344,10 @@ public:
 
     // Public draw method for external redraw triggers
     virtual void draw();
+    
+    // Force a full redraw (clears and recreates all graphics items)
+    // Use this when data changes significantly or after initial setup
+    void forceFullRedraw();
 
     // Drawing methods for custom elements
     void drawPoint(const QPointF &position, const QColor &color = Qt::white, qreal size = 2.0);

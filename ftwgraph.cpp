@@ -41,11 +41,24 @@ void FTWGraph::draw()
     
     isDrawing = true;
 
-    graphicsScene->clear();
-    graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    // Only perform full clear for FULL_REDRAW state
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
+    
+    if (needsFullClear)
+    {
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    }
+    
     setupDrawingArea();
 
-    if (gridEnabled)
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
@@ -64,20 +77,29 @@ void FTWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points
-                    drawDataLine(seriesLabel, false);
+                    // Draw curve for ADOPTED series without points (only on full redraw)
+                    if (needsFullClear)
+                    {
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
-                    // Draw scatterplot for other series
+                    // Draw scatterplot for other series - respects render state internally
                     drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
             }
         }
     }
     
-    // Draw BTW symbols (magenta circles) if any exist in data source
-    drawBTWSymbols();
+    // Draw BTW symbols (magenta circles) if any exist in data source (only on full redraw)
+    if (needsFullClear)
+    {
+        drawBTWSymbols();
+    }
+    
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
     
     isDrawing = false;
 }

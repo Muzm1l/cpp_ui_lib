@@ -59,11 +59,24 @@ void LTWGraph::draw()
     
     isDrawing = true;
 
-    graphicsScene->clear();
-    graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    // Only perform full clear for FULL_REDRAW state
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
+    
+    if (needsFullClear)
+    {
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    }
+    
     setupDrawingArea();
 
-    if (gridEnabled)
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
@@ -86,15 +99,22 @@ void LTWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points
-                    qDebug() << "LTW: draw() - drawing ADOPTED series as line";
-                    drawDataLine(seriesLabel, false);
+                    // Draw curve for ADOPTED series without points (only on full redraw)
+                    if (needsFullClear)
+                    {
+                        qDebug() << "LTW: draw() - drawing ADOPTED series as line";
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
                     // Draw custom markers for other series with adaptive sampling
-                    qDebug() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
-                    drawCustomMarkers(seriesLabel, seriesColor);
+                    // Note: drawCustomMarkers doesn't support incremental yet, so always redraw on full clear
+                    if (needsFullClear)
+                    {
+                        qDebug() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
+                        drawCustomMarkers(seriesLabel, seriesColor);
+                    }
                 }
             }
         }
@@ -104,8 +124,14 @@ void LTWGraph::draw()
         qDebug() << "LTW: draw() - no dataSource or dataSource is empty";
     }
     
-    // Draw BTW symbols (magenta circles) if any exist in data source
-    drawBTWSymbols();
+    // Draw BTW symbols (magenta circles) if any exist in data source (only on full redraw)
+    if (needsFullClear)
+    {
+        drawBTWSymbols();
+    }
+    
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
     
     isDrawing = false;
 }
