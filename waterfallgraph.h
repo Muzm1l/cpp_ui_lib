@@ -238,6 +238,13 @@ protected:
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
 
+    // Coordinate mapping caches (Issue #1: Performance optimization)
+    mutable qint64 m_cachedTimeIntervalMs;  // Cached time interval in milliseconds
+    mutable qreal m_cachedYRange;           // Cached (yMax - yMin)
+    mutable qreal m_cachedYRangeReciprocal; // Cached 1.0 / (yMax - yMin)
+    mutable qreal m_cachedTimeIntervalMsReciprocal; // Cached 1.0 / timeIntervalMs
+    mutable bool m_cachesValid;             // Flag to track cache validity
+
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;
@@ -268,6 +275,21 @@ protected:
     // Time axis cursor functionality
     QGraphicsLineItem *timeAxisCursor;
     qreal mapTimeToY(const QDateTime &time) const;
+    
+    // Coordinate mapping cache update (Issue #1)
+    void updateCoordinateMappingCaches() const;
+    
+    // Crosshair update caches (Issue #2)
+    QRectF m_cachedCursorSceneRect;        // Cached cursor scene rectangle
+    QRectF m_cachedOverlaySceneRect;       // Cached overlay scene rectangle
+    QDateTime m_lastCachedTime;            // Last cached time for mapTimeToY
+    qreal m_lastCachedYPos;                // Last cached Y position
+    bool m_cursorSceneRectValid;           // Flag for cursor scene rect cache
+    bool m_overlaySceneRectValid;           // Flag for overlay scene rect cache
+    
+    // Crosshair cache update functions (Issue #2)
+    void updateCursorSceneRectCache();
+    void updateOverlaySceneRectCache();
 
     // Mouse selection functionality
     bool mouseSelectionEnabled;

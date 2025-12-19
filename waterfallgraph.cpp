@@ -58,7 +58,18 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     lastNotifiedCrosshairXPosition(-1.0),
     m_renderState(RenderState::FULL_REDRAW),
     m_rangeUpdateNeeded(false),
-    m_zeroAxisValue(0.0)
+    m_zeroAxisValue(0.0),
+    m_cachedTimeIntervalMs(-1),  // Invalid initial value
+    m_cachedYRange(0.0),
+    m_cachedYRangeReciprocal(0.0),
+    m_cachedTimeIntervalMsReciprocal(0.0),
+    m_cachesValid(false),
+    m_cachedCursorSceneRect(QRectF()),
+    m_cachedOverlaySceneRect(QRectF()),
+    m_lastCachedTime(QDateTime()),
+    m_lastCachedYPos(-1.0),
+    m_cursorSceneRectValid(false),
+    m_overlaySceneRectValid(false)
 {
     // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
     // Using default size (4x4 pixel rectangle)
@@ -514,6 +525,8 @@ const std::vector<QDateTime> &WaterfallGraph::getTimestamps(const QString &serie
 void WaterfallGraph::setTimeInterval(TimeInterval interval)
 {
     timeInterval = interval;
+    // Invalidate coordinate mapping caches (Issue #1)
+    m_cachesValid = false;
 
     // Always update time range based on new interval
     if (customTimeRangeEnabled)
@@ -2010,6 +2023,13 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
         cursorScene->setSceneRect(0, 0, event->size().width(), event->size().height());
     }
 
+    // Invalidate scene rectangle caches (Issue #2)
+    m_cursorSceneRectValid = false;
+    m_overlaySceneRectValid = false;
+    
+    // Invalidate coordinate mapping caches (drawing area may have changed)
+    m_cachesValid = false;
+
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
 }
@@ -2138,11 +2158,40 @@ void WaterfallGraph::updateDataRanges()
 
     dataRangesValid = true;
 
+    // Invalidate and update coordinate mapping caches (Issue #1)
+    updateCoordinateMappingCaches();
+
     qDebug() << "Data ranges updated - Y:" << yMin << "to" << yMax
              << "Time:" << timeMin.toString() << "to" << timeMax.toString()
              << "Interval:" << timeIntervalToString(timeInterval)
              << "Auto-update:" << (autoUpdateYRange ? "enabled" : "disabled")
              << "Range limiting:" << (rangeLimitingEnabled ? "enabled" : "disabled");
+}
+
+/**
+ * @brief Update coordinate mapping caches
+ * Called when time interval or data ranges change (Issue #1)
+ */
+void WaterfallGraph::updateCoordinateMappingCaches() const
+{
+    // Cache time interval
+    m_cachedTimeIntervalMs = getTimeIntervalMs();
+    if (m_cachedTimeIntervalMs > 0) {
+        m_cachedTimeIntervalMsReciprocal = 1.0 / static_cast<qreal>(m_cachedTimeIntervalMs);
+    } else {
+        m_cachedTimeIntervalMsReciprocal = 0.0;
+    }
+    
+    // Cache Y range
+    if (dataRangesValid && (yMax - yMin) > 0.0) {
+        m_cachedYRange = yMax - yMin;
+        m_cachedYRangeReciprocal = 1.0 / m_cachedYRange;
+    } else {
+        m_cachedYRange = 0.0;
+        m_cachedYRangeReciprocal = 0.0;
+    }
+    
+    m_cachesValid = (m_cachedTimeIntervalMs > 0 && m_cachedYRange > 0.0);
 }
 
 /**
@@ -2164,24 +2213,29 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
         return QPointF(0, 0);
     }
 
-    // Map y-value to x-coordinate (horizontal position)
-    if (!qIsFinite(yValue) || (yMax - yMin) <= 0.0)
+    // Ensure caches are valid (Issue #1)
+    if (!m_cachesValid) {
+        updateCoordinateMappingCaches();
+    }
+
+    // Map y-value to x-coordinate using cached reciprocal (Issue #1)
+    if (!qIsFinite(yValue) || m_cachedYRange <= 0.0)
     {
         return QPointF(0, 0);
     }
     
-    qreal x = drawingArea.left() + ((yValue - yMin) / (yMax - yMin)) * drawingArea.width();
+    // Use cached reciprocal instead of division
+    qreal x = drawingArea.left() + ((yValue - yMin) * m_cachedYRangeReciprocal) * drawingArea.width();
 
-    // Map timestamp to y-coordinate (vertical position, top to bottom)
-    // Use fixed time interval instead of data range
-    qint64 timeIntervalMs = getTimeIntervalMs();
-    if (timeIntervalMs <= 0)
+    // Map timestamp to y-coordinate using cached reciprocal (Issue #1)
+    if (m_cachedTimeIntervalMs <= 0)
     {
         return QPointF(0, 0);
     }
     
     qint64 timeOffset = timestamp.msecsTo(timeMax); // Time from current time (top) to data point
-    qreal y = drawingArea.top() + (timeOffset / (qreal)timeIntervalMs) * drawingArea.height();
+    // Use cached reciprocal instead of division
+    qreal y = drawingArea.top() + (timeOffset * m_cachedTimeIntervalMsReciprocal) * drawingArea.height();
 
     // Validate result
     if (!qIsFinite(x) || !qIsFinite(y))
@@ -2708,8 +2762,13 @@ QDateTime WaterfallGraph::mapScreenToTime(qreal yPos) const
     qreal normalizedY = (yPos - drawingArea.top()) / drawingArea.height();
     normalizedY = qMax(0.0, qMin(1.0, normalizedY)); // Clamp to [0,1]
 
-    // Calculate time offset from current time (top of graph)
-    qint64 timeOffsetMs = static_cast<qint64>(normalizedY * getTimeIntervalMs());
+    // Ensure caches are valid (Issue #1)
+    if (!m_cachesValid) {
+        updateCoordinateMappingCaches();
+    }
+
+    // Calculate time offset from current time (top of graph) using cached interval
+    qint64 timeOffsetMs = static_cast<qint64>(normalizedY * m_cachedTimeIntervalMs);
 
     // Convert to QTime using the data source's time range
     QDateTime selectionTime = timeMax.addMSecs(-timeOffsetMs);
@@ -4062,6 +4121,35 @@ void WaterfallGraph::unsetCustomTimeRange()
 // Crosshair functionality implementation
 
 /**
+ * @brief Update cursor scene rectangle cache (Issue #2)
+ */
+void WaterfallGraph::updateCursorSceneRectCache()
+{
+    if (cursorScene) {
+        m_cachedCursorSceneRect = cursorScene->sceneRect();
+        if (m_cachedCursorSceneRect.isEmpty()) {
+            m_cachedCursorSceneRect = QRectF(0, 0, this->width(), this->height());
+            cursorScene->setSceneRect(m_cachedCursorSceneRect);
+        }
+        m_cursorSceneRectValid = true;
+    }
+}
+
+/**
+ * @brief Update overlay scene rectangle cache (Issue #2)
+ */
+void WaterfallGraph::updateOverlaySceneRectCache()
+{
+    if (overlayScene) {
+        m_cachedOverlaySceneRect = overlayScene->sceneRect();
+        if (m_cachedOverlaySceneRect.isEmpty()) {
+            m_cachedOverlaySceneRect = QRectF(0, 0, this->width(), this->height());
+        }
+        m_overlaySceneRectValid = true;
+    }
+}
+
+/**
  * @brief Setup crosshair graphics items in the overlay scene
  */
 void WaterfallGraph::setupCrosshair()
@@ -4115,11 +4203,11 @@ void WaterfallGraph::updateCrosshair(const QPointF &mousePos)
         return;
     }
     
-    // Get the scene rectangle
-    QRectF sceneRect = overlayScene->sceneRect();
-    if (sceneRect.isEmpty()) {
-        sceneRect = QRectF(0, 0, this->width(), this->height());
+    // Use cached overlay scene rectangle (Issue #2)
+    if (!m_overlaySceneRectValid) {
+        updateOverlaySceneRectCache();
     }
+    QRectF sceneRect = m_cachedOverlaySceneRect;
     
     // Update horizontal and vertical lines
     crosshairHorizontal->setLine(sceneRect.left(), mousePos.y(), sceneRect.right(), mousePos.y());
@@ -4214,13 +4302,11 @@ void WaterfallGraph::updateCursorLayer()
         return;
     }
 
-    // Get the scene rectangle (cache it to avoid recalculation)
-    QRectF sceneRect = cursorScene->sceneRect();
-    if (sceneRect.isEmpty())
-    {
-        sceneRect = QRectF(0, 0, this->width(), this->height());
-        cursorScene->setSceneRect(sceneRect);
+    // Use cached cursor scene rectangle (Issue #2)
+    if (!m_cursorSceneRectValid) {
+        updateCursorSceneRectCache();
     }
+    QRectF sceneRect = m_cachedCursorSceneRect;
 
     bool needsUpdate = false;
 
@@ -4228,7 +4314,13 @@ void WaterfallGraph::updateCursorLayer()
     bool timeAxisVisible = false;
     if (m_cursorSyncState && m_cursorSyncState->hasCursorTime && m_cursorSyncState->cursorTime.isValid())
     {
-        qreal yPos = mapTimeToY(m_cursorSyncState->cursorTime);
+        // Check if time has changed before recalculating (Issue #2)
+        if (m_lastCachedTime != m_cursorSyncState->cursorTime || m_lastCachedYPos < 0) {
+            m_lastCachedYPos = mapTimeToY(m_cursorSyncState->cursorTime);
+            m_lastCachedTime = m_cursorSyncState->cursorTime;
+        }
+        
+        qreal yPos = m_lastCachedYPos;
         if (yPos >= 0)
         {
             cursorTimeAxisLine->setLine(sceneRect.left(), yPos, sceneRect.right(), yPos);
@@ -4375,15 +4467,20 @@ qreal WaterfallGraph::mapTimeToY(const QDateTime &time) const
         return -1.0;
     }
 
-    qint64 intervalMs = getTimeIntervalMs();
-    if (intervalMs <= 0)
+    // Ensure caches are valid (Issue #1)
+    if (!m_cachesValid) {
+        updateCoordinateMappingCaches();
+    }
+
+    if (m_cachedTimeIntervalMs <= 0)
     {
-        qDebug() << "mapTimeToY: Invalid interval" << intervalMs;
+        qDebug() << "mapTimeToY: Invalid interval" << m_cachedTimeIntervalMs;
         return -1.0;
     }
 
     qint64 timeOffsetMs = time.msecsTo(timeMax);
-    qreal normalizedY = timeOffsetMs / static_cast<qreal>(intervalMs);
+    // Use cached reciprocal instead of division (Issue #1)
+    qreal normalizedY = timeOffsetMs * m_cachedTimeIntervalMsReciprocal;
     normalizedY = qMax(0.0, qMin(1.0, normalizedY));
 
     return area.top() + normalizedY * area.height();

@@ -287,26 +287,16 @@ void BTWGraph::drawCustomCircleMarkers()
         return;
     }
 
-    // Get manually placed markers from data source
+    // Get manually placed markers from data source (filtered by time range using binary search)
     // Note: BTWMarkerData here is from waterfalldata.h (not BTWSyncMarkerData)
-    std::vector<BTWMarkerData> btwMarkers = dataSource->getBTWMarkers();
-    
-    if (btwMarkers.empty()) {
-        return;
-    }
-
-    // Filter markers to only include those within the visible time range
     std::vector<BTWMarkerData> visibleMarkers;
     bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
     if (timeRangeValid) {
-        for (const auto& markerData : btwMarkers) {
-            if (markerData.timestamp >= timeMin && markerData.timestamp <= timeMax) {
-                visibleMarkers.push_back(markerData);
-            }
-        }
+        // Use binary search-based filtering for O(log n) performance
+        visibleMarkers = dataSource->getBTWMarkersWithinTimeRange(timeMin, timeMax);
     } else {
-        visibleMarkers = btwMarkers;
+        visibleMarkers = dataSource->getBTWMarkers();
     }
 
     if (visibleMarkers.empty()) {
@@ -617,31 +607,23 @@ void BTWGraph::drawBTWSymbols()
         return;
     }
     
-    // Get symbols from dataSource
-    std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
-    
-    if (btwSymbols.empty())
-    {
-        return;
-    }
-    
-    // Filter symbols to only include those within the visible time range
+    // Get symbols from dataSource (filtered by time range using binary search)
     std::vector<BTWSymbolData> visibleSymbols;
     bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
     
     if (timeRangeValid)
     {
-        for (const auto& symbolData : btwSymbols)
-        {
-            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
-            {
-                visibleSymbols.push_back(symbolData);
-            }
-        }
+        // Use binary search-based filtering for O(log n) performance
+        visibleSymbols = dataSource->getBTWSymbolsWithinTimeRange(timeMin, timeMax);
     }
     else
     {
-        visibleSymbols = btwSymbols;
+        visibleSymbols = dataSource->getBTWSymbols();
+    }
+    
+    if (visibleSymbols.empty())
+    {
+        return;
     }
     
     // Draw symbols
@@ -724,13 +706,15 @@ void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwVa
             
             // Check if symbol already exists at this timestamp (deduplication)
             // This prevents adding duplicate symbols when draw() is called multiple times
-            std::vector<BTWSymbolData> existingSymbols = dataSource->getBTWSymbols();
+            // Use binary search to check symbols within a small time window (100ms tolerance)
+            QDateTime checkStart = timestamp.addMSecs(-100);
+            QDateTime checkEnd = timestamp.addMSecs(100);
+            std::vector<BTWSymbolData> nearbySymbols = dataSource->getBTWSymbolsWithinTimeRange(checkStart, checkEnd);
             bool symbolExists = false;
-            for (const auto& existingSymbol : existingSymbols)
+            for (const auto& existingSymbol : nearbySymbols)
             {
-                // Check if symbol exists at the same timestamp (within 100ms tolerance)
-                qint64 timeDiff = qAbs(existingSymbol.timestamp.msecsTo(timestamp));
-                if (timeDiff < 100 && existingSymbol.symbolName == "MagentaCircle")
+                // Check if symbol exists at the same timestamp (within 100ms tolerance) and same name
+                if (existingSymbol.symbolName == "MagentaCircle")
                 {
                     symbolExists = true;
                     break;
@@ -739,29 +723,21 @@ void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwVa
             
             if (symbolExists) continue; // Skip if symbol already exists
             
-            // Check if there's a datapoint at this timestamp
+            // Check if there's a datapoint at this timestamp using binary search
             bool hasDataPoint = false;
             qreal dataValue = 0.0;
+            size_t unusedIndex;
             
-            // Check all series in the data source
+            // Check all series in the data source using binary search
             std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
             for (const QString &seriesLabel : seriesLabels)
             {
-                // Get data points near this timestamp (within 1 second)
-                const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-                const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-                
-                for (size_t i = 0; i < timestamps.size(); ++i)
+                // Use binary search to find closest data point (within 1 second = 1000ms)
+                if (dataSource->findClosestDataPoint(seriesLabel, timestamp, 1000, dataValue, unusedIndex))
                 {
-                    qint64 timeDiff = qAbs(timestamps[i].msecsTo(timestamp));
-                    if (timeDiff < 1000) // Within 1 second
-                    {
-                        hasDataPoint = true;
-                        dataValue = yData[i];
-                        break;
-                    }
+                    hasDataPoint = true;
+                    break;
                 }
-                if (hasDataPoint) break;
             }
             
             // Only add symbol if there's a datapoint

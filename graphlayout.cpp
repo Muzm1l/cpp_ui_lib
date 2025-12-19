@@ -1563,21 +1563,14 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
             std::vector<QString> seriesLabels = btwDataSource->getDataSeriesLabels();
             for (const QString &seriesLabel : seriesLabels)
             {
-                const std::vector<QDateTime> &timestamps = btwDataSource->getTimestampsSeries(seriesLabel);
-                const std::vector<qreal> &yData = btwDataSource->getYDataSeries(seriesLabel);
-                
-                for (size_t i = 0; i < timestamps.size(); ++i)
+                // Use binary search to find closest data point (within 1 second = 1000ms)
+                size_t unusedIndex;
+                if (btwDataSource->findClosestDataPoint(seriesLabel, timestamp, 1000, range, unusedIndex))
                 {
-                    qint64 timeDiff = qAbs(timestamps[i].msecsTo(timestamp));
-                    if (timeDiff < 1000) // Within 1 second
-                    {
-                        range = yData[i];
-                        foundRange = true;
-                        qDebug() << "GraphLayout: Found range" << range << "from data at timestamp";
-                        break;
-                    }
+                    foundRange = true;
+                    qDebug() << "GraphLayout: Found range" << range << "from data at timestamp";
+                    break;
                 }
-                if (foundRange) break;
             }
         }
     }
@@ -2639,18 +2632,21 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* u
         
         for (const QString &seriesLabel : seriesLabels)
         {
-            const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-            const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-            
-            // Find the closest data point to the target timestamp
-            for (size_t i = 0; i < timestamps.size(); ++i)
+            // Use binary search to find closest data point
+            qreal candidateValue;
+            size_t candidateIndex;
+            if (dataSource->findClosestDataPoint(seriesLabel, timestamp, closestTimeDiff, candidateValue, candidateIndex))
             {
-                qint64 timeDiff = qAbs(timestamps[i].msecsTo(timestamp));
-                if (timeDiff < closestTimeDiff)
-                {
-                    closestTimeDiff = timeDiff;
-                    dataPointRange = yData[i];
-                    foundDataPoint = true;
+                // Calculate actual time difference
+                const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+                if (candidateIndex < timestamps.size()) {
+                    qint64 timeDiff = qAbs(timestamps[candidateIndex].msecsTo(timestamp));
+                    if (timeDiff < closestTimeDiff)
+                    {
+                        closestTimeDiff = timeDiff;
+                        dataPointRange = candidateValue;
+                        foundDataPoint = true;
+                    }
                 }
             }
         }
@@ -2664,13 +2660,15 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* u
         qDebug() << "GraphLayout: Found data point at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "with range" << dataPointRange;
         
         // Check if symbol already exists at this timestamp (deduplication)
-        std::vector<BTWSymbolData> existingSymbols = dataSource->getBTWSymbols();
+        // Use binary search to check symbols within a small time window (100ms tolerance)
+        QDateTime checkStart = timestamp.addMSecs(-100);
+        QDateTime checkEnd = timestamp.addMSecs(100);
+        std::vector<BTWSymbolData> existingSymbols = dataSource->getBTWSymbolsWithinTimeRange(checkStart, checkEnd);
         bool symbolExists = false;
         for (const auto& existingSymbol : existingSymbols)
         {
-            // Check if symbol exists at the same timestamp (within 100ms tolerance)
-            qint64 timeDiff = qAbs(existingSymbol.timestamp.msecsTo(timestamp));
-            if (timeDiff < 100 && existingSymbol.symbolName == "MagentaCircle")
+            // Check if symbol name matches (time range already filtered)
+            if (existingSymbol.symbolName == "MagentaCircle")
             {
                 symbolExists = true;
                 break;

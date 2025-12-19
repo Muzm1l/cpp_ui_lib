@@ -351,14 +351,85 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeriesWithinTimeR
     auto tIt = dataSeriesTimestamps.find(seriesLabel);
 
     if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
-        for (size_t i = 0; i < tIt->second.size(); ++i) {
-            if (tIt->second[i] >= startTime && tIt->second[i] <= endTime) {
-                result.emplace_back(yIt->second[i], tIt->second[i]);
+        const std::vector<QDateTime>& timestamps = tIt->second;
+        const std::vector<qreal>& yData = yIt->second;
+        
+        if (timestamps.empty() || timestamps.size() != yData.size()) {
+            return result;
+        }
+        
+        // Use binary search to find the start and end indices
+        // Find first timestamp >= startTime
+        auto startIt = std::lower_bound(timestamps.begin(), timestamps.end(), startTime);
+        // Find first timestamp > endTime
+        auto endIt = std::upper_bound(timestamps.begin(), timestamps.end(), endTime);
+        
+        // Calculate indices
+        size_t startIdx = std::distance(timestamps.begin(), startIt);
+        size_t endIdx = std::distance(timestamps.begin(), endIt);
+        
+        // Reserve space for efficiency
+        if (startIdx < endIdx) {
+            result.reserve(endIdx - startIdx);
+            for (size_t i = startIdx; i < endIdx; ++i) {
+                result.emplace_back(yData[i], timestamps[i]);
             }
         }
     }
 
     return result;
+}
+
+bool WaterfallData::findClosestDataPoint(const QString& seriesLabel, const QDateTime& targetTime, qint64 toleranceMs, qreal& outValue, size_t& outIndex) const
+{
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto tIt = dataSeriesTimestamps.find(seriesLabel);
+    
+    if (yIt == dataSeriesYData.end() || tIt == dataSeriesTimestamps.end()) {
+        return false;
+    }
+    
+    const std::vector<QDateTime>& timestamps = tIt->second;
+    const std::vector<qreal>& yData = yIt->second;
+    
+    if (timestamps.empty() || timestamps.size() != yData.size()) {
+        return false;
+    }
+    
+    // Use binary search to find the closest timestamp
+    auto it = std::lower_bound(timestamps.begin(), timestamps.end(), targetTime);
+    
+    qint64 bestDiff = toleranceMs + 1;
+    size_t bestIdx = timestamps.size();
+    
+    // Check the element at or before the insertion point
+    if (it != timestamps.begin()) {
+        auto prevIt = std::prev(it);
+        size_t prevIdx = std::distance(timestamps.begin(), prevIt);
+        qint64 diff = qAbs(prevIt->msecsTo(targetTime));
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            bestIdx = prevIdx;
+        }
+    }
+    
+    // Check the element at the insertion point
+    if (it != timestamps.end()) {
+        size_t currIdx = std::distance(timestamps.begin(), it);
+        qint64 diff = qAbs(it->msecsTo(targetTime));
+        if (diff < bestDiff) {
+            bestDiff = diff;
+            bestIdx = currIdx;
+        }
+    }
+    
+    if (bestIdx < timestamps.size() && bestDiff <= toleranceMs) {
+        outValue = yData[bestIdx];
+        outIndex = bestIdx;
+        return true;
+    }
+    
+    return false;
 }
 
 const std::vector<qreal>& WaterfallData::getYDataSeries(const QString& seriesLabel) const
@@ -819,6 +890,40 @@ std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
     return btwSymbols;
 }
 
+std::vector<BTWSymbolData> WaterfallData::getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
+{
+    std::vector<BTWSymbolData> result;
+    
+    if (btwSymbols.empty()) {
+        return result;
+    }
+    
+    // Create a sorted copy for binary search (symbols may not be sorted)
+    // This is more efficient than sorting the original vector
+    std::vector<BTWSymbolData> sortedSymbols = btwSymbols;
+    std::sort(sortedSymbols.begin(), sortedSymbols.end(),
+        [](const BTWSymbolData& a, const BTWSymbolData& b) {
+            return a.timestamp < b.timestamp;
+        });
+    
+    // Use binary search to find the range of symbols within the time window
+    auto startIt = std::lower_bound(sortedSymbols.begin(), sortedSymbols.end(), startTime,
+        [](const BTWSymbolData& symbol, const QDateTime& time) {
+            return symbol.timestamp < time;
+        });
+    
+    auto endIt = std::upper_bound(sortedSymbols.begin(), sortedSymbols.end(), endTime,
+        [](const QDateTime& time, const BTWSymbolData& symbol) {
+            return time < symbol.timestamp;
+        });
+    
+    // Copy the range
+    result.reserve(std::distance(startIt, endIt));
+    result.assign(startIt, endIt);
+    
+    return result;
+}
+
 size_t WaterfallData::getBTWSymbolsCount() const
 {
     return btwSymbols.size();
@@ -866,6 +971,40 @@ bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, qreal range, qre
 std::vector<BTWMarkerData> WaterfallData::getBTWMarkers() const
 {
     return btwMarkers;
+}
+
+std::vector<BTWMarkerData> WaterfallData::getBTWMarkersWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
+{
+    std::vector<BTWMarkerData> result;
+    
+    if (btwMarkers.empty()) {
+        return result;
+    }
+    
+    // Create a sorted copy for binary search (markers may not be sorted)
+    // This is more efficient than sorting the original vector
+    std::vector<BTWMarkerData> sortedMarkers = btwMarkers;
+    std::sort(sortedMarkers.begin(), sortedMarkers.end(),
+        [](const BTWMarkerData& a, const BTWMarkerData& b) {
+            return a.timestamp < b.timestamp;
+        });
+    
+    // Use binary search to find the range of markers within the time window
+    auto startIt = std::lower_bound(sortedMarkers.begin(), sortedMarkers.end(), startTime,
+        [](const BTWMarkerData& marker, const QDateTime& time) {
+            return marker.timestamp < time;
+        });
+    
+    auto endIt = std::upper_bound(sortedMarkers.begin(), sortedMarkers.end(), endTime,
+        [](const QDateTime& time, const BTWMarkerData& marker) {
+            return time < marker.timestamp;
+        });
+    
+    // Copy the range
+    result.reserve(std::distance(startIt, endIt));
+    result.assign(startIt, endIt);
+    
+    return result;
 }
 
 size_t WaterfallData::getBTWMarkersCount() const

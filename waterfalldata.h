@@ -90,6 +90,9 @@ public:
     std::vector<std::pair<qreal, QDateTime>> getDataSeries(const QString& seriesLabel) const;
     std::vector<std::pair<qreal, QDateTime>> getDataSeriesWithinYExtents(const QString& seriesLabel, qreal yMin, qreal yMax) const;
     std::vector<std::pair<qreal, QDateTime>> getDataSeriesWithinTimeRange(const QString& seriesLabel, const QDateTime& startTime, const QDateTime& endTime) const;
+    
+    // Binary search helper: find closest data point to a timestamp within tolerance
+    bool findClosestDataPoint(const QString& seriesLabel, const QDateTime& targetTime, qint64 toleranceMs, qreal& outValue, size_t& outIndex) const;
 
     // Direct access to data series vectors
     const std::vector<qreal>& getYDataSeries(const QString& seriesLabel) const;
@@ -141,6 +144,7 @@ public:
     void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range);
     void clearBTWSymbols();
     std::vector<BTWSymbolData> getBTWSymbols() const;
+    std::vector<BTWSymbolData> getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
     size_t getBTWSymbolsCount() const;
 
     // BTW Marker management methods (manually placed markers)
@@ -148,6 +152,7 @@ public:
     void clearBTWMarkers();
     bool removeBTWMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
     std::vector<BTWMarkerData> getBTWMarkers() const;
+    std::vector<BTWMarkerData> getBTWMarkersWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
     size_t getBTWMarkersCount() const;
 
     // RTW R Marker management methods (manually placed markers)
