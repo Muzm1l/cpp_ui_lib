@@ -135,29 +135,53 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     const auto &yData = dataSource->getYDataSeries(seriesLabel);
     const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
 
-    // Filter data points to only include those within the current time range
-    std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i)
+    if (yData.empty() || timestamps.empty())
     {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
+        qDebug() << "FDW: drawDataLine - no data available for series" << seriesLabel;
+        return;
+    }
+
+    if (yData.size() != timestamps.size())
+    {
+        qDebug() << "FDW: drawDataLine - data size mismatch for series" << seriesLabel
+                 << "- yData:" << yData.size() << "timestamps:" << timestamps.size();
+        return;
+    }
+
+    // Use cached visible data for O(k) incremental filtering instead of O(n) full filter
+    // Cache is automatically updated when time range or data changes
+    if (!isVisibleDataCacheValid(seriesLabel))
+    {
+        // Check if we can do incremental update (same time range, just new data)
+        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
+        if (rangeIt != m_cachedTimeRange.end() &&
+            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
         {
-            visibleData.push_back({yData[i], timestamps[i]});
+            updateVisibleDataCacheIncremental(seriesLabel);
+        }
+        else
+        {
+            updateVisibleDataCacheFull(seriesLabel);
         }
     }
 
+    const std::vector<std::pair<qreal, QDateTime>> &visibleData = m_cachedVisibleData[seriesLabel];
+
     if (visibleData.empty())
     {
-        qDebug() << "No data points within current time range";
+        qDebug() << "FDW: drawDataLine - no visible points within current time range for series" << seriesLabel;
         return;
     }
+
+    QColor seriesColor = getSeriesColor(seriesLabel);
 
     if (visibleData.size() < 2)
     {
         // Draw a single point if we only have one data point
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-        QPen pointPen(Qt::green, 0); // No stroke (width 0)
+        QPen pointPen(seriesColor, 0); // No stroke (width 0)
         graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-        qDebug() << "Data line drawn with 1 visible point";
+        qDebug() << "FDW data line drawn (dashed) for series" << seriesLabel << "with 1 visible point";
         return;
     }
 
@@ -174,7 +198,6 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     }
 
     // Draw the line with dashed style
-    QColor seriesColor = getSeriesColor(seriesLabel);
     QPen linePen(seriesColor, 2);
     linePen.setStyle(Qt::DashLine);
     linePen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
@@ -185,14 +208,15 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     {
         // Draw data points
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        for (size_t i = 0; i < visibleData.size(); ++i)
+        for (const auto &dataPoint : visibleData)
         {
-            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+            QPointF point = mapDataToScreen(dataPoint.first, dataPoint.second);
             graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
         }
     }
 
-    qDebug() << "FDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size() << "visible points";
+    qDebug() << "FDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size()
+             << "visible points out of" << yData.size() << "total points";
 }
 
 /**

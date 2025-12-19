@@ -49,7 +49,7 @@ private:
     QTimer* timeUpdateTimer; ///< Timer for updating current time
 
     GraphLayout* graphgrid; ///< Graph layout widget
-    Simulator* simulator;   ///< Simulator for generating data
+    Simulator* simulator = nullptr;   ///< Simulator for generating data (disabled by default)
 
     // New graph components for the second tab
     FDWGraph* fdwGraph; ///< FDW Graph component
@@ -95,9 +95,9 @@ private:
     // Time selection history storage (max 5 selections)
     std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
         
-    // SCWWindow for SCW tab
-    SCWWindow* scwWindow; ///< SCW Window widget
-    SCWSimulator* scwSimulator; ///< Simulator for SCWWindow data generation
+    // SCWWindow for SCW tab (disabled by default)
+    SCWWindow* scwWindow = nullptr; ///< SCW Window widget
+    SCWSimulator* scwSimulator = nullptr; ///< Simulator for SCWWindow data generation
 
     // void configureTimeVisualizer();
     // void configureTimelineView();

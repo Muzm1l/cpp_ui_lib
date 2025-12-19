@@ -252,7 +252,3 @@ Create a dedicated cursor layer (`cursorScene` + `cursorView`) that:
 - [ ] Cursor layer starts/stops with widget visibility
 - [ ] Multiple containers show synchronized time axis cursor
 - [ ] Performance is smooth (no jitter, consistent 60fps)
-
-### To-dos
-
-- [ ] 

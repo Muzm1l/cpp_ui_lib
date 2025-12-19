@@ -166,6 +166,15 @@ protected:
     void updateYRangeFromCustom();
     void forceRangeUpdate();
 
+    // Visible data cache management (Plan 2: Incremental Rendering)
+    void invalidateVisibleDataCache(const QString &seriesLabel);
+    void invalidateAllVisibleDataCache();
+    void updateVisibleDataCacheIncremental(const QString &seriesLabel);
+    void updateVisibleDataCacheFull(const QString &seriesLabel);
+    bool isVisibleDataCacheValid(const QString &seriesLabel) const;
+    size_t findFirstVisibleIndex(const std::vector<QDateTime> &timestamps, const QDateTime &timeMin) const;
+    size_t findLastVisibleIndex(const std::vector<QDateTime> &timestamps, const QDateTime &timeMax) const;
+
     // Data range tracking
     qreal yMin, yMax;
     QDateTime timeMin, timeMax;
@@ -204,6 +213,13 @@ protected:
     std::set<QString> m_dirtySeries;
     std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
     std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;
+
+    // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
+    // Avoids O(n) filtering on every draw by caching already-filtered data
+    std::map<QString, std::vector<std::pair<qreal, QDateTime>>> m_cachedVisibleData;
+    std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
+    std::map<QString, size_t> m_lastProcessedIndex;
+    std::map<QString, size_t> m_cachedDataSize;
 
     // Mouse tracking
     bool isDragging;

@@ -221,8 +221,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup RTW Symbols test
     setupRTWSymbolsTest();
 
-    // Setup SCWWindow in a new tab
-    setupSCWWindow();
+    // DISABLED: SCWWindow and SCWSimulator - uncomment to re-enable
+    // // Setup SCWWindow in a new tab
+    // setupSCWWindow();
     
 
     // Configure Zoom Panel test functionality
@@ -1108,6 +1109,12 @@ void MainWindow::setupNewGraphData()
 
 void MainWindow::setBulkDataForAllGraphs()
 {
+    // Skip if simulator is disabled
+    if (!simulator) {
+        qDebug() << "setBulkDataForAllGraphs: Simulator is disabled, skipping";
+        return;
+    }
+
     auto waterfallDataMap = std::map<WaterfallData* , SimulatorConfig>();
 
     WaterfallData fdwData("FDW", {"FDW-1", "FDW-2"});
