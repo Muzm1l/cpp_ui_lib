@@ -125,7 +125,12 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     
     int widgetWidth = rect().width();
     
-    // Chevron parameters (matching existing chevron style)
+    // Draw plain horizontal line at START time (manoeuvre start)
+    QGraphicsLineItem *startLineItem = new QGraphicsLineItem(0, startY, widgetWidth, startY);
+    startLineItem->setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width
+    m_scene->addItem(startLineItem);
+    
+    // Chevron parameters
     double chevronWidthPercent = 0.4; // 40% of widget width
     int chevronHeight = 8;
     int chevronBoxHeight = 30;
@@ -133,83 +138,72 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     int chevronWidth = static_cast<int>(widgetWidth * chevronWidthPercent);
     int chevronX = (widgetWidth - chevronWidth) / 2;
     
-    // Chevron is at the BOTTOM (startTime)
-    // Chevron tip Y position (bottom point of V, pointing down)
-    qreal chevronTipY = startY;
+    // Chevron is at the TOP (endTime) - marks manoeuvre end
+    // Chevron tip Y position (top point of V, pointing up)
+    qreal chevronTipY = endY;
     
-    // Chevron box bottom Y position (where V connects to box)
-    qreal chevronBoxBottomY = startY - chevronHeight;
+    // Chevron box top Y position (where V connects to box)
+    qreal chevronBoxTopY = endY + chevronHeight;
     
-    // Chevron box top Y position (top of the box)
-    qreal chevronBoxTopY = chevronBoxBottomY - chevronBoxHeight;
+    // Chevron box bottom Y position (bottom of the box)
+    qreal chevronBoxBottomY = chevronBoxTopY + chevronBoxHeight;
     
     // Calculate tip X position (center of chevron)
     int tipX = chevronX + chevronWidth / 2;
     
-    // Draw chevron polygon matching the documentation diagram:
-    // Box at top, V shape at bottom pointing down to start time
+    // Draw chevron polygon at END time:
+    // V shape at top pointing up to end time, box below
     QPolygonF chevronPolygon;
-    chevronPolygon << QPointF(0, endY)                            // 1. Top left of box
-                   << QPointF(widgetWidth, endY)                   // 2. Top right of box
-                   << QPointF(widgetWidth, chevronBoxBottomY)                 // 3. Bottom right of box (right edge where V connects)
-                   << QPointF(chevronX + chevronWidth, chevronBoxBottomY)     // 4. V right point (top of right V edge)
-                   << QPointF(tipX, chevronTipY)                             // 5. V tip (bottom point, pointing down)
-                   << QPointF(chevronX, chevronBoxBottomY)                   // 6. V left point (top of left V edge)
-                   << QPointF(0, chevronBoxBottomY);                        // 7. Bottom left of box (left edge where V connects)
+    chevronPolygon << QPointF(0, chevronBoxBottomY)                        // 1. Bottom left of box
+                   << QPointF(widgetWidth, chevronBoxBottomY)               // 2. Bottom right of box
+                   << QPointF(widgetWidth, chevronBoxTopY)                  // 3. Top right of box
+                   << QPointF(chevronX + chevronWidth, chevronBoxTopY)      // 4. V right point
+                   << QPointF(tipX, chevronTipY)                            // 5. V tip (pointing up)
+                   << QPointF(chevronX, chevronBoxTopY)                     // 6. V left point
+                   << QPointF(0, chevronBoxTopY);                           // 7. Top left of box
     
     // Create and add chevron polygon item
     QGraphicsPolygonItem *chevronItem = new QGraphicsPolygonItem(chevronPolygon);
-    chevronItem->setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width (matching existing style)
+    chevronItem->setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width
     chevronItem->setBrush(Qt::NoBrush); // No fill, just outline
     m_scene->addItem(chevronItem);
     
-    // // Draw horizontal line at end time (at the top)
-    // if (endY < chevronBoxTopY)
-    // {
-    //     // Draw horizontal line at endY position
-    //     QGraphicsLineItem *lineItem = new QGraphicsLineItem(0, endY, widgetWidth, endY);
-    //     lineItem->setPen(QPen(QColor(0, 100, 255), 3)); // Blue color, 3px width (matching chevron)
-    //     m_scene->addItem(lineItem);
-    // }
-    
-    // Draw text labels on the chevron (bearing, speed, depth) with font size matching chevron height
+    // Draw text labels on the chevron (bearing, speed, depth)
     QFont labelFont;
-    // Set font size to match chevron height (8 pixels)
-    // Use pixel size slightly smaller than chevron height to ensure it fits nicely
-    labelFont.setPixelSize(chevronHeight - 1); // 7 pixels to fit within 8-pixel chevron height
+    labelFont.setPixelSize(chevronHeight - 1); // 7 pixels
     labelFont.setBold(false);
     QFontMetrics fm(labelFont);
     
-    // Speed: A little above the bottom of the chevron box in the middle
+    // Speed: Inside the chevron box
     QString speedText = QString::number(manoeuvre.speed);
     QGraphicsTextItem *speedLabel = new QGraphicsTextItem(speedText);
     speedLabel->setFont(labelFont);
-    speedLabel->setDefaultTextColor(QColor(0, 100, 255)); // Blue text to match chevron
+    speedLabel->setDefaultTextColor(QColor(0, 100, 255));
     int speedWidth = fm.horizontalAdvance(speedText);
-    int speedX = tipX - speedWidth / 2; // Center horizontally at chevron tip
-    int speedY = chevronBoxBottomY - 8; // A little above the bottom of the chevron box
+    int speedX = tipX - speedWidth / 2;
+    int speedY = chevronBoxTopY + 8;
     speedLabel->setPos(speedX, speedY);
     m_scene->addItem(speedLabel);
     
-    // Bearing: Bottom left of the chevron
+    // Bearing: Above chevron tip left
     QString bearingText = QString::number(manoeuvre.bearing);
     QGraphicsTextItem *bearingLabel = new QGraphicsTextItem(bearingText);
     bearingLabel->setFont(labelFont);
-    bearingLabel->setDefaultTextColor(QColor(0, 100, 255)); // Blue text
+    bearingLabel->setDefaultTextColor(QColor(0, 100, 255));
     int bearingWidth = fm.horizontalAdvance(bearingText);
-    int bearingX = chevronX - bearingWidth / 2; // Center at left edge of chevron
-    int bearingY = chevronTipY + 5; // Below the chevron tip (bottom)
+    int bearingX = chevronX - bearingWidth / 2;
+    int bearingY = chevronTipY - 15;
     bearingLabel->setPos(bearingX, bearingY);
     m_scene->addItem(bearingLabel);
     
-    // Depth: Bottom right of the chevron
+    // Depth: Above chevron tip right
     QString depthText = QString::number(manoeuvre.depth);
     QGraphicsTextItem *depthLabel = new QGraphicsTextItem(depthText);
     depthLabel->setFont(labelFont);
-    depthLabel->setDefaultTextColor(QColor(0, 100, 255)); // Blue text
+    depthLabel->setDefaultTextColor(QColor(0, 100, 255));
     int depthWidth = fm.horizontalAdvance(depthText);
-    int depthX = (chevronX + chevronWidth) - depthWidth / 2; // Center at right edge of chevron
-    int depthY = chevronTipY + 5; // Below the chevron tip (bottom)
+    int depthX = (chevronX + chevronWidth) - depthWidth / 2;
+    int depthY = chevronTipY - 15;
     depthLabel->setPos(depthX, depthY);
     m_scene->addItem(depthLabel);
 }
