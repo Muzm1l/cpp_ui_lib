@@ -10,7 +10,8 @@
 ManoeuvreOverlay::ManoeuvreOverlay(QWidget *parent)
     : QGraphicsView(parent),
       m_scene(new QGraphicsScene(this)),
-      m_manoeuvres(nullptr)
+      m_manoeuvres(nullptr),
+      m_hasInProgress(false)
 {
     // Set transparent background
     setStyleSheet("background: transparent;");
@@ -53,25 +54,66 @@ void ManoeuvreOverlay::updateOverlay()
 {
     clearScene();
     
-    if (!m_manoeuvres || m_manoeuvres->empty())
-    {
-        return;
-    }
-    
     if (!m_minTime.isValid() || !m_maxTime.isValid())
     {
         return;
     }
     
-    // Draw each manoeuvre
-    for (const auto &manoeuvre : *m_manoeuvres)
+    // Draw in-progress manoeuvre (just start line) if any
+    if (m_hasInProgress && m_inProgressStartTime.isValid())
     {
-        // Only draw if manoeuvre overlaps with visible time range
-        if (manoeuvre.startTime <= m_maxTime && manoeuvre.endTime >= m_minTime)
+        if (m_inProgressStartTime <= m_maxTime && m_inProgressStartTime >= m_minTime)
         {
-            drawManoeuvre(manoeuvre);
+            drawInProgressStartLine();
         }
     }
+    
+    // Draw completed manoeuvres
+    if (m_manoeuvres && !m_manoeuvres->empty())
+    {
+        for (const auto &manoeuvre : *m_manoeuvres)
+        {
+            // Only draw if manoeuvre overlaps with visible time range
+            if (manoeuvre.startTime <= m_maxTime && manoeuvre.endTime >= m_minTime)
+            {
+                drawManoeuvre(manoeuvre);
+            }
+        }
+    }
+}
+
+void ManoeuvreOverlay::setInProgressManoeuvre(const QDateTime &startTime)
+{
+    m_hasInProgress = true;
+    m_inProgressStartTime = startTime;
+    updateOverlay();
+}
+
+void ManoeuvreOverlay::clearInProgressManoeuvre()
+{
+    m_hasInProgress = false;
+    m_inProgressStartTime = QDateTime();
+    updateOverlay();
+}
+
+void ManoeuvreOverlay::drawInProgressStartLine()
+{
+    if (rect().width() <= 0 || rect().height() <= 0)
+    {
+        return;
+    }
+    
+    qreal startY = timeToY(m_inProgressStartTime);
+    int widgetWidth = rect().width();
+    
+    // Cyan color
+    QColor cyanColor(0, 255, 255);
+    
+    // Draw dashed horizontal line at start time
+    QGraphicsLineItem *startLineItem = new QGraphicsLineItem(0, startY, widgetWidth, startY);
+    QPen dashedPen(cyanColor, 3, Qt::DashLine);
+    startLineItem->setPen(dashedPen);
+    m_scene->addItem(startLineItem);
 }
 
 qreal ManoeuvreOverlay::timeToY(const QDateTime &time) const
@@ -128,85 +170,81 @@ void ManoeuvreOverlay::drawManoeuvre(const Manoeuvre &manoeuvre)
     // Cyan color for all drawing
     QColor cyanColor(0, 255, 255);
     
-    // Draw plain horizontal line at START time (manoeuvre start)
+    // === START: Dashed horizontal line ===
     QGraphicsLineItem *startLineItem = new QGraphicsLineItem(0, startY, widgetWidth, startY);
-    startLineItem->setPen(QPen(cyanColor, 3));
+    QPen dashedPen(cyanColor, 3, Qt::DashLine);
+    startLineItem->setPen(dashedPen);
     m_scene->addItem(startLineItem);
     
-    // Chevron parameters
-    double chevronWidthPercent = 0.4; // 40% of widget width
-    int chevronHeight = 16; // Doubled from 8
-    int chevronBoxHeight = 30;
+    // === END: Horizontal line with V pointing DOWN ===
+    // V parameters
+    double vWidthPercent = 0.4; // 40% of widget width
+    int vHeight = 8;
     
-    int chevronWidth = static_cast<int>(widgetWidth * chevronWidthPercent);
-    int chevronX = (widgetWidth - chevronWidth) / 2;
+    int vWidth = static_cast<int>(widgetWidth * vWidthPercent);
+    int vX = (widgetWidth - vWidth) / 2;
+    int tipX = vX + vWidth / 2;
     
-    // Chevron is at the TOP (endTime) - marks manoeuvre end
-    // Chevron tip Y position (top point of V, pointing up)
-    qreal chevronTipY = endY;
+    // V tip points DOWN (below endY line)
+    qreal vTipY = endY + vHeight;
     
-    // Chevron box top Y position (where V connects to box)
-    qreal chevronBoxTopY = endY + chevronHeight;
+    // Draw horizontal line at end time (left side)
+    QGraphicsLineItem *endLineLeft = new QGraphicsLineItem(0, endY, vX, endY);
+    endLineLeft->setPen(QPen(cyanColor, 3));
+    m_scene->addItem(endLineLeft);
     
-    // Chevron box bottom Y position (bottom of the box)
-    qreal chevronBoxBottomY = chevronBoxTopY + chevronBoxHeight;
+    // Draw horizontal line at end time (right side)
+    QGraphicsLineItem *endLineRight = new QGraphicsLineItem(vX + vWidth, endY, widgetWidth, endY);
+    endLineRight->setPen(QPen(cyanColor, 3));
+    m_scene->addItem(endLineRight);
     
-    // Calculate tip X position (center of chevron)
-    int tipX = chevronX + chevronWidth / 2;
+    // Draw V shape pointing down
+    // Left edge of V: from (vX, endY) to (tipX, vTipY)
+    QGraphicsLineItem *vLeft = new QGraphicsLineItem(vX, endY, tipX, vTipY);
+    vLeft->setPen(QPen(cyanColor, 3));
+    m_scene->addItem(vLeft);
     
-    // Draw chevron polygon at END time:
-    // V shape at top pointing up to end time, box below
-    QPolygonF chevronPolygon;
-    chevronPolygon << QPointF(0, chevronBoxBottomY)                        // 1. Bottom left of box
-                   << QPointF(widgetWidth, chevronBoxBottomY)               // 2. Bottom right of box
-                   << QPointF(widgetWidth, chevronBoxTopY)                  // 3. Top right of box
-                   << QPointF(chevronX + chevronWidth, chevronBoxTopY)      // 4. V right point
-                   << QPointF(tipX, chevronTipY)                            // 5. V tip (pointing up)
-                   << QPointF(chevronX, chevronBoxTopY)                     // 6. V left point
-                   << QPointF(0, chevronBoxTopY);                           // 7. Top left of box
+    // Right edge of V: from (vX + vWidth, endY) to (tipX, vTipY)
+    QGraphicsLineItem *vRight = new QGraphicsLineItem(vX + vWidth, endY, tipX, vTipY);
+    vRight->setPen(QPen(cyanColor, 3));
+    m_scene->addItem(vRight);
     
-    // Create and add chevron polygon item
-    QGraphicsPolygonItem *chevronItem = new QGraphicsPolygonItem(chevronPolygon);
-    chevronItem->setPen(QPen(cyanColor, 3));
-    chevronItem->setBrush(Qt::NoBrush);
-    m_scene->addItem(chevronItem);
-    
-    // Draw text labels - font size doubled (14 pixels)
+    // Draw text labels - font size 14 pixels
     QFont labelFont;
     labelFont.setPixelSize(14);
     labelFont.setBold(false);
     QFontMetrics fm(labelFont);
+    int fontHeight = fm.height();
     
-    // Speed: Inside the chevron box
+    // Speed: Above the V (centered above the horizontal line)
     QString speedText = QString::number(manoeuvre.speed);
     QGraphicsTextItem *speedLabel = new QGraphicsTextItem(speedText);
     speedLabel->setFont(labelFont);
     speedLabel->setDefaultTextColor(cyanColor);
     int speedWidth = fm.horizontalAdvance(speedText);
     int speedX = tipX - speedWidth / 2;
-    int speedY = chevronBoxTopY + 8;
+    int speedY = endY - fontHeight - 2;
     speedLabel->setPos(speedX, speedY);
     m_scene->addItem(speedLabel);
     
-    // Bearing: Above chevron tip left
+    // Course (Bearing): Bottom left of V
     QString bearingText = QString::number(manoeuvre.bearing);
     QGraphicsTextItem *bearingLabel = new QGraphicsTextItem(bearingText);
     bearingLabel->setFont(labelFont);
     bearingLabel->setDefaultTextColor(cyanColor);
     int bearingWidth = fm.horizontalAdvance(bearingText);
-    int bearingX = chevronX - bearingWidth / 2;
-    int bearingY = chevronTipY - 20;
+    int bearingX = vX - bearingWidth - 5;
+    int bearingY = vTipY + 2;
     bearingLabel->setPos(bearingX, bearingY);
     m_scene->addItem(bearingLabel);
     
-    // Depth: Above chevron tip right
+    // Depth: Bottom right of V
     QString depthText = QString::number(manoeuvre.depth);
     QGraphicsTextItem *depthLabel = new QGraphicsTextItem(depthText);
     depthLabel->setFont(labelFont);
     depthLabel->setDefaultTextColor(cyanColor);
-    int depthWidth = fm.horizontalAdvance(depthText);
-    int depthX = (chevronX + chevronWidth) - depthWidth / 2;
-    int depthY = chevronTipY - 20;
+    int depthX = vX + vWidth + 3;
+    int depthY = vTipY + 2;
     depthLabel->setPos(depthX, depthY);
     m_scene->addItem(depthLabel);
 }

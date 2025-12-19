@@ -1327,6 +1327,19 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
                         externalTimelineView, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
             }
         }
+        
+        // Connect external timeline to ALL visible containers
+        // This ensures waterfall graphs update when SCW timeline changes (SCW -> GraphLayout sync)
+        if (container && container->isVisible())
+        {
+            // Connect time scope changes to update waterfall graph time ranges
+            connect(externalTimelineView, &TimelineView::TimeScopeChanged,
+                    container, &GraphContainer::onTimeScopeChanged, Qt::UniqueConnection);
+            
+            // Connect time interval changes to update waterfall graph intervals
+            connect(externalTimelineView, &TimelineView::TimeIntervalChanged,
+                    container, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
+        }
     }
     
     qDebug() << "GraphLayout: External timeline view synced successfully";
@@ -1878,6 +1891,15 @@ void GraphLayout::startManoeuvreDrawing(const QDateTime &startTime, int bearing,
     m_currentManoeuvreDepth = depth;
     m_manoeuvreDrawingInProgress = true;
     
+    // Propagate in-progress state to all containers (shows start line immediately)
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->setInProgressManoeuvre(startTime);
+        }
+    }
+    
     qDebug() << "GraphLayout: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
              << "bearing:" << bearing
              << "speed:" << speed
@@ -1906,6 +1928,15 @@ void GraphLayout::endManoeuvreDrawing(const QDateTime &endTime)
         qWarning() << "GraphLayout: Start time must be before end time for manoeuvre";
         m_manoeuvreDrawingInProgress = false;
         return;
+    }
+    
+    // Clear in-progress state from all containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            container->clearInProgressManoeuvre();
+        }
     }
     
     // Create the manoeuvre with the stored start time and parameters, and the provided end time

@@ -221,9 +221,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup RTW Symbols test
     setupRTWSymbolsTest();
 
-    // DISABLED: SCWWindow and SCWSimulator - uncomment to re-enable
-    // // Setup SCWWindow in a new tab
-    // setupSCWWindow();
+    // Setup SCWWindow in a new tab
+    setupSCWWindow();
     
 
     // Configure Zoom Panel test functionality

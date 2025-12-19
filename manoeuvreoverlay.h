@@ -21,6 +21,10 @@ public:
     // Set time range for mapping time to Y position
     void setTimeRange(const QDateTime &minTime, const QDateTime &maxTime);
     
+    // In-progress manoeuvre (for two-part animation)
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
+    
     // Update the overlay display
     void updateOverlay();
 
@@ -33,9 +37,14 @@ private:
     QDateTime m_minTime;
     QDateTime m_maxTime;
     
+    // In-progress manoeuvre state
+    bool m_hasInProgress;
+    QDateTime m_inProgressStartTime;
+    
     // Helper methods
     qreal timeToY(const QDateTime &time) const;
     void drawManoeuvre(const Manoeuvre &manoeuvre);
+    void drawInProgressStartLine();
     void clearScene();
 };
 

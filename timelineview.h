@@ -181,6 +181,8 @@ public:
 
     // Manoeuvre overlay methods
     void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -368,6 +370,8 @@ public:
 
     // Manoeuvre methods
     void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
     
     // Absolute/Relative time mode control
     void setIsAbsoluteTime(bool isAbsoluteTime);

@@ -143,6 +143,8 @@ public:
 
     // Manoeuvre methods
     void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
 
     // Range limits management methods
     void setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);

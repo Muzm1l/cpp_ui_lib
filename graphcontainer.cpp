@@ -1815,6 +1815,22 @@ void GraphContainer::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
     }
 }
 
+void GraphContainer::setInProgressManoeuvre(const QDateTime &startTime)
+{
+    if (m_timelineView)
+    {
+        m_timelineView->setInProgressManoeuvre(startTime);
+    }
+}
+
+void GraphContainer::clearInProgressManoeuvre()
+{
+    if (m_timelineView)
+    {
+        m_timelineView->clearInProgressManoeuvre();
+    }
+}
+
 // Range limits management methods implementation
 void GraphContainer::setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax)
 {

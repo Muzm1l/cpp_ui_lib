@@ -2028,6 +2028,22 @@ void TimelineView::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
     }
 }
 
+void TimelineView::setInProgressManoeuvre(const QDateTime &startTime)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setInProgressManoeuvre(startTime);
+    }
+}
+
+void TimelineView::clearInProgressManoeuvre()
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->clearInProgressManoeuvre();
+    }
+}
+
 void TimelineView::setIsAbsoluteTime(bool isAbsoluteTime)
 {
     // Only update if the value has changed to avoid unnecessary updates
@@ -2058,5 +2074,21 @@ void TimelineVisualizerWidget::setManoeuvres(const std::vector<Manoeuvre> *manoe
         {
             m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
         }
+    }
+}
+
+void TimelineVisualizerWidget::setInProgressManoeuvre(const QDateTime &startTime)
+{
+    if (m_manoeuvreOverlay)
+    {
+        m_manoeuvreOverlay->setInProgressManoeuvre(startTime);
+    }
+}
+
+void TimelineVisualizerWidget::clearInProgressManoeuvre()
+{
+    if (m_manoeuvreOverlay)
+    {
+        m_manoeuvreOverlay->clearInProgressManoeuvre();
     }
 }
