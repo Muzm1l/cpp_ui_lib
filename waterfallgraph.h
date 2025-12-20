@@ -243,6 +243,7 @@ protected:
     mutable qreal m_cachedYRange;           // Cached (yMax - yMin)
     mutable qreal m_cachedYRangeReciprocal; // Cached 1.0 / (yMax - yMin)
     mutable qreal m_cachedTimeIntervalMsReciprocal; // Cached 1.0 / timeIntervalMs
+    mutable qint64 m_cachedTimeMaxEpoch;     // Cached timeMax.toMSecsSinceEpoch() to avoid msecsTo() overhead
     mutable bool m_cachesValid;             // Flag to track cache validity
 
     // Mouse tracking

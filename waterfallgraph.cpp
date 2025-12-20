@@ -63,6 +63,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_cachedYRange(0.0),
     m_cachedYRangeReciprocal(0.0),
     m_cachedTimeIntervalMsReciprocal(0.0),
+    m_cachedTimeMaxEpoch(0),
     m_cachesValid(false),
     m_cachedCursorSceneRect(QRectF()),
     m_cachedOverlaySceneRect(QRectF()),
@@ -2199,7 +2200,15 @@ void WaterfallGraph::updateCoordinateMappingCaches() const
         m_cachedYRangeReciprocal = 0.0;
     }
     
-    m_cachesValid = (m_cachedTimeIntervalMs > 0 && m_cachedYRange > 0.0);
+    // Cache timeMax epoch to avoid expensive msecsTo() calls
+    // This prevents timezone operations (reading /etc/localtime) for every point
+    if (timeMax.isValid()) {
+        m_cachedTimeMaxEpoch = timeMax.toMSecsSinceEpoch();
+    } else {
+        m_cachedTimeMaxEpoch = 0;
+    }
+    
+    m_cachesValid = (m_cachedTimeIntervalMs > 0 && m_cachedYRange > 0.0 && m_cachedTimeMaxEpoch != 0);
 }
 
 /**
@@ -2281,7 +2290,12 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
         return QPointF(0, 0);
     }
     
-    qint64 timeOffset = timestamp.msecsTo(timeMax);
+    // CRITICAL FIX: Use epoch-based calculation instead of msecsTo() to avoid timezone operations
+    // msecsTo() triggers expensive timezone reads (/etc/localtime) for every point
+    // Using toMSecsSinceEpoch() and direct subtraction avoids this overhead
+    qint64 timestampEpoch = timestamp.toMSecsSinceEpoch();
+    qint64 timeOffset = m_cachedTimeMaxEpoch - timestampEpoch; // Positive = timestamp is in the past
+    
     // Use cached reciprocal instead of division
     qreal y = drawingArea.top() + (timeOffset * m_cachedTimeIntervalMsReciprocal) * drawingArea.height();
 
@@ -4523,7 +4537,9 @@ qreal WaterfallGraph::mapTimeToY(const QDateTime &time) const
         return -1.0;
     }
 
-    qint64 timeOffsetMs = time.msecsTo(timeMax);
+    // CRITICAL FIX: Use epoch-based calculation instead of msecsTo() to avoid timezone operations
+    qint64 timeEpoch = time.toMSecsSinceEpoch();
+    qint64 timeOffsetMs = m_cachedTimeMaxEpoch - timeEpoch; // Positive = time is in the past
     // Use cached reciprocal instead of division
     qreal normalizedY = timeOffsetMs * m_cachedTimeIntervalMsReciprocal;
     normalizedY = qMax(0.0, qMin(1.0, normalizedY));

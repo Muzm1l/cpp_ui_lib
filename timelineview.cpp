@@ -1454,7 +1454,7 @@ void TimelineVisualizerWidget::drawCrosshairTimestampLabel(QPainter& painter, co
     }
     
     // Format the timestamp as HH:mm:ss.zzz
-    QString labelText = m_crosshairTimestamp.toString("HH:mm:ss.zzz");
+    QString labelText = m_crosshairTimestamp.toString("HH:mm:ss");
     
     // Set text color to yellow for visibility (different from navtime labels)
     painter.setPen(QPen(QColor(255, 255, 0), 1)); // Yellow

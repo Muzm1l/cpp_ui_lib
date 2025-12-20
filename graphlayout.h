@@ -171,6 +171,15 @@ public:
     // Clear BTW manual markers (interactive overlay markers)
     void clearBTWManualMarkers();
     
+    /**
+     * @brief Add a BTW manual marker programmatically to the current BTW graph
+     * @param timestamp The timestamp for the marker
+     * @param rangeValue The range value for the marker
+     * @param bearingRate Optional bearing rate (defaults to 0.0)
+     * @return true if marker was created successfully
+     */
+    bool addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate = 0.0);
+    
     // ========== BTW Horizontal Line Management ==========
     
     /**

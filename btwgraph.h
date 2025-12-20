@@ -59,6 +59,15 @@ public:
      */
     std::vector<QDateTime> getAutomaticMarkerTimestamps() const;
     
+    /**
+     * @brief Add a manual marker programmatically via API call
+     * @param timestamp The timestamp for the marker (Y-axis position)
+     * @param rangeValue The range value for the marker (X-axis position)
+     * @param bearingRate Optional bearing rate (rotation angle / 10.0). Defaults to 0.0
+     * @return Pointer to the created marker, or nullptr if creation failed
+     */
+    InteractiveGraphicsItem* addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate = 0.0);
+    
     // ========== Marker Sync Methods ==========
     
     /**

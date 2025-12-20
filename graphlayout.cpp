@@ -2248,6 +2248,33 @@ void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
     }
 }
 
+bool GraphLayout::addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate)
+{
+    // Find the first BTW graph container
+    for (auto *container : m_graphContainers) {
+        if (!container) continue;
+        
+        if (container->getCurrentDataOption() == GraphType::BTW) {
+            WaterfallGraph *graph = container->getCurrentWaterfallGraph();
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(graph);
+            
+            if (btwGraph) {
+                InteractiveGraphicsItem* marker = btwGraph->addBTWManualMarker(timestamp, rangeValue, bearingRate);
+                if (marker) {
+                    qDebug() << "GraphLayout::addBTWManualMarker: Marker created successfully";
+                    return true;
+                } else {
+                    qDebug() << "GraphLayout::addBTWManualMarker: Failed to create marker";
+                    return false;
+                }
+            }
+        }
+    }
+    
+    qDebug() << "GraphLayout::addBTWManualMarker: No BTW graph found";
+    return false;
+}
+
 void GraphLayout::clearBTWManualMarkers()
 {
     qDebug() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";

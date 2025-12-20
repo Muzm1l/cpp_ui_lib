@@ -593,6 +593,73 @@ std::vector<QDateTime> BTWGraph::getAutomaticMarkerTimestamps() const
     return m_automaticMarkerTimestamps;
 }
 
+/**
+ * @brief Add a manual marker programmatically via API call
+ * 
+ * This method allows creating BTW manual markers programmatically,
+ * similar to how they are created via mouse clicks.
+ * 
+ * @param timestamp The timestamp for the marker (Y-axis position)
+ * @param rangeValue The range value for the marker (X-axis position)
+ * @param bearingRate Optional bearing rate (rotation angle / 10.0). Defaults to 0.0
+ * @return Pointer to the created marker, or nullptr if creation failed
+ */
+InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate)
+{
+    if (!m_interactiveOverlay) {
+        qDebug() << "BTWGraph::addBTWManualMarker: Interactive overlay not available";
+        return nullptr;
+    }
+    
+    if (!timestamp.isValid()) {
+        qDebug() << "BTWGraph::addBTWManualMarker: Invalid timestamp provided";
+        return nullptr;
+    }
+    
+    // Convert data coordinates (timestamp, rangeValue) to screen position
+    QPointF screenPos = mapDataToScreen(rangeValue, timestamp);
+    
+    // Validate screen position
+    if (screenPos.isNull() || !qIsFinite(screenPos.x()) || !qIsFinite(screenPos.y())) {
+        qDebug() << "BTWGraph::addBTWManualMarker: Failed to map data coordinates to screen position";
+        return nullptr;
+    }
+    
+    // Check if position is within visible drawing area
+    if (!drawingArea.contains(screenPos)) {
+        qDebug() << "BTWGraph::addBTWManualMarker: Marker position is outside visible area";
+        // Still create the marker, but warn about visibility
+    }
+    
+    QString seriesLabel = "BTW-API"; // Distinguish API-created markers from click-created ones
+    
+    // Create the marker using the interactive overlay
+    InteractiveGraphicsItem* marker = m_interactiveOverlay->addDataPointMarker(screenPos, timestamp, rangeValue, seriesLabel);
+    
+    if (marker) {
+        // Set bearing rate (rotation) if provided
+        if (bearingRate != 0.0) {
+            marker->setRotation(bearingRate * 10.0);
+            // Also store bearing rate in marker data for consistency
+            marker->setData(1, QVariant::fromValue(bearingRate));
+        }
+        
+        // Emit signal for marker timestamp and value (same as click handler)
+        emit markerTimestampValueChanged(timestamp, rangeValue);
+        
+        // Emit manualMarkerPlaced signal (same as click handler)
+        emit manualMarkerPlaced(timestamp, screenPos);
+        
+        qDebug() << "BTWGraph::addBTWManualMarker: Marker created at timestamp" 
+                 << timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz")
+                 << "range:" << rangeValue << "bearingRate:" << bearingRate;
+    } else {
+        qDebug() << "BTWGraph::addBTWManualMarker: Failed to create marker";
+    }
+    
+    return marker;
+}
+
 void BTWGraph::addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
 {
     // Store symbol in dataSource (WaterfallData) so it persists with track data
