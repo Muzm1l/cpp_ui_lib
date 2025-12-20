@@ -18,6 +18,18 @@ MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this))
 {
     ui->setupUi(this);
+    
+    // Hide TSW (Tactical Solution View) tab
+    int tacticalTabIndex = -1;
+    for (int i = 0; i < ui->tabWidget->count(); ++i) {
+        if (ui->tabWidget->tabText(i) == "Tactical View") {
+            tacticalTabIndex = i;
+            break;
+        }
+    }
+    if (tacticalTabIndex >= 0) {
+        ui->tabWidget->setTabVisible(tacticalTabIndex, false);
+    }
 
     // Initialize series labels map
     std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap;
@@ -193,18 +205,19 @@ MainWindow::MainWindow(QWidget *parent)
     // graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
     graphgrid->setHardRangeLimits(GraphType::FTW, -40.0, 40.0);  // Frequency Time Window
 
-    ui->tsv->setData(
-        this->currentShipSpeed,
-        this->currentOwnShipBearing,
-        this->currentSensorBearing,
-        this->currentAdoptedTrackRange,
-        this->currentAdoptedTrackSpeed,
-        this->currentAdoptedTrackBearing,
-        this->currentSelectedTrackRange,
-        this->currentSelectedTrackSpeed,
-        this->currentSelectedTrackBearing,
-        this->currentAdoptedTrackCourse,
-        this->currentSelectedTrackCourse);
+    // TSW (Tactical Solution View) disabled
+    // ui->tsv->setData(
+    //     this->currentShipSpeed,
+    //     this->currentOwnShipBearing,
+    //     this->currentSensorBearing,
+    //     this->currentAdoptedTrackRange,
+    //     this->currentAdoptedTrackSpeed,
+    //     this->currentAdoptedTrackBearing,
+    //     this->currentSelectedTrackRange,
+    //     this->currentSelectedTrackSpeed,
+    //     this->currentSelectedTrackBearing,
+    //     this->currentAdoptedTrackCourse,
+    //     this->currentSelectedTrackCourse);
 
     // Configure layout selection combobox
     configureLayoutSelection();
@@ -221,8 +234,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup RTW Symbols test
     setupRTWSymbolsTest();
 
-    // Setup SCWWindow in a new tab
-    setupSCWWindow();
+    // Setup SCWWindow in a new tab (DISABLED)
+    // setupSCWWindow();
     
 
     // Configure Zoom Panel test functionality
@@ -465,19 +478,19 @@ void MainWindow::updateSimulation()
     this->currentAdoptedTrackCourse = fmod(this->currentAdoptedTrackCourse + 360.0, 360.0);
     this->currentSelectedTrackCourse = fmod(this->currentSelectedTrackCourse + 360.0, 360.0);
 
-    // Push updated values into TacticalSolutionView
-    ui->tsv->setData(
-        this->currentShipSpeed,
-        this->currentOwnShipBearing,
-        this->currentSensorBearing,
-        this->currentAdoptedTrackRange,
-        this->currentAdoptedTrackSpeed,
-        this->currentAdoptedTrackBearing,
-        this->currentSelectedTrackRange,
-        this->currentSelectedTrackSpeed,
-        this->currentSelectedTrackBearing,
-        this->currentAdoptedTrackCourse,
-        this->currentSelectedTrackCourse);
+    // Push updated values into TacticalSolutionView (DISABLED)
+    // ui->tsv->setData(
+    //     this->currentShipSpeed,
+    //     this->currentOwnShipBearing,
+    //     this->currentSensorBearing,
+    //     this->currentAdoptedTrackRange,
+    //     this->currentAdoptedTrackSpeed,
+    //     this->currentAdoptedTrackBearing,
+    //     this->currentSelectedTrackRange,
+    //     this->currentSelectedTrackSpeed,
+    //     this->currentSelectedTrackBearing,
+    //     this->currentAdoptedTrackCourse,
+    //     this->currentSelectedTrackCourse);
 
     // set the current time to the system time
     graphgrid->setCurrentTime(QTime::currentTime());
