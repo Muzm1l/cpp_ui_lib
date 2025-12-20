@@ -258,6 +258,14 @@ private:
     
     QList<HorizontalLineItem> m_horizontalLines;  // Store horizontal lines
     bool m_horizontalLineMode;  // Toggle between marker and line mode
+    
+    // Window size cache (Issue #3: Performance optimization)
+    QSize m_cachedWindowSize;      // Cached window size
+    qreal m_cachedMarkerRadius;    // Cached marker radius based on window size
+    bool m_windowSizeCacheValid;   // Flag to track cache validity
+    
+    // Cache update function (Issue #3)
+    void updateWindowSizeCache();
 
 signals:
     /**

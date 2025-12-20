@@ -25,6 +25,9 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     , symbols(40)  // Initialize BTW symbol cache
     , m_nextRegionId(1)
     , m_horizontalLineMode(false)
+    , m_cachedWindowSize(QSize())
+    , m_cachedMarkerRadius(0.0)
+    , m_windowSizeCacheValid(false)
 {
     // Setup interactive overlay
     setupInteractiveOverlay();
@@ -313,9 +316,12 @@ void BTWGraph::drawCustomCircleMarkers()
         
         // Check if point is within visible area
         if (drawingArea.contains(screenPos)) {
-            // Calculate marker size based on window size
-            QSize windowSize = this->size();
-            qreal markerRadius = std::min(0.04 * windowSize.width(), 12.0); // Circle radius, cap at 12 pixels
+            // Use cached window size and marker radius (Issue #3)
+            // Cache is updated in resizeEvent() and initialized on first use
+            if (!m_windowSizeCacheValid) {
+                updateWindowSizeCache();
+            }
+            qreal markerRadius = m_cachedMarkerRadius; // Use cached radius instead of recalculating
             
             // Draw circle outline
             QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
@@ -389,12 +395,23 @@ BTWInteractiveOverlay* BTWGraph::getInteractiveOverlay() const
 }
 
 /**
- * @brief Override resize event to update overlay
- * @param event Resize event
+ * @brief Update window size cache (Issue #3)
  */
+void BTWGraph::updateWindowSizeCache()
+{
+    m_cachedWindowSize = this->size();
+    // Calculate marker radius based on cached window size
+    m_cachedMarkerRadius = std::min(0.04 * m_cachedWindowSize.width(), 12.0);
+    m_windowSizeCacheValid = true;
+}
+
 void BTWGraph::resizeEvent(QResizeEvent *event)
 {
     WaterfallGraph::resizeEvent(event);
+    
+    // Invalidate and update window size cache (Issue #3)
+    m_windowSizeCacheValid = false;
+    updateWindowSizeCache();
     
     // Update overlay after resize
     if (m_interactiveOverlay) {
@@ -644,7 +661,7 @@ void BTWGraph::drawBTWSymbols()
         // Get the pixmap for this symbol type
         const QPixmap& symbolPixmap = symbols.get(symbolType);
         
-        // Validate pixmap before using it
+        // Validate pixmap before using it (Issue #4: Use pixmap dimensions directly)
         if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
         {
             continue;
@@ -653,9 +670,11 @@ void BTWGraph::drawBTWSymbols()
         // Create a graphics pixmap item and add it to the scene
         QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
         
-        // Center the symbol on the data point
-        QRectF pixmapRect = pixmapItem->boundingRect();
-        pixmapItem->setPos(screenPos.x() - pixmapRect.width()/2, screenPos.y() - pixmapRect.height()/2);
+        // Center the symbol on the data point (Issue #4: Use pixmap dimensions directly instead of boundingRect)
+        // boundingRect() is expensive - use pixmap dimensions directly
+        qreal pixmapWidth = symbolPixmap.width();
+        qreal pixmapHeight = symbolPixmap.height();
+        pixmapItem->setPos(screenPos.x() - pixmapWidth/2, screenPos.y() - pixmapHeight/2);
         pixmapItem->setZValue(1003); // Above markers but below interactive items
         
         graphicsScene->addItem(pixmapItem);

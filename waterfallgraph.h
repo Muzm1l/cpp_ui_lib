@@ -279,6 +279,9 @@ protected:
     // Coordinate mapping cache update (Issue #1)
     void updateCoordinateMappingCaches() const;
     
+    // Level of Detail (LOD) helper for high intervals (Issue #3)
+    size_t calculateLODStep(size_t dataSize) const;
+    
     // Crosshair update caches (Issue #2)
     QRectF m_cachedCursorSceneRect;        // Cached cursor scene rectangle
     QRectF m_cachedOverlaySceneRect;       // Cached overlay scene rectangle

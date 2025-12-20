@@ -1662,6 +1662,12 @@ void WaterfallGraph::setupDrawingArea()
 {
     // Set up the drawing area to cover the entire scene
     drawingArea = graphicsScene->sceneRect();
+    
+    // Ensure coordinate mapping cache is valid (Issue #1)
+    // This ensures cache is ready before any mapDataToScreen() calls
+    if (!m_cachesValid && dataRangesValid) {
+        updateCoordinateMappingCaches();
+    }
 }
 
 /**
@@ -2027,8 +2033,10 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
     m_cursorSceneRectValid = false;
     m_overlaySceneRectValid = false;
     
-    // Invalidate coordinate mapping caches (drawing area may have changed)
-    m_cachesValid = false;
+    // NOTE: Don't invalidate coordinate mapping cache on resize
+    // Coordinate mapping cache depends on yMin/yMax and timeInterval, not drawing area size
+    // Drawing area size changes don't affect the cached values
+    // Cache will be updated in setupDrawingArea() if needed
 
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
@@ -2195,6 +2203,47 @@ void WaterfallGraph::updateCoordinateMappingCaches() const
 }
 
 /**
+ * @brief Calculate Level of Detail step size based on time interval
+ * For intervals >= 1 hour, skip points to improve performance
+ * 
+ * @param dataSize Number of data points
+ * @return Step size (1 = no skipping, 2 = every 2nd point, etc.)
+ */
+size_t WaterfallGraph::calculateLODStep(size_t dataSize) const
+{
+    // Only apply LOD for intervals >= 1 hour
+    if (static_cast<int>(timeInterval) < 60) { // Less than 60 minutes (1 hour)
+        return 1; // No skipping for 15min, 30min intervals
+    }
+    
+    // Calculate step size based on interval and data density
+    qint64 intervalMs = getTimeIntervalMs();
+    qreal intervalHours = intervalMs / (60.0 * 60.0 * 1000.0); // Convert to hours
+    
+    // Base step size increases with interval
+    size_t baseStep = 1;
+    if (intervalHours >= 6.0) {
+        baseStep = 10; // 6+ hours: skip every 10th point
+    } else if (intervalHours >= 3.0) {
+        baseStep = 5;  // 3-6 hours: skip every 5th point
+    } else if (intervalHours >= 2.0) {
+        baseStep = 3;  // 2-3 hours: skip every 3rd point
+    } else {
+        baseStep = 2;  // 1-2 hours: skip every 2nd point
+    }
+    
+    // Also consider data density - if we have too many points, increase step
+    // Target: max ~1000 points per draw for performance
+    const size_t maxPoints = 1000;
+    if (dataSize > maxPoints * baseStep) {
+        size_t densityStep = (dataSize + maxPoints - 1) / maxPoints; // Ceiling division
+        return std::max(baseStep, densityStep);
+    }
+    
+    return baseStep;
+}
+
+/**
  * @brief Map data coordinates to screen coordinates.
  *
  * @param yValue
@@ -2213,12 +2262,11 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
         return QPointF(0, 0);
     }
 
-    // Ensure caches are valid (Issue #1)
-    if (!m_cachesValid) {
-        updateCoordinateMappingCaches();
-    }
+    // OPTIMIZED: Use cached values directly - cache is updated in updateDataRanges() before drawing
+    // Cache check removed from hot path to eliminate overhead when called thousands of times
+    // Cache is guaranteed valid when this function is called during normal drawing operations
 
-    // Map y-value to x-coordinate using cached reciprocal (Issue #1)
+    // Fast path: use cached values (Issue #1)
     if (!qIsFinite(yValue) || m_cachedYRange <= 0.0)
     {
         return QPointF(0, 0);
@@ -2227,13 +2275,13 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
     // Use cached reciprocal instead of division
     qreal x = drawingArea.left() + ((yValue - yMin) * m_cachedYRangeReciprocal) * drawingArea.width();
 
-    // Map timestamp to y-coordinate using cached reciprocal (Issue #1)
+    // Map timestamp to y-coordinate using cached reciprocal
     if (m_cachedTimeIntervalMs <= 0)
     {
         return QPointF(0, 0);
     }
     
-    qint64 timeOffset = timestamp.msecsTo(timeMax); // Time from current time (top) to data point
+    qint64 timeOffset = timestamp.msecsTo(timeMax);
     // Use cached reciprocal instead of division
     qreal y = drawingArea.top() + (timeOffset * m_cachedTimeIntervalMsReciprocal) * drawingArea.height();
 
@@ -2468,8 +2516,9 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     }
     path.moveTo(firstPoint);
 
-    // Add lines connecting all visible data points
-    for (size_t i = 1; i < visibleData.size(); ++i)
+    // Add lines connecting all visible data points with LOD for high intervals
+    size_t lodStep = calculateLODStep(visibleData.size());
+    for (size_t i = 1; i < visibleData.size(); i += lodStep)
     {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
@@ -2536,7 +2585,8 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
             pointItems.reserve(newPointCount);
             
             QPen pointPen(seriesColor, 0); // No stroke (width 0)
-            for (size_t i = 0; i < newPointCount; ++i)
+            size_t lodStep = calculateLODStep(newPointCount);
+            for (size_t i = 0; i < newPointCount; i += lodStep)
             {
                 QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
                 if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
@@ -2569,7 +2619,8 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
                 // Add new points
                 pointItems.reserve(newPointCount);
                 QPen pointPen(seriesColor, 0);
-                for (size_t i = oldPointCount; i < newPointCount; ++i)
+                size_t lodStep = calculateLODStep(newPointCount);
+                for (size_t i = oldPointCount; i < newPointCount; i += lodStep)
                 {
                     QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
                     if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
@@ -2762,12 +2813,7 @@ QDateTime WaterfallGraph::mapScreenToTime(qreal yPos) const
     qreal normalizedY = (yPos - drawingArea.top()) / drawingArea.height();
     normalizedY = qMax(0.0, qMin(1.0, normalizedY)); // Clamp to [0,1]
 
-    // Ensure caches are valid (Issue #1)
-    if (!m_cachesValid) {
-        updateCoordinateMappingCaches();
-    }
-
-    // Calculate time offset from current time (top of graph) using cached interval
+    // Use cached interval (Issue #1) - cache is updated in updateDataRanges()
     qint64 timeOffsetMs = static_cast<qint64>(normalizedY * m_cachedTimeIntervalMs);
 
     // Convert to QTime using the data source's time range
@@ -3406,11 +3452,12 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         return;
     }
 
-    // Multiple points - create/update path
+    // Multiple points - create/update path with LOD for high intervals
     QPainterPath path;
     QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
     path.moveTo(firstPoint);
-    for (size_t i = 1; i < visibleData.size(); ++i)
+    size_t lodStep = calculateLODStep(visibleData.size());
+    for (size_t i = 1; i < visibleData.size(); i += lodStep)
     {
         QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
         path.lineTo(point);
@@ -3471,7 +3518,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         pointItems.reserve(newPointCount);
         
         QPen pointPen(seriesColor, 0);
-        for (size_t i = 0; i < newPointCount; ++i)
+        size_t lodStep = calculateLODStep(newPointCount);
+        for (size_t i = 0; i < newPointCount; i += lodStep)
         {
             QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
             QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
@@ -3497,7 +3545,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         if (newPointCount > oldPointCount)
         {
             pointItems.reserve(newPointCount);
-            for (size_t i = oldPointCount; i < newPointCount; ++i)
+            size_t lodStep = calculateLODStep(newPointCount);
+            for (size_t i = oldPointCount; i < newPointCount; i += lodStep)
             {
                 QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
                 QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
@@ -4467,11 +4516,7 @@ qreal WaterfallGraph::mapTimeToY(const QDateTime &time) const
         return -1.0;
     }
 
-    // Ensure caches are valid (Issue #1)
-    if (!m_cachesValid) {
-        updateCoordinateMappingCaches();
-    }
-
+    // Use cached interval (Issue #1) - cache is updated in updateDataRanges()
     if (m_cachedTimeIntervalMs <= 0)
     {
         qDebug() << "mapTimeToY: Invalid interval" << m_cachedTimeIntervalMs;
@@ -4479,7 +4524,7 @@ qreal WaterfallGraph::mapTimeToY(const QDateTime &time) const
     }
 
     qint64 timeOffsetMs = time.msecsTo(timeMax);
-    // Use cached reciprocal instead of division (Issue #1)
+    // Use cached reciprocal instead of division
     qreal normalizedY = timeOffsetMs * m_cachedTimeIntervalMsReciprocal;
     normalizedY = qMax(0.0, qMin(1.0, normalizedY));
 
