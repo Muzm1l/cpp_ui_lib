@@ -257,6 +257,14 @@ private:
     QPixmap m_cachedBackground;
     bool m_backgroundNeedsRedraw = true;
 
+    // Debounce timers for slider and crosshair updates (30ms debounce)
+    QTimer *m_sliderUpdateDebounceTimer;
+    QTimer *m_crosshairUpdateDebounceTimer;
+    bool m_hasPendingSliderUpdate;
+    QDateTime m_pendingCrosshairTimestamp;
+    bool m_hasPendingCrosshairUpdate;
+    static const int DEBOUNCE_INTERVAL_MS = 30;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
@@ -279,6 +287,14 @@ private:
     void updateSliderIndicator();
     void updateSliderFromMousePosition(const QPoint& currentPos);
     void emitTimeScopeChanged();
+    
+    // Debounced update handlers
+    void processDebouncedSliderUpdate();
+    void processDebouncedCrosshairUpdate();
+
+private slots:
+    void onSliderDebounceTimerTimeout();
+    void onCrosshairDebounceTimerTimeout();
 
 signals:
     void visibleTimeWindowChanged(const TimeSelectionSpan& selection);

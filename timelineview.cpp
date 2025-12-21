@@ -272,6 +272,19 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContain
     {
         m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
     }
+    
+    // Initialize debounce timers (30ms debounce for slider and crosshair updates)
+    m_sliderUpdateDebounceTimer = new QTimer(this);
+    m_sliderUpdateDebounceTimer->setSingleShot(true);
+    m_sliderUpdateDebounceTimer->setInterval(DEBOUNCE_INTERVAL_MS);
+    connect(m_sliderUpdateDebounceTimer, &QTimer::timeout, this, &TimelineVisualizerWidget::onSliderDebounceTimerTimeout);
+    m_hasPendingSliderUpdate = false;
+    
+    m_crosshairUpdateDebounceTimer = new QTimer(this);
+    m_crosshairUpdateDebounceTimer->setSingleShot(true);
+    m_crosshairUpdateDebounceTimer->setInterval(DEBOUNCE_INTERVAL_MS);
+    connect(m_crosshairUpdateDebounceTimer, &QTimer::timeout, this, &TimelineVisualizerWidget::onCrosshairDebounceTimerTimeout);
+    m_hasPendingCrosshairUpdate = false;
 }
 
 void TimelineVisualizerWidget::setTimeLineLength(const QTime &length)
@@ -369,8 +382,13 @@ void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
                 m_manoeuvreOverlay->setTimeRange(newWindow.startTime, newWindow.endTime);
             }
             
-            // Emit signal to notify about time window change
-            emitTimeScopeChanged();
+            // Debounce emitTimeScopeChanged() to prevent repeated calls (30ms debounce)
+            // This prevents excessive signal emissions on every timer tick
+            m_hasPendingSliderUpdate = true;
+            if (!m_sliderUpdateDebounceTimer->isActive())
+            {
+                m_sliderUpdateDebounceTimer->start();
+            }
         }
         // Always update visualization (needed for repaints), but animation only happens in follow mode
         updateVisualization();
@@ -995,7 +1013,14 @@ void TimelineVisualizerWidget::updateCrosshairTimestampFromTime(const QDateTime 
     qreal yPosition = normalizedY * rect().height();
     yPosition = qMax(0.0, qMin(static_cast<qreal>(rect().height()), yPosition));
     
-    updateCrosshairTimestamp(timestamp, yPosition);
+    // Debounce crosshair update to prevent repeated calls (30ms debounce)
+    // Store pending timestamp and start timer if not already running
+    m_pendingCrosshairTimestamp = timestamp;
+    m_hasPendingCrosshairUpdate = true;
+    if (!m_crosshairUpdateDebounceTimer->isActive())
+    {
+        m_crosshairUpdateDebounceTimer->start();
+    }
 }
 
 void TimelineVisualizerWidget::clearCrosshairTimestamp()
@@ -1068,6 +1093,75 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
     
     // Note: We don't emit visibleTimeWindowChanged here to avoid feedback loops
     // when syncing from another timeline view
+}
+
+void TimelineVisualizerWidget::onSliderDebounceTimerTimeout()
+{
+    // Process debounced slider update
+    if (m_hasPendingSliderUpdate)
+    {
+        processDebouncedSliderUpdate();
+        m_hasPendingSliderUpdate = false;
+    }
+}
+
+void TimelineVisualizerWidget::onCrosshairDebounceTimerTimeout()
+{
+    // Process debounced crosshair update
+    if (m_hasPendingCrosshairUpdate)
+    {
+        processDebouncedCrosshairUpdate();
+        m_hasPendingCrosshairUpdate = false;
+    }
+}
+
+void TimelineVisualizerWidget::processDebouncedSliderUpdate()
+{
+    // Actually emit the time scope changed signal
+    emitTimeScopeChanged();
+}
+
+void TimelineVisualizerWidget::processDebouncedCrosshairUpdate()
+{
+    // Actually update the crosshair timestamp
+    if (m_pendingCrosshairTimestamp.isValid())
+    {
+        // Recalculate Y position (window might have changed)
+        TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
+        if (visibleWindow.startTime.isValid() && visibleWindow.endTime.isValid())
+        {
+            QDateTime windowStart = visibleWindow.startTime;
+            QDateTime windowEnd = visibleWindow.endTime;
+            
+            if (windowStart > windowEnd)
+            {
+                std::swap(windowStart, windowEnd);
+            }
+            
+            if (m_pendingCrosshairTimestamp >= windowStart && m_pendingCrosshairTimestamp <= windowEnd)
+            {
+                qint64 totalWindowMs = windowStart.msecsTo(windowEnd);
+                if (totalWindowMs > 0)
+                {
+                    qint64 timeFromEndMs = m_pendingCrosshairTimestamp.msecsTo(windowEnd);
+                    qreal normalizedY = static_cast<qreal>(timeFromEndMs) / static_cast<qreal>(totalWindowMs);
+                    normalizedY = qMax(0.0, qMin(1.0, normalizedY));
+                    qreal yPosition = normalizedY * rect().height();
+                    yPosition = qMax(0.0, qMin(static_cast<qreal>(rect().height()), yPosition));
+                    
+                    updateCrosshairTimestamp(m_pendingCrosshairTimestamp, yPosition);
+                }
+            }
+            else
+            {
+                clearCrosshairTimestamp();
+            }
+        }
+    }
+    else
+    {
+        clearCrosshairTimestamp();
+    }
 }
 
 void TimelineVisualizerWidget::emitTimeScopeChanged()
