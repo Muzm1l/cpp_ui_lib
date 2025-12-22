@@ -460,7 +460,8 @@ void GraphContainer::redrawWaterfallGraph()
 {
     if (m_currentWaterfallGraph)
     {
-        m_currentWaterfallGraph->draw();
+        // Force full redraw which should handle cache invalidation
+        m_currentWaterfallGraph->forceFullRedraw();
     }
 }
 
@@ -470,7 +471,8 @@ void GraphContainer::redrawWaterfallGraph(GraphType graphType)
     auto it = m_waterfallGraphs.find(graphType);
     if (it != m_waterfallGraphs.end() && it->second)
     {
-        it->second->draw();
+        // Force full redraw which should handle cache invalidation
+        it->second->forceFullRedraw();
     }
 }
 

@@ -399,6 +399,12 @@ void WaterfallGraph::clearData()
 
     dataSource->clearData();
 
+    // Invalidate all cached visible data to ensure old data doesn't remain on screen
+    invalidateAllVisibleDataCache();
+    
+    // Force full redraw to clear all graphics items
+    setRenderState(RenderState::FULL_REDRAW);
+
     qDebug() << "Data cleared successfully";
 
     // Redraw the graph
@@ -960,6 +966,8 @@ void WaterfallGraph::setRenderState(RenderState newState)
  */
 void WaterfallGraph::forceFullRedraw()
 {
+    // Invalidate all cached visible data to ensure old data doesn't remain on screen
+    invalidateAllVisibleDataCache();
     setRenderState(RenderState::FULL_REDRAW);
     draw();
 }
