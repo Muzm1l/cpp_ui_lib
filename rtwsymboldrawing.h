@@ -29,7 +29,9 @@ public:
         YellowCircle1,
         YellowCircle2,
         YellowCircle3,
-        YellowCircle4
+        YellowCircle4,
+        MaxSymbol,    // Yellow vertical line with 4 cyan dot lines behind
+        MinSymbol     // Yellow vertical line with 4 cyan dot lines in front
     };
 
     RTWSymbolDrawing(int baseSize = 20);  // size in pixels (reduced from 40)
@@ -68,6 +70,8 @@ private:
     QPixmap makeYellowCircle2();
     QPixmap makeYellowCircle3();
     QPixmap makeYellowCircle4();
+    QPixmap makeMaxSymbol();
+    QPixmap makeMinSymbol();
 
     // helpers
     QPixmap blank();

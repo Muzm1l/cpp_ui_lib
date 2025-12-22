@@ -456,6 +456,8 @@ RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolNam
     if (name == "YELLOWCIRCLE2" || name == "YELLOW_CIRCLE_2" || name == "YC2") return RTWSymbolDrawing::SymbolType::YellowCircle2;
     if (name == "YELLOWCIRCLE3" || name == "YELLOW_CIRCLE_3" || name == "YC3") return RTWSymbolDrawing::SymbolType::YellowCircle3;
     if (name == "YELLOWCIRCLE4" || name == "YELLOW_CIRCLE_4" || name == "YC4") return RTWSymbolDrawing::SymbolType::YellowCircle4;
+    if (name == "MAX" || name == "MAXSYMBOL" || name == "MAX_SYMBOL") return RTWSymbolDrawing::SymbolType::MaxSymbol;
+    if (name == "MIN" || name == "MINSYMBOL" || name == "MIN_SYMBOL") return RTWSymbolDrawing::SymbolType::MinSymbol;
     
     // Default to R if symbol name is not recognized
     qDebug() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";

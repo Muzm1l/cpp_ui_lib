@@ -64,6 +64,8 @@ void RTWSymbolDrawing::generateAll()
     cache[SymbolType::YellowCircle2] = makeYellowCircle2();
     cache[SymbolType::YellowCircle3] = makeYellowCircle3();
     cache[SymbolType::YellowCircle4] = makeYellowCircle4();
+    cache[SymbolType::MaxSymbol] = makeMaxSymbol();
+    cache[SymbolType::MinSymbol] = makeMinSymbol();
 }
 
 /* ----------------- Helpers ----------------- */
@@ -618,5 +620,80 @@ QPixmap RTWSymbolDrawing::makeYellowCircle4()
     p.setFont(makeFont());
     p.drawText(circleRect, Qt::AlignCenter, "4");
 
+    return pix;
+}
+
+// Max symbol: Yellow vertical line with 4 lines made of 4 cyan dots each behind it
+QPixmap RTWSymbolDrawing::makeMaxSymbol()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    
+    qreal centerX = size / 2.0;
+    qreal dotSize = 2.0; // Size of each dot
+    qreal dotSpacing = 3.0; // Spacing between dots
+    qreal totalDotWidth = 4 * dotSize + 3 * dotSpacing; // Total width of 4 dots with spacing
+    qreal availableHeight = size - 6; // Available vertical space
+    qreal lineSpacing = availableHeight / 5.0; // Evenly space 4 lines with margins
+    
+    // Draw yellow vertical line in center
+    p.setPen(QPen(Qt::yellow, 2));
+    p.drawLine(QPointF(centerX, 3), QPointF(centerX, size - 3));
+    
+    // Draw 4 horizontal lines made of 4 cyan dots each, positioned behind (left of) the yellow line
+    p.setPen(QPen(Qt::cyan, 1));
+    p.setBrush(QBrush(Qt::cyan));
+    
+    for (int line = 0; line < 4; ++line)
+    {
+        qreal yPos = 3 + (line + 1) * lineSpacing;
+        qreal startX = centerX - totalDotWidth - 2; // Position dots to the left of yellow line
+        
+        // Draw 4 dots in a horizontal line
+        for (int dot = 0; dot < 4; ++dot)
+        {
+            qreal xPos = startX + dot * (dotSize + dotSpacing);
+            p.drawEllipse(QRectF(xPos - dotSize/2, yPos - dotSize/2, dotSize, dotSize));
+        }
+    }
+    
+    return pix;
+}
+
+// Min symbol: Yellow vertical line with 4 lines made of 4 cyan dots each in front
+QPixmap RTWSymbolDrawing::makeMinSymbol()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+    
+    qreal centerX = size / 2.0;
+    qreal dotSize = 2.0; // Size of each dot
+    qreal dotSpacing = 3.0; // Spacing between dots
+    qreal availableHeight = size - 6; // Available vertical space
+    qreal lineSpacing = availableHeight / 5.0; // Evenly space 4 lines with margins
+    
+    // Draw yellow vertical line in center
+    p.setPen(QPen(Qt::yellow, 2));
+    p.drawLine(QPointF(centerX, 3), QPointF(centerX, size - 3));
+    
+    // Draw 4 horizontal lines made of 4 cyan dots each, positioned in front (right of) the yellow line
+    p.setPen(QPen(Qt::cyan, 1));
+    p.setBrush(QBrush(Qt::cyan));
+    
+    for (int line = 0; line < 4; ++line)
+    {
+        qreal yPos = 3 + (line + 1) * lineSpacing;
+        qreal startX = centerX + 2; // Position dots to the right of yellow line
+        
+        // Draw 4 dots in a horizontal line
+        for (int dot = 0; dot < 4; ++dot)
+        {
+            qreal xPos = startX + dot * (dotSize + dotSpacing);
+            p.drawEllipse(QRectF(xPos - dotSize/2, yPos - dotSize/2, dotSize, dotSize));
+        }
+    }
+    
     return pix;
 }
