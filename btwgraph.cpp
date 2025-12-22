@@ -10,6 +10,7 @@
 #include <QRandomGenerator>
 #include <QPainter>
 #include <QPixmap>
+#include <mutex>
 
 /**
  * @brief Construct a new BTWGraph::BTWGraph object
@@ -955,6 +956,39 @@ void BTWGraph::clearShadedRegions()
 /**
  * @brief Draw all shaded regions using zoom panel sticker values
  */
+// Static cached hatch brush for shaded regions (shared across all instances)
+QBrush BTWGraph::getCachedHatchBrush()
+{
+    static QBrush s_cachedHatchBrush;
+    static std::once_flag brushInitFlag;
+    
+    std::call_once(brushInitFlag, []() {
+        // Create hatch pattern using a custom QPixmap
+        // This is created once and reused for all shaded regions
+        const int patternSize = 10;  // Size of the pattern tile (controls line spacing)
+        QPixmap patternPixmap(patternSize, patternSize);
+        patternPixmap.fill(Qt::transparent);  // Transparent background
+        
+        QPainter patternPainter(&patternPixmap);
+        patternPainter.setRenderHint(QPainter::Antialiasing, true);
+        
+        // Draw single diagonal line for hatch effect
+        QColor lineColor(100, 100, 100, 180);  // Dark gray lines
+        QPen linePen(lineColor, 1);
+        patternPainter.setPen(linePen);
+        
+        // Forward diagonal line (/) - from bottom-left to top-right
+        patternPainter.drawLine(0, patternSize, patternSize, 0);
+        
+        patternPainter.end();
+        
+        // Create brush with the hatch pattern
+        s_cachedHatchBrush = QBrush(patternPixmap);
+    });
+    
+    return s_cachedHatchBrush;
+}
+
 void BTWGraph::drawShadedRegions()
 {
     if (!graphicsScene || m_shadedRegions.isEmpty() || !dataRangesValid) {
@@ -970,94 +1004,77 @@ void BTWGraph::drawShadedRegions()
         return;
     }
     
+    // OPTIMIZATION: Cache Y coordinates (same for all regions since they span full height)
+    // Only need to map one point to get Y coordinates, then reuse for all regions
+    QPointF topLeftBase = mapDataToScreen(0.0, topTime);
+    QPointF bottomLeftBase = mapDataToScreen(0.0, bottomTime);
+    qreal topY = topLeftBase.y();
+    qreal bottomY = bottomLeftBase.y();
+    
+    // Get cached hatch brush (created once, reused for all regions)
+    QBrush hatchBrush = getCachedHatchBrush();
+    QColor borderColor(150, 150, 150, 200);  // Medium gray border
+    
     // Draw each shaded region
     for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
         ShadedRegionItem &item = it.value();
         const ShadedRegionData &data = item.data;
         
-        // Remove existing polygon item if it exists
-        if (item.polygonItem) {
-            graphicsScene->removeItem(item.polygonItem);
-            delete item.polygonItem;
-            item.polygonItem = nullptr;
-        }
-        
         // Ensure valid X range
         if (data.startX >= data.endX) {
+            // Remove item if it exists and region is invalid
+            if (item.polygonItem) {
+                graphicsScene->removeItem(item.polygonItem);
+                delete item.polygonItem;
+                item.polygonItem = nullptr;
+            }
             continue;
         }
         
-        // Create polygon for vertical shaded region
-        // Region spans from data.startX to data.endX in X (horizontal boundaries)
-        // and from topTime to bottomTime in Y (vertical, spans all timestamps from top to bottom)
-        QVector<QPointF> polygonPoints;
+        // OPTIMIZATION: Only calculate X coordinates (Y is same for all regions)
+        // Map startX and endX to screen coordinates - only need X values
+        QPointF startScreen = mapDataToScreen(data.startX, topTime);
+        QPointF endScreen = mapDataToScreen(data.endX, topTime);
+        qreal startX = startScreen.x();
+        qreal endX = endScreen.x();
         
-        // Top-left corner: (startX, topTime)
-        QPointF topLeft = mapDataToScreen(data.startX, topTime);
-        // Top-right corner: (endX, topTime)
-        QPointF topRight = mapDataToScreen(data.endX, topTime);
-        // Bottom-right corner: (endX, bottomTime)
-        QPointF bottomRight = mapDataToScreen(data.endX, bottomTime);
-        // Bottom-left corner: (startX, bottomTime)
-        QPointF bottomLeft = mapDataToScreen(data.startX, bottomTime);
-        
-        // Only draw if all points are within or near the drawing area
-        bool shouldDraw = false;
-        if (drawingArea.contains(topLeft) || drawingArea.contains(topRight) ||
-            drawingArea.contains(bottomLeft) || drawingArea.contains(bottomRight)) {
-            shouldDraw = true;
-        } else {
-            // Check if region intersects with drawing area
-            QRectF regionRect = QRectF(
-                qMin(qMin(topLeft.x(), topRight.x()), qMin(bottomLeft.x(), bottomRight.x())),
-                qMin(qMin(topLeft.y(), topRight.y()), qMin(bottomLeft.y(), bottomRight.y())),
-                qMax(qMax(topLeft.x(), topRight.x()), qMax(bottomLeft.x(), bottomRight.x())) - qMin(qMin(topLeft.x(), topRight.x()), qMin(bottomLeft.x(), bottomRight.x())),
-                qMax(qMax(topLeft.y(), topRight.y()), qMax(bottomLeft.y(), bottomRight.y())) - qMin(qMin(topLeft.y(), topRight.y()), qMin(bottomLeft.y(), bottomRight.y()))
-            );
-            shouldDraw = drawingArea.intersects(regionRect);
-        }
+        // OPTIMIZATION: Simplified visibility check using X coordinates only
+        // Since regions span full height, only need to check if X range intersects drawing area
+        bool shouldDraw = (endX >= drawingArea.left() && startX <= drawingArea.right());
         
         if (shouldDraw) {
-            polygonPoints.append(topLeft);
-            polygonPoints.append(topRight);
-            polygonPoints.append(bottomRight);
-            polygonPoints.append(bottomLeft);
-            
-            // Create polygon item with hatch pattern (45 degree diagonal lines)
-            QPolygonF polygon(polygonPoints);
-            QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(polygon);
-            
-            // Create hatch pattern using a custom QPixmap
-            // This is efficient - pattern is created once and Qt handles tiling
-            const int patternSize = 10;  // Size of the pattern tile (controls line spacing)
-            QPixmap patternPixmap(patternSize, patternSize);
-            patternPixmap.fill(Qt::transparent);  // Transparent background
-            
-            QPainter patternPainter(&patternPixmap);
-            patternPainter.setRenderHint(QPainter::Antialiasing, true);
-            
-            // Draw single diagonal line for hatch effect
-            QColor lineColor(100, 100, 100, 180);  // Dark gray lines
-            QPen linePen(lineColor, 1);
-            patternPainter.setPen(linePen);
-            
-            // Forward diagonal line (/) - from bottom-left to top-right
-            patternPainter.drawLine(0, patternSize, patternSize, 0);
-            
-            patternPainter.end();
-            
-            // Create brush with the hatch pattern
-            QBrush hatchBrush(patternPixmap);
-            
-            // Set appearance with hatch fill and light border
-            QColor borderColor(150, 150, 150, 200);  // Medium gray border
-            
-            polygonItem->setBrush(hatchBrush);
-            polygonItem->setPen(QPen(borderColor, 1));
-            polygonItem->setZValue(500);  // Below markers but above grid
-            
-            graphicsScene->addItem(polygonItem);
-            item.polygonItem = polygonItem;
+            // OPTIMIZATION: Update existing polygon instead of recreating
+            if (item.polygonItem) {
+                // Update polygon coordinates
+                QPolygonF polygon;
+                polygon << QPointF(startX, topY)
+                        << QPointF(endX, topY)
+                        << QPointF(endX, bottomY)
+                        << QPointF(startX, bottomY);
+                item.polygonItem->setPolygon(polygon);
+            } else {
+                // Create new item only if it doesn't exist
+                QPolygonF polygon;
+                polygon << QPointF(startX, topY)
+                        << QPointF(endX, topY)
+                        << QPointF(endX, bottomY)
+                        << QPointF(startX, bottomY);
+                
+                QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(polygon);
+                polygonItem->setBrush(hatchBrush);
+                polygonItem->setPen(QPen(borderColor, 1));
+                polygonItem->setZValue(500);  // Below markers but above grid
+                
+                graphicsScene->addItem(polygonItem);
+                item.polygonItem = polygonItem;
+            }
+        } else {
+            // Remove item if region is not visible
+            if (item.polygonItem) {
+                graphicsScene->removeItem(item.polygonItem);
+                delete item.polygonItem;
+                item.polygonItem = nullptr;
+            }
         }
     }
 }

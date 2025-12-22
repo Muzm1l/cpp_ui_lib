@@ -70,7 +70,10 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_lastCachedTime(QDateTime()),
     m_lastCachedYPos(-1.0),
     m_cursorSceneRectValid(false),
-    m_overlaySceneRectValid(false)
+    m_overlaySceneRectValid(false),
+    m_mapScreenToTimeCachedYPos(-1.0),
+    m_mapScreenToTimeCachedTime(QDateTime()),
+    m_mapScreenToTimeCacheValid(false)
 {
     // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
     // Using default size (4x4 pixel rectangle)
@@ -1662,7 +1665,13 @@ void WaterfallGraph::updateGraphicsDimensions()
 void WaterfallGraph::setupDrawingArea()
 {
     // Set up the drawing area to cover the entire scene
+    QRectF oldDrawingArea = drawingArea;
     drawingArea = graphicsScene->sceneRect();
+    
+    // Invalidate mapScreenToTime cache if drawing area changed
+    if (oldDrawingArea != drawingArea) {
+        m_mapScreenToTimeCacheValid = false;
+    }
     
     // Ensure coordinate mapping cache is valid (Issue #1)
     // This ensures cache is ready before any mapDataToScreen() calls
@@ -2034,6 +2043,9 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
     m_cursorSceneRectValid = false;
     m_overlaySceneRectValid = false;
     
+    // Invalidate mapScreenToTime cache when drawing area changes (resize affects yPos mapping)
+    m_mapScreenToTimeCacheValid = false;
+    
     // NOTE: Don't invalidate coordinate mapping cache on resize
     // Coordinate mapping cache depends on yMin/yMax and timeInterval, not drawing area size
     // Drawing area size changes don't affect the cached values
@@ -2229,16 +2241,16 @@ size_t WaterfallGraph::calculateLODStep(size_t dataSize) const
     qint64 intervalMs = getTimeIntervalMs();
     qreal intervalHours = intervalMs / (60.0 * 60.0 * 1000.0); // Convert to hours
     
-    // Base step size increases with interval
+    // Base step size increases with interval (DOUBLED for more aggressive LOD)
     size_t baseStep = 1;
     if (intervalHours >= 6.0) {
-        baseStep = 10; // 6+ hours: skip every 10th point
+        baseStep = 20; // 6+ hours: skip every 20th point (was 10)
     } else if (intervalHours >= 3.0) {
-        baseStep = 5;  // 3-6 hours: skip every 5th point
+        baseStep = 10;  // 3-6 hours: skip every 10th point (was 5)
     } else if (intervalHours >= 2.0) {
-        baseStep = 3;  // 2-3 hours: skip every 3rd point
+        baseStep = 6;  // 2-3 hours: skip every 6th point (was 3)
     } else {
-        baseStep = 2;  // 1-2 hours: skip every 2nd point
+        baseStep = 4;  // 1-2 hours: skip every 4th point (was 2)
     }
     
     // Also consider data density - if we have too many points, increase step
@@ -2819,7 +2831,15 @@ QDateTime WaterfallGraph::mapScreenToTime(qreal yPos) const
                  << "drawingArea.isEmpty:" << drawingArea.isEmpty()
                  << "dataSource:" << (dataSource ? "exists" : "null")
                  << "dataSource->isEmpty:" << (dataSource ? dataSource->isEmpty() : true);
+        m_mapScreenToTimeCacheValid = false; // Invalidate cache on error
         return QDateTime();
+    }
+
+    // OPTIMIZATION: Cache check - return cached result if yPos hasn't changed significantly
+    // Use 0.5 pixel tolerance to handle floating point precision and minor mouse movements
+    if (m_mapScreenToTimeCacheValid && qAbs(m_mapScreenToTimeCachedYPos - yPos) < 0.5)
+    {
+        return m_mapScreenToTimeCachedTime;
     }
 
     // Map y-coordinate to time
@@ -2832,6 +2852,11 @@ QDateTime WaterfallGraph::mapScreenToTime(qreal yPos) const
 
     // Convert to QTime using the data source's time range
     QDateTime selectionTime = timeMax.addMSecs(-timeOffsetMs);
+
+    // Cache result for next call
+    m_mapScreenToTimeCachedYPos = yPos;
+    m_mapScreenToTimeCachedTime = selectionTime;
+    m_mapScreenToTimeCacheValid = true;
 
     return selectionTime;
 }
@@ -3855,6 +3880,9 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
     // This avoids unnecessary full refilters when callers repeat the same range.
     invalidateAllVisibleDataCache();
 
+    // Invalidate mapScreenToTime cache when time range changes
+    m_mapScreenToTimeCacheValid = false;
+
     customTimeMin = timeMin;
     customTimeMax = timeMax;
     customTimeRangeEnabled = true;
@@ -3886,6 +3914,8 @@ void WaterfallGraph::setTimeMax(const QDateTime &timeMax)
         if (this->timeMax != timeMax)
         {
             invalidateAllVisibleDataCache();
+            // Invalidate mapScreenToTime cache
+            m_mapScreenToTimeCacheValid = false;
             customTimeMax = timeMax;
             this->timeMax = timeMax;
             rangeChanged = true;
@@ -3924,6 +3954,8 @@ void WaterfallGraph::setTimeMin(const QDateTime &timeMin)
         if (this->timeMin != timeMin)
         {
             invalidateAllVisibleDataCache();
+            // Invalidate mapScreenToTime cache
+            m_mapScreenToTimeCacheValid = false;
             customTimeMin = timeMin;
             this->timeMin = timeMin;
             rangeChanged = true;
@@ -3997,6 +4029,8 @@ void WaterfallGraph::setTimeRangeFromData()
         if (timeMin != oldTimeMin || timeMax != oldTimeMax)
         {
             invalidateAllVisibleDataCache();
+            // Invalidate mapScreenToTime cache
+            m_mapScreenToTimeCacheValid = false;
         }
         return;
     }
@@ -4009,6 +4043,8 @@ void WaterfallGraph::setTimeRangeFromData()
     if (timeMin != oldTimeMin || timeMax != oldTimeMax)
     {
         invalidateAllVisibleDataCache();
+        // Invalidate mapScreenToTime cache
+        m_mapScreenToTimeCacheValid = false;
     }
 
     qDebug() << "Time range set from data - Time:" << timeMin.toString() << "to" << timeMax.toString();
@@ -4035,6 +4071,8 @@ void WaterfallGraph::setTimeRangeFromDataWithInterval(qint64 intervalMs)
         if (timeMin != oldTimeMin || timeMax != oldTimeMax)
         {
             invalidateAllVisibleDataCache();
+            // Invalidate mapScreenToTime cache
+            m_mapScreenToTimeCacheValid = false;
         }
         return;
     }
@@ -4046,6 +4084,8 @@ void WaterfallGraph::setTimeRangeFromDataWithInterval(qint64 intervalMs)
     if (timeMin != oldTimeMin || timeMax != oldTimeMax)
     {
         invalidateAllVisibleDataCache();
+        // Invalidate mapScreenToTime cache
+        m_mapScreenToTimeCacheValid = false;
     }
 
     qDebug() << "Time range set from data with interval - Time:" << timeMin.toString() << "to" << timeMax.toString() << "Interval:" << intervalMs << "ms";

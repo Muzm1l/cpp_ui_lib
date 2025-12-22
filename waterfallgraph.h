@@ -246,6 +246,11 @@ protected:
     mutable qint64 m_cachedTimeMaxEpoch;     // Cached timeMax.toMSecsSinceEpoch() to avoid msecsTo() overhead
     mutable bool m_cachesValid;             // Flag to track cache validity
 
+    // mapScreenToTime() result cache (Performance optimization)
+    mutable qreal m_mapScreenToTimeCachedYPos;        // Last cached Y position for mapScreenToTime
+    mutable QDateTime m_mapScreenToTimeCachedTime;     // Last cached time result for mapScreenToTime
+    mutable bool m_mapScreenToTimeCacheValid; // Flag to track cache validity
+
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;

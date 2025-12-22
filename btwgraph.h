@@ -15,6 +15,7 @@
 #include <QUuid>
 #include <QGraphicsPolygonItem>
 #include <vector>
+#include <mutex>
 
 // Forward declarations to avoid circular dependency
 class BTWInteractiveOverlay;
@@ -247,6 +248,9 @@ private:
     
     // Method to draw shaded regions
     void drawShadedRegions();
+    
+    // Static cached hatch brush for shaded regions (shared across all instances)
+    static QBrush getCachedHatchBrush();
     
     // Method to draw horizontal lines (cached)
     void drawHorizontalLines();
