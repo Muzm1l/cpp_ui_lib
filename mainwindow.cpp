@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include "timelineutils.h"
+#include "debugutils.h"
 #include <QDateTime>
 #include <QDebug>
 #include <QLabel>
@@ -73,7 +74,7 @@ MainWindow::MainWindow(QWidget *parent)
                 if (markerTimestampLabel && timestamp.isValid()) {
                     QString timestampStr = timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz");
                     markerTimestampLabel->setText(QString("Marker Timestamp: %1 | Value: %2").arg(timestampStr).arg(value, 0, 'f', 2));
-                    qDebug() << "Marker timestamp updated:" << timestampStr << "Value:" << value;
+                    DEBUG_OUT() << "Marker timestamp updated:" << timestampStr << "Value:" << value;
                 }
             });
 
@@ -86,6 +87,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Add label to layout
     topLayout->addWidget(rtwSymbolTimestampLabel);
     
+    // Set debug output state programmatically (disabled by default)
+    DebugUtils::setDebugEnabled(false);
+    
     // Connect RTW symbol timestamp signal from graphgrid to update label
     connect(graphgrid, &GraphLayout::RTWSymbolTimestampCaptured,
             [this](const QDateTime &timestamp, const QPointF &position, const QString &symbolName) {
@@ -96,7 +100,7 @@ MainWindow::MainWindow(QWidget *parent)
                         .arg(timestampStr)
                         .arg(position.x(), 0, 'f', 1)
                         .arg(position.y(), 0, 'f', 1));
-                    qDebug() << "RTW Symbol clicked:" << symbolName << "Timestamp:" << timestampStr << "Position:" << position;
+                    DEBUG_OUT() << "RTW Symbol clicked:" << symbolName << "Timestamp:" << timestampStr << "Position:" << position;
                 }
             });
 
@@ -136,26 +140,26 @@ MainWindow::MainWindow(QWidget *parent)
                             // Add a test vertical shaded region with X range 30.0 to 40.0
                             // This will create a vertical band spanning from top to bottom
                             int regionId = btwGraph->addShadedRegion(30.0, 40.0, currentTime);
-                            qDebug() << "MainWindow: Test - Added vertical shaded region" << regionId 
+                            DEBUG_OUT() << "MainWindow: Test - Added vertical shaded region" << regionId 
                                      << "X range: 30.0 to 40.0, Y=" << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
                             
                             // Add another test region with different X range
                             QTimer::singleShot(1000, this, [btwGraph, currentTime]() {
                                 int regionId2 = btwGraph->addShadedRegion(50.0, 60.0, currentTime);
-                                qDebug() << "MainWindow: Test - Added second vertical shaded region" << regionId2 
+                                DEBUG_OUT() << "MainWindow: Test - Added second vertical shaded region" << regionId2 
                                          << "X range: 50.0 to 60.0, Y=" << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
                             });
                         } else {
-                            qDebug() << "MainWindow: Test - Could not cast to BTWGraph";
+                            DEBUG_OUT() << "MainWindow: Test - Could not cast to BTWGraph";
                         }
                     } else {
-                        qDebug() << "MainWindow: Test - Could not get BTW graph from container";
+                        DEBUG_OUT() << "MainWindow: Test - Could not get BTW graph from container";
                     }
                 } else {
-                    qDebug() << "MainWindow: Test - First container is null";
+                    DEBUG_OUT() << "MainWindow: Test - First container is null";
                 }
             } else {
-                qDebug() << "MainWindow: Test - No GraphContainers found";
+                DEBUG_OUT() << "MainWindow: Test - No GraphContainers found";
             }
         }
     });
@@ -250,7 +254,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Add a test RTW symbol to the graph layout
     QDateTime testSymbolTime = QDateTime::currentDateTime().addSecs(-120); // 2 minutes ago
     graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
-    qDebug() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
+    DEBUG_OUT() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -259,7 +263,7 @@ void MainWindow::setupTimeSelectionHistory()
     connect(graphgrid, &GraphLayout::TimeSelectionCreated,
             this, &MainWindow::onTimeSelectionCreated);
     
-    qDebug() << "Time selection history storage initialized (max 5 selections)";
+    DEBUG_OUT() << "Time selection history storage initialized (max 5 selections)";
 }
 
 void MainWindow::setupManoeuvreButton()
@@ -331,7 +335,7 @@ void MainWindow::setupManoeuvreButton()
     topLayout->addWidget(endManoeuvreButton);
     topLayout->addStretch(); // Add stretch to push everything to the left
     
-    qDebug() << "Manoeuvre buttons created and connected in horizontal layout";
+    DEBUG_OUT() << "Manoeuvre buttons created and connected in horizontal layout";
 }
 
 void MainWindow::onAddManoeuvreButtonClicked()
@@ -351,7 +355,7 @@ void MainWindow::onAddManoeuvreButtonClicked()
     // Add manoeuvre to graph layout
     graphgrid->addManoeuvre(manoeuvre);
     
-    qDebug() << "MainWindow: Added manoeuvre - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+    DEBUG_OUT() << "MainWindow: Added manoeuvre - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
              << "endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss")
              << "bearing:" << manoeuvre.bearing
              << "speed:" << manoeuvre.speed
@@ -363,7 +367,7 @@ void MainWindow::onClearManoeuvresButtonClicked()
     // Clear all manoeuvres from graph layout
     graphgrid->clearManoeuvres();
     
-    qDebug() << "MainWindow: Cleared all manoeuvres";
+    DEBUG_OUT() << "MainWindow: Cleared all manoeuvres";
 }
 
 void MainWindow::onStartManoeuvreButtonClicked()
@@ -379,7 +383,7 @@ void MainWindow::onStartManoeuvreButtonClicked()
     // Call the new API to start manoeuvre drawing
     graphgrid->startManoeuvreDrawing(startTime, bearing, speed, depth);
     
-    qDebug() << "MainWindow: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+    DEBUG_OUT() << "MainWindow: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
              << "bearing:" << bearing
              << "speed:" << speed
              << "depth:" << depth;
@@ -393,16 +397,16 @@ void MainWindow::onEndManoeuvreButtonClicked()
     // Call the new API to end manoeuvre drawing
     graphgrid->endManoeuvreDrawing(endTime);
     
-    qDebug() << "MainWindow: Ended manoeuvre drawing - endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss");
+    DEBUG_OUT() << "MainWindow: Ended manoeuvre drawing - endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss");
     
     // Show current manoeuvre count
     auto manoeuvres = graphgrid->getManoeuvres();
-    qDebug() << "MainWindow: Total manoeuvres:" << manoeuvres.size();
+    DEBUG_OUT() << "MainWindow: Total manoeuvres:" << manoeuvres.size();
 }
 
 void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
 {
-    qDebug() << "MainWindow: Time selection created - start:" << selection.startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+    DEBUG_OUT() << "MainWindow: Time selection created - start:" << selection.startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
              << "end:" << selection.endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     
     // Store the selection timestamps (both start and end)
@@ -410,17 +414,17 @@ void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
     if (timeSelectionHistory.size() >= 5)
     {
         timeSelectionHistory.erase(timeSelectionHistory.begin());
-        qDebug() << "Time selection history full, removed oldest entry";
+        DEBUG_OUT() << "Time selection history full, removed oldest entry";
     }
     
     // Add the new selection to the end
     timeSelectionHistory.push_back(selection);
     
-    qDebug() << "Time selection stored. History size:" << timeSelectionHistory.size();
-    qDebug() << "All stored selections:";
+    DEBUG_OUT() << "Time selection stored. History size:" << timeSelectionHistory.size();
+    DEBUG_OUT() << "All stored selections:";
     for (size_t i = 0; i < timeSelectionHistory.size(); ++i)
     {
-        qDebug() << "  [" << i << "] Start:" << timeSelectionHistory[i].startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+        DEBUG_OUT() << "  [" << i << "] Start:" << timeSelectionHistory[i].startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
                  << "End:" << timeSelectionHistory[i].endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
 }
@@ -552,7 +556,7 @@ void MainWindow::onLayoutTypeChanged(int index)
  */
 void MainWindow::setupTestWaterfallGraph()
 {
-    qDebug() << "=== Setting up Test WaterfallGraph in Controls Tab ===";
+    DEBUG_OUT() << "=== Setting up Test WaterfallGraph in Controls Tab ===";
     
     // Create WaterfallData for test
     testWaterfallData = new WaterfallData("TEST", {"TEST-1", "ADOPTED"});
@@ -582,11 +586,11 @@ void MainWindow::setupTestWaterfallGraph()
         testWaterfallGraph->addDataPoint("ADOPTED", adoptedValue, timestamp);
     }
     
-    qDebug() << "Test WaterfallGraph created in controls tab with" 
+    DEBUG_OUT() << "Test WaterfallGraph created in controls tab with" 
              << testWaterfallData->getDataSeriesSize("TEST-1") << "test data points";
-    qDebug() << "Crosshair enabled:" << testWaterfallGraph->isCrosshairEnabled();
-    qDebug() << "Test WaterfallGraph geometry:" << testWaterfallGraph->geometry();
-    qDebug() << "Test WaterfallGraph visible:" << testWaterfallGraph->isVisible();
+    DEBUG_OUT() << "Crosshair enabled:" << testWaterfallGraph->isCrosshairEnabled();
+    DEBUG_OUT() << "Test WaterfallGraph geometry:" << testWaterfallGraph->geometry();
+    DEBUG_OUT() << "Test WaterfallGraph visible:" << testWaterfallGraph->isVisible();
 }
 
 /**
@@ -594,7 +598,7 @@ void MainWindow::setupTestWaterfallGraph()
  */
 void MainWindow::setupTimelineView()
 {
-    qDebug() << "=== Setting up TimelineView Tab ===";
+    DEBUG_OUT() << "=== Setting up TimelineView Tab ===";
     
     // Create a new tab for TimelineView
     QWidget* timelineViewTab = new QWidget();
@@ -689,15 +693,15 @@ void MainWindow::setupTimelineView()
                     QTime duration = QTime(0, 0, 0).addSecs(durationSeconds);
                     timespanDurationLabel->setText(duration.toString("HH:mm:ss"));
                     
-                    qDebug() << "TimeScopeChanged - Start:" << selection.startTime.toString("HH:mm:ss")
+                    DEBUG_OUT() << "TimeScopeChanged - Start:" << selection.startTime.toString("HH:mm:ss")
                              << "End:" << selection.endTime.toString("HH:mm:ss")
                              << "Duration:" << duration.toString("HH:mm:ss");
                 }
             });
     
-    qDebug() << "TimelineView created in dedicated Timeline View tab";
-    qDebug() << "TimelineView geometry:" << testTimelineView->geometry();
-    qDebug() << "TimelineView visible:" << testTimelineView->isVisible();
+    DEBUG_OUT() << "TimelineView created in dedicated Timeline View tab";
+    DEBUG_OUT() << "TimelineView geometry:" << testTimelineView->geometry();
+    DEBUG_OUT() << "TimelineView visible:" << testTimelineView->isVisible();
 }
 
 /**
@@ -705,7 +709,7 @@ void MainWindow::setupTimelineView()
  */
 void MainWindow::setupSCWWindow()
 {
-    qDebug() << "=== Setting up SCWWindow Tab ===";
+    DEBUG_OUT() << "=== Setting up SCWWindow Tab ===";
     
     // Create a new tab for SCWWindow
     QWidget* scwTab = new QWidget();
@@ -746,14 +750,14 @@ void MainWindow::setupSCWWindow()
     scwSimulator = new SCWSimulator(this, timeUpdateTimer, scwWindow);
     scwSimulator->start();
     
-    qDebug() << "SCWWindow created in SCW Window tab";
-    qDebug() << "SCWWindow size policy:" << scwWindow->sizePolicy();
-    qDebug() << "SCWSimulator created and started";
+    DEBUG_OUT() << "SCWWindow created in SCW Window tab";
+    DEBUG_OUT() << "SCWWindow size policy:" << scwWindow->sizePolicy();
+    DEBUG_OUT() << "SCWSimulator created and started";
 }
 
 void MainWindow::setupCustomGraphsTab()
 {
-    qDebug() << "=== Setting up Custom Graph Components Tab ===";
+    DEBUG_OUT() << "=== Setting up Custom Graph Components Tab ===";
 
     // Create a horizontal layout for the new graph components tab
     QHBoxLayout *horizontalLayout = new QHBoxLayout(ui->customGraphsTab);
@@ -780,7 +784,7 @@ void MainWindow::setupCustomGraphsTab()
     fdwGraph->setSeriesColor("FDW-1", QColor(Qt::red));
     fdwGraph->setSeriesColor("FDW-2", QColor(Qt::green));
     fdwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "FDW Graph connected to data source and colors set";
+    DEBUG_OUT() << "FDW Graph connected to data source and colors set";
 
     // BDW Graph - Bandwidth Domain Waterfall
     bdwGraph = new BDWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -791,7 +795,7 @@ void MainWindow::setupCustomGraphsTab()
     bdwGraph->setSeriesColor("BDW-1", QColor(Qt::red));
     bdwGraph->setSeriesColor("BDW-2", QColor(Qt::green));
     bdwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "BDW Graph connected to data source and colors set";
+    DEBUG_OUT() << "BDW Graph connected to data source and colors set";
 
     // BRW Graph - Bit Rate Waterfall
     brwGraph = new BRWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -802,7 +806,7 @@ void MainWindow::setupCustomGraphsTab()
     brwGraph->setSeriesColor("BRW-1", QColor(Qt::green));
     brwGraph->setSeriesColor("BRW-2", QColor(Qt::blue));
     brwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "BRW Graph connected to data source and colors set";
+    DEBUG_OUT() << "BRW Graph connected to data source and colors set";
 
     // LTW Graph - Latency Time Waterfall
     ltwGraph = new LTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -813,7 +817,7 @@ void MainWindow::setupCustomGraphsTab()
     ltwGraph->setSeriesColor("LTW-1", QColor(Qt::red));
     ltwGraph->setSeriesColor("LTW-2", QColor(Qt::green));
     ltwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "LTW Graph connected to data source and colors set";
+    DEBUG_OUT() << "LTW Graph connected to data source and colors set";
 
     // BTW Graph - Bit Time Waterfall
     btwGraph = new BTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -825,7 +829,7 @@ void MainWindow::setupCustomGraphsTab()
     btwGraph->setSeriesColor("BTW-2", QColor(Qt::green));
     btwGraph->setSeriesColor("BTW-3", QColor(Qt::blue));
     btwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "BTW Graph connected to data source and colors set";
+    DEBUG_OUT() << "BTW Graph connected to data source and colors set";
 
     // RTW Graph - Rate Time Waterfall
     rtwGraph = new RTWGraph(ui->customGraphsTab, false, 8, TimeInterval::FifteenMinutes);
@@ -836,33 +840,33 @@ void MainWindow::setupCustomGraphsTab()
     rtwGraph->setSeriesColor("RTW-1", QColor(Qt::red));
     rtwGraph->setSeriesColor("RTW-2", QColor(Qt::green));
     rtwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "RTW Graph connected to data source and colors set";
+    DEBUG_OUT() << "RTW Graph connected to data source and colors set";
     
     // Test: Add RTW symbols to the overview tab (GraphLayout) RTW graph
     // The overview tab uses GraphLayout's data sources, not the standalone rtwData
     // Strategy: Temporarily set RTW as current in one container, get the graph, add symbols, then restore
     QTimer::singleShot(3000, this, [this]() {
-        qDebug() << "RTW: ===== Timer callback fired - attempting to add test symbols to overview tab =====";
+        DEBUG_OUT() << "RTW: ===== Timer callback fired - attempting to add test symbols to overview tab =====";
         
         if (!graphgrid) {
-            qDebug() << "RTW: ERROR - graphgrid (GraphLayout) is null!";
+            DEBUG_OUT() << "RTW: ERROR - graphgrid (GraphLayout) is null!";
             return;
         }
         
         // Get RTW data source from GraphLayout (this is what the overview tab uses)
         WaterfallData* overviewRTWData = graphgrid->getDataSource(GraphType::RTW);
         if (!overviewRTWData) {
-            qDebug() << "RTW: ERROR - GraphLayout RTW data source is null!";
+            DEBUG_OUT() << "RTW: ERROR - GraphLayout RTW data source is null!";
             return;
         }
         
-        qDebug() << "RTW: GraphLayout RTW data source pointer:" << overviewRTWData;
-        qDebug() << "RTW: Current symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
+        DEBUG_OUT() << "RTW: GraphLayout RTW data source pointer:" << overviewRTWData;
+        DEBUG_OUT() << "RTW: Current symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
         
         // Find RTW graphs in the GraphLayout widget tree using Qt's findChildren
         // This allows us to get RTW graph instances without accessing private members
         QList<RTWGraph*> rtwGraphs = graphgrid->findChildren<RTWGraph*>();
-        qDebug() << "RTW: Found" << rtwGraphs.size() << "RTW graph(s) in GraphLayout";
+        DEBUG_OUT() << "RTW: Found" << rtwGraphs.size() << "RTW graph(s) in GraphLayout";
         
         RTWGraph* rtwGraphToUse = nullptr;
         
@@ -873,7 +877,7 @@ void MainWindow::setupCustomGraphsTab()
             WaterfallData* graphDataSource = rtwGraph->getDataSource();
             if (graphDataSource == overviewRTWData) {
                 rtwGraphToUse = rtwGraph;
-                qDebug() << "RTW: Found RTW graph using GraphLayout RTW data source";
+                DEBUG_OUT() << "RTW: Found RTW graph using GraphLayout RTW data source";
                 break;
             }
         }
@@ -887,7 +891,7 @@ void MainWindow::setupCustomGraphsTab()
             symbolTimeMin = timeRange.first;
             symbolTimeMax = timeRange.second;
             timeRangeValid = symbolTimeMin.isValid() && symbolTimeMax.isValid() && symbolTimeMin < symbolTimeMax;
-            qDebug() << "RTW: Current graph time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
+            DEBUG_OUT() << "RTW: Current graph time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
         }
         
         // If graph time range is invalid, try data source time range
@@ -897,7 +901,7 @@ void MainWindow::setupCustomGraphsTab()
                 symbolTimeMin = timeRange.first;
                 symbolTimeMax = timeRange.second;
                 timeRangeValid = symbolTimeMin.isValid() && symbolTimeMax.isValid() && symbolTimeMin < symbolTimeMax;
-                qDebug() << "RTW: Using data source time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
+                DEBUG_OUT() << "RTW: Using data source time range:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString() << "- Valid:" << timeRangeValid;
             }
         }
         
@@ -905,7 +909,7 @@ void MainWindow::setupCustomGraphsTab()
         if (!timeRangeValid) {
             symbolTimeMax = QDateTime::currentDateTime();
             symbolTimeMin = symbolTimeMax.addSecs(-150); // 2.5 minutes window
-            qDebug() << "RTW: No valid time range available, using default:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
+            DEBUG_OUT() << "RTW: No valid time range available, using default:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
         }
         
         // Calculate symbol timestamps with 10 second intervals
@@ -916,17 +920,17 @@ void MainWindow::setupCustomGraphsTab()
         QDateTime symbol4Time = symbolTimeMin.addSecs(150);
         QDateTime symbol5Time = symbolTimeMin.addSecs(200);
         
-        qDebug() << "RTW: Symbol timestamps:";
-        qDebug() << "  Symbol1 (TM):" << symbol1Time.toString();
-        qDebug() << "  Symbol2 (DP):" << symbol2Time.toString();
-        qDebug() << "  Symbol3 (LY):" << symbol3Time.toString();
-        qDebug() << "  Symbol4 (CircleI):" << symbol4Time.toString();
-        qDebug() << "  Symbol5 (Triangle):" << symbol5Time.toString();
-        qDebug() << "RTW: Time range for filtering:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
+        DEBUG_OUT() << "RTW: Symbol timestamps:";
+        DEBUG_OUT() << "  Symbol1 (TM):" << symbol1Time.toString();
+        DEBUG_OUT() << "  Symbol2 (DP):" << symbol2Time.toString();
+        DEBUG_OUT() << "  Symbol3 (LY):" << symbol3Time.toString();
+        DEBUG_OUT() << "  Symbol4 (CircleI):" << symbol4Time.toString();
+        DEBUG_OUT() << "  Symbol5 (Triangle):" << symbol5Time.toString();
+        DEBUG_OUT() << "RTW: Time range for filtering:" << symbolTimeMin.toString() << "to" << symbolTimeMax.toString();
         
         if (rtwGraphToUse) {
             // Use rtwGraphToUse->addRTWSymbol() which adds to dataSource AND calls draw() automatically
-            qDebug() << "RTW: Adding test symbols via RTW graph->addRTWSymbol() within time range";
+            DEBUG_OUT() << "RTW: Adding test symbols via RTW graph->addRTWSymbol() within time range";
             rtwGraphToUse->addRTWSymbol("TM", symbol1Time, 10.0);
             rtwGraphToUse->addRTWSymbol("DP", symbol2Time, 15.0);
             rtwGraphToUse->addRTWSymbol("LY", symbol3Time, 20.0);
@@ -934,8 +938,8 @@ void MainWindow::setupCustomGraphsTab()
             rtwGraphToUse->addRTWSymbol("Triangle", symbol5Time, 12.0);
         } else {
             // Fallback: add directly to data source (symbols will appear on next redraw)
-            qDebug() << "RTW: WARNING - No RTW graph found using GraphLayout RTW data source";
-            qDebug() << "RTW: Adding symbols directly to data source (will appear on next redraw)";
+            DEBUG_OUT() << "RTW: WARNING - No RTW graph found using GraphLayout RTW data source";
+            DEBUG_OUT() << "RTW: Adding symbols directly to data source (will appear on next redraw)";
             overviewRTWData->addRTWSymbol("TM", symbol1Time, 10.0);
             overviewRTWData->addRTWSymbol("DP", symbol2Time, 15.0);
             overviewRTWData->addRTWSymbol("LY", symbol3Time, 20.0);
@@ -944,8 +948,8 @@ void MainWindow::setupCustomGraphsTab()
         }
         
         // Verify symbols were added
-        qDebug() << "RTW: After adding - symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
-        qDebug() << "RTW: ===== Finished adding 5 test symbols to overview tab RTW graph =====";
+        DEBUG_OUT() << "RTW: After adding - symbols in GraphLayout RTW data:" << overviewRTWData->getRTWSymbolsCount();
+        DEBUG_OUT() << "RTW: ===== Finished adding 5 test symbols to overview tab RTW graph =====";
     });
 
     // FTW Graph - Frequency Time Waterfall
@@ -957,7 +961,7 @@ void MainWindow::setupCustomGraphsTab()
     ftwGraph->setSeriesColor("FTW-1", QColor(Qt::red));
     ftwGraph->setSeriesColor("FTW-2", QColor(Qt::green));
     ftwGraph->setSeriesColor("ADOPTED", QColor(Qt::yellow));
-    qDebug() << "FTW Graph connected to data source and colors set";
+    DEBUG_OUT() << "FTW Graph connected to data source and colors set";
 
     // Create labels for each graph
     QLabel *fdwLabel = new QLabel("FDW", ui->customGraphsTab);
@@ -1053,54 +1057,54 @@ void MainWindow::setupCustomGraphsTab()
     btwGraph->update();
     rtwGraph->update();
     ftwGraph->update();
-    qDebug() << "All graphs redrawn";
+    DEBUG_OUT() << "All graphs redrawn";
 
     // Debug: Verify data was generated for each series
-    qDebug() << "=== Verifying bulk data generation ===";
-    qDebug() << "FDW Data series:" << fdwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "=== Verifying bulk data generation ===";
+    DEBUG_OUT() << "FDW Data series:" << fdwData->getDataSeriesLabels().size() << "series";
     if (!fdwData->getDataSeriesLabels().empty()) {
         QString firstSeries = fdwData->getDataSeriesLabels()[0];
-        qDebug() << "FDW First series" << firstSeries << "has" << fdwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "FDW First series" << firstSeries << "has" << fdwData->getDataSeriesSize(firstSeries) << "points";
     }
     
-    qDebug() << "BDW Data series:" << bdwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "BDW Data series:" << bdwData->getDataSeriesLabels().size() << "series";
     if (!bdwData->getDataSeriesLabels().empty()) {
         QString firstSeries = bdwData->getDataSeriesLabels()[0];
-        qDebug() << "BDW First series" << firstSeries << "has" << bdwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "BDW First series" << firstSeries << "has" << bdwData->getDataSeriesSize(firstSeries) << "points";
     }
     
-    qDebug() << "BRW Data series:" << brwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "BRW Data series:" << brwData->getDataSeriesLabels().size() << "series";
     if (!brwData->getDataSeriesLabels().empty()) {
         QString firstSeries = brwData->getDataSeriesLabels()[0];
-        qDebug() << "BRW First series" << firstSeries << "has" << brwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "BRW First series" << firstSeries << "has" << brwData->getDataSeriesSize(firstSeries) << "points";
     }
     
-    qDebug() << "LTW Data series:" << ltwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "LTW Data series:" << ltwData->getDataSeriesLabels().size() << "series";
     if (!ltwData->getDataSeriesLabels().empty()) {
         QString firstSeries = ltwData->getDataSeriesLabels()[0];
-        qDebug() << "LTW First series" << firstSeries << "has" << ltwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "LTW First series" << firstSeries << "has" << ltwData->getDataSeriesSize(firstSeries) << "points";
     }
     
-    qDebug() << "BTW Data series:" << btwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "BTW Data series:" << btwData->getDataSeriesLabels().size() << "series";
     if (!btwData->getDataSeriesLabels().empty()) {
         QString firstSeries = btwData->getDataSeriesLabels()[0];
-        qDebug() << "BTW First series" << firstSeries << "has" << btwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "BTW First series" << firstSeries << "has" << btwData->getDataSeriesSize(firstSeries) << "points";
     }
     
-    qDebug() << "RTW Data series:" << rtwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "RTW Data series:" << rtwData->getDataSeriesLabels().size() << "series";
     if (!rtwData->getDataSeriesLabels().empty()) {
         QString firstSeries = rtwData->getDataSeriesLabels()[0];
-        qDebug() << "RTW First series" << firstSeries << "has" << rtwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "RTW First series" << firstSeries << "has" << rtwData->getDataSeriesSize(firstSeries) << "points";
     }
     
-    qDebug() << "FTW Data series:" << ftwData->getDataSeriesLabels().size() << "series";
+    DEBUG_OUT() << "FTW Data series:" << ftwData->getDataSeriesLabels().size() << "series";
     if (!ftwData->getDataSeriesLabels().empty()) {
         QString firstSeries = ftwData->getDataSeriesLabels()[0];
-        qDebug() << "FTW First series" << firstSeries << "has" << ftwData->getDataSeriesSize(firstSeries) << "points";
+        DEBUG_OUT() << "FTW First series" << firstSeries << "has" << ftwData->getDataSeriesSize(firstSeries) << "points";
     }
 
     // Force all graphs to redraw with the new data
-    qDebug() << "=== Forcing graph redraws ===";
+    DEBUG_OUT() << "=== Forcing graph redraws ===";
     fdwGraph->update();
     bdwGraph->update();
     brwGraph->update();
@@ -1108,22 +1112,22 @@ void MainWindow::setupCustomGraphsTab()
     btwGraph->update();
     rtwGraph->update();
     ftwGraph->update();
-    qDebug() << "All graphs redrawn";
+    DEBUG_OUT() << "All graphs redrawn";
 
-    qDebug() << "New graph components tab setup completed successfully";
+    DEBUG_OUT() << "New graph components tab setup completed successfully";
 }
 
 void MainWindow::setupNewGraphData()
 {
     // No initial data setup - graphs will be populated by simulation
-    qDebug() << "Graph data will be populated by simulation";
+    DEBUG_OUT() << "Graph data will be populated by simulation";
 }
 
 void MainWindow::setBulkDataForAllGraphs()
 {
     // Skip if simulator is disabled
     if (!simulator) {
-        qDebug() << "setBulkDataForAllGraphs: Simulator is disabled, skipping";
+        DEBUG_OUT() << "setBulkDataForAllGraphs: Simulator is disabled, skipping";
         return;
     }
 
@@ -1274,7 +1278,7 @@ private:
  */
 void MainWindow::setupRTWSymbolsTest()
 {
-    qDebug() << "=== Setting up RTW Symbols Test ===";
+    DEBUG_OUT() << "=== Setting up RTW Symbols Test ===";
     
     // Create a new tab for RTW symbols test
     QWidget* rtwSymbolsTab = new QWidget();
@@ -1320,9 +1324,9 @@ void MainWindow::setupRTWSymbolsTest()
     instructionsLabel->setStyleSheet("QLabel { color: white; font-size: 12px; background-color: rgba(0, 0, 0, 150); padding: 10px; border: 1px solid gray; border-radius: 4px; }");
     instructionsLabel->setWordWrap(true);
     
-    qDebug() << "RTW Symbols test widget created in new tab";
-    qDebug() << "RTW Symbols test widget geometry:" << rtwSymbolsTestWidget->geometry();
-    qDebug() << "RTW Symbols test widget visible:" << rtwSymbolsTestWidget->isVisible();
+    DEBUG_OUT() << "RTW Symbols test widget created in new tab";
+    DEBUG_OUT() << "RTW Symbols test widget geometry:" << rtwSymbolsTestWidget->geometry();
+    DEBUG_OUT() << "RTW Symbols test widget visible:" << rtwSymbolsTestWidget->isVisible();
 }
 
 /**

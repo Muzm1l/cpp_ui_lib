@@ -1,4 +1,5 @@
 #include "scwwindow.h"
+#include "debugutils.h"
 #include <QDebug>
 #include <QString>
 
@@ -39,7 +40,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal
     WaterfallData* dataSource = getDataSourceAdopted(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesAdoptedToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesAdoptedToString(series);
         return;
     }
 
@@ -51,7 +52,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal
         m_waterfallGraphs[0]->setData(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 void SCWWindow::addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -59,7 +60,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal
     WaterfallData* dataSource = getDataSourceAdopted(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesAdoptedToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesAdoptedToString(series);
         return;
     }
 
@@ -71,7 +72,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal
         m_waterfallGraphs[0]->addDataPoints(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 void SCWWindow::setDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -79,7 +80,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceR(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesRToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesRToString(series);
         return;
     }
 
@@ -104,7 +105,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yDa
         }
     }
     
-    qDebug() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 void SCWWindow::addDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -112,7 +113,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceR(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesRToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesRToString(series);
         return;
     }
 
@@ -137,7 +138,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yDa
         }
     }
     
-    qDebug() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 WaterfallData* SCWWindow::getDataSourceR(SCW_SERIES_R series) const
@@ -287,10 +288,10 @@ SCWWindow::SCWWindow(QWidget* parent, QTimer* timer, GraphContainerSyncState *sy
     if (m_timer)
     {
         connect(m_timer, &QTimer::timeout, this, &SCWWindow::onTimerTick, Qt::UniqueConnection);
-        qDebug() << "SCWWindow: Connected timer to onTimerTick";
+        DEBUG_OUT() << "SCWWindow: Connected timer to onTimerTick";
     }
     
-    qDebug() << "SCWWindow created successfully";
+    DEBUG_OUT() << "SCWWindow created successfully";
 }
 
 SCWWindow::~SCWWindow()
@@ -343,7 +344,7 @@ void SCWWindow::setupDataSources()
     QString adoptedLabel = scwSeriesAdoptedToString(adoptedSeries);
     WaterfallData* adoptedDataSource = new WaterfallData(adoptedLabel);
     m_dataSourcesAdopted[adoptedSeries] = adoptedDataSource;
-    qDebug() << "Created WaterfallData for series:" << adoptedLabel;
+    DEBUG_OUT() << "Created WaterfallData for series:" << adoptedLabel;
     
     // Create data sources for SCW_SERIES_R (RULER series)
     SCW_SERIES_R rulerSeries[] = {
@@ -358,7 +359,7 @@ void SCWWindow::setupDataSources()
         QString seriesLabel = scwSeriesRToString(series);
         WaterfallData* dataSource = new WaterfallData(seriesLabel);
         m_dataSourcesR[series] = dataSource;
-        qDebug() << "Created WaterfallData for series:" << seriesLabel;
+        DEBUG_OUT() << "Created WaterfallData for series:" << seriesLabel;
     }
     
     // Create data sources for SCW_SERIES_B
@@ -375,7 +376,7 @@ void SCWWindow::setupDataSources()
         QString seriesLabel = scwSeriesBToString(series);
         WaterfallData* dataSource = new WaterfallData(seriesLabel);
         m_dataSourcesB[series] = dataSource;
-        qDebug() << "Created WaterfallData for series:" << seriesLabel;
+        DEBUG_OUT() << "Created WaterfallData for series:" << seriesLabel;
     }
     
     // Create data sources for SCW_SERIES_A
@@ -389,7 +390,7 @@ void SCWWindow::setupDataSources()
         QString seriesLabel = scwSeriesAToString(series);
         WaterfallData* dataSource = new WaterfallData(seriesLabel);
         m_dataSourcesA[series] = dataSource;
-        qDebug() << "Created WaterfallData for series:" << seriesLabel;
+        DEBUG_OUT() << "Created WaterfallData for series:" << seriesLabel;
     }
     
     // Create data sources for SCW_SERIES_E
@@ -406,7 +407,7 @@ void SCWWindow::setupDataSources()
         QString seriesLabel = scwSeriesEToString(series);
         WaterfallData* dataSource = new WaterfallData(seriesLabel);
         m_dataSourcesE[series] = dataSource;
-        qDebug() << "Created WaterfallData for series:" << seriesLabel;
+        DEBUG_OUT() << "Created WaterfallData for series:" << seriesLabel;
     }
 }
 void SCWWindow::setupLayout()
@@ -634,7 +635,7 @@ void SCWWindow::setupLayout()
     // Set the layout
     setLayout(m_mainLayout);
     
-    qDebug() << "SCWWindow layout setup completed";
+    DEBUG_OUT() << "SCWWindow layout setup completed";
 }
 
 void SCWWindow::setupWaterfallGraphs()
@@ -655,7 +656,7 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[0]->setDataSource(*adoptedDataSource);
         m_waterfallGraphs[0]->installEventFilter(this);
         m_seriesLayouts[0]->addWidget(m_waterfallGraphs[0], 1);
-        qDebug() << "Created and connected WaterfallGraph for window 1, series:" << adoptedLabel;
+        DEBUG_OUT() << "Created and connected WaterfallGraph for window 1, series:" << adoptedLabel;
     }
     
     // Windows 2-5: Connect to RULER series
@@ -675,7 +676,7 @@ void SCWWindow::setupWaterfallGraphs()
         WaterfallData* dataSource = getDataSourceR(series);
         if (!dataSource)
         {
-            qDebug() << "Error: No data source found for series:" << seriesLabel;
+            DEBUG_OUT() << "Error: No data source found for series:" << seriesLabel;
             continue;
         }
         
@@ -690,7 +691,7 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[windowIndex]->installEventFilter(this);
         m_seriesLayouts[windowIndex]->addWidget(m_waterfallGraphs[windowIndex], 1);
         
-        qDebug() << "Created and connected WaterfallGraph for window" << (windowIndex+1) << "series:" << seriesLabel;
+        DEBUG_OUT() << "Created and connected WaterfallGraph for window" << (windowIndex+1) << "series:" << seriesLabel;
     }
     
     // Window 6: Connect to initial SCW_SERIES_B (BRAT)
@@ -709,7 +710,7 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[5]->setDataSource(*dataSourceB);
         m_waterfallGraphs[5]->installEventFilter(this);
         m_seriesLayouts[5]->addWidget(m_waterfallGraphs[5], 1);
-        qDebug() << "Created and connected WaterfallGraph for window 6, initial series:" << seriesLabelB;
+        DEBUG_OUT() << "Created and connected WaterfallGraph for window 6, initial series:" << seriesLabelB;
     }
     
     // Window 7: Connect to initial SCW_SERIES_A (ATMA)
@@ -728,7 +729,7 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[6]->setDataSource(*dataSourceA);
         m_waterfallGraphs[6]->installEventFilter(this);
         m_seriesLayouts[6]->addWidget(m_waterfallGraphs[6], 1);
-        qDebug() << "Created and connected WaterfallGraph for window 7, initial series:" << seriesLabelA;
+        DEBUG_OUT() << "Created and connected WaterfallGraph for window 7, initial series:" << seriesLabelA;
     }
     
     // Window 8: Connect to initial SCW_SERIES_E (EXTERNAL1)
@@ -747,10 +748,10 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[7]->setDataSource(*dataSourceE);
         m_waterfallGraphs[7]->installEventFilter(this);
         m_seriesLayouts[7]->addWidget(m_waterfallGraphs[7], 1);
-        qDebug() << "Created and connected WaterfallGraph for window 8, initial series:" << seriesLabelE;
+        DEBUG_OUT() << "Created and connected WaterfallGraph for window 8, initial series:" << seriesLabelE;
     }
     
-    qDebug() << "SCWWindow waterfall graphs setup completed";
+    DEBUG_OUT() << "SCWWindow waterfall graphs setup completed";
 }
 
 WaterfallData* SCWWindow::getDataSourceAdopted(SCW_SERIES_ADOPTED series) const
@@ -778,7 +779,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceB(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesBToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesBToString(series);
         return;
     }
     
@@ -804,7 +805,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yDa
         dataSource->setDataSeries(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 void SCWWindow::addDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -812,7 +813,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceB(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesBToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesBToString(series);
         return;
     }
     
@@ -838,7 +839,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yDa
         dataSource->addDataPointsToSeries(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 // Implementations for SCW_SERIES_A
@@ -847,7 +848,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceA(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesAToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesAToString(series);
         return;
     }
     
@@ -871,7 +872,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yDa
         dataSource->setDataSeries(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 void SCWWindow::addDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -879,7 +880,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceA(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesAToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesAToString(series);
         return;
     }
     
@@ -901,7 +902,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yDa
         dataSource->addDataPointsToSeries(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 // Implementations for SCW_SERIES_E
@@ -910,7 +911,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceE(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesEToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesEToString(series);
         return;
     }
     
@@ -936,7 +937,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yDa
         dataSource->setDataSeries(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 void SCWWindow::addDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
@@ -944,7 +945,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yDa
     WaterfallData* dataSource = getDataSourceE(series);
     if (!dataSource)
     {
-        qDebug() << "Error: No data source found for series:" << scwSeriesEToString(series);
+        DEBUG_OUT() << "Error: No data source found for series:" << scwSeriesEToString(series);
         return;
     }
     
@@ -969,7 +970,7 @@ void SCWWindow::addDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yDa
         dataSource->addDataPointsToSeries(seriesLabel, yData, timestamps);
     }
     
-    qDebug() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
+    DEBUG_OUT() << "addDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
 // Slot implementations for button clicks (old definitions removed - see below)
@@ -999,7 +1000,7 @@ void SCWWindow::switchWindow6Series()
     {
         m_waterfallGraphs[5]->setDataSource(*newDataSource);
         m_waterfallGraphs[5]->draw();
-        qDebug() << "Window 6 switched to series:" << seriesLabel;
+        DEBUG_OUT() << "Window 6 switched to series:" << seriesLabel;
     }
 }
 
@@ -1024,7 +1025,7 @@ void SCWWindow::switchWindow7Series()
     {
         m_waterfallGraphs[6]->setDataSource(*newDataSource);
         m_waterfallGraphs[6]->draw();
-        qDebug() << "Window 7 switched to series:" << seriesLabel;
+        DEBUG_OUT() << "Window 7 switched to series:" << seriesLabel;
     }
 }
 
@@ -1052,7 +1053,7 @@ void SCWWindow::switchWindow8Series()
     {
         m_waterfallGraphs[7]->setDataSource(*newDataSource);
         m_waterfallGraphs[7]->draw();
-        qDebug() << "Window 8 switched to series:" << seriesLabel;
+        DEBUG_OUT() << "Window 8 switched to series:" << seriesLabel;
     }
 }
 
@@ -1061,7 +1062,7 @@ void SCWWindow::selectWindow(int windowIndex)
 {
     if (windowIndex < 0 || windowIndex >= 8)
     {
-        qDebug() << "Invalid window index:" << windowIndex;
+        DEBUG_OUT() << "Invalid window index:" << windowIndex;
         return;
     }
     
@@ -1079,7 +1080,7 @@ void SCWWindow::selectWindow(int windowIndex)
     QString seriesName = getCurrentSeriesName(windowIndex);
     emit seriesSelected(seriesName);
     
-    qDebug() << "Window" << (windowIndex + 1) << "selected, series:" << seriesName;
+    DEBUG_OUT() << "Window" << (windowIndex + 1) << "selected, series:" << seriesName;
 }
 
 QString SCWWindow::getCurrentSeriesName(int windowIndex) const
@@ -1239,7 +1240,7 @@ void SCWWindow::onTimerTick()
             }
         }
         
-        qDebug() << "SCWWindow: Updated all WaterfallGraphs with new time interval from sync state:" << static_cast<int>(lastInterval);
+        DEBUG_OUT() << "SCWWindow: Updated all WaterfallGraphs with new time interval from sync state:" << static_cast<int>(lastInterval);
     }
     
     // Update time scope from sync state if changed
@@ -1263,7 +1264,7 @@ void SCWWindow::onTimerTick()
                 }
             }
             
-            qDebug() << "SCWWindow: Updated all WaterfallGraphs with new time scope from sync state:" 
+            DEBUG_OUT() << "SCWWindow: Updated all WaterfallGraphs with new time scope from sync state:" 
                      << lastTimeScope.startTime.toString() << "to" << lastTimeScope.endTime.toString();
         }
     }
@@ -1271,7 +1272,7 @@ void SCWWindow::onTimerTick()
 
 void SCWWindow::clearAllGraphs()
 {
-    qDebug() << "SCWWindow: clearAllGraphs() - clearing all data from all graphs";
+    DEBUG_OUT() << "SCWWindow: clearAllGraphs() - clearing all data from all graphs";
     
     // Clear all data sources
     for (auto it = m_dataSourcesAdopted.begin(); it != m_dataSourcesAdopted.end(); ++it)
@@ -1323,6 +1324,6 @@ void SCWWindow::clearAllGraphs()
         }
     }
     
-    qDebug() << "SCWWindow: clearAllGraphs() completed - all data cleared from all 16 data sources";
+    DEBUG_OUT() << "SCWWindow: clearAllGraphs() completed - all data cleared from all 16 data sources";
 }
 

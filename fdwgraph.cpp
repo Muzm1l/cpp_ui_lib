@@ -1,4 +1,5 @@
 #include "fdwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 
 /**
@@ -12,7 +13,7 @@
 FDWGraph::FDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
-    qDebug() << "FDWGraph constructor called";
+    DEBUG_OUT() << "FDWGraph constructor called";
 }
 
 /**
@@ -21,7 +22,7 @@ FDWGraph::FDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 FDWGraph::~FDWGraph()
 {
-    qDebug() << "FDWGraph destructor called";
+    DEBUG_OUT() << "FDWGraph destructor called";
 }
 
 /**
@@ -35,7 +36,7 @@ void FDWGraph::draw()
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "FDWGraph: draw() already in progress, skipping";
+        DEBUG_OUT() << "FDWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -117,7 +118,7 @@ void FDWGraph::draw()
  */
 void FDWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "FDWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "FDWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -129,7 +130,7 @@ void FDWGraph::onMouseClick(const QPointF &scenePos)
  */
 void FDWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "FDWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "FDWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -143,7 +144,7 @@ void FDWGraph::drawFDWScatterplot()
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("FDW-1"), Qt::cyan, 4.0, Qt::white);
 
-    qDebug() << "FDW scatterplot drawn";
+    DEBUG_OUT() << "FDW scatterplot drawn";
 }
 
 /**
@@ -162,13 +163,13 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 
     if (yData.empty() || timestamps.empty())
     {
-        qDebug() << "FDW: drawDataLine - no data available for series" << seriesLabel;
+        DEBUG_OUT() << "FDW: drawDataLine - no data available for series" << seriesLabel;
         return;
     }
 
     if (yData.size() != timestamps.size())
     {
-        qDebug() << "FDW: drawDataLine - data size mismatch for series" << seriesLabel
+        DEBUG_OUT() << "FDW: drawDataLine - data size mismatch for series" << seriesLabel
                  << "- yData:" << yData.size() << "timestamps:" << timestamps.size();
         return;
     }
@@ -194,7 +195,7 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 
     if (visibleData.empty())
     {
-        qDebug() << "FDW: drawDataLine - no visible points within current time range for series" << seriesLabel;
+        DEBUG_OUT() << "FDW: drawDataLine - no visible points within current time range for series" << seriesLabel;
         return;
     }
 
@@ -206,7 +207,7 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
         graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-        qDebug() << "FDW data line drawn (dashed) for series" << seriesLabel << "with 1 visible point";
+        DEBUG_OUT() << "FDW data line drawn (dashed) for series" << seriesLabel << "with 1 visible point";
         return;
     }
 
@@ -240,7 +241,7 @@ void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         }
     }
 
-    qDebug() << "FDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size()
+    DEBUG_OUT() << "FDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size()
              << "visible points out of" << yData.size() << "total points";
 }
 
@@ -269,5 +270,5 @@ void FDWGraph::drawZeroAxis()
     // Draw the vertical line
     graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
     
-    qDebug() << "FDW zero axis drawn at x:" << zeroPoint.x();
+    DEBUG_OUT() << "FDW zero axis drawn at x:" << zeroPoint.x();
 }

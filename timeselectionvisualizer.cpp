@@ -1,4 +1,5 @@
 #include "timeselectionvisualizer.h"
+#include "debugutils.h"
 #include <QDebug>
 #include <algorithm>
 
@@ -286,7 +287,7 @@ void TimeSelectionVisualizer::setupTimer()
     // Start the timer
     m_timer->start();
 
-    // qDebug() << "TimeSelectionVisualizer: Timer setup completed - interval:" << m_timer->interval() << "ms";
+    // DEBUG_OUT() << "TimeSelectionVisualizer: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
 
 void TimeSelectionVisualizer::onTimerTick()
@@ -298,7 +299,7 @@ void TimeSelectionVisualizer::onTimerTick()
         m_visualizerWidget->setCurrentTime(currentTime);
     }
 
-    // qDebug() << "TimeSelectionVisualizer: Timer tick - updated current time to" << currentTime.toString();
+    // DEBUG_OUT() << "TimeSelectionVisualizer: Timer tick - updated current time to" << currentTime.toString();
 }
 
 void TimeSelectionVisualizer::onButtonClicked()
@@ -307,7 +308,7 @@ void TimeSelectionVisualizer::onButtonClicked()
         // If there are selections, clear them
         clearTimeSelections();
         emit timeSelectionsCleared();
-        // qDebug() << "Time selections cleared and signal emitted!";
+        // DEBUG_OUT() << "Time selections cleared and signal emitted!";
     } else {
         // If there are no selections, create a full selection spanning the valid region
         m_visualizerWidget->createFullSelection();

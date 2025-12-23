@@ -7,6 +7,7 @@
 #include "graphtype.h"
 #include "zoompanel.h"
 #include "sharedsyncstate.h"
+#include "debugutils.h"
 #include <QRandomGenerator>
 #include <QPainter>
 #include <QPixmap>
@@ -205,7 +206,7 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
                     QUuid lineId = m_horizontalLines[i].id;
                     removeHorizontalLine(lineId);
                     emit horizontalLineRemoved(lineId);
-                    qDebug() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString();
+                    DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString();
                     
                     // Redraw to remove the line
                     draw();
@@ -608,12 +609,12 @@ std::vector<QDateTime> BTWGraph::getAutomaticMarkerTimestamps() const
 InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate)
 {
     if (!m_interactiveOverlay) {
-        qDebug() << "BTWGraph::addBTWManualMarker: Interactive overlay not available";
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Interactive overlay not available";
         return nullptr;
     }
     
     if (!timestamp.isValid()) {
-        qDebug() << "BTWGraph::addBTWManualMarker: Invalid timestamp provided";
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Invalid timestamp provided";
         return nullptr;
     }
     
@@ -622,13 +623,13 @@ InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp
     
     // Validate screen position
     if (screenPos.isNull() || !qIsFinite(screenPos.x()) || !qIsFinite(screenPos.y())) {
-        qDebug() << "BTWGraph::addBTWManualMarker: Failed to map data coordinates to screen position";
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Failed to map data coordinates to screen position";
         return nullptr;
     }
     
     // Check if position is within visible drawing area
     if (!drawingArea.contains(screenPos)) {
-        qDebug() << "BTWGraph::addBTWManualMarker: Marker position is outside visible area";
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Marker position is outside visible area";
         // Still create the marker, but warn about visibility
     }
     
@@ -651,11 +652,11 @@ InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp
         // Emit manualMarkerPlaced signal (same as click handler)
         emit manualMarkerPlaced(timestamp, screenPos);
         
-        qDebug() << "BTWGraph::addBTWManualMarker: Marker created at timestamp" 
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Marker created at timestamp" 
                  << timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz")
                  << "range:" << rangeValue << "bearingRate:" << bearingRate;
     } else {
-        qDebug() << "BTWGraph::addBTWManualMarker: Failed to create marker";
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Failed to create marker";
     }
     
     return marker;
@@ -1192,7 +1193,7 @@ bool BTWGraph::hasShadedRegionWithSyncId(const QUuid &syncId) const
 void BTWGraph::setHorizontalLineMode(bool enabled)
 {
     m_horizontalLineMode = enabled;
-    qDebug() << "BTWGraph: Horizontal line mode" << (enabled ? "enabled" : "disabled");
+    DEBUG_OUT() << "BTWGraph: Horizontal line mode" << (enabled ? "enabled" : "disabled");
 }
 
 bool BTWGraph::isHorizontalLineMode() const
@@ -1205,7 +1206,7 @@ QUuid BTWGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &colo
     HorizontalLineItem lineItem(timestamp, color, width);
     m_horizontalLines.append(lineItem);
     
-    qDebug() << "BTWGraph: Added horizontal line at time:" << timestamp.toString() << "ID:" << lineItem.id.toString();
+    DEBUG_OUT() << "BTWGraph: Added horizontal line at time:" << timestamp.toString() << "ID:" << lineItem.id.toString();
     
     // New line doesn't have a cached item yet - will be created in next draw()
     // No need to invalidate existing cached items
@@ -1226,7 +1227,7 @@ bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
             }
             
             m_horizontalLines.removeAt(i);
-            qDebug() << "BTWGraph: Removed horizontal line ID:" << lineId.toString();
+            DEBUG_OUT() << "BTWGraph: Removed horizontal line ID:" << lineId.toString();
             return true;
         }
     }
@@ -1248,7 +1249,7 @@ void BTWGraph::clearHorizontalLines()
     }
     
     m_horizontalLines.clear();
-    qDebug() << "BTWGraph: Cleared all horizontal lines";
+    DEBUG_OUT() << "BTWGraph: Cleared all horizontal lines";
 }
 
 void BTWGraph::drawHorizontalLines()

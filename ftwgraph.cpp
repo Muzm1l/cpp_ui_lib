@@ -1,4 +1,5 @@
 #include "ftwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 
 /**
@@ -12,7 +13,7 @@
 FTWGraph::FTWGraph(QWidget* parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
-    qDebug() << "FTWGraph constructor called";
+    DEBUG_OUT() << "FTWGraph constructor called";
 }
 
 /**
@@ -21,7 +22,7 @@ FTWGraph::FTWGraph(QWidget* parent, bool enableGrid, int gridDivisions, TimeInte
  */
 FTWGraph::~FTWGraph()
 {
-    qDebug() << "FTWGraph destructor called";
+    DEBUG_OUT() << "FTWGraph destructor called";
 }
 
 /**
@@ -35,7 +36,7 @@ void FTWGraph::draw()
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "FTWGraph: draw() already in progress, skipping";
+        DEBUG_OUT() << "FTWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -111,7 +112,7 @@ void FTWGraph::draw()
  */
 void FTWGraph::onMouseClick(const QPointF& scenePos)
 {
-    qDebug() << "FTWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "FTWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -123,7 +124,7 @@ void FTWGraph::onMouseClick(const QPointF& scenePos)
  */
 void FTWGraph::onMouseDrag(const QPointF& scenePos)
 {
-    qDebug() << "FTWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "FTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -137,5 +138,5 @@ void FTWGraph::drawFTWScatterplot()
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("FTW-1"), Qt::white, 4.0, Qt::black);
 
-    qDebug() << "FTW scatterplot drawn";
+    DEBUG_OUT() << "FTW scatterplot drawn";
 }

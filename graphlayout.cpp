@@ -2,6 +2,7 @@
 #include "navtimeutils.h"
 #include "btwgraph.h"
 #include "btwinteractiveoverlay.h"
+#include "debugutils.h"
 #include <QDebug>
 
 GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
@@ -19,7 +20,7 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, 
         // Start the timer
         m_timer->start();
 
-        qDebug() << "GraphLayout: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
+        DEBUG_OUT() << "GraphLayout: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
     }
 
     // Initialize data sources based on provided labels
@@ -225,7 +226,7 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         }
         break;
     default:
-        qDebug() << "Invalid layout type selected";
+        DEBUG_OUT() << "Invalid layout type selected";
         break;
     }
 
@@ -610,7 +611,7 @@ void GraphLayout::addDataOption(const QString &containerLabel, const GraphType &
     }
     else
     {
-        qDebug() << "Container not found:" << containerLabel;
+        DEBUG_OUT() << "Container not found:" << containerLabel;
     }
 }
 
@@ -623,7 +624,7 @@ void GraphLayout::removeDataOption(const QString &containerLabel, const GraphTyp
     }
     else
     {
-        qDebug() << "Container not found:" << containerLabel;
+        DEBUG_OUT() << "Container not found:" << containerLabel;
     }
 }
 
@@ -636,7 +637,7 @@ void GraphLayout::clearDataOptions(const QString &containerLabel)
     }
     else
     {
-        qDebug() << "Container not found:" << containerLabel;
+        DEBUG_OUT() << "Container not found:" << containerLabel;
     }
 }
 
@@ -649,7 +650,7 @@ void GraphLayout::setCurrentDataOption(const QString &containerLabel, const Grap
     }
     else
     {
-        qDebug() << "Container not found:" << containerLabel;
+        DEBUG_OUT() << "Container not found:" << containerLabel;
     }
 }
 
@@ -660,7 +661,7 @@ GraphType GraphLayout::getCurrentDataOption(const QString &containerLabel) const
     {
         return m_graphContainers[containerIndex]->getCurrentDataOption();
     }
-    qDebug() << "Container not found:" << containerLabel;
+    DEBUG_OUT() << "Container not found:" << containerLabel;
     return GraphType::BDW;
 }
 
@@ -671,7 +672,7 @@ std::vector<GraphType> GraphLayout::getAvailableDataOptions(const QString &conta
     {
         return m_graphContainers[containerIndex]->getAvailableDataOptions();
     }
-    qDebug() << "Container not found:" << containerLabel;
+    DEBUG_OUT() << "Container not found:" << containerLabel;
     return std::vector<GraphType>();
 }
 
@@ -682,7 +683,7 @@ WaterfallData *GraphLayout::getDataOption(const QString &containerLabel, const G
     {
         return m_graphContainers[containerIndex]->getDataOption(graphType);
     }
-    qDebug() << "Container not found:" << containerLabel;
+    DEBUG_OUT() << "Container not found:" << containerLabel;
     return nullptr;
 }
 
@@ -693,7 +694,7 @@ bool GraphLayout::hasDataOption(const QString &containerLabel, const GraphType &
     {
         return m_graphContainers[containerIndex]->hasDataOption(graphType);
     }
-    qDebug() << "Container not found:" << containerLabel;
+    DEBUG_OUT() << "Container not found:" << containerLabel;
     return false;
 }
 
@@ -752,7 +753,7 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QSt
     if (it != m_dataSources.end())
     {
         it->second->addDataPointToSeries(seriesLabel, yValue, timestamp);
-        qDebug() << "Added data point to" << dataSourceLabel << "series" << seriesLabel << "y:" << yValue << "time:" << timestamp.toString();
+        DEBUG_OUT() << "Added data point to" << dataSourceLabel << "series" << seriesLabel << "y:" << yValue << "time:" << timestamp.toString();
 
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
@@ -765,7 +766,7 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QSt
     }
     else
     {
-        qDebug() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
     }
 }
 
@@ -776,7 +777,7 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QS
     if (it != m_dataSources.end())
     {
         it->second->addDataPointsToSeries(seriesLabel, yValues, timestamps);
-        qDebug() << "Added" << yValues.size() << "data points to" << dataSourceLabel << "series" << seriesLabel;
+        DEBUG_OUT() << "Added" << yValues.size() << "data points to" << dataSourceLabel << "series" << seriesLabel;
 
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
@@ -789,7 +790,7 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QS
     }
     else
     {
-        qDebug() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
     }
 }
 
@@ -800,7 +801,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     if (it != m_dataSources.end())
     {
         it->second->setDataSeries(seriesLabel, yData, timestamps);
-        qDebug() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
+        DEBUG_OUT() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
 
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
@@ -813,7 +814,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     }
     else
     {
-        qDebug() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
     }
 }
 
@@ -834,7 +835,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
         }
         
         it->second->setDataSeries(seriesLabel, yData, timestamps);
-        qDebug() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "from WaterfallData object";
+        DEBUG_OUT() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "from WaterfallData object";
 
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
@@ -847,7 +848,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     }
     else
     {
-        qDebug() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
     }
 }
 
@@ -858,7 +859,7 @@ void GraphLayout::clearDataSource(const GraphType &graphType, const QString &ser
     if (it != m_dataSources.end())
     {
         it->second->clearDataSeries(seriesLabel);
-        qDebug() << "Cleared data for" << dataSourceLabel << "series" << seriesLabel;
+        DEBUG_OUT() << "Cleared data for" << dataSourceLabel << "series" << seriesLabel;
 
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
@@ -871,7 +872,7 @@ void GraphLayout::clearDataSource(const GraphType &graphType, const QString &ser
     }
     else
     {
-        qDebug() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
     }
 }
 
@@ -929,11 +930,11 @@ void GraphLayout::addSeriesToDataSource(const GraphType &graphType, const QStrin
         std::vector<qreal> emptyYData;
         std::vector<QDateTime> emptyTimestamps;
         it->second->addDataSeries(seriesLabel, emptyYData, emptyTimestamps);
-        qDebug() << "Added series" << seriesLabel << "to data source" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Added series" << seriesLabel << "to data source" << graphTypeToString(graphType);
     }
     else
     {
-        qDebug() << "Data source not found:" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Data source not found:" << graphTypeToString(graphType);
     }
 }
 
@@ -943,11 +944,11 @@ void GraphLayout::removeSeriesFromDataSource(const GraphType &graphType, const Q
     if (it != m_dataSources.end())
     {
         it->second->clearDataSeries(seriesLabel);
-        qDebug() << "Cleared series" << seriesLabel << "from data source" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Cleared series" << seriesLabel << "from data source" << graphTypeToString(graphType);
     }
     else
     {
-        qDebug() << "Data source not found:" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Data source not found:" << graphTypeToString(graphType);
     }
 }
 
@@ -975,7 +976,7 @@ int GraphLayout::getContainerIndex(const QString &containerLabel) const
 
 void GraphLayout::disconnectAllContainerConnections()
 {
-    qDebug() << "GraphLayout: Disconnecting external container connections";
+    DEBUG_OUT() << "GraphLayout: Disconnecting external container connections";
 
     // Disconnect external connections to prevent duplicate connections
     // while preserving internal connections like TimelineView -> GraphContainer
@@ -988,7 +989,7 @@ void GraphLayout::disconnectAllContainerConnections()
             container->disconnect(SIGNAL(TimeScopeChanged(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionCreated(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionsCleared()));
-            qDebug() << "GraphLayout: Disconnected external signals from container";
+            DEBUG_OUT() << "GraphLayout: Disconnected external signals from container";
         }
     }
 }
@@ -1006,7 +1007,7 @@ void GraphLayout::setCurrentTime(const QTime &time)
 
 void GraphLayout::deleteInteractiveMarkers()
 {
-    qDebug() << "GraphLayout: deleteInteractiveMarkers invoked";
+    DEBUG_OUT() << "GraphLayout: deleteInteractiveMarkers invoked";
     for (auto *container : m_graphContainers)
     {
         if (container)
@@ -1018,7 +1019,7 @@ void GraphLayout::deleteInteractiveMarkers()
 
 void GraphLayout::linkHorizontalContainers()
 {
-    qDebug() << "GraphLayout: Linking horizontal containers for layout type:" << static_cast<int>(m_layoutType);
+    DEBUG_OUT() << "GraphLayout: Linking horizontal containers for layout type:" << static_cast<int>(m_layoutType);
 
     // Disconnect all existing connections first to avoid duplicates
     disconnectAllContainerConnections();
@@ -1038,7 +1039,7 @@ void GraphLayout::linkHorizontalContainers()
         connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
                 m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
 
-        qDebug() << "GraphLayout: Linked containers for GPW4W layout";
+        DEBUG_OUT() << "GraphLayout: Linked containers for GPW4W layout";
         break;
 
     case LayoutType::GPW2WH:
@@ -1046,7 +1047,7 @@ void GraphLayout::linkHorizontalContainers()
         connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
                 m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
 
-        qDebug() << "GraphLayout: Linked containers for GPW2WH layout";
+        DEBUG_OUT() << "GraphLayout: Linked containers for GPW2WH layout";
         break;
 
     case LayoutType::GPW4WH:
@@ -1066,14 +1067,14 @@ void GraphLayout::linkHorizontalContainers()
         connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
                 m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
 
-        qDebug() << "GraphLayout: Linked containers for GPW4WH layout";
+        DEBUG_OUT() << "GraphLayout: Linked containers for GPW4WH layout";
         break;
 
     case LayoutType::GPW1W:
     case LayoutType::GPW2WV:
     case LayoutType::HIDDEN:
         // No horizontal linking needed for these layouts
-        qDebug() << "GraphLayout: No horizontal linking needed for layout type:" << static_cast<int>(m_layoutType);
+        DEBUG_OUT() << "GraphLayout: No horizontal linking needed for layout type:" << static_cast<int>(m_layoutType);
         break;
 
     default:
@@ -1084,7 +1085,7 @@ void GraphLayout::linkHorizontalContainers()
 
 void GraphLayout::syncAllTimelineViews()
 {
-    qDebug() << "GraphLayout: Syncing all timeline views for layout type:" << static_cast<int>(m_layoutType);
+    DEBUG_OUT() << "GraphLayout: Syncing all timeline views for layout type:" << static_cast<int>(m_layoutType);
     
     // This function ensures all timeline views in the layout are properly synchronized:
     // 1. Timeline views are connected to each other for interval and scope changes
@@ -1103,7 +1104,7 @@ void GraphLayout::syncAllTimelineViews()
             if (timelineView)
             {
                 timelineViewPairs.push_back({container, timelineView});
-                qDebug() << "GraphLayout: Found timeline view in container";
+                DEBUG_OUT() << "GraphLayout: Found timeline view in container";
             }
             else
             {
@@ -1116,7 +1117,7 @@ void GraphLayout::syncAllTimelineViews()
     {
         if (timelineViewPairs.size() == 1)
         {
-            qDebug() << "GraphLayout: Only 1 timeline view found, ensuring internal connections are set up";
+            DEBUG_OUT() << "GraphLayout: Only 1 timeline view found, ensuring internal connections are set up";
             // Even with 1 timeline view, ensure internal connections are properly set up
             const auto &pair = timelineViewPairs[0];
             if (pair.first && pair.second)
@@ -1129,12 +1130,12 @@ void GraphLayout::syncAllTimelineViews()
         }
         else
         {
-            qDebug() << "GraphLayout: No timeline views found";
+            DEBUG_OUT() << "GraphLayout: No timeline views found";
         }
         return;
     }
     
-    qDebug() << "GraphLayout: Found" << timelineViewPairs.size() << "timeline views to sync";
+    DEBUG_OUT() << "GraphLayout: Found" << timelineViewPairs.size() << "timeline views to sync";
     
     // Disconnect only the specific external sync connections to avoid duplicates
     // We must be specific to preserve internal connections (like timer, visualizer widget, etc.)
@@ -1287,7 +1288,7 @@ void GraphLayout::syncAllTimelineViews()
         }
     }
     
-    qDebug() << "GraphLayout: Timeline views synced successfully";
+    DEBUG_OUT() << "GraphLayout: Timeline views synced successfully";
 }
 
 void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
@@ -1298,7 +1299,7 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
         return;
     }
     
-    qDebug() << "GraphLayout: Syncing external timeline view with all timeline views";
+    DEBUG_OUT() << "GraphLayout: Syncing external timeline view with all timeline views";
     
     // Get all timeline views from graphlayout containers
     for (auto *container : m_graphContainers)
@@ -1342,7 +1343,7 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
         }
     }
     
-    qDebug() << "GraphLayout: External timeline view synced successfully";
+    DEBUG_OUT() << "GraphLayout: External timeline view synced successfully";
 }
 
 void GraphLayout::onTimerTick()
@@ -1358,7 +1359,7 @@ void GraphLayout::onTimerTick()
 
 void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphLayout: Time selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+    DEBUG_OUT() << "GraphLayout: Time selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     // Add the selection to the sync state
     m_syncState.timeSelections.push_back(selection);
@@ -1372,7 +1373,7 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
         if (container && container != source)
         {
             container->addTimeSelection(selection);
-            qDebug() << "GraphLayout: Selection added to container";
+            DEBUG_OUT() << "GraphLayout: Selection added to container";
         }
     }
     
@@ -1383,7 +1384,7 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
 
 void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
 {
-    qDebug() << "GraphLayout: Container interval changed to" << timeIntervalToString(interval);
+    DEBUG_OUT() << "GraphLayout: Container interval changed to" << timeIntervalToString(interval);
     
     // Update sync state
     m_syncState.currentInterval = interval;
@@ -1398,14 +1399,14 @@ void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
         if (container && container != source)
         {
             container->setTimeInterval(interval);
-            qDebug() << "GraphLayout: Interval set on container via API";
+            DEBUG_OUT() << "GraphLayout: Interval set on container via API";
         }
     }
 }
 
 void GraphLayout::onContainerTimeScopeChanged(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphLayout: Container time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+    DEBUG_OUT() << "GraphLayout: Container time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
     
     // Update sync state
     m_syncState.currentTimeScope = selection;
@@ -1504,7 +1505,7 @@ void GraphLayout::onContainerCursorTimeChanged(GraphContainer *source, const QDa
 
 void GraphLayout::onTimeSelectionsCleared()
 {
-    qDebug() << "GraphLayout: Time selections cleared by one container - clearing in all containers";
+    DEBUG_OUT() << "GraphLayout: Time selections cleared by one container - clearing in all containers";
     
     // Clear the sync state
     m_syncState.timeSelections.clear();
@@ -1527,7 +1528,7 @@ void GraphLayout::onTimeSelectionsCleared()
 
 void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
 {
-    qDebug() << "GraphLayout: BTW manual marker placed at timestamp" << timestamp.toString() << "position" << position;
+    DEBUG_OUT() << "GraphLayout: BTW manual marker placed at timestamp" << timestamp.toString() << "position" << position;
     
     // Find the BTW graph to get the range value from the X position
     qreal range = 0.0;
@@ -1547,7 +1548,7 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
                 // Convert X position to range value
                 range = graph->mapScreenXToRange(position.x());
                 foundRange = true;
-                qDebug() << "GraphLayout: Calculated range" << range << "from X position" << position.x();
+                DEBUG_OUT() << "GraphLayout: Calculated range" << range << "from X position" << position.x();
                 break;
             }
         }
@@ -1568,7 +1569,7 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
                 if (btwDataSource->findClosestDataPoint(seriesLabel, timestamp, 1000, range, unusedIndex))
                 {
                     foundRange = true;
-                    qDebug() << "GraphLayout: Found range" << range << "from data at timestamp";
+                    DEBUG_OUT() << "GraphLayout: Found range" << range << "from data at timestamp";
                     break;
                 }
             }
@@ -1579,7 +1580,7 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
     if (!foundRange)
     {
         range = 50.0; // Default range value
-        qDebug() << "GraphLayout: Using default range" << range << "for BTW marker";
+        DEBUG_OUT() << "GraphLayout: Using default range" << range << "for BTW marker";
     }
     
     // Add magenta circle (BTW symbol) to all graphs at this timestamp
@@ -1702,7 +1703,7 @@ void GraphLayout::setChevronLabel1(const QString &label)
             container->setChevronLabel1(label);
         }
     }
-    qDebug() << "GraphLayout: Set chevron label 1 to:" << label << "for all visible containers";
+    DEBUG_OUT() << "GraphLayout: Set chevron label 1 to:" << label << "for all visible containers";
 }
 
 void GraphLayout::setChevronLabel2(const QString &label)
@@ -1714,7 +1715,7 @@ void GraphLayout::setChevronLabel2(const QString &label)
             container->setChevronLabel2(label);
         }
     }
-    qDebug() << "GraphLayout: Set chevron label 2 to:" << label << "for all visible containers";
+    DEBUG_OUT() << "GraphLayout: Set chevron label 2 to:" << label << "for all visible containers";
 }
 
 void GraphLayout::setChevronLabel3(const QString &label)
@@ -1726,7 +1727,7 @@ void GraphLayout::setChevronLabel3(const QString &label)
             container->setChevronLabel3(label);
         }
     }
-    qDebug() << "GraphLayout: Set chevron label 3 to:" << label << "for all visible containers";
+    DEBUG_OUT() << "GraphLayout: Set chevron label 3 to:" << label << "for all visible containers";
 }
 
 QString GraphLayout::getChevronLabel1() const
@@ -1778,11 +1779,11 @@ void GraphLayout::setChevronLabel1(const QString &containerLabel, const QString 
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
     {
         m_graphContainers[containerIndex]->setChevronLabel1(label);
-        qDebug() << "GraphLayout: Set chevron label 1 to:" << label << "for container:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Set chevron label 1 to:" << label << "for container:" << containerLabel;
     }
     else
     {
-        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Container not found:" << containerLabel;
     }
 }
 
@@ -1792,11 +1793,11 @@ void GraphLayout::setChevronLabel2(const QString &containerLabel, const QString 
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
     {
         m_graphContainers[containerIndex]->setChevronLabel2(label);
-        qDebug() << "GraphLayout: Set chevron label 2 to:" << label << "for container:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Set chevron label 2 to:" << label << "for container:" << containerLabel;
     }
     else
     {
-        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Container not found:" << containerLabel;
     }
 }
 
@@ -1806,11 +1807,11 @@ void GraphLayout::setChevronLabel3(const QString &containerLabel, const QString 
     if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
     {
         m_graphContainers[containerIndex]->setChevronLabel3(label);
-        qDebug() << "GraphLayout: Set chevron label 3 to:" << label << "for container:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Set chevron label 3 to:" << label << "for container:" << containerLabel;
     }
     else
     {
-        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Container not found:" << containerLabel;
     }
 }
 
@@ -1829,7 +1830,7 @@ void GraphLayout::addManoeuvre(const Manoeuvre &manoeuvre)
         }
     }
     
-    qDebug() << "GraphLayout: Added manoeuvre - startTime:" << manoeuvre.startTime.toString()
+    DEBUG_OUT() << "GraphLayout: Added manoeuvre - startTime:" << manoeuvre.startTime.toString()
              << "endTime:" << manoeuvre.endTime.toString()
              << "Total manoeuvres:" << m_syncState.manoeuvres.size();
 }
@@ -1849,7 +1850,7 @@ void GraphLayout::setManoeuvres(const std::vector<Manoeuvre> &manoeuvres)
         }
     }
     
-    qDebug() << "GraphLayout: Set manoeuvres - count:" << manoeuvres.size();
+    DEBUG_OUT() << "GraphLayout: Set manoeuvres - count:" << manoeuvres.size();
 }
 
 void GraphLayout::clearManoeuvres()
@@ -1867,7 +1868,7 @@ void GraphLayout::clearManoeuvres()
         }
     }
     
-    qDebug() << "GraphLayout: Cleared all manoeuvres";
+    DEBUG_OUT() << "GraphLayout: Cleared all manoeuvres";
 }
 
 std::vector<Manoeuvre> GraphLayout::getManoeuvres() const
@@ -1893,7 +1894,7 @@ void GraphLayout::startManoeuvreDrawing(const QDateTime &startTime, int bearing,
         }
     }
     
-    qDebug() << "GraphLayout: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
+    DEBUG_OUT() << "GraphLayout: Started manoeuvre drawing - startTime:" << startTime.toString("yyyy-MM-dd hh:mm:ss")
              << "bearing:" << bearing
              << "speed:" << speed
              << "depth:" << depth;
@@ -1939,7 +1940,7 @@ void GraphLayout::endManoeuvreDrawing(const QDateTime &endTime)
     // Add manoeuvre to graph layout
     addManoeuvre(manoeuvre);
     
-    qDebug() << "GraphLayout: Ended manoeuvre drawing - startTime:" << m_currentManoeuvreStartTime.toString("yyyy-MM-dd hh:mm:ss")
+    DEBUG_OUT() << "GraphLayout: Ended manoeuvre drawing - startTime:" << m_currentManoeuvreStartTime.toString("yyyy-MM-dd hh:mm:ss")
              << "endTime:" << endTime.toString("yyyy-MM-dd hh:mm:ss")
              << "bearing:" << m_currentManoeuvreBearing
              << "speed:" << m_currentManoeuvreSpeed
@@ -1962,7 +1963,7 @@ QString GraphLayout::getChevronLabel1(const QString &containerLabel) const
     }
     else
     {
-        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Container not found:" << containerLabel;
         return QString();
     }
 }
@@ -1976,7 +1977,7 @@ QString GraphLayout::getChevronLabel2(const QString &containerLabel) const
     }
     else
     {
-        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Container not found:" << containerLabel;
         return QString();
     }
 }
@@ -1990,7 +1991,7 @@ QString GraphLayout::getChevronLabel3(const QString &containerLabel) const
     }
     else
     {
-        qDebug() << "GraphLayout: Container not found:" << containerLabel;
+        DEBUG_OUT() << "GraphLayout: Container not found:" << containerLabel;
         return QString();
     }
 }
@@ -2029,7 +2030,7 @@ void GraphLayout::clearAllHardRangeLimits()
 
 void GraphLayout::clearAllGraphs()
 {
-    qDebug() << "GraphLayout: clearAllGraphs() - clearing all data, markers, and symbols from all graphs";
+    DEBUG_OUT() << "GraphLayout: clearAllGraphs() - clearing all data, markers, and symbols from all graphs";
     
     // Clear all data sources
     for (auto &pair : m_dataSources)
@@ -2046,7 +2047,7 @@ void GraphLayout::clearAllGraphs()
             dataSource->clearBTWMarkers();
             dataSource->clearRTWRMarkers();
             
-            qDebug() << "GraphLayout: Cleared data for graph type:" << static_cast<int>(pair.first);
+            DEBUG_OUT() << "GraphLayout: Cleared data for graph type:" << static_cast<int>(pair.first);
         }
     }
     
@@ -2056,11 +2057,11 @@ void GraphLayout::clearAllGraphs()
         if (container)
         {
             container->redrawWaterfallGraph();
-            qDebug() << "GraphLayout: Triggered redraw for container";
+            DEBUG_OUT() << "GraphLayout: Triggered redraw for container";
         }
     }
     
-    qDebug() << "GraphLayout: clearAllGraphs() completed";
+    DEBUG_OUT() << "GraphLayout: clearAllGraphs() completed";
 }
 
 // Marker and symbol management methods implementation
@@ -2072,11 +2073,11 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     {
         it->second->addRTWSymbol(symbolName, timestamp, range);
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Added RTW symbol" << symbolName << "to graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Added RTW symbol" << symbolName << "to graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot add RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2089,13 +2090,13 @@ bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &sym
         if (removed)
         {
             redrawGraph(graphType);
-            qDebug() << "GraphLayout: Removed RTW symbol" << symbolName << "from graph type" << static_cast<int>(graphType);
+            DEBUG_OUT() << "GraphLayout: Removed RTW symbol" << symbolName << "from graph type" << static_cast<int>(graphType);
         }
         return removed;
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot remove RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot remove RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
         return false;
     }
 }
@@ -2107,11 +2108,11 @@ void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbol
     {
         it->second->addBTWSymbol(symbolName, timestamp, range);
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Added BTW symbol" << symbolName << "to graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Added BTW symbol" << symbolName << "to graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot add BTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add BTW symbol - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2122,14 +2123,14 @@ void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &time
     {
         it->second->addBTWMarker(timestamp, range, delta);
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Added BTW marker to graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Added BTW marker to graph type" << static_cast<int>(graphType);
         
         // Add magenta circle (BTW symbol) to all other graphs at this timestamp
         addBTWSymbolToAllGraphs(timestamp, range);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot add BTW marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add BTW marker - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2140,11 +2141,11 @@ void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &tim
     {
         it->second->addRTWRMarker(timestamp, range);
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Added RTW R marker to graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Added RTW R marker to graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot add RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2157,13 +2158,13 @@ bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &t
         if (removed)
         {
             redrawGraph(graphType);
-            qDebug() << "GraphLayout: Removed BTW marker from graph type" << static_cast<int>(graphType);
+            DEBUG_OUT() << "GraphLayout: Removed BTW marker from graph type" << static_cast<int>(graphType);
         }
         return removed;
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot remove BTW marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot remove BTW marker - data source not found for graph type" << static_cast<int>(graphType);
         return false;
     }
 }
@@ -2177,13 +2178,13 @@ bool GraphLayout::removeRTWRMarker(const GraphType &graphType, const QDateTime &
         if (removed)
         {
             redrawGraph(graphType);
-            qDebug() << "GraphLayout: Removed RTW R marker from graph type" << static_cast<int>(graphType);
+            DEBUG_OUT() << "GraphLayout: Removed RTW R marker from graph type" << static_cast<int>(graphType);
         }
         return removed;
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot remove RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot remove RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
         return false;
     }
 }
@@ -2195,11 +2196,11 @@ void GraphLayout::clearRTWSymbols(const GraphType &graphType)
     {
         it->second->clearRTWSymbols();
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Cleared RTW symbols for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cleared RTW symbols for graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot clear RTW symbols - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear RTW symbols - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2210,11 +2211,11 @@ void GraphLayout::clearBTWSymbols(const GraphType &graphType)
     {
         it->second->clearBTWSymbols();
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Cleared BTW symbols for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cleared BTW symbols for graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot clear BTW symbols - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear BTW symbols - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2225,11 +2226,11 @@ void GraphLayout::clearBTWMarkers(const GraphType &graphType)
     {
         it->second->clearBTWMarkers();
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Cleared BTW markers for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cleared BTW markers for graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot clear BTW markers - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear BTW markers - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2240,11 +2241,11 @@ void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
     {
         it->second->clearRTWRMarkers();
         redrawGraph(graphType);
-        qDebug() << "GraphLayout: Cleared RTW R markers for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cleared RTW R markers for graph type" << static_cast<int>(graphType);
     }
     else
     {
-        qDebug() << "GraphLayout: Cannot clear RTW R markers - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear RTW R markers - data source not found for graph type" << static_cast<int>(graphType);
     }
 }
 
@@ -2261,23 +2262,23 @@ bool GraphLayout::addBTWManualMarker(const QDateTime &timestamp, qreal rangeValu
             if (btwGraph) {
                 InteractiveGraphicsItem* marker = btwGraph->addBTWManualMarker(timestamp, rangeValue, bearingRate);
                 if (marker) {
-                    qDebug() << "GraphLayout::addBTWManualMarker: Marker created successfully";
+                    DEBUG_OUT() << "GraphLayout::addBTWManualMarker: Marker created successfully";
                     return true;
                 } else {
-                    qDebug() << "GraphLayout::addBTWManualMarker: Failed to create marker";
+                    DEBUG_OUT() << "GraphLayout::addBTWManualMarker: Failed to create marker";
                     return false;
                 }
             }
         }
     }
     
-    qDebug() << "GraphLayout::addBTWManualMarker: No BTW graph found";
+    DEBUG_OUT() << "GraphLayout::addBTWManualMarker: No BTW graph found";
     return false;
 }
 
 void GraphLayout::clearBTWManualMarkers()
 {
-    qDebug() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";
+    DEBUG_OUT() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";
     
     int markersCleared = 0;
     
@@ -2296,7 +2297,7 @@ void GraphLayout::clearBTWManualMarkers()
             {
                 btwGraph->getInteractiveOverlay()->clearAllMarkers();
                 markersCleared++;
-                qDebug() << "GraphLayout: Cleared BTW manual markers in container";
+                DEBUG_OUT() << "GraphLayout: Cleared BTW manual markers in container";
             }
         }
     }
@@ -2304,7 +2305,7 @@ void GraphLayout::clearBTWManualMarkers()
     // Redraw all graphs to ensure visual update
     redrawAllGraphs();
     
-    qDebug() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
+    DEBUG_OUT() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
 }
 
 // ========== BTW Horizontal Line API Implementation ==========
@@ -2316,7 +2317,7 @@ void GraphLayout::setBTWHorizontalLineMode(const GraphType &graphType, bool enab
         return;
     }
     
-    qDebug() << "GraphLayout: Setting BTW horizontal line mode to" << enabled;
+    DEBUG_OUT() << "GraphLayout: Setting BTW horizontal line mode to" << enabled;
     
     // Iterate through all containers to find BTW graphs
     for (auto *container : m_graphContainers)
@@ -2344,7 +2345,7 @@ QUuid GraphLayout::addBTWHorizontalLine(const GraphType &graphType, const QDateT
         return QUuid();
     }
     
-    qDebug() << "GraphLayout: Adding BTW horizontal line at time" << timestamp.toString();
+    DEBUG_OUT() << "GraphLayout: Adding BTW horizontal line at time" << timestamp.toString();
     
     QUuid lineId;
     bool lineAdded = false;
@@ -2383,7 +2384,7 @@ bool GraphLayout::removeBTWHorizontalLine(const GraphType &graphType, const QUui
         return false;
     }
     
-    qDebug() << "GraphLayout: Removing BTW horizontal line ID" << lineId.toString();
+    DEBUG_OUT() << "GraphLayout: Removing BTW horizontal line ID" << lineId.toString();
     
     bool lineRemoved = false;
     
@@ -2422,7 +2423,7 @@ void GraphLayout::clearBTWHorizontalLines(const GraphType &graphType)
         return;
     }
     
-    qDebug() << "GraphLayout: Clearing all BTW horizontal lines";
+    DEBUG_OUT() << "GraphLayout: Clearing all BTW horizontal lines";
     
     int linesCleared = 0;
     
@@ -2448,14 +2449,14 @@ void GraphLayout::clearBTWHorizontalLines(const GraphType &graphType)
     // Redraw all graphs
     redrawAllGraphs();
     
-    qDebug() << "GraphLayout: Cleared BTW horizontal lines from" << linesCleared << "graph(s)";
+    DEBUG_OUT() << "GraphLayout: Cleared BTW horizontal lines from" << linesCleared << "graph(s)";
 }
 
 // ========== Shaded Region API Implementation ==========
 
 QUuid GraphLayout::addShadedRegionToAllBTW(qreal startX, qreal endX)
 {
-    qDebug() << "GraphLayout: Adding shaded region to all BTW graphs - X range:" << startX << "to" << endX;
+    DEBUG_OUT() << "GraphLayout: Adding shaded region to all BTW graphs - X range:" << startX << "to" << endX;
     
     QUuid syncId;
     bool firstRegion = true;
@@ -2483,7 +2484,7 @@ QUuid GraphLayout::addShadedRegionToAllBTW(qreal startX, qreal endX)
                     // For now, create a sync ID here and use it
                     syncId = QUuid::createUuid();
                     
-                    qDebug() << "GraphLayout: Created shaded region in first BTW graph, regionId:" << regionId
+                    DEBUG_OUT() << "GraphLayout: Created shaded region in first BTW graph, regionId:" << regionId
                              << "syncId:" << syncId.toString();
                     firstRegion = false;
                 }
@@ -2519,13 +2520,13 @@ QUuid GraphLayout::addShadedRegionToAllBTW(qreal startX, qreal endX)
         m_syncState.addOrUpdateShadedRegion(syncData);
     }
     
-    qDebug() << "GraphLayout: Added shaded region to all BTW graphs, syncId:" << syncId.toString();
+    DEBUG_OUT() << "GraphLayout: Added shaded region to all BTW graphs, syncId:" << syncId.toString();
     return syncId;
 }
 
 bool GraphLayout::removeShadedRegionFromAllBTW(const QUuid &syncId)
 {
-    qDebug() << "GraphLayout: Removing shaded region from all BTW graphs - syncId:" << syncId.toString();
+    DEBUG_OUT() << "GraphLayout: Removing shaded region from all BTW graphs - syncId:" << syncId.toString();
     
     bool removed = false;
     
@@ -2545,7 +2546,7 @@ bool GraphLayout::removeShadedRegionFromAllBTW(const QUuid &syncId)
                 if (btwGraph->deleteShadedRegionBySyncId(syncId))
                 {
                     removed = true;
-                    qDebug() << "GraphLayout: Removed shaded region from BTW graph";
+                    DEBUG_OUT() << "GraphLayout: Removed shaded region from BTW graph";
                 }
             }
         }
@@ -2554,13 +2555,13 @@ bool GraphLayout::removeShadedRegionFromAllBTW(const QUuid &syncId)
     // Update sync state
     m_syncState.removeShadedRegion(syncId);
     
-    qDebug() << "GraphLayout: Shaded region removal complete, success:" << removed;
+    DEBUG_OUT() << "GraphLayout: Shaded region removal complete, success:" << removed;
     return removed;
 }
 
 void GraphLayout::clearAllShadedRegions()
 {
-    qDebug() << "GraphLayout: Clearing all shaded regions from all BTW graphs";
+    DEBUG_OUT() << "GraphLayout: Clearing all shaded regions from all BTW graphs";
     
     int regionsCleared = 0;
     
@@ -2579,7 +2580,7 @@ void GraphLayout::clearAllShadedRegions()
             {
                 btwGraph->clearShadedRegions();
                 regionsCleared++;
-                qDebug() << "GraphLayout: Cleared shaded regions in BTW graph";
+                DEBUG_OUT() << "GraphLayout: Cleared shaded regions in BTW graph";
             }
         }
     }
@@ -2587,7 +2588,7 @@ void GraphLayout::clearAllShadedRegions()
     // Clear sync state
     m_syncState.clearShadedRegions();
     
-    qDebug() << "GraphLayout: Cleared shaded regions from" << regionsCleared << "BTW graph(s)";
+    DEBUG_OUT() << "GraphLayout: Cleared shaded regions from" << regionsCleared << "BTW graph(s)";
 }
 
 std::vector<ShadedRegionSyncData> GraphLayout::getAllShadedRegions() const
@@ -2605,7 +2606,7 @@ void GraphLayout::redrawGraph(const GraphType &graphType)
         {
             // Redraw the specific graph type in this container
             container->redrawWaterfallGraph(graphType);
-            qDebug() << "GraphLayout: Redrew graph type" << static_cast<int>(graphType) << "in container";
+            DEBUG_OUT() << "GraphLayout: Redrew graph type" << static_cast<int>(graphType) << "in container";
         }
     }
 }
@@ -2619,12 +2620,12 @@ void GraphLayout::redrawAllGraphs()
             container->redrawWaterfallGraph();
         }
     }
-    qDebug() << "GraphLayout: Redrew all graphs";
+    DEBUG_OUT() << "GraphLayout: Redrew all graphs";
 }
 
 void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* unusedRange */)
 {
-    qDebug() << "GraphLayout: Adding BTW symbol (magenta circle) to all graphs at timestamp" << timestamp.toString();
+    DEBUG_OUT() << "GraphLayout: Adding BTW symbol (magenta circle) to all graphs at timestamp" << timestamp.toString();
     
     // Get all graph types
     std::vector<GraphType> allGraphTypes = getDataSourceLabels();
@@ -2641,7 +2642,7 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* u
         WaterfallData *dataSource = getDataSource(graphType);
         if (!dataSource || dataSource->isEmpty())
         {
-            qDebug() << "GraphLayout: Skipping graph type" << static_cast<int>(graphType) << "- no data source or empty";
+            DEBUG_OUT() << "GraphLayout: Skipping graph type" << static_cast<int>(graphType) << "- no data source or empty";
             continue;
         }
         
@@ -2680,11 +2681,11 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* u
         
         if (!foundDataPoint)
         {
-            qDebug() << "GraphLayout: No data point found at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "- skipping";
+            DEBUG_OUT() << "GraphLayout: No data point found at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "- skipping";
             continue;
         }
         
-        qDebug() << "GraphLayout: Found data point at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "with range" << dataPointRange;
+        DEBUG_OUT() << "GraphLayout: Found data point at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "with range" << dataPointRange;
         
         // Check if symbol already exists at this timestamp (deduplication)
         // Use binary search to check symbols within a small time window (100ms tolerance)
@@ -2704,18 +2705,18 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* u
         
         if (symbolExists)
         {
-            qDebug() << "GraphLayout: BTW symbol already exists in" << static_cast<int>(graphType) << "at this timestamp, skipping";
+            DEBUG_OUT() << "GraphLayout: BTW symbol already exists in" << static_cast<int>(graphType) << "at this timestamp, skipping";
             continue;
         }
         
         // Add magenta circle symbol to this graph's data source
         // Use the range value from the data point at this timestamp (not the BTW marker's range)
         dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange);
-        qDebug() << "GraphLayout: Added BTW symbol to graph type" << static_cast<int>(graphType) << "at timestamp" << timestamp.toString() << "with range" << dataPointRange << "(from data point)";
+        DEBUG_OUT() << "GraphLayout: Added BTW symbol to graph type" << static_cast<int>(graphType) << "at timestamp" << timestamp.toString() << "with range" << dataPointRange << "(from data point)";
         
         // Verify the symbol was added
         size_t symbolCount = dataSource->getBTWSymbolsCount();
-        qDebug() << "GraphLayout: Verified - graph type" << static_cast<int>(graphType) << "now has" << symbolCount << "BTW symbols";
+        DEBUG_OUT() << "GraphLayout: Verified - graph type" << static_cast<int>(graphType) << "now has" << symbolCount << "BTW symbols";
         
         // Trigger redraw of this graph - redraw all containers that might show this graph type
         redrawGraph(graphType);
@@ -2724,7 +2725,7 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* u
     // Redraw all graphs once to ensure symbols appear in all containers
     redrawAllGraphs();
     
-    qDebug() << "GraphLayout: Finished adding BTW symbols to all graphs";
+    DEBUG_OUT() << "GraphLayout: Finished adding BTW symbols to all graphs";
 }
 
 bool GraphLayout::hasHardRangeLimits(const GraphType graphType) const

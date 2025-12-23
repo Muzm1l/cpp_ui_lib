@@ -1,5 +1,6 @@
 #include "timelineview.h"
 #include "navtimeutils.h"
+#include "debugutils.h"
 #include <QBrush>
 #include <QDebug>
 #include <QFrame>
@@ -325,7 +326,7 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // Emit signal for the updated time window
     emitTimeScopeChanged();
 
-    // qDebug() << "Time interval set to:" << timeIntervalToString(interval)
+    // DEBUG_OUT() << "Time interval set to:" << timeIntervalToString(interval)
     //          << "Divisions:" << m_numberOfDivisions
     //          << "Segment duration:" << calculateSegmentDurationSeconds() << "seconds"
     //          << "Min segment height:" << getMinimumSegmentHeight();
@@ -436,7 +437,7 @@ void TimelineVisualizerWidget::updatePixelSpeed()
     double timeDiffSeconds = timeDiffMs / 1000.0;
     m_accumulatedOffset += m_pixelSpeed * timeDiffSeconds;
 
-    // qDebug() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset
+    // DEBUG_OUT() << "Pixel speed updated:" << m_pixelSpeed << "pixels/sec, time diff:" << timeDiffMs << "ms, accumulated offset:" << m_accumulatedOffset
     //          << "Segment duration:" << segmentDurationSeconds << "seconds";
 }
 
@@ -509,7 +510,7 @@ void TimelineVisualizerWidget::createDrawingObjects()
     if (widgetHeight <= 0)
     {
         widgetHeight = 300; // Default height for timeline view
-        // qDebug() << "Widget height is 0, using default height:" << widgetHeight;
+        // DEBUG_OUT() << "Widget height is 0, using default height:" << widgetHeight;
     }
 
     // Use fixed number of segments for all time intervals
@@ -520,7 +521,7 @@ void TimelineVisualizerWidget::createDrawingObjects()
     // Calculate segment height to fill the entire drawing area
     double segmentHeight = static_cast<double>(widgetHeight) / m_numberOfDivisions;
 
-    // qDebug() << "Creating drawing objects - Widget height:" << height()
+    // DEBUG_OUT() << "Creating drawing objects - Widget height:" << height()
     //          << "Using height:" << widgetHeight
     //          << "Draw area:" << drawArea
     //          << "Fixed divisions:" << m_numberOfDivisions
@@ -536,7 +537,7 @@ void TimelineVisualizerWidget::createDrawingObjects()
     int startSegment = -(segmentsNeeded / 2);
     int endSegment = segmentsNeeded / 2;
 
-    // qDebug() << "Creating fixed segments - Height:" << widgetHeight
+    // DEBUG_OUT() << "Creating fixed segments - Height:" << widgetHeight
     //          << "Fixed divisions:" << m_numberOfDivisions
     //          << "Segment height:" << segmentHeight
     //          << "Segments needed:" << segmentsNeeded
@@ -826,7 +827,7 @@ void TimelineVisualizerWidget::resizeEvent(QResizeEvent *event)
     QWidget::resizeEvent(event);
 
     // Recreate drawing objects with new dimensions
-    // qDebug() << "Widget resized to:" << size();
+    // DEBUG_OUT() << "Widget resized to:" << size();
     createDrawingObjects();
     
     // Invalidate background cache since size changed
@@ -1109,7 +1110,7 @@ void TimelineVisualizerWidget::mousePressEvent(QMouseEvent* event)
         {
             m_sliderState.startDrag(pos);
             setCursor(Qt::ClosedHandCursor);
-            qDebug() << "Slider drag started at Y:" << pos.y() << "Slider Y:" << m_sliderState.getYPosition();
+            DEBUG_OUT() << "Slider drag started at Y:" << pos.y() << "Slider Y:" << m_sliderState.getYPosition();
             event->accept();
             return;
         }
@@ -1197,7 +1198,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
             // Emit signal to notify parent TimelineView
             emit timelineViewModeChanged(TimelineViewMode::FOLLOW_MODE);
             
-            qDebug() << "Slider snapped to top - switched to FOLLOW_MODE";
+            DEBUG_OUT() << "Slider snapped to top - switched to FOLLOW_MODE";
         }
         else
         {
@@ -1207,7 +1208,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
             // Emit signal to notify parent TimelineView
             emit timelineViewModeChanged(TimelineViewMode::FROZEN_MODE);
             
-            qDebug() << "Slider not at top - switched to FROZEN_MODE at Y:" << sliderY;
+            DEBUG_OUT() << "Slider not at top - switched to FROZEN_MODE at Y:" << sliderY;
         }
         
         // Keep legacy member in sync
@@ -1237,7 +1238,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         
         // Emit signal when drag is complete (final update)
         emitTimeScopeChanged();
-        qDebug() << "Slider drag ended - Final window:" 
+        DEBUG_OUT() << "Slider drag ended - Final window:" 
                  << m_sliderVisibleWindow.startTime.toString("HH:mm:ss") 
                  << "to" << m_sliderVisibleWindow.endTime.toString("HH:mm:ss");
         
@@ -1715,7 +1716,7 @@ void TimelineView::setupTimer()
         m_timer->start();
     }
 
-    // qDebug() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
+    // DEBUG_OUT() << "TimelineView: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
 
 void TimelineView::onTimerTick()
@@ -1752,7 +1753,7 @@ void TimelineView::onTimerTick()
         }
     }
 
-    // qDebug() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
+    // DEBUG_OUT() << "TimelineView: Timer tick - updated current time to" << currentTime.toString();
 }
 
 void TimelineView::ensureTimerRunning()
@@ -1760,7 +1761,7 @@ void TimelineView::ensureTimerRunning()
     if (m_timer && !m_timer->isActive())
     {
         m_timer->start();
-        qDebug() << "TimelineView: Timer restarted to resume animation";
+        DEBUG_OUT() << "TimelineView: Timer restarted to resume animation";
     }
 }
 

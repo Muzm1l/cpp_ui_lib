@@ -1,4 +1,5 @@
 #include "waterfalldata.h"
+#include "debugutils.h"
 #include <algorithm>
 #include <limits>
 #include <QStringList>
@@ -39,7 +40,7 @@ void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<Q
 {
     // Validate that both vectors have the same size
     if (yData.size() != timestamps.size()) {
-        qDebug() << "Error: yData and timestamps must have the same size. yData size:" << yData.size() << "timestamps size:" << timestamps.size();
+        DEBUG_OUT() << "Error: yData and timestamps must have the same size. yData size:" << yData.size() << "timestamps size:" << timestamps.size();
         return;
     }
 
@@ -234,7 +235,7 @@ void WaterfallData::validateDataConsistency() const
     
     if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
         if (yIt->second.size() != tIt->second.size()) {
-            qDebug() << "Warning: Data inconsistency detected for series" << dataTitle
+            DEBUG_OUT() << "Warning: Data inconsistency detected for series" << dataTitle
                 << "- yData size:" << yIt->second.size() << "timestamps size:" << tIt->second.size();
         }
     }
@@ -247,7 +248,7 @@ void WaterfallData::validateDataSeriesConsistency(const QString& seriesLabel) co
 
     if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
         if (yIt->second.size() != tIt->second.size()) {
-            qDebug() << "Warning: Data series inconsistency detected for series" << seriesLabel
+            DEBUG_OUT() << "Warning: Data series inconsistency detected for series" << seriesLabel
                 << "- yData size:" << yIt->second.size() << "timestamps size:" << tIt->second.size();
         }
     }
@@ -259,7 +260,7 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
 {
     // Validate that both vectors have the same size
     if (yData.size() != timestamps.size()) {
-        qDebug() << "Error: yData and timestamps must have the same size for series" << seriesLabel
+        DEBUG_OUT() << "Error: yData and timestamps must have the same size for series" << seriesLabel
             << ". yData size:" << yData.size() << "timestamps size:" << timestamps.size();
         return;
     }
@@ -283,7 +284,7 @@ void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std:
 {
     // Validate that both vectors have the same size
     if (yValues.size() != timestamps.size()) {
-        qDebug() << "Error: yValues and timestamps must have the same size for series" << seriesLabel
+        DEBUG_OUT() << "Error: yValues and timestamps must have the same size for series" << seriesLabel
             << ". yValues size:" << yValues.size() << "timestamps size:" << timestamps.size();
         return;
     }
@@ -591,7 +592,7 @@ void WaterfallData::setDataSeries(const QString& seriesLabel, const std::vector<
 {
     // Validate that both vectors have the same size
     if (yData.size() != timestamps.size()) {
-        qDebug() << "Error: yData and timestamps must have the same size for series" << seriesLabel
+        DEBUG_OUT() << "Error: yData and timestamps must have the same size for series" << seriesLabel
             << ". yData size:" << yData.size() << "timestamps size:" << timestamps.size();
         return;
     }
@@ -718,7 +719,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getBinnedDataSeries(cons
     qint64 binSizeMs = QTime(0, 0, 0).msecsTo(binDuration);
     
     if (binSizeMs <= 0) {
-        qDebug() << "Warning: Invalid bin duration provided for series" << seriesLabel;
+        DEBUG_OUT() << "Warning: Invalid bin duration provided for series" << seriesLabel;
         return result;
     }
     
@@ -765,7 +766,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
     
     // Validate input data
     if (yData.empty() || timestamps.empty() || yData.size() != timestamps.size()) {
-        qDebug() << "WaterfallData::binDataByTime: Invalid input data - sizes don't match or data is empty";
+        DEBUG_OUT() << "WaterfallData::binDataByTime: Invalid input data - sizes don't match or data is empty";
         return result;
     }
     
@@ -773,7 +774,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
     qint64 binSizeMs = QTime(0, 0, 0).msecsTo(binDuration);
     
     if (binSizeMs <= 0) {
-        qDebug() << "WaterfallData::binDataByTime: Invalid bin duration provided";
+        DEBUG_OUT() << "WaterfallData::binDataByTime: Invalid bin duration provided";
         return result;
     }
     
@@ -806,7 +807,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
                   return a.second < b.second;
               });
     
-    qDebug() << "WaterfallData::binDataByTime: Binned" << yData.size() << "points into" << result.size() << "bins with duration" << binSizeMs << "ms";
+    DEBUG_OUT() << "WaterfallData::binDataByTime: Binned" << yData.size() << "points into" << result.size() << "bins with duration" << binSizeMs << "ms";
     
     return result;
 }
@@ -822,13 +823,13 @@ void WaterfallData::addRTWSymbol(const QString& symbolName, const QDateTime& tim
     
     rtwSymbols.push_back(symbolData);
     
-    qDebug() << "WaterfallData: Added RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: Added RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
 }
 
 void WaterfallData::clearRTWSymbols()
 {
     rtwSymbols.clear();
-    qDebug() << "WaterfallData: Cleared all RTW symbols";
+    DEBUG_OUT() << "WaterfallData: Cleared all RTW symbols";
 }
 
 bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
@@ -848,11 +849,11 @@ bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& 
         if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
         {
             rtwSymbols.erase(it);
-            qDebug() << "WaterfallData: Removed RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+            DEBUG_OUT() << "WaterfallData: Removed RTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
             return true;
         }
     }
-    qDebug() << "WaterfallData: RTW symbol not found:" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: RTW symbol not found:" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
     return false;
 }
 
@@ -876,13 +877,13 @@ void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& tim
     
     btwSymbols.push_back(symbolData);
     
-    qDebug() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
 }
 
 void WaterfallData::clearBTWSymbols()
 {
     btwSymbols.clear();
-    qDebug() << "WaterfallData: Cleared all BTW symbols";
+    DEBUG_OUT() << "WaterfallData: Cleared all BTW symbols";
 }
 
 std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
@@ -940,13 +941,13 @@ void WaterfallData::addBTWMarker(const QDateTime& timestamp, qreal range, qreal 
     
     btwMarkers.push_back(markerData);
     
-    qDebug() << "WaterfallData: Added BTW marker at timestamp" << timestamp.toString() << "with range" << range << "and delta" << delta;
+    DEBUG_OUT() << "WaterfallData: Added BTW marker at timestamp" << timestamp.toString() << "with range" << range << "and delta" << delta;
 }
 
 void WaterfallData::clearBTWMarkers()
 {
     btwMarkers.clear();
-    qDebug() << "WaterfallData: Cleared all BTW markers";
+    DEBUG_OUT() << "WaterfallData: Cleared all BTW markers";
 }
 
 bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
@@ -960,11 +961,11 @@ bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, qreal range, qre
         if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
         {
             btwMarkers.erase(it);
-            qDebug() << "WaterfallData: Removed BTW marker at timestamp" << timestamp.toString() << "with range" << range;
+            DEBUG_OUT() << "WaterfallData: Removed BTW marker at timestamp" << timestamp.toString() << "with range" << range;
             return true;
         }
     }
-    qDebug() << "WaterfallData: BTW marker not found at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: BTW marker not found at timestamp" << timestamp.toString() << "with range" << range;
     return false;
 }
 
@@ -1022,13 +1023,13 @@ void WaterfallData::addRTWRMarker(const QDateTime& timestamp, qreal range)
     
     rtwRMarkers.push_back(markerData);
     
-    qDebug() << "WaterfallData: Added RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: Added RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
 }
 
 void WaterfallData::clearRTWRMarkers()
 {
     rtwRMarkers.clear();
-    qDebug() << "WaterfallData: Cleared all RTW R markers";
+    DEBUG_OUT() << "WaterfallData: Cleared all RTW R markers";
 }
 
 bool WaterfallData::removeRTWRMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
@@ -1042,11 +1043,11 @@ bool WaterfallData::removeRTWRMarker(const QDateTime& timestamp, qreal range, qr
         if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
         {
             rtwRMarkers.erase(it);
-            qDebug() << "WaterfallData: Removed RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
+            DEBUG_OUT() << "WaterfallData: Removed RTW R marker at timestamp" << timestamp.toString() << "with range" << range;
             return true;
         }
     }
-    qDebug() << "WaterfallData: RTW R marker not found at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: RTW R marker not found at timestamp" << timestamp.toString() << "with range" << range;
     return false;
 }
 

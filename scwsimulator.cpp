@@ -1,11 +1,12 @@
 #include "scwsimulator.h"
+#include "debugutils.h"
 #include <QRandomGenerator>
 #include <QDateTime>
 
 SCWSimulator::SCWSimulator(QObject *parent, QTimer *timer, SCWWindow *scwWindow)
     : QObject(parent), m_timer(timer), m_scwWindow(scwWindow), m_running(false)
 {
-    qDebug() << "SCWSimulator constructor called with timer:" << m_timer << "scwWindow:" << m_scwWindow;
+    DEBUG_OUT() << "SCWSimulator constructor called with timer:" << m_timer << "scwWindow:" << m_scwWindow;
 
     // Initialize current values
     initializeCurrentValues();
@@ -16,15 +17,15 @@ SCWSimulator::SCWSimulator(QObject *parent, QTimer *timer, SCWWindow *scwWindow)
         connect(m_timer, &QTimer::timeout, this, &SCWSimulator::onTimerTick);
         connect(m_timer, &QObject::destroyed, this, [this]()
         {
-            qDebug() << "SCWSimulator: Connected timer destroyed, clearing pointer";
+            DEBUG_OUT() << "SCWSimulator: Connected timer destroyed, clearing pointer";
             m_timer = nullptr;
             m_running = false; 
         });
-        qDebug() << "SCWSimulator: Timer connected successfully";
+        DEBUG_OUT() << "SCWSimulator: Timer connected successfully";
     }
     else
     {
-        qDebug() << "SCWSimulator: No timer provided!";
+        DEBUG_OUT() << "SCWSimulator: No timer provided!";
     }
 }
 
@@ -49,21 +50,21 @@ void SCWSimulator::start()
             {
                 m_timer->start();
                 m_running = true;
-                qDebug() << "SCWSimulator started successfully";
+                DEBUG_OUT() << "SCWSimulator started successfully";
             }
             else
             {
-                qDebug() << "SCWSimulator start failed - timer parent is null";
+                DEBUG_OUT() << "SCWSimulator start failed - timer parent is null";
             }
         }
         catch (...)
         {
-            qDebug() << "SCWSimulator start failed - timer is invalid or being destroyed";
+            DEBUG_OUT() << "SCWSimulator start failed - timer is invalid or being destroyed";
         }
     }
     else
     {
-        qDebug() << "SCWSimulator start failed - timer:" << m_timer << "running:" << m_running;
+        DEBUG_OUT() << "SCWSimulator start failed - timer:" << m_timer << "running:" << m_running;
     }
 }
 
@@ -83,12 +84,12 @@ void SCWSimulator::stop()
             // Timer was already deleted, just continue
         }
         m_running = false;
-        qDebug() << "SCWSimulator stopped";
+        DEBUG_OUT() << "SCWSimulator stopped";
     }
     else if (m_running)
     {
         m_running = false;
-        qDebug() << "SCWSimulator stopped (timer was null)";
+        DEBUG_OUT() << "SCWSimulator stopped (timer was null)";
     }
 }
 
@@ -189,7 +190,7 @@ void SCWSimulator::addDataPoints()
 {
     if (!m_scwWindow)
     {
-        qDebug() << "SCWSimulator: No SCWWindow provided";
+        DEBUG_OUT() << "SCWSimulator: No SCWWindow provided";
         return;
     }
 
@@ -240,7 +241,7 @@ void SCWSimulator::addDataPoints()
     m_scwWindow->addDataPoints(SCW_SERIES_E::EXTERNAL4, ext4Data, timestamps);
     m_scwWindow->addDataPoints(SCW_SERIES_E::EXTERNAL5, ext5Data, timestamps);
 
-    qDebug() << "SCWSimulator: Added data points - RULER1:" << m_currentRuler1Value
+    DEBUG_OUT() << "SCWSimulator: Added data points - RULER1:" << m_currentRuler1Value
              << "RULER2:" << m_currentRuler2Value
              << "RULER3:" << m_currentRuler3Value
              << "RULER4:" << m_currentRuler4Value
@@ -260,7 +261,7 @@ void SCWSimulator::addDataPoints()
 
 void SCWSimulator::onTimerTick()
 {
-    qDebug() << "SCWSimulator::onTimerTick() called";
+    DEBUG_OUT() << "SCWSimulator::onTimerTick() called";
     updateValues();
     addDataPoints();
 }

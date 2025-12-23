@@ -1,15 +1,5 @@
 #include "ltwgraph.h"
-#include <QDebug>
-
-/**
- * @brief Construct a new LTWGraph::LTWGraph object
- *
- * @param parent Parent widget
- * @param enableGrid Whether to enable grid display
- * @param gridDivisions Number of grid divisions
- * @param timeInterval Time interval for the waterfall display
- */
-#include "ltwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 #include <QMouseEvent>
 // QEnterEvent not available in Qt5 for QWidget::enterEvent; using QEvent*
@@ -26,7 +16,7 @@
 LTWGraph::LTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
-    qDebug() << "LTWGraph constructor called";
+    DEBUG_OUT() << "LTWGraph constructor called";
 }
 
 /**
@@ -35,7 +25,7 @@ LTWGraph::LTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 LTWGraph::~LTWGraph()
 {
-    qDebug() << "LTWGraph destructor called";
+    DEBUG_OUT() << "LTWGraph destructor called";
 }
 
 /**
@@ -44,16 +34,16 @@ LTWGraph::~LTWGraph()
  */
 void LTWGraph::draw()
 {
-    qDebug() << "LTW: draw() called";
+    DEBUG_OUT() << "LTW: draw() called";
     
     if (!graphicsScene) {
-        qDebug() << "LTW: draw() early return - no graphicsScene";
+        DEBUG_OUT() << "LTW: draw() early return - no graphicsScene";
         return;
     }
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "LTWGraph: draw() already in progress, skipping";
+        DEBUG_OUT() << "LTWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -83,16 +73,16 @@ void LTWGraph::draw()
 
     if (dataSource && !dataSource->isEmpty())
     {
-        qDebug() << "LTW: draw() - dataSource available, updating ranges and drawing series";
+        DEBUG_OUT() << "LTW: draw() - dataSource available, updating ranges and drawing series";
         updateDataRanges();
         
         // Draw custom markers for each series with their respective colors
         std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
-        qDebug() << "LTW: draw() - found" << seriesLabels.size() << "series labels";
+        DEBUG_OUT() << "LTW: draw() - found" << seriesLabels.size() << "series labels";
         
         for (const QString &seriesLabel : seriesLabels)
         {
-            qDebug() << "LTW: draw() - processing series:" << seriesLabel << "visible:" << isSeriesVisible(seriesLabel);
+            DEBUG_OUT() << "LTW: draw() - processing series:" << seriesLabel << "visible:" << isSeriesVisible(seriesLabel);
             if (isSeriesVisible(seriesLabel))
             {
                 QColor seriesColor = getSeriesColor(seriesLabel);
@@ -102,7 +92,7 @@ void LTWGraph::draw()
                     // Draw curve for ADOPTED series without points (only on full redraw)
                     if (needsFullClear)
                     {
-                        qDebug() << "LTW: draw() - drawing ADOPTED series as line";
+                        DEBUG_OUT() << "LTW: draw() - drawing ADOPTED series as line";
                         drawDataLine(seriesLabel, false);
                     }
                 }
@@ -112,7 +102,7 @@ void LTWGraph::draw()
                     // Note: drawCustomMarkers doesn't support incremental yet, so always redraw on full clear
                     if (needsFullClear)
                     {
-                        qDebug() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
+                        DEBUG_OUT() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
                         drawCustomMarkers(seriesLabel, seriesColor);
                     }
                 }
@@ -121,7 +111,7 @@ void LTWGraph::draw()
     }
     else
     {
-        qDebug() << "LTW: draw() - no dataSource or dataSource is empty";
+        DEBUG_OUT() << "LTW: draw() - no dataSource or dataSource is empty";
     }
     
     // Draw BTW symbols (magenta circles) if any exist in data source (only on full redraw)
@@ -143,7 +133,7 @@ void LTWGraph::draw()
  */
 void LTWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "LTWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "LTWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -155,7 +145,7 @@ void LTWGraph::onMouseClick(const QPointF &scenePos)
  */
 void LTWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "LTWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "LTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -169,7 +159,7 @@ void LTWGraph::drawLTWScatterplot()
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("LTW-1"), Qt::green, 4.0, Qt::white);
 
-    qDebug() << "LTW scatterplot drawn";
+    DEBUG_OUT() << "LTW scatterplot drawn";
 }
 
 /**
@@ -182,16 +172,16 @@ void LTWGraph::drawLTWScatterplot()
 void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &markerColor)
 {
     if (!dataSource || !graphicsScene) {
-        qDebug() << "LTW: drawCustomMarkers early return - no dataSource or graphicsScene";
+        DEBUG_OUT() << "LTW: drawCustomMarkers early return - no dataSource or graphicsScene";
         return;
     }
 
     // Get total data size for comparison
     size_t totalDataSize = dataSource->getDataSeriesSize(seriesLabel);
-    qDebug() << "LTW: drawCustomMarkers called for series" << seriesLabel << "with total data size:" << totalDataSize;
+    DEBUG_OUT() << "LTW: drawCustomMarkers called for series" << seriesLabel << "with total data size:" << totalDataSize;
 
     if (totalDataSize == 0) {
-        qDebug() << "LTW: No data available for series" << seriesLabel;
+        DEBUG_OUT() << "LTW: No data available for series" << seriesLabel;
         return;
     }
 
@@ -214,11 +204,11 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
         }
     }
     
-    qDebug() << "LTW: Time range filtering - Total binned:" << binnedData.size() 
+    DEBUG_OUT() << "LTW: Time range filtering - Total binned:" << binnedData.size() 
              << "- Visible binned:" << visibleBinnedData.size()
              << "- Time range:" << timeMin.toString() << "to" << timeMax.toString();
 
-    qDebug() << "LTW: Binning completed for series" << seriesLabel 
+    DEBUG_OUT() << "LTW: Binning completed for series" << seriesLabel 
              << "- Total data:" << totalDataSize 
              << "- Binned data:" << binnedData.size()
              << "- Visible binned data:" << visibleBinnedData.size()
@@ -227,16 +217,16 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
     // Check if time range is valid and reasonable before drawing markers
     // Use the robust helper function that checks validity, range size, and reasonableness
     if (!isTimeRangeValidForDrawing()) {
-        qDebug() << "LTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
-        qDebug() << "LTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
-        qDebug() << "LTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
-        qDebug() << "LTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
+        DEBUG_OUT() << "LTW: Time range is invalid or unreasonable - skipping marker drawing until time range is properly set";
+        DEBUG_OUT() << "LTW: timeMin:" << timeMin.toString() << "valid:" << timeMin.isValid();
+        DEBUG_OUT() << "LTW: timeMax:" << timeMax.toString() << "valid:" << timeMax.isValid();
+        DEBUG_OUT() << "LTW: customTimeRangeEnabled:" << customTimeRangeEnabled;
         return;
     }
 
     if (visibleBinnedData.empty()) {
-        qDebug() << "LTW: No visible binned data available for series" << seriesLabel;
-        qDebug() << "LTW: Time range is valid but no data points within range - skipping marker drawing";
+        DEBUG_OUT() << "LTW: No visible binned data available for series" << seriesLabel;
+        DEBUG_OUT() << "LTW: Time range is valid but no data points within range - skipping marker drawing";
         return;
     }
 
@@ -282,6 +272,6 @@ void LTWGraph::drawCustomMarkers(const QString &seriesLabel, const QColor &marke
         }
     }
     
-    qDebug() << "LTW: Successfully drew" << markersDrawn << "markers for series" << seriesLabel;
+    DEBUG_OUT() << "LTW: Successfully drew" << markersDrawn << "markers for series" << seriesLabel;
 }
 

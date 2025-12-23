@@ -1,5 +1,6 @@
 #include "graphcontainer.h"
 #include "btwinteractiveoverlay.h"
+#include "debugutils.h"
 #include <QDebug>
 #include <QTimer>
 #include <stdexcept>
@@ -41,7 +42,7 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
         // Start the timer
         m_timer->start();
 
-        qDebug() << "GraphContainer: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
+        DEBUG_OUT() << "GraphContainer: Timer setup completed since none was provided - interval:" << m_timer->interval() << "ms";
     }
 
     // Create main horizontal layout with 1px spacing and no margins
@@ -92,16 +93,16 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     // Create TimelineView (conditionally based on showTimelineView) with timer and sync state
     if (m_showTimelineView)
     {
-        qDebug() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
+        DEBUG_OUT() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
         m_timelineView = new TimelineView(this, m_timer, m_syncState);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
-        qDebug() << "GraphContainer constructor: TimelineView created and added to layout";
+        DEBUG_OUT() << "GraphContainer constructor: TimelineView created and added to layout";
     }
     else
     {
-        qDebug() << "GraphContainer constructor: Not creating TimelineView, showTimelineView = false";
+        DEBUG_OUT() << "GraphContainer constructor: Not creating TimelineView, showTimelineView = false";
         m_timelineView = nullptr;
     }
 
@@ -138,7 +139,7 @@ void GraphContainer::setupTimer()
         m_timer->start();
     }
 
-    qDebug() << "GraphContainer: Timer setup completed - interval:" << m_timer->interval() << "ms";
+    DEBUG_OUT() << "GraphContainer: Timer setup completed - interval:" << m_timer->interval() << "ms";
 }
 
 void GraphContainer::onTimerTick()
@@ -222,7 +223,7 @@ void GraphContainer::onTimerTick()
         }
     } //------------syed-----------------------------------
 
-    // qDebug() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
+    // DEBUG_OUT() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
 }
 
 GraphContainer::~GraphContainer()
@@ -237,26 +238,26 @@ GraphContainer::~GraphContainer()
 
 void GraphContainer::setShowTimelineView(bool showTimelineView)
 {
-    qDebug() << "GraphContainer::setShowTimelineView called with:" << showTimelineView;
+    DEBUG_OUT() << "GraphContainer::setShowTimelineView called with:" << showTimelineView;
     m_showTimelineView = showTimelineView;
     if (m_timelineView)
     {
-        qDebug() << "GraphContainer: Setting existing TimelineView visibility to:" << showTimelineView;
+        DEBUG_OUT() << "GraphContainer: Setting existing TimelineView visibility to:" << showTimelineView;
         m_timelineView->setVisible(showTimelineView);
-        qDebug() << "GraphContainer: TimelineView visibility after setting:" << m_timelineView->isVisible();
-        qDebug() << "GraphContainer: TimelineView size:" << m_timelineView->size();
+        DEBUG_OUT() << "GraphContainer: TimelineView visibility after setting:" << m_timelineView->isVisible();
+        DEBUG_OUT() << "GraphContainer: TimelineView size:" << m_timelineView->size();
     }
     else
     {
-        qDebug() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
+        DEBUG_OUT() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
         m_timelineView = new TimelineView(this, m_timer, m_syncState);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         // Insert at position 0 (leftmost) to match the reversed layout order
         m_mainLayout->insertWidget(0, m_timelineView);
         m_timelineView->setVisible(showTimelineView);
-        qDebug() << "GraphContainer: New TimelineView visibility after setting:" << m_timelineView->isVisible();
-        qDebug() << "GraphContainer: New TimelineView size:" << m_timelineView->size();
+        DEBUG_OUT() << "GraphContainer: New TimelineView visibility after setting:" << m_timelineView->isVisible();
+        DEBUG_OUT() << "GraphContainer: New TimelineView size:" << m_timelineView->size();
 
         // Re-establish event connections to include the new TimelineView
         setupEventConnections();
@@ -265,7 +266,7 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->setVisible(showTimelineView);
-        qDebug() << "GraphContainer: TimelineSelectionView visibility set to:" << showTimelineView;
+        DEBUG_OUT() << "GraphContainer: TimelineSelectionView visibility set to:" << showTimelineView;
     }
 
     // Update container size when timeline view visibility changes
@@ -512,7 +513,7 @@ void GraphContainer::addDataOption(const GraphType graphType, WaterfallData &dat
         setCurrentDataOption(graphType);
     }
 
-    qDebug() << "Added data option:" << title;
+    DEBUG_OUT() << "Added data option:" << title;
 }
 
 void GraphContainer::removeDataOption(const GraphType graphType)
@@ -541,7 +542,7 @@ void GraphContainer::removeDataOption(const GraphType graphType)
             }
         }
 
-        qDebug() << "Removed data option:" << title;
+        DEBUG_OUT() << "Removed data option:" << title;
     }
 }
 
@@ -557,7 +558,7 @@ void GraphContainer::clearDataOptions()
     // Initialize zoom panel limits for the default data source
     initializeZoomPanelLimits();
 
-    qDebug() << "Cleared all data options";
+    DEBUG_OUT() << "Cleared all data options";
 }
 
 void GraphContainer::setCurrentDataOption(const GraphType graphType)
@@ -581,13 +582,13 @@ void GraphContainer::setCurrentDataOption(const GraphType graphType)
     {
         m_zoomPanel->resetUserModifiedFlag();
         m_zoomPanel->resetIndicatorToFullRange();
-        qDebug() << "GraphContainer: Reset zoom panel state for new graph:" << title;
+        DEBUG_OUT() << "GraphContainer: Reset zoom panel state for new graph:" << title;
     }
 
     // Initialize zoom panel limits for the new data source
     initializeZoomPanelLimits();
 
-    qDebug() << "Set current data option to:" << title;
+    DEBUG_OUT() << "Set current data option to:" << title;
 }
 
 GraphType GraphContainer::getCurrentDataOption() const
@@ -712,7 +713,7 @@ void GraphContainer::setupEventConnections()
                 this, &GraphContainer::onTimeSelectionMade);
     }
 
-    qDebug() << "GraphContainer: All event connections established";
+    DEBUG_OUT() << "GraphContainer: All event connections established";
 }
 
 void GraphContainer::setupEventConnectionsForWaterfallGraph()
@@ -731,7 +732,7 @@ void GraphContainer::setupEventConnectionsForWaterfallGraph()
     connect(m_currentWaterfallGraph, &WaterfallGraph::markerTimestampValueChanged,
             this, &GraphContainer::markerTimestampValueChanged);
 
-    qDebug() << "GraphContainer: Event connections established for waterfall graph";
+    DEBUG_OUT() << "GraphContainer: Event connections established for waterfall graph";
 }
 
 WaterfallGraph *GraphContainer::createWaterfallGraph(GraphType graphType)
@@ -802,7 +803,7 @@ void GraphContainer::createAllWaterfallGraphs()
                 this, &GraphContainer::markerTimestampValueChanged);
     }
     
-    qDebug() << "GraphContainer: Created all waterfall graph instances";
+    DEBUG_OUT() << "GraphContainer: Created all waterfall graph instances";
 }
 
 void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphType graphType)
@@ -904,7 +905,7 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {
         connect(this, &GraphContainer::DeleteInteractiveMarkers,
                 btwGraph, &BTWGraph::deleteInteractiveMarkers);
-        qDebug() << "GraphContainer: Connected DeleteInteractiveMarkers signal to BTWGraph";
+        DEBUG_OUT() << "GraphContainer: Connected DeleteInteractiveMarkers signal to BTWGraph";
         
         // Connect BTW marker signals
         connect(btwGraph, &BTWGraph::manualMarkerPlaced,
@@ -930,19 +931,19 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(btwGraph, &BTWGraph::shadedRegionsCleared,
                 this, &GraphContainer::ShadedRegionsSyncCleared);
         
-        qDebug() << "GraphContainer: Connected BTW marker and shaded region sync signals";
+        DEBUG_OUT() << "GraphContainer: Connected BTW marker and shaded region sync signals";
     }
     
     // Connect RTW R marker signal
     if (auto rtwGraph = qobject_cast<RTWGraph*>(graph)) {
         connect(rtwGraph, &RTWGraph::rMarkerTimestampCaptured,
                 this, &GraphContainer::onRTWRMarkerTimestampCaptured);
-        qDebug() << "GraphContainer: Connected RTW R marker timestamp signal";
+        DEBUG_OUT() << "GraphContainer: Connected RTW R marker timestamp signal";
         
         // Connect RTW symbol signal
         connect(rtwGraph, &RTWGraph::rtwSymbolTimestampCaptured,
                 this, &GraphContainer::onRTWSymbolTimestampCaptured);
-        qDebug() << "GraphContainer: Connected RTW symbol timestamp signal";
+        DEBUG_OUT() << "GraphContainer: Connected RTW symbol timestamp signal";
     }
 }
 
@@ -999,7 +1000,7 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
         targetGraph->setVisible(true);
         applyCursorTimeToGraph(targetGraph);
         
-        qDebug() << "GraphContainer: Switched to waterfall graph type:" << graphTypeToString(graphType);
+        DEBUG_OUT() << "GraphContainer: Switched to waterfall graph type:" << graphTypeToString(graphType);
     }
     else
     {
@@ -1046,7 +1047,7 @@ void GraphContainer::subscribeToIntervalChange(QObject *subscriber, const char *
     {
         // Use the old Qt syntax for connecting to string-based slots
         connect(this, SIGNAL(IntervalChanged(TimeInterval)), subscriber, slot);
-        qDebug() << "GraphContainer: External subscriber connected to interval change signal";
+        DEBUG_OUT() << "GraphContainer: External subscriber connected to interval change signal";
     }
     else
     {
@@ -1056,7 +1057,7 @@ void GraphContainer::subscribeToIntervalChange(QObject *subscriber, const char *
 
 void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
 {
-    qDebug() << "GraphContainer: Handling time interval change to" << timeIntervalToString(interval);
+    DEBUG_OUT() << "GraphContainer: Handling time interval change to" << timeIntervalToString(interval);
 
     // Update the time interval locally
     updateTimeInterval(interval);
@@ -1076,7 +1077,7 @@ void GraphContainer::onGraphContainerInFollowModeChanged(bool isInFollowMode)
         m_syncState->isGraphContainerInFollowMode = isInFollowMode;
     }
     
-    qDebug() << "GraphContainer: Graph container in follow mode changed to" << isInFollowMode;
+    DEBUG_OUT() << "GraphContainer: Graph container in follow mode changed to" << isInFollowMode;
 }
 
 void GraphContainer::updateTimeInterval(TimeInterval interval)
@@ -1248,13 +1249,13 @@ void GraphContainer::testSelectionRectangle()
     if (m_currentWaterfallGraph)
     {
         m_currentWaterfallGraph->testSelectionRectangle();
-        qDebug() << "GraphContainer: Test selection rectangle called";
+        DEBUG_OUT() << "GraphContainer: Test selection rectangle called";
     }
 }
 
 void GraphContainer::setCurrentTime(const QTime &time)
 {
-    qDebug() << "GraphContainer: Setting current time to" << time.toString();
+    DEBUG_OUT() << "GraphContainer: Setting current time to" << time.toString();
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->setCurrentTime(time);
@@ -1299,12 +1300,12 @@ void GraphContainer::applySharedTimeAxisCursor(const QDateTime &time)
 
 void GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
 {
-    qDebug() << "GraphContainer: Adding time selection from" << selection.startTime.toString() << "to" << selection.endTime.toString();
+    DEBUG_OUT() << "GraphContainer: Adding time selection from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->addTimeSelection(selection);
-        qDebug() << "GraphContainer: Time selection added to timeline selection view";
+        DEBUG_OUT() << "GraphContainer: Time selection added to timeline selection view";
     }
     else
     {
@@ -1314,12 +1315,12 @@ void GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
 
 void GraphContainer::clearTimeSelections()
 {
-    qDebug() << "GraphContainer: Clearing all time selections";
+    DEBUG_OUT() << "GraphContainer: Clearing all time selections";
 
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->clearTimeSelections();
-        qDebug() << "GraphContainer: All time selections cleared from timeline selection view";
+        DEBUG_OUT() << "GraphContainer: All time selections cleared from timeline selection view";
 
         // Emit signal to notify external components
         emit TimeSelectionsCleared();
@@ -1332,12 +1333,12 @@ void GraphContainer::clearTimeSelections()
 
 void GraphContainer::clearTimeSelectionsSilent()
 {
-    qDebug() << "GraphContainer: Silently clearing all time selections (no signal emission)";
+    DEBUG_OUT() << "GraphContainer: Silently clearing all time selections (no signal emission)";
 
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->clearTimeSelections();
-        qDebug() << "GraphContainer: All time selections cleared from timeline selection view (silent)";
+        DEBUG_OUT() << "GraphContainer: All time selections cleared from timeline selection view (silent)";
 
         // Do NOT emit signal to prevent cyclic dependencies
     }
@@ -1349,7 +1350,7 @@ void GraphContainer::clearTimeSelectionsSilent()
 
 void GraphContainer::deleteInteractiveMarkers()
 {
-    qDebug() << "GraphContainer: deleteInteractiveMarkers invoked";
+    DEBUG_OUT() << "GraphContainer: deleteInteractiveMarkers invoked";
     emit DeleteInteractiveMarkers();
 }
 
@@ -1357,7 +1358,7 @@ void GraphContainer::initializeZoomPanelLimits()
 {
     if (!m_zoomPanel)
     {
-        qDebug() << "GraphContainer: Cannot initialize zoom panel limits - no zoom panel";
+        DEBUG_OUT() << "GraphContainer: Cannot initialize zoom panel limits - no zoom panel";
         return;
     }
 
@@ -1371,7 +1372,7 @@ void GraphContainer::initializeZoomPanelLimits()
 
     if (!currentDataSource || currentDataSource->isEmpty())
     {
-        qDebug() << "GraphContainer: Cannot initialize zoom panel limits - no data available";
+        DEBUG_OUT() << "GraphContainer: Cannot initialize zoom panel limits - no data available";
         return;
     }
 
@@ -1388,7 +1389,7 @@ void GraphContainer::initializeZoomPanelLimits()
         dataMin = rangeLimit.first;
         dataMax = rangeLimit.second;
 
-        qDebug() << "GraphContainer: Using stored range limit for" << graphTypeToString(currentDataOption) << "- Min:" << dataMin << "Max:" << dataMax;
+        DEBUG_OUT() << "GraphContainer: Using stored range limit for" << graphTypeToString(currentDataOption) << "- Min:" << dataMin << "Max:" << dataMax;
     }
 
 
@@ -1412,14 +1413,14 @@ void GraphContainer::initializeZoomPanelLimits()
             m_currentWaterfallGraph->setZeroAxisValue(centerValue);
         }
         
-        qDebug() << "GraphContainer: Zoom panel limits updated - Min:" << dataMin
+        DEBUG_OUT() << "GraphContainer: Zoom panel limits updated - Min:" << dataMin
                  << "Center:" << centerValue << "Max:" << dataMax << "- User has not customized";
     }
     else
     {
         // User has customized - don't update anything (preserve all zoom state)
         // Original values remain constant, display values remain unchanged
-        qDebug() << "GraphContainer: Zoom panel limits NOT updated - user has customized zoom - preserving state";
+        DEBUG_OUT() << "GraphContainer: Zoom panel limits NOT updated - user has customized zoom - preserving state";
     }
 }
 
@@ -1453,7 +1454,7 @@ void GraphContainer::onDataChanged(GraphType graphType)
                 {
                     // Initialize graph time range from timeline view's current window
                     m_currentWaterfallGraph->setTimeRange(timelineWindow.startTime, timelineWindow.endTime);
-                    qDebug() << "GraphContainer: Initialized graph time range from timeline view -" 
+                    DEBUG_OUT() << "GraphContainer: Initialized graph time range from timeline view -" 
                              << timelineWindow.startTime.toString() << "to" << timelineWindow.endTime.toString();
                 }
             }
@@ -1486,7 +1487,7 @@ void GraphContainer::onDataChanged(GraphType graphType)
                             TimeSelectionSpan newWindow(newTimeMin, newTimeMax);
                             timelineView->setVisibleTimeWindow(newWindow);
                             
-                            qDebug() << "GraphContainer: Updated time range to show new data -" 
+                            DEBUG_OUT() << "GraphContainer: Updated time range to show new data -" 
                                      << newTimeMin.toString() << "to" << newTimeMax.toString();
                         }
                     }
@@ -1507,7 +1508,7 @@ void GraphContainer::onDataChanged(GraphType graphType)
         if (m_timer && !m_timer->isActive())
         {
             m_timer->start();
-            qDebug() << "GraphContainer: Timer restarted after data change to continue animation";
+            DEBUG_OUT() << "GraphContainer: Timer restarted after data change to continue animation";
         }
 
         // Update valid time range in TimeSelectionVisualizer from available data
@@ -1521,21 +1522,21 @@ void GraphContainer::onDataChanged(GraphType graphType)
                     QTime startTime = timeRange.first.time();
                     QTime endTime = timeRange.second.time();
                     m_timelineSelectionView->setValidSelectionRange(startTime, endTime);
-                    qDebug() << "GraphContainer: Updated TimeSelectionVisualizer valid range to" 
+                    DEBUG_OUT() << "GraphContainer: Updated TimeSelectionVisualizer valid range to" 
                              << startTime.toString() << "to" << endTime.toString();
                 }
                 else
                 {
                     // If time range is invalid, clear the valid range
                     m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
-                    qDebug() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
+                    DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
                 }
             }
             catch (const std::runtime_error &e)
             {
                 // If data is empty or not available, clear the valid range
                 m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
-                qDebug() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
+                DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
             }
         }
     }
@@ -1545,11 +1546,11 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
 {
     if (!m_currentWaterfallGraph)
     {
-        qDebug() << "GraphContainer: Cannot update waterfall graph - no waterfall graph";
+        DEBUG_OUT() << "GraphContainer: Cannot update waterfall graph - no waterfall graph";
         return;
     }
 
-    qDebug() << "GraphContainer: Received interpolated zoom bounds - Lower:" << bounds.lowerbound
+    DEBUG_OUT() << "GraphContainer: Received interpolated zoom bounds - Lower:" << bounds.lowerbound
         << "Upper:" << bounds.upperbound;
 
     // The bounds are already interpolated by the zoom panel, so use them directly
@@ -1580,43 +1581,43 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
             if (overlay)
             {
                 overlay->syncMarkersWithTimeline();
-                qDebug() << "GraphContainer: Synced BTW markers with zoom panel";
+                DEBUG_OUT() << "GraphContainer: Synced BTW markers with zoom panel";
             }
         }
     }
 
-    qDebug() << "GraphContainer: Custom Y range set directly from interpolated bounds and time range updated";
+    DEBUG_OUT() << "GraphContainer: Custom Y range set directly from interpolated bounds and time range updated";
 }
 
 void GraphContainer::onClearTimeSelectionsButtonClicked()
 {
-    qDebug() << "GraphContainer: Clear time selections button clicked";
+    DEBUG_OUT() << "GraphContainer: Clear time selections button clicked";
     clearTimeSelections();
 }
 
 // Marker timestamp slot implementations
 void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position)
 {
-    qDebug() << "GraphContainer: RTW R marker timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    DEBUG_OUT() << "GraphContainer: RTW R marker timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit RTWRMarkerTimestampCaptured(timestamp, position);
 }
 
 void GraphContainer::onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName)
 {
-    qDebug() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") 
+    DEBUG_OUT() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") 
              << "symbol:" << symbolName;
     emit RTWSymbolTimestampCaptured(timestamp, position, symbolName);
 }
 
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
 {
-    qDebug() << "GraphContainer: BTW manual marker placed:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    DEBUG_OUT() << "GraphContainer: BTW manual marker placed:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWManualMarkerPlaced(timestamp, position);
 }
 
 void GraphContainer::onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position)
 {
-    qDebug() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    DEBUG_OUT() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWManualMarkerClicked(timestamp, position);
 }
 
@@ -1633,10 +1634,10 @@ void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerD
             // Check if marker already exists
             if (btwGraph->hasMarkerWithSyncId(markerData.id)) {
                 btwGraph->updateMarkerFromSyncData(markerData);
-                qDebug() << "GraphContainer: Updated synced BTW marker:" << markerData.id.toString();
+                DEBUG_OUT() << "GraphContainer: Updated synced BTW marker:" << markerData.id.toString();
             } else {
                 btwGraph->createMarkerFromSyncData(markerData);
-                qDebug() << "GraphContainer: Created synced BTW marker:" << markerData.id.toString();
+                DEBUG_OUT() << "GraphContainer: Created synced BTW marker:" << markerData.id.toString();
             }
         }
     }
@@ -1653,7 +1654,7 @@ void GraphContainer::onBTWMarkerSyncDeleted(const QUuid &markerId)
         BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
         if (btwGraph) {
             btwGraph->deleteMarkerBySyncId(markerId);
-            qDebug() << "GraphContainer: Deleted synced BTW marker:" << markerId.toString();
+            DEBUG_OUT() << "GraphContainer: Deleted synced BTW marker:" << markerId.toString();
         }
     }
 }
@@ -1670,7 +1671,7 @@ void GraphContainer::onShadedRegionSyncAdded(const ShadedRegionSyncData &regionD
             // Check if region already exists
             if (!btwGraph->hasShadedRegionWithSyncId(regionData.syncId)) {
                 btwGraph->createShadedRegionFromSyncData(regionData);
-                qDebug() << "GraphContainer: Created synced shaded region:" << regionData.syncId.toString();
+                DEBUG_OUT() << "GraphContainer: Created synced shaded region:" << regionData.syncId.toString();
             }
         }
     }
@@ -1686,7 +1687,7 @@ void GraphContainer::onShadedRegionSyncRemoved(const QUuid &syncId)
         BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
         if (btwGraph) {
             btwGraph->deleteShadedRegionBySyncId(syncId);
-            qDebug() << "GraphContainer: Deleted synced shaded region:" << syncId.toString();
+            DEBUG_OUT() << "GraphContainer: Deleted synced shaded region:" << syncId.toString();
         }
     }
 }
@@ -1703,7 +1704,7 @@ void GraphContainer::onShadedRegionsSyncCleared()
         if (btwGraph) {
             // For now, we'll need to track and delete each region individually
             // to avoid emitting new clear signals
-            qDebug() << "GraphContainer: Shaded regions sync cleared received";
+            DEBUG_OUT() << "GraphContainer: Shaded regions sync cleared received";
             // Note: Full implementation would require a clearWithoutSignal method
         }
     }
@@ -1715,7 +1716,7 @@ void GraphContainer::setChevronLabel1(const QString &label)
     if (m_timelineView)
     {
         m_timelineView->setChevronLabel1(label);
-        qDebug() << "GraphContainer: Set chevron label 1 to:" << label;
+        DEBUG_OUT() << "GraphContainer: Set chevron label 1 to:" << label;
     }
     else
     {
@@ -1728,7 +1729,7 @@ void GraphContainer::setChevronLabel2(const QString &label)
     if (m_timelineView)
     {
         m_timelineView->setChevronLabel2(label);
-        qDebug() << "GraphContainer: Set chevron label 2 to:" << label;
+        DEBUG_OUT() << "GraphContainer: Set chevron label 2 to:" << label;
     }
     else
     {
@@ -1741,7 +1742,7 @@ void GraphContainer::setChevronLabel3(const QString &label)
     if (m_timelineView)
     {
         m_timelineView->setChevronLabel3(label);
-        qDebug() << "GraphContainer: Set chevron label 3 to:" << label;
+        DEBUG_OUT() << "GraphContainer: Set chevron label 3 to:" << label;
     }
     else
     {
@@ -1809,7 +1810,7 @@ void GraphContainer::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)
     if (m_timelineView)
     {
         m_timelineView->setManoeuvres(manoeuvres);
-        qDebug() << "GraphContainer: Set manoeuvres to timeline view - count:" << (manoeuvres ? manoeuvres->size() : 0);
+        DEBUG_OUT() << "GraphContainer: Set manoeuvres to timeline view - count:" << (manoeuvres ? manoeuvres->size() : 0);
     }
     else
     {
@@ -1859,7 +1860,7 @@ void GraphContainer::setGraphRangeLimits(const GraphType graphType, qreal yMin, 
         // Reset indicator to full range to restore initial state
         m_zoomPanel->resetIndicatorToFullRange();
 
-        qDebug() << "GraphContainer: Applied stored range limits for" << graphTypeToString(graphType)
+        DEBUG_OUT() << "GraphContainer: Applied stored range limits for" << graphTypeToString(graphType)
                  << "- Min:" << yMin << "Max:" << yMax << "- Auto-update disabled";
     }
 }
@@ -1873,7 +1874,7 @@ void GraphContainer::removeGraphRangeLimits(const GraphType graphType)
     {
         // Enable auto-update Y range for graphs without stored limits
         m_currentWaterfallGraph->setAutoUpdateYRange(true);
-        qDebug() << "GraphContainer: No stored range limits for" << graphTypeToString(graphType)
+        DEBUG_OUT() << "GraphContainer: No stored range limits for" << graphTypeToString(graphType)
                  << "- Auto-update enabled";
     }
 }
@@ -1883,7 +1884,7 @@ void GraphContainer::clearAllGraphRangeLimits()
     graphRangeLimits.clear();
 
     m_currentWaterfallGraph->setAutoUpdateYRange(true);
-    qDebug() << "GraphContainer: Cleared all range limits - Auto-update enabled";
+    DEBUG_OUT() << "GraphContainer: Cleared all range limits - Auto-update enabled";
 }
 
 bool GraphContainer::hasGraphRangeLimits(const GraphType graphType) const

@@ -1,4 +1,5 @@
 #include "bdwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 
 /**
@@ -12,7 +13,7 @@
 BDWGraph::BDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
-    qDebug() << "BDWGraph constructor called";
+    DEBUG_OUT() << "BDWGraph constructor called";
 }
 
 /**
@@ -21,7 +22,7 @@ BDWGraph::BDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 BDWGraph::~BDWGraph()
 {
-    qDebug() << "BDWGraph destructor called";
+    DEBUG_OUT() << "BDWGraph destructor called";
 }
 
 /**
@@ -35,7 +36,7 @@ void BDWGraph::draw()
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "BDWGraph: draw() already in progress, skipping";
+        DEBUG_OUT() << "BDWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -117,7 +118,7 @@ void BDWGraph::draw()
  */
 void BDWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "BDWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "BDWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -129,7 +130,7 @@ void BDWGraph::onMouseClick(const QPointF &scenePos)
  */
 void BDWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "BDWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "BDWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -144,7 +145,7 @@ void BDWGraph::drawBDWScatterplot()
     // TODO: Change
     drawScatterplot(QString("BDW-1"), Qt::magenta, 4.0, Qt::white);
 
-    qDebug() << "BDW scatterplot drawn";
+    DEBUG_OUT() << "BDW scatterplot drawn";
 }
 
 /**
@@ -172,7 +173,7 @@ void BDWGraph::drawZeroAxis()
     // Draw the vertical line
     graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
     
-    qDebug() << "BDW zero axis drawn at x:" << zeroPoint.x();
+    DEBUG_OUT() << "BDW zero axis drawn at x:" << zeroPoint.x();
 }
 
 /**
@@ -191,13 +192,13 @@ void BDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 
     if (yData.empty() || timestamps.empty())
     {
-        qDebug() << "BDW: drawDataLine - no data available for series" << seriesLabel;
+        DEBUG_OUT() << "BDW: drawDataLine - no data available for series" << seriesLabel;
         return;
     }
 
     if (yData.size() != timestamps.size())
     {
-        qDebug() << "BDW: drawDataLine - data size mismatch for series" << seriesLabel
+        DEBUG_OUT() << "BDW: drawDataLine - data size mismatch for series" << seriesLabel
                  << "- yData:" << yData.size() << "timestamps:" << timestamps.size();
         return;
     }
@@ -223,7 +224,7 @@ void BDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 
     if (visibleData.empty())
     {
-        qDebug() << "BDW: drawDataLine - no visible points within current time range for series" << seriesLabel;
+        DEBUG_OUT() << "BDW: drawDataLine - no visible points within current time range for series" << seriesLabel;
         return;
     }
 
@@ -235,7 +236,7 @@ void BDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
         QPen pointPen(seriesColor, 0); // No stroke (width 0)
         graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-        qDebug() << "BDW data line drawn (dashed) for series" << seriesLabel << "with 1 visible point";
+        DEBUG_OUT() << "BDW data line drawn (dashed) for series" << seriesLabel << "with 1 visible point";
         return;
     }
 
@@ -269,6 +270,6 @@ void BDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         }
     }
 
-    qDebug() << "BDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size()
+    DEBUG_OUT() << "BDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size()
              << "visible points out of" << yData.size() << "total points";
 }

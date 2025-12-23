@@ -1,4 +1,5 @@
 #include "twoaxisgraph.h"
+#include "debugutils.h"
 #include <QtGui/QResizeEvent>
 #include <QtWidgets/QGraphicsSimpleTextItem>
 
@@ -66,7 +67,7 @@ void TwoAxisGraph::paintEvent(QPaintEvent* event)
         scene->render(&painter, rect(), scene->sceneRect());
     }
 
-    qDebug() << "Paint event - Widget size:" << width() << "x" << height();
+    DEBUG_OUT() << "Paint event - Widget size:" << width() << "x" << height();
 }
 
 /**
@@ -82,7 +83,7 @@ void TwoAxisGraph::resizeEvent(QResizeEvent* event)
         // Redraw will happen in paintEvent
         update();
 
-        qDebug() << "Resize event - New size:" << size();
+        DEBUG_OUT() << "Resize event - New size:" << size();
     }
 }
 
@@ -110,7 +111,7 @@ void TwoAxisGraph::draw()
     // drawTestPattern();
     drawCursor();
 
-    qDebug() << "Draw completed - Scene rect:" << scene->sceneRect();
+    DEBUG_OUT() << "Draw completed - Scene rect:" << scene->sceneRect();
 }
 
 /**
@@ -404,7 +405,7 @@ void TwoAxisGraph::mouseMoveEvent(QMouseEvent* event)
 
     currentMousePos = event->pos();
 
-    qDebug() << "Mouse Position [" << eventCount << "] -"
+    DEBUG_OUT() << "Mouse Position [" << eventCount << "] -"
         << "Widget:" << currentMousePos;
     //  << "(Processed" << (100 - dropPercentage) << "% of events)";
 

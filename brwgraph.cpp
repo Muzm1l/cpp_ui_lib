@@ -1,4 +1,5 @@
 #include "brwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 
 /**
@@ -12,7 +13,7 @@
 BRWGraph::BRWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
-    qDebug() << "BRWGraph constructor called";
+    DEBUG_OUT() << "BRWGraph constructor called";
 }
 
 /**
@@ -21,7 +22,7 @@ BRWGraph::BRWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 BRWGraph::~BRWGraph()
 {
-    qDebug() << "BRWGraph destructor called";
+    DEBUG_OUT() << "BRWGraph destructor called";
 }
 
 /**
@@ -35,7 +36,7 @@ void BRWGraph::draw()
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "BRWGraph: draw() already in progress, skipping";
+        DEBUG_OUT() << "BRWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -117,7 +118,7 @@ void BRWGraph::draw()
  */
 void BRWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "BRWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "BRWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -129,7 +130,7 @@ void BRWGraph::onMouseClick(const QPointF &scenePos)
  */
 void BRWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "BRWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "BRWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -143,7 +144,7 @@ void BRWGraph::drawBRWScatterplot()
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("BRW-1"), Qt::yellow, 4.0, Qt::black);
 
-    qDebug() << "BRW scatterplot drawn";
+    DEBUG_OUT() << "BRW scatterplot drawn";
 }
 
 /**
@@ -171,5 +172,5 @@ void BRWGraph::drawZeroAxis()
     // Draw the vertical line
     graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
     
-    qDebug() << "BRW zero axis drawn at x:" << zeroPoint.x();
+    DEBUG_OUT() << "BRW zero axis drawn at x:" << zeroPoint.x();
 }

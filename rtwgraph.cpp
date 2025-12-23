@@ -1,5 +1,6 @@
 #include "rtwgraph.h"
 #include "waterfalldata.h"  // For RTWRMarkerData
+#include "debugutils.h"
 #include <QDebug>
 #include <QGraphicsTextItem>
 #include <QGraphicsPixmapItem>
@@ -22,7 +23,7 @@ RTWGraph::RTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     setCustomYRange(0.0, 25.0);
     setRangeLimitingEnabled(true);
     
-    qDebug() << "RTWGraph constructor called with hard limits 0-25";
+    DEBUG_OUT() << "RTWGraph constructor called with hard limits 0-25";
 }
 
 /**
@@ -31,7 +32,7 @@ RTWGraph::RTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 RTWGraph::~RTWGraph()
 {
-    qDebug() << "RTWGraph destructor called";
+    DEBUG_OUT() << "RTWGraph destructor called";
 }
 
 /**
@@ -40,16 +41,16 @@ RTWGraph::~RTWGraph()
  */
 void RTWGraph::draw()
 {
-    qDebug() << "RTW: draw() called";
+    DEBUG_OUT() << "RTW: draw() called";
     
     if (!graphicsScene) {
-        qDebug() << "RTW: draw() early return - no graphicsScene";
+        DEBUG_OUT() << "RTW: draw() early return - no graphicsScene";
         return;
     }
     
     // Prevent concurrent drawing to avoid marker duplication
     if (isDrawing) {
-        qDebug() << "RTWGraph: draw() already in progress, skipping";
+        DEBUG_OUT() << "RTWGraph: draw() already in progress, skipping";
         return;
     }
     
@@ -79,23 +80,23 @@ void RTWGraph::draw()
 
     if (dataSource && !dataSource->isEmpty())
     {
-        qDebug() << "RTW: draw() - dataSource available, updating ranges and drawing series";
+        DEBUG_OUT() << "RTW: draw() - dataSource available, updating ranges and drawing series";
         updateDataRanges();
         
         // Debug: Show current Y range
-        qDebug() << "RTW: Current Y range:" << yMin << "to" << yMax;
+        DEBUG_OUT() << "RTW: Current Y range:" << yMin << "to" << yMax;
         
         // Debug: Show data source info
-        qDebug() << "RTW: Data source title:" << dataSource->getDataTitle();
-        qDebug() << "RTW: Data source empty?" << dataSource->isEmpty();
+        DEBUG_OUT() << "RTW: Data source title:" << dataSource->getDataTitle();
+        DEBUG_OUT() << "RTW: Data source empty?" << dataSource->isEmpty();
         
         // RTW should only have 1 series - get the first (and only) series
         std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
-        qDebug() << "RTW: draw() - found" << seriesLabels.size() << "series labels";
+        DEBUG_OUT() << "RTW: draw() - found" << seriesLabels.size() << "series labels";
         
         // Debug: Show all series labels
         for (const QString& label : seriesLabels) {
-            qDebug() << "RTW: Series label:" << label << "size:" << dataSource->getDataSeriesSize(label);
+            DEBUG_OUT() << "RTW: Series label:" << label << "size:" << dataSource->getDataSeriesSize(label);
         }
         
         // Draw all series - ADOPTED as line, others as R markers
@@ -108,7 +109,7 @@ void RTWGraph::draw()
                     // Draw ADOPTED series as line (only on full redraw)
                     if (needsFullClear)
                     {
-                        qDebug() << "RTW: draw() - drawing ADOPTED series as line";
+                        DEBUG_OUT() << "RTW: draw() - drawing ADOPTED series as line";
                         drawDataLine(seriesLabel, false);
                     }
                 }
@@ -123,7 +124,7 @@ void RTWGraph::draw()
     }
     else
     {
-        qDebug() << "RTW: draw() - no dataSource or dataSource is empty";
+        DEBUG_OUT() << "RTW: draw() - no dataSource or dataSource is empty";
     }
 
     // These items only need redrawing on full clear
@@ -152,7 +153,7 @@ void RTWGraph::draw()
  */
 void RTWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "RTWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "RTWGraph mouse clicked at scene position:" << scenePos;
     
     // Check if we clicked on an R marker (QGraphicsTextItem with text "R") in graphicsScene
     if (graphicsScene) {
@@ -176,19 +177,19 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                 QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item);
                 if (textItem && textItem->toPlainText() == "R") {
                     itemAtPos = item;
-                    qDebug() << "RTWGraph: Found R marker using bounding box search";
+                    DEBUG_OUT() << "RTWGraph: Found R marker using bounding box search";
                     break;
                 }
             }
         }
         
-        qDebug() << "RTWGraph: itemAtPos:" << itemAtPos << "at scene position:" << scenePos;
+        DEBUG_OUT() << "RTWGraph: itemAtPos:" << itemAtPos << "at scene position:" << scenePos;
         if (itemAtPos) {
             QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(itemAtPos);
-            qDebug() << "RTWGraph: textItem:" << textItem;
+            DEBUG_OUT() << "RTWGraph: textItem:" << textItem;
             if (textItem) {
                 QString text = textItem->toPlainText();
-                qDebug() << "RTWGraph: Text item text:" << text;
+                DEBUG_OUT() << "RTWGraph: Text item text:" << text;
                 if (text == "R") {
                     // This is an R marker - calculate timestamp from Y position
                     // Use the marker's actual Y position for more accuracy
@@ -196,18 +197,18 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                     QDateTime timestamp = mapScreenToTime(yPos);
                     
                     if (timestamp.isValid()) {
-                        qDebug() << "========================================";
-                        qDebug() << "RTW R MARKER SELECTED - TIMESTAMP RETURNED";
-                        qDebug() << "========================================";
-                        qDebug() << "RTWGraph: R marker clicked at scene position:" << scenePos;
-                        qDebug() << "RTWGraph: Marker Y position:" << yPos;
-                        qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                        qDebug() << "========================================";
+                        DEBUG_OUT() << "========================================";
+                        DEBUG_OUT() << "RTW R MARKER SELECTED - TIMESTAMP RETURNED";
+                        DEBUG_OUT() << "========================================";
+                        DEBUG_OUT() << "RTWGraph: R marker clicked at scene position:" << scenePos;
+                        DEBUG_OUT() << "RTWGraph: Marker Y position:" << yPos;
+                        DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                        DEBUG_OUT() << "========================================";
                         
                         // Emit signal for external integration
                         emit rMarkerTimestampCaptured(timestamp, scenePos);
                     } else {
-                        qDebug() << "RTWGraph: R marker clicked at:" << scenePos << "- Could not determine timestamp (invalid)";
+                        DEBUG_OUT() << "RTWGraph: R marker clicked at:" << scenePos << "- Could not determine timestamp (invalid)";
                     }
                     // Don't call parent - we've handled the R marker click
                     return;
@@ -228,18 +229,18 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                     QString symbolName = symbolNameVariant.toString();
                     
                     if (timestamp.isValid()) {
-                        qDebug() << "========================================";
-                        qDebug() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED";
-                        qDebug() << "========================================";
-                        qDebug() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
-                        qDebug() << "RTWGraph: Symbol name:" << symbolName;
-                        qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                        qDebug() << "========================================";
+                        DEBUG_OUT() << "========================================";
+                        DEBUG_OUT() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED";
+                        DEBUG_OUT() << "========================================";
+                        DEBUG_OUT() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
+                        DEBUG_OUT() << "RTWGraph: Symbol name:" << symbolName;
+                        DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                        DEBUG_OUT() << "========================================";
                         
                         // Emit signal for external integration
                         emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
                     } else {
-                        qDebug() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
+                        DEBUG_OUT() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
                     }
                     // Don't call parent - we've handled the symbol click
                     return;
@@ -265,13 +266,13 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                         QString symbolName = symbolNameVariant.toString();
                         
                         if (timestamp.isValid()) {
-                            qDebug() << "========================================";
-                            qDebug() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED (via bounding box search)";
-                            qDebug() << "========================================";
-                            qDebug() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
-                            qDebug() << "RTWGraph: Symbol name:" << symbolName;
-                            qDebug() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                            qDebug() << "========================================";
+                            DEBUG_OUT() << "========================================";
+                            DEBUG_OUT() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED (via bounding box search)";
+                            DEBUG_OUT() << "========================================";
+                            DEBUG_OUT() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
+                            DEBUG_OUT() << "RTWGraph: Symbol name:" << symbolName;
+                            DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                            DEBUG_OUT() << "========================================";
                             
                             // Emit signal for external integration
                             emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
@@ -282,11 +283,11 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                 }
             }
             
-            qDebug() << "RTWGraph: No item found at scene position:" << scenePos;
-            qDebug() << "RTWGraph: Graphics scene items count:" << graphicsScene->items().size();
+            DEBUG_OUT() << "RTWGraph: No item found at scene position:" << scenePos;
+            DEBUG_OUT() << "RTWGraph: Graphics scene items count:" << graphicsScene->items().size();
         }
     } else {
-        qDebug() << "RTWGraph: graphicsScene is null!";
+        DEBUG_OUT() << "RTWGraph: graphicsScene is null!";
     }
     
     // Call parent implementation for other clicks
@@ -300,7 +301,7 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
  */
 void RTWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "RTWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "RTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -311,7 +312,7 @@ void RTWGraph::onMouseDrag(const QPointF &scenePos)
 void RTWGraph::drawCustomRMarkers()
 {
     if (!dataSource || !graphicsScene) {
-        qDebug() << "RTW: drawCustomRMarkers early return - no dataSource or graphicsScene";
+        DEBUG_OUT() << "RTW: drawCustomRMarkers early return - no dataSource or graphicsScene";
         return;
     }
 
@@ -319,7 +320,7 @@ void RTWGraph::drawCustomRMarkers()
     std::vector<RTWRMarkerData> rMarkers = dataSource->getRTWRMarkers();
     
     if (rMarkers.empty()) {
-        qDebug() << "RTW: No manually placed R markers in data source";
+        DEBUG_OUT() << "RTW: No manually placed R markers in data source";
         return;
     }
 
@@ -338,13 +339,13 @@ void RTWGraph::drawCustomRMarkers()
     }
 
     if (visibleMarkers.empty()) {
-        qDebug() << "RTW: No visible R markers within time range";
+        DEBUG_OUT() << "RTW: No visible R markers within time range";
         return;
     }
 
     // Draw yellow "R" markers for each visible marker
     int markersDrawn = 0;
-    qDebug() << "RTW: Drawing" << visibleMarkers.size() << "manually placed R markers";
+    DEBUG_OUT() << "RTW: Drawing" << visibleMarkers.size() << "manually placed R markers";
     
     for (const auto& markerData : visibleMarkers) {
         QDateTime timestamp = markerData.timestamp;
@@ -380,7 +381,7 @@ void RTWGraph::drawCustomRMarkers()
         }
     }
     
-    qDebug() << "RTW: Successfully drew" << markersDrawn << "manually placed yellow R markers";
+    DEBUG_OUT() << "RTW: Successfully drew" << markersDrawn << "manually placed yellow R markers";
 }
 
 /**
@@ -392,7 +393,7 @@ void RTWGraph::drawRTWScatterplot()
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("RTW-1"), Qt::blue, 4.0, Qt::white);
 
-    qDebug() << "RTW scatterplot drawn";
+    DEBUG_OUT() << "RTW scatterplot drawn";
 }
 
 /**
@@ -409,13 +410,13 @@ void RTWGraph::addRTWSymbol(const QString &symbolName, const QDateTime &timestam
     // R markers are drawn from dataSource in drawCustomRMarkers(), symbols are drawn from dataSource in drawRTWSymbols()
     if (!dataSource)
     {
-        qDebug() << "RTW: Cannot add symbol - no data source set";
+        DEBUG_OUT() << "RTW: Cannot add symbol - no data source set";
         return;
     }
     
     dataSource->addRTWSymbol(symbolName, timestamp, range);
     
-    qDebug() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "to data source";
+    DEBUG_OUT() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "to data source";
     
     // Trigger redraw - same pattern as when data is added via setData()
     // The symbol will be drawn in drawRTWSymbols() which is called from draw()
@@ -460,7 +461,7 @@ RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolNam
     if (name == "MIN" || name == "MINSYMBOL" || name == "MIN_SYMBOL") return RTWSymbolDrawing::SymbolType::MinSymbol;
     
     // Default to R if symbol name is not recognized
-    qDebug() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";
+    DEBUG_OUT() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";
     return RTWSymbolDrawing::SymbolType::R;
 }
 
@@ -480,12 +481,12 @@ void RTWGraph::drawRTWSymbols()
     // Get symbols from dataSource (same pattern as R markers get data from dataSource)
     std::vector<RTWSymbolData> rtwSymbols = dataSource->getRTWSymbols();
     
-    qDebug() << "RTW: drawRTWSymbols() - dataSource pointer:" << dataSource;
-    qDebug() << "RTW: drawRTWSymbols() - symbols count from dataSource:" << rtwSymbols.size();
+    DEBUG_OUT() << "RTW: drawRTWSymbols() - dataSource pointer:" << dataSource;
+    DEBUG_OUT() << "RTW: drawRTWSymbols() - symbols count from dataSource:" << rtwSymbols.size();
     
     if (rtwSymbols.empty())
     {
-        qDebug() << "RTW: No symbols in dataSource (dataSource pointer:" << dataSource << ")";
+        DEBUG_OUT() << "RTW: No symbols in dataSource (dataSource pointer:" << dataSource << ")";
         return;
     }
     
@@ -508,7 +509,7 @@ void RTWGraph::drawRTWSymbols()
     else
     {
         // No valid time range - include all symbols and update time range from symbols
-        qDebug() << "RTW: No valid time range, using all symbols and updating time range";
+        DEBUG_OUT() << "RTW: No valid time range, using all symbols and updating time range";
         visibleSymbols = rtwSymbols;
         
         // Update time range from symbols if we have any
@@ -525,31 +526,31 @@ void RTWGraph::drawRTWSymbols()
             // Set time range to include all symbols with some padding
             timeMax = symbolTimeMax.addSecs(60); // Add 1 minute padding
             timeMin = symbolTimeMin.addSecs(-60); // Subtract 1 minute padding
-            qDebug() << "RTW: Updated time range from symbols:" << timeMin.toString() << "to" << timeMax.toString();
+            DEBUG_OUT() << "RTW: Updated time range from symbols:" << timeMin.toString() << "to" << timeMax.toString();
         }
     }
     
-    qDebug() << "RTW: Time range filtering - Total symbols:" << rtwSymbols.size() 
+    DEBUG_OUT() << "RTW: Time range filtering - Total symbols:" << rtwSymbols.size() 
              << "- Visible symbols:" << visibleSymbols.size()
              << "- Time range:" << timeMin.toString() << "to" << timeMax.toString()
              << "- Time range valid:" << timeRangeValid;
     
     if (visibleSymbols.empty())
     {
-        qDebug() << "RTW: No visible symbols after filtering";
+        DEBUG_OUT() << "RTW: No visible symbols after filtering";
         return;
     }
     
     // Draw symbols (same approach as R markers)
     int symbolsDrawn = 0;
-    qDebug() << "RTW: Drawing area:" << drawingArea;
+    DEBUG_OUT() << "RTW: Drawing area:" << drawingArea;
     for (const auto& symbolData : visibleSymbols)
     {
         // Map symbol position to screen coordinates (same as R markers)
         QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
         
         // Debug all symbols to diagnose issues
-        qDebug() << "RTW: Processing symbol" << symbolsDrawn << "- Name:" << symbolData.symbolName 
+        DEBUG_OUT() << "RTW: Processing symbol" << symbolsDrawn << "- Name:" << symbolData.symbolName 
                  << "Range:" << symbolData.range << "Time:" << symbolData.timestamp.toString() 
                  << "Screen:" << screenPos << "In area:" << drawingArea.contains(screenPos)
                  << "Drawing area:" << drawingArea;
@@ -557,7 +558,7 @@ void RTWGraph::drawRTWSymbols()
         // Check if point is within visible area (same check as R markers use)
         if (!drawingArea.contains(screenPos))
         {
-            qDebug() << "RTW: Symbol" << symbolData.symbolName << "outside drawing area, skipping";
+            DEBUG_OUT() << "RTW: Symbol" << symbolData.symbolName << "outside drawing area, skipping";
             continue;
         }
         
@@ -570,7 +571,7 @@ void RTWGraph::drawRTWSymbols()
         // Validate pixmap before using it
         if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
         {
-            qDebug() << "RTW: Invalid pixmap for symbol" << symbolData.symbolName << "type" << static_cast<int>(symbolType) << "- skipping";
+            DEBUG_OUT() << "RTW: Invalid pixmap for symbol" << symbolData.symbolName << "type" << static_cast<int>(symbolType) << "- skipping";
             continue;
         }
         
@@ -580,7 +581,7 @@ void RTWGraph::drawRTWSymbols()
         // Validate pixmap item was created successfully
         if (!pixmapItem)
         {
-            qDebug() << "RTW: Failed to create pixmap item for symbol" << symbolData.symbolName << "- skipping";
+            DEBUG_OUT() << "RTW: Failed to create pixmap item for symbol" << symbolData.symbolName << "- skipping";
             continue;
         }
         
@@ -588,7 +589,7 @@ void RTWGraph::drawRTWSymbols()
         QRectF pixmapRect = pixmapItem->boundingRect();
         if (pixmapRect.width() <= 0 || pixmapRect.height() <= 0)
         {
-            qDebug() << "RTW: Invalid pixmap rect for symbol" << symbolData.symbolName << "- skipping";
+            DEBUG_OUT() << "RTW: Invalid pixmap rect for symbol" << symbolData.symbolName << "- skipping";
             delete pixmapItem;
             continue;
         }
@@ -615,6 +616,6 @@ void RTWGraph::drawRTWSymbols()
     
     if (symbolsDrawn > 0)
     {
-        qDebug() << "RTW: Drew" << symbolsDrawn << "RTW symbols out of" << rtwSymbols.size() << "total";
+        DEBUG_OUT() << "RTW: Drew" << symbolsDrawn << "RTW symbols out of" << rtwSymbols.size() << "total";
     }
 }

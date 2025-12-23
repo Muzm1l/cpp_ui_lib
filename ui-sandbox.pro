@@ -53,7 +53,8 @@ SOURCES += \
     navtimeutils.cpp \
     scwwindow.cpp \
     scwsimulator.cpp \
-    manoeuvreoverlay.cpp
+    manoeuvreoverlay.cpp \
+    debugutils.cpp
 
 HEADERS += \
     graphcontainer.h \
@@ -85,7 +86,8 @@ HEADERS += \
     navtimeutils.h  \
     scwwindow.h \
     scwsimulator.h \
-    manoeuvreoverlay.h
+    manoeuvreoverlay.h \
+    debugutils.h
 
 FORMS += \
     mainwindow.ui

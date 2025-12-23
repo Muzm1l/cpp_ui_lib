@@ -1,4 +1,5 @@
 #include "btwsymboldrawing.h"
+#include "debugutils.h"
 #include <QFont>
 #include <QPainterPath>
 #include <QPen>
@@ -32,7 +33,7 @@ const QPixmap& BTWSymbolDrawing::get(SymbolType type) const
     
     // If not found, return a reference to a static empty pixmap
     static QPixmap emptyPixmap;
-    qDebug() << "BTWSymbolDrawing::get - Symbol type" << static_cast<int>(type) << "not found in cache!";
+    DEBUG_OUT() << "BTWSymbolDrawing::get - Symbol type" << static_cast<int>(type) << "not found in cache!";
     return emptyPixmap;
 }
 
