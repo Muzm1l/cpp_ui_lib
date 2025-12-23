@@ -1633,10 +1633,10 @@ void GraphContainer::onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateT
     emit BTWHorizontalLinePlaced(lineId, timestamp);
 }
 
-void GraphContainer::onBTWHorizontalLineRemoved(const QUuid &lineId)
+void GraphContainer::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp)
 {
-    DEBUG_OUT() << "GraphContainer: BTW horizontal line removed:" << lineId.toString();
-    emit BTWHorizontalLineRemoved(lineId);
+    DEBUG_OUT() << "GraphContainer: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BTWHorizontalLineRemoved(lineId, timestamp);
 }
 
 void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)

@@ -219,9 +219,10 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
                 if (qAbs(clickedY - lineY) <= hitThreshold) {
                     // Click is on existing line - delete it
                     QUuid lineId = m_horizontalLines[i].id;
+                    QDateTime timestamp = m_horizontalLines[i].timestamp; // Get timestamp before removal
                     removeHorizontalLine(lineId);
-                    emit horizontalLineRemoved(lineId);
-                    DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString();
+                    emit horizontalLineRemoved(lineId, timestamp);
+                    DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString() << "at" << timestamp.toString();
                     
                     // Redraw to remove the line
                     draw();

@@ -281,7 +281,7 @@ public slots:
     
     // BTW Horizontal line sync slots - propagate lines to all containers
     void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    void onBTWHorizontalLineRemoved(const QUuid &lineId);
+    void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
     
     // BTW Marker sync slots - propagate markers to all containers
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);

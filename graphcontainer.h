@@ -181,7 +181,7 @@ public slots:
     
     // BTW Horizontal line slots
     void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    void onBTWHorizontalLineRemoved(const QUuid &lineId);
+    void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
     
     // BTW Marker sync slots (called when syncing markers from other containers)
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
@@ -226,7 +226,7 @@ signals:
     
     // BTW Horizontal line signals
     void BTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    void BTWHorizontalLineRemoved(const QUuid &lineId);
+    void BTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
     /**
      * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
      * @param timestamp The timestamp of the marker

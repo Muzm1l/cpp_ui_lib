@@ -390,8 +390,9 @@ signals:
     /**
      * @brief Emitted when a horizontal line is removed
      * @param lineId The unique identifier of the removed line
+     * @param timestamp The timestamp of the removed line
      */
-    void horizontalLineRemoved(const QUuid &lineId);
+    void horizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
 };
 
 #endif // BTWGRAPH_H

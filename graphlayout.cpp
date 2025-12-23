@@ -1635,36 +1635,16 @@ void GraphLayout::onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime
     }
 }
 
-void GraphLayout::onBTWHorizontalLineRemoved(const QUuid &lineId)
+void GraphLayout::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp)
 {
     // Get the source container that emitted the signal
     GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
     
-    DEBUG_OUT() << "GraphLayout: BTW horizontal line removed:" << lineId.toString();
-    
-    // Note: We need to find the line by timestamp since lineId is unique per graph
-    // For now, we'll need to get the timestamp from the source container
-    // This is a limitation - we might need to enhance the sync mechanism later
-    
-    // For now, we'll remove lines by matching timestamp
-    // Get timestamp from source container's BTW graph
-    QDateTime timestamp;
-    if (sourceContainer)
-    {
-        WaterfallGraph *btwGraphBase = sourceContainer->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                timestamp = btwGraph->getHorizontalLineTimestamp(lineId);
-            }
-        }
-    }
+    DEBUG_OUT() << "GraphLayout: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString();
     
     if (!timestamp.isValid())
     {
-        DEBUG_OUT() << "GraphLayout: Could not find timestamp for line ID:" << lineId.toString();
+        DEBUG_OUT() << "GraphLayout: Invalid timestamp for line removal, skipping sync";
         return;
     }
     
@@ -1673,7 +1653,7 @@ void GraphLayout::onBTWHorizontalLineRemoved(const QUuid &lineId)
     {
         if (!container) continue;
         
-        // Skip the source container
+        // Skip the source container to avoid infinite loop
         if (container == sourceContainer) continue;
         
         // Get the BTW graph from the container
@@ -1683,18 +1663,13 @@ void GraphLayout::onBTWHorizontalLineRemoved(const QUuid &lineId)
             BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
             if (btwGraph)
             {
-                // Find and remove lines with matching timestamp
-                // We need to iterate through all lines to find matching timestamp
-                // This is not ideal but works for now
-                // TODO: Enhance to use a sync ID similar to markers
+                // Remove lines with matching timestamp (1ms tolerance)
                 const qreal timeTolerance = 0.001; // 1ms tolerance
-                QList<QUuid> linesToRemove;
-                
-                // We can't directly access m_horizontalLines, so we need a different approach
-                // For now, we'll need to add a method to remove by timestamp
-                // Let's add that method to BTWGraph
-                btwGraph->removeHorizontalLineByTimestamp(timestamp, timeTolerance);
-                DEBUG_OUT() << "GraphLayout: Removed horizontal line from container at" << timestamp.toString();
+                int removed = btwGraph->removeHorizontalLineByTimestamp(timestamp, timeTolerance);
+                if (removed > 0)
+                {
+                    DEBUG_OUT() << "GraphLayout: Removed" << removed << "horizontal line(s) from container at" << timestamp.toString();
+                }
             }
         }
     }
