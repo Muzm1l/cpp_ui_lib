@@ -155,25 +155,53 @@ public:
     // ========== Horizontal Line Management ==========
     
     /**
-     * @brief Set horizontal line mode (when enabled, clicks draw lines instead of markers)
-     * @param enabled True to enable horizontal line mode, false for marker mode
+     * @brief Enum for horizontal line interaction modes
+     */
+    enum class HorizontalLineMode {
+        Normal,      // Normal marker mode (default)
+        DrawLine,    // Draw lines mode: clicking adds lines, clicking on existing line deletes it
+        DeleteLine   // Delete mode: clicking only deletes lines, doesn't add new ones
+    };
+    
+    /**
+     * @brief Set horizontal line mode
+     * @param mode The mode to set (Normal, DrawLine, or DeleteLine)
+     */
+    void setHorizontalLineMode(HorizontalLineMode mode);
+    
+    /**
+     * @brief Set horizontal line mode (legacy boolean interface for backward compatibility)
+     * @param enabled True to enable draw line mode, false for normal mode
      */
     void setHorizontalLineMode(bool enabled);
     
     /**
-     * @brief Check if horizontal line mode is enabled
-     * @return True if horizontal line mode is enabled
+     * @brief Get current horizontal line mode
+     * @return Current mode
+     */
+    HorizontalLineMode getHorizontalLineMode() const;
+    
+    /**
+     * @brief Check if horizontal line mode is enabled (legacy method)
+     * @return True if in DrawLine or DeleteLine mode
      */
     bool isHorizontalLineMode() const;
     
     /**
      * @brief Add a horizontal line at a specific time
      * @param timestamp The time when the line should be drawn (horizontal line = constant time)
-     * @param color The color of the line (default: yellow)
+     * @param color The color of the line (default: white)
      * @param width The width of the line (default: 2.0)
      * @return Unique identifier for the line
      */
-    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::yellow, qreal width = 2.0);
+    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
+    
+    /**
+     * @brief Get the timestamp of a horizontal line by its ID
+     * @param lineId The unique identifier of the line
+     * @return The timestamp of the line, or invalid QDateTime if not found
+     */
+    QDateTime getHorizontalLineTimestamp(const QUuid &lineId) const;
     
     /**
      * @brief Remove a horizontal line by its ID
@@ -181,6 +209,14 @@ public:
      * @return True if the line was found and removed
      */
     bool removeHorizontalLine(const QUuid &lineId);
+    
+    /**
+     * @brief Remove horizontal lines by timestamp (for syncing)
+     * @param timestamp The timestamp to match
+     * @param toleranceMs Time tolerance in milliseconds (default: 1ms)
+     * @return Number of lines removed
+     */
+    int removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs = 0.001);
     
     /**
      * @brief Clear all horizontal lines
@@ -264,13 +300,13 @@ private:
         QUuid id;      // Unique identifier
         QGraphicsLineItem *lineItem;  // Cached graphics item
         
-        HorizontalLineItem() : color(Qt::yellow), width(2.0), lineItem(nullptr) {}
+        HorizontalLineItem() : color(Qt::white), width(2.0), lineItem(nullptr) {}
         HorizontalLineItem(const QDateTime &ts, const QColor &c, qreal w) 
             : timestamp(ts), color(c), width(w), id(QUuid::createUuid()), lineItem(nullptr) {}
     };
     
     QList<HorizontalLineItem> m_horizontalLines;  // Store horizontal lines
-    bool m_horizontalLineMode;  // Toggle between marker and line mode
+    HorizontalLineMode m_horizontalLineMode;  // Current horizontal line interaction mode
     
     // Window size cache (Issue #3: Performance optimization)
     QSize m_cachedWindowSize;      // Cached window size

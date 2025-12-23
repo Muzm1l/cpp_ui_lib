@@ -26,7 +26,7 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     , m_interactiveOverlay(nullptr)
     , symbols(40)  // Initialize BTW symbol cache
     , m_nextRegionId(1)
-    , m_horizontalLineMode(false)
+    , m_horizontalLineMode(HorizontalLineMode::Normal)
     , m_cachedWindowSize(QSize())
     , m_cachedMarkerRadius(0.0)
     , m_windowSizeCacheValid(false)
@@ -142,6 +142,12 @@ void BTWGraph::draw()
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        DEBUG_OUT() << "BTWGraph: Data source is empty, cleaned up all scatterplot items";
+    }
     
     // These items only need redrawing on full clear
     if (needsFullClear)
@@ -154,6 +160,15 @@ void BTWGraph::draw()
         
         // Draw shaded regions
         drawShadedRegions();
+        
+        // Draw horizontal lines
+        drawHorizontalLines();
+    }
+    else
+    {
+        // Even on incremental updates, we need to update horizontal lines
+        // because they can be added/removed dynamically
+        drawHorizontalLines();
     }
     
     // Sync interactive overlay markers with the new time range
@@ -191,8 +206,8 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     // Horizontal line mode: draw line at clicked Y position (time)
     // Note: In BTW graphs, a "horizontal line" means constant time (horizontal on screen)
     // We use the Y position to determine the time, then draw a line spanning full width
-    if (m_horizontalLineMode) {
-        // First, check if click is on an existing horizontal line (click-to-delete)
+    if (m_horizontalLineMode != HorizontalLineMode::Normal) {
+        // Check if click is on an existing horizontal line (click-to-delete)
         // Use cached lineItem for efficient hit detection
         const qreal hitThreshold = 5.0; // pixels - click within 5px of line to delete
         qreal clickedY = scenePos.y();
@@ -215,7 +230,14 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
             }
         }
         
-        // No existing line at click position - add new line
+        // No existing line at click position
+        if (m_horizontalLineMode == HorizontalLineMode::DeleteLine) {
+            // In delete mode, only delete lines - don't add new ones
+            DEBUG_OUT() << "BTWGraph: Delete mode - no line found at click position, ignoring";
+            return;
+        }
+        
+        // DrawLine mode: add new line
         QDateTime timestamp = mapScreenToTime(scenePos.y());
         if (!timestamp.isValid()) {
             timestamp = QDateTime::currentDateTime();
@@ -227,8 +249,8 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         // Emit signal for horizontal line placement
         emit horizontalLinePlaced(lineId, timestamp);
         
-        // Redraw to show the line (will use cached items)
-        draw();
+        // Force full redraw to show the new line
+        forceFullRedraw();
         return;  // Don't add marker in line mode
     }
     
@@ -1190,15 +1212,29 @@ bool BTWGraph::hasShadedRegionWithSyncId(const QUuid &syncId) const
 
 // ========== Horizontal Line Management ==========
 
+void BTWGraph::setHorizontalLineMode(HorizontalLineMode mode)
+{
+    m_horizontalLineMode = mode;
+    const char* modeStr = (mode == HorizontalLineMode::Normal) ? "Normal" :
+                          (mode == HorizontalLineMode::DrawLine) ? "DrawLine" : "DeleteLine";
+    DEBUG_OUT() << "BTWGraph: Horizontal line mode set to" << modeStr;
+}
+
 void BTWGraph::setHorizontalLineMode(bool enabled)
 {
-    m_horizontalLineMode = enabled;
-    DEBUG_OUT() << "BTWGraph: Horizontal line mode" << (enabled ? "enabled" : "disabled");
+    // Legacy boolean interface for backward compatibility
+    setHorizontalLineMode(enabled ? HorizontalLineMode::DrawLine : HorizontalLineMode::Normal);
+}
+
+BTWGraph::HorizontalLineMode BTWGraph::getHorizontalLineMode() const
+{
+    return m_horizontalLineMode;
 }
 
 bool BTWGraph::isHorizontalLineMode() const
 {
-    return m_horizontalLineMode;
+    // Legacy method - returns true if in DrawLine or DeleteLine mode
+    return m_horizontalLineMode != HorizontalLineMode::Normal;
 }
 
 QUuid BTWGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width)
@@ -1212,6 +1248,19 @@ QUuid BTWGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &colo
     // No need to invalidate existing cached items
     
     return lineItem.id;
+}
+
+QDateTime BTWGraph::getHorizontalLineTimestamp(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines)
+    {
+        if (line.id == lineId)
+        {
+            return line.timestamp;
+        }
+    }
+    
+    return QDateTime(); // Return invalid QDateTime if not found
 }
 
 bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
@@ -1233,6 +1282,34 @@ bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
     }
     
     return false;
+}
+
+int BTWGraph::removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs)
+{
+    int removedCount = 0;
+    qint64 toleranceMicroseconds = static_cast<qint64>(toleranceMs * 1000.0);
+    
+    // Iterate backwards to safely remove items
+    for (int i = m_horizontalLines.size() - 1; i >= 0; --i) {
+        qint64 timeDiff = qAbs(m_horizontalLines[i].timestamp.msecsTo(timestamp));
+        if (timeDiff <= toleranceMicroseconds) {
+            QUuid lineId = m_horizontalLines[i].id;
+            
+            // Remove graphics item if it exists
+            if (m_horizontalLines[i].lineItem) {
+                if (graphicsScene) {
+                    graphicsScene->removeItem(m_horizontalLines[i].lineItem);
+                }
+                delete m_horizontalLines[i].lineItem;
+            }
+            
+            m_horizontalLines.removeAt(i);
+            removedCount++;
+            DEBUG_OUT() << "BTWGraph: Removed horizontal line by timestamp:" << timestamp.toString() << "ID:" << lineId.toString();
+        }
+    }
+    
+    return removedCount;
 }
 
 void BTWGraph::clearHorizontalLines()

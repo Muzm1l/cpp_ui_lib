@@ -1327,3 +1327,101 @@ void SCWWindow::clearAllGraphs()
     DEBUG_OUT() << "SCWWindow: clearAllGraphs() completed - all data cleared from all 16 data sources";
 }
 
+void SCWWindow::addBTWSymbolToAllGraphs(const QDateTime &timestamp)
+{
+    DEBUG_OUT() << "SCWWindow: Adding BTW symbol (magenta circle) to all SCW graphs at timestamp" << timestamp.toString();
+    
+    int symbolsAdded = 0;
+    
+    // Iterate through all 8 waterfall graphs
+    for (int i = 0; i < 8; ++i)
+    {
+        if (!m_waterfallGraphs[i])
+        {
+            continue;
+        }
+        
+        WaterfallData *dataSource = m_waterfallGraphs[i]->getDataSource();
+        if (!dataSource || dataSource->isEmpty())
+        {
+            DEBUG_OUT() << "SCWWindow: Skipping graph" << i << "- no data source or empty";
+            continue;
+        }
+        
+        // Find the data point at this timestamp
+        qreal dataPointRange = 0.0;
+        bool foundDataPoint = false;
+        
+        std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+        const qint64 timeToleranceMs = 1000; // 1 second tolerance
+        qint64 closestTimeDiff = timeToleranceMs;
+        
+        for (const QString &seriesLabel : seriesLabels)
+        {
+            qreal candidateValue;
+            size_t candidateIndex;
+            if (dataSource->findClosestDataPoint(seriesLabel, timestamp, closestTimeDiff, candidateValue, candidateIndex))
+            {
+                const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+                if (candidateIndex < timestamps.size()) {
+                    qint64 timeDiff = qAbs(timestamps[candidateIndex].msecsTo(timestamp));
+                    if (timeDiff < closestTimeDiff)
+                    {
+                        closestTimeDiff = timeDiff;
+                        dataPointRange = candidateValue;
+                        foundDataPoint = true;
+                    }
+                }
+            }
+        }
+        
+        // If no data point found, try using range center as fallback
+        if (!foundDataPoint)
+        {
+            auto yRange = dataSource->getCombinedYRange();
+            if (yRange.first != 0.0 || yRange.second != 0.0) // Check if range is valid
+            {
+                dataPointRange = (yRange.first + yRange.second) / 2.0;
+                foundDataPoint = true;
+                DEBUG_OUT() << "SCWWindow: No data point found in graph" << i << ", using range center" << dataPointRange;
+            }
+        }
+        
+        if (!foundDataPoint)
+        {
+            DEBUG_OUT() << "SCWWindow: No data point found in graph" << i << "- skipping";
+            continue;
+        }
+        
+        // Check if symbol already exists (deduplication)
+        QDateTime checkStart = timestamp.addMSecs(-100);
+        QDateTime checkEnd = timestamp.addMSecs(100);
+        std::vector<BTWSymbolData> existingSymbols = dataSource->getBTWSymbolsWithinTimeRange(checkStart, checkEnd);
+        bool symbolExists = false;
+        for (const auto& existingSymbol : existingSymbols)
+        {
+            if (existingSymbol.symbolName == "MagentaCircle")
+            {
+                symbolExists = true;
+                break;
+            }
+        }
+        
+        if (symbolExists)
+        {
+            DEBUG_OUT() << "SCWWindow: BTW symbol already exists in graph" << i << "- skipping";
+            continue;
+        }
+        
+        // Add magenta circle symbol
+        dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange);
+        symbolsAdded++;
+        DEBUG_OUT() << "SCWWindow: Added BTW symbol to graph" << i << "at timestamp" << timestamp.toString() << "with range" << dataPointRange;
+        
+        // Trigger redraw
+        m_waterfallGraphs[i]->forceFullRedraw();
+    }
+    
+    DEBUG_OUT() << "SCWWindow: Finished adding BTW symbols - added" << symbolsAdded << "symbols across SCW graphs";
+}
+

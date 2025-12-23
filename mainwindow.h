@@ -3,7 +3,7 @@
 
 #include "bdwgraph.h"
 #include "brwgraph.h"
-#include "btwgraph.h"
+#include "btwgraph.h"  // For BTWGraph::HorizontalLineMode enum
 #include "fdwgraph.h"
 #include "ftwgraph.h"
 #include "graphcontainer.h"
@@ -87,6 +87,10 @@ private:
     QPushButton* clearManoeuvresButton; ///< Button to clear all manoeuvres from the graph layout
     QPushButton* startManoeuvreButton; ///< Button to start drawing a manoeuvre (new API)
     QPushButton* endManoeuvreButton; ///< Button to end drawing a manoeuvre (new API)
+    QPushButton* btwLineModeButton; ///< Button to toggle BTW horizontal line mode (Normal/DrawLine/DeleteLine)
+    
+    // BTW horizontal line mode state
+    BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
 
     
     // RTW Symbols test widget
@@ -115,6 +119,7 @@ private:
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
     void setupManoeuvreButton(); ///< Setup button to add manoeuvres
+    void updateBTWLineModeButton(); ///< Update BTW line mode button text and style
 
     long simTick;
 
@@ -205,6 +210,14 @@ private slots:
      * Completes the current manoeuvre drawing session with current time.
      */
     void onEndManoeuvreButtonClicked();
+    
+    /**
+     * @brief Handles BTW line mode toggle button click
+     *
+     * Called when the BTW line mode button is clicked.
+     * Cycles through Normal -> DrawLine -> DeleteLine -> Normal
+     */
+    void onBTWLineModeButtonClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

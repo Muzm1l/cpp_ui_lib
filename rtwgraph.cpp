@@ -122,9 +122,15 @@ void RTWGraph::draw()
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        DEBUG_OUT() << "RTWGraph: Data source is empty, cleaned up all scatterplot items";
+    }
     else
     {
-        DEBUG_OUT() << "RTW: draw() - no dataSource or dataSource is empty";
+        DEBUG_OUT() << "RTW: draw() - no dataSource";
     }
 
     // These items only need redrawing on full clear

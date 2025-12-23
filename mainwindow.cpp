@@ -16,7 +16,8 @@
 #include <algorithm>
 
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this))
+    : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this)),
+      m_currentBTWLineMode(BTWGraph::HorizontalLineMode::Normal)
 {
     ui->setupUi(this);
     
@@ -241,6 +242,15 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup SCWWindow in a new tab (DISABLED)
     // setupSCWWindow();
     
+    // Connect BTW symbol signal to SCWWindow (if it exists)
+    // This will add magenta circles to SCW graphs whenever BTW markers are placed
+    connect(graphgrid, &GraphLayout::BTWSymbolAddedToAllGraphs,
+            [this](const QDateTime &timestamp) {
+                if (scwWindow && timestamp.isValid()) {
+                    scwWindow->addBTWSymbolToAllGraphs(timestamp);
+                }
+            });
+
 
     // Configure Zoom Panel test functionality
     configureZoomPanel();
@@ -328,11 +338,21 @@ void MainWindow::setupManoeuvreButton()
     // Connect button click to slot
     connect(endManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onEndManoeuvreButtonClicked);
     
+    // Create button to toggle BTW horizontal line mode
+    btwLineModeButton = new QPushButton("BTW Mode: Normal", topBarWidget);
+    btwLineModeButton->setObjectName("btwLineModeButton");
+    btwLineModeButton->setFixedSize(200, 30);
+    updateBTWLineModeButton();
+    
+    // Connect button click to slot
+    connect(btwLineModeButton, &QPushButton::clicked, this, &MainWindow::onBTWLineModeButtonClicked);
+    
     // Add buttons to the layout
     topLayout->addWidget(addManoeuvreButton);
     topLayout->addWidget(clearManoeuvresButton);
     topLayout->addWidget(startManoeuvreButton);
     topLayout->addWidget(endManoeuvreButton);
+    topLayout->addWidget(btwLineModeButton);
     topLayout->addStretch(); // Add stretch to push everything to the left
     
     DEBUG_OUT() << "Manoeuvre buttons created and connected in horizontal layout";
@@ -427,6 +447,61 @@ void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
         DEBUG_OUT() << "  [" << i << "] Start:" << timeSelectionHistory[i].startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
                  << "End:" << timeSelectionHistory[i].endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
+}
+
+void MainWindow::onBTWLineModeButtonClicked()
+{
+    // Cycle through the 3 modes: Normal -> DrawLine -> DeleteLine -> Normal
+    switch (m_currentBTWLineMode)
+    {
+        case BTWGraph::HorizontalLineMode::Normal:
+            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::DrawLine;
+            break;
+        case BTWGraph::HorizontalLineMode::DrawLine:
+            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::DeleteLine;
+            break;
+        case BTWGraph::HorizontalLineMode::DeleteLine:
+            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::Normal;
+            break;
+    }
+    
+    // Apply the mode to GraphLayout
+    if (graphgrid)
+    {
+        graphgrid->setBTWHorizontalLineMode(GraphType::BTW, m_currentBTWLineMode);
+        DEBUG_OUT() << "MainWindow: BTW line mode changed to" << static_cast<int>(m_currentBTWLineMode);
+    }
+    
+    // Update button text and style
+    updateBTWLineModeButton();
+}
+
+void MainWindow::updateBTWLineModeButton()
+{
+    if (!btwLineModeButton)
+        return;
+    
+    QString buttonText;
+    QString buttonStyle;
+    
+    switch (m_currentBTWLineMode)
+    {
+        case BTWGraph::HorizontalLineMode::Normal:
+            buttonText = "BTW Mode: Normal";
+            buttonStyle = "QPushButton { background-color: #6c757d; color: white; font-weight: bold; }";
+            break;
+        case BTWGraph::HorizontalLineMode::DrawLine:
+            buttonText = "BTW Mode: Draw Line";
+            buttonStyle = "QPushButton { background-color: #007bff; color: white; font-weight: bold; }";
+            break;
+        case BTWGraph::HorizontalLineMode::DeleteLine:
+            buttonText = "BTW Mode: Delete Line";
+            buttonStyle = "QPushButton { background-color: #dc3545; color: white; font-weight: bold; }";
+            break;
+    }
+    
+    btwLineModeButton->setText(buttonText);
+    btwLineModeButton->setStyleSheet(buttonStyle);
 }
 
 MainWindow::~MainWindow()
@@ -749,6 +824,14 @@ void MainWindow::setupSCWWindow()
     // Use the same timeUpdateTimer which fires every second
     scwSimulator = new SCWSimulator(this, timeUpdateTimer, scwWindow);
     scwSimulator->start();
+    
+    // Connect BTW symbol signal to SCWWindow for magenta circles
+    if (graphgrid && scwWindow)
+    {
+        connect(graphgrid, &GraphLayout::BTWSymbolAddedToAllGraphs,
+                scwWindow, &SCWWindow::addBTWSymbolToAllGraphs, Qt::UniqueConnection);
+        DEBUG_OUT() << "MainWindow: Connected BTWSymbolAddedToAllGraphs signal to SCWWindow";
+    }
     
     DEBUG_OUT() << "SCWWindow created in SCW Window tab";
     DEBUG_OUT() << "SCWWindow size policy:" << scwWindow->sizePolicy();

@@ -98,6 +98,12 @@ void FDWGraph::draw()
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        DEBUG_OUT() << "FDWGraph: Data source is empty, cleaned up all scatterplot items";
+    }
     
     // Draw BTW symbols (magenta circles) if any exist in data source (only on full redraw)
     if (needsFullClear)

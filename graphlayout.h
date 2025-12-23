@@ -17,6 +17,9 @@
 #include <vector>
 #include "sharedsyncstate.h"
 
+// Forward declaration
+class BTWGraph;
+
 enum class LayoutType
 {
     GPW1W = 0,  // 1 window only
@@ -183,9 +186,16 @@ public:
     // ========== BTW Horizontal Line Management ==========
     
     /**
-     * @brief Set horizontal line mode for BTW graphs (when enabled, clicks draw lines instead of markers)
+     * @brief Set horizontal line mode for BTW graphs
      * @param graphType The graph type (should be BTW)
-     * @param enabled True to enable horizontal line mode, false for marker mode
+     * @param mode The mode to set (Normal, DrawLine, or DeleteLine)
+     */
+    void setBTWHorizontalLineMode(const GraphType &graphType, BTWGraph::HorizontalLineMode mode);
+    
+    /**
+     * @brief Set horizontal line mode for BTW graphs (legacy boolean interface)
+     * @param graphType The graph type (should be BTW)
+     * @param enabled True to enable draw line mode, false for normal mode
      */
     void setBTWHorizontalLineMode(const GraphType &graphType, bool enabled);
     
@@ -197,7 +207,15 @@ public:
      * @param width The width of the line (default: 2.0)
      * @return Unique identifier for the line
      */
-    QUuid addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color = Qt::yellow, qreal width = 2.0);
+    QUuid addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
+    
+    /**
+     * @brief Get the timestamp of a horizontal line by its ID
+     * @param graphType The graph type (should be BTW)
+     * @param lineId The unique identifier of the line
+     * @return The timestamp of the line, or invalid QDateTime if not found
+     */
+    QDateTime getBTWHorizontalLineTimestamp(const GraphType &graphType, const QUuid &lineId) const;
     
     /**
      * @brief Remove a horizontal line from a BTW graph by its ID
@@ -261,6 +279,10 @@ public slots:
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     
+    // BTW Horizontal line sync slots - propagate lines to all containers
+    void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
+    void onBTWHorizontalLineRemoved(const QUuid &lineId);
+    
     // BTW Marker sync slots - propagate markers to all containers
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
     void onBTWMarkerSyncDeleted(const QUuid &markerId);
@@ -300,6 +322,12 @@ private:
     
     // Helper to add BTW symbol (magenta circle) to all graphs at a timestamp
     void addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal range);
+    
+    // Batch method to add magenta circles for all existing BTW markers (more efficient)
+    void addBTWSymbolsForExistingBTWMarkers();
+    
+    // Helper to add BTW symbol to a single graph without redraw (for batch processing)
+    bool addBTWSymbolToGraph(WaterfallData *dataSource, const QDateTime &timestamp, bool skipIfExists = true);
 
     // Container synchronization state
     GraphContainerSyncState m_syncState;
@@ -337,6 +365,12 @@ signals:
      * @param position The scene position where the marker was placed
      */
     void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    
+    /**
+     * @brief Emitted when a BTW symbol (magenta circle) is added to all graphs
+     * @param timestamp The timestamp where the magenta circle was added
+     */
+    void BTWSymbolAddedToAllGraphs(const QDateTime &timestamp);
     
     /**
      * @brief Emitted when a BTW manual marker is clicked

@@ -913,6 +913,12 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(btwGraph, &BTWGraph::manualMarkerClicked,
                 this, &GraphContainer::onBTWManualMarkerClicked);
         
+        // Connect BTW horizontal line signals
+        connect(btwGraph, &BTWGraph::horizontalLinePlaced,
+                this, &GraphContainer::onBTWHorizontalLinePlaced);
+        connect(btwGraph, &BTWGraph::horizontalLineRemoved,
+                this, &GraphContainer::onBTWHorizontalLineRemoved);
+        
         // Connect comprehensive marker click signal (forwards timestamp, range, and bearing rate)
         connect(btwGraph, &BTWGraph::markerClickedWithData,
                 this, &GraphContainer::markerClickedWithData);
@@ -1619,6 +1625,18 @@ void GraphContainer::onBTWManualMarkerClicked(const QDateTime &timestamp, const 
 {
     DEBUG_OUT() << "GraphContainer: BTW manual marker clicked:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWManualMarkerClicked(timestamp, position);
+}
+
+void GraphContainer::onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp)
+{
+    DEBUG_OUT() << "GraphContainer: BTW horizontal line placed:" << lineId.toString() << "at" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BTWHorizontalLinePlaced(lineId, timestamp);
+}
+
+void GraphContainer::onBTWHorizontalLineRemoved(const QUuid &lineId)
+{
+    DEBUG_OUT() << "GraphContainer: BTW horizontal line removed:" << lineId.toString();
+    emit BTWHorizontalLineRemoved(lineId);
 }
 
 void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)

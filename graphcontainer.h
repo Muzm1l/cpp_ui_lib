@@ -179,6 +179,10 @@ public slots:
     void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
     
+    // BTW Horizontal line slots
+    void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
+    void onBTWHorizontalLineRemoved(const QUuid &lineId);
+    
     // BTW Marker sync slots (called when syncing markers from other containers)
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
     void onBTWMarkerSyncDeleted(const QUuid &markerId);
@@ -219,6 +223,10 @@ signals:
     void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
     void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    // BTW Horizontal line signals
+    void BTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
+    void BTWHorizontalLineRemoved(const QUuid &lineId);
     /**
      * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
      * @param timestamp The timestamp of the marker

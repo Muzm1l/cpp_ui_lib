@@ -91,6 +91,9 @@ public:
     
     // Get timeline view for external synchronization
     TimelineView* getTimelineView() const { return m_timelineView; }
+    
+    // Add BTW symbol (magenta circle) to all SCW graphs at a timestamp
+    void addBTWSymbolToAllGraphs(const QDateTime &timestamp);
 
 signals:
     void seriesSelected(const QString &seriesName);

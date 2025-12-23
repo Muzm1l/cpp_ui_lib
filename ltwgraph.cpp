@@ -109,6 +109,12 @@ void LTWGraph::draw()
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        DEBUG_OUT() << "LTWGraph: Data source is empty, cleaned up all scatterplot items";
+    }
     else
     {
         DEBUG_OUT() << "LTW: draw() - no dataSource or dataSource is empty";
