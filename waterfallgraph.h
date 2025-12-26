@@ -249,6 +249,8 @@ protected:
     QPixmap m_waterfallBuffer;  // Scroll buffer for waterfall rendering
     QMap<QString, QVector<QPointF>> m_scatterPoints;  // Batched scatter points per series
     QMap<QString, QColor> m_scatterColors;  // Colors per series for scatter points
+    QMap<QString, QPainterPath> m_dataLinePaths;  // Store paths for data lines (ADOPTED, etc.)
+    QMap<QString, QColor> m_dataLineColors;  // Colors per series for data lines
     bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
 
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)

@@ -74,13 +74,14 @@ void BTWGraph::draw()
         }
         
         // Clear horizontal line items from scene before clearing
+        // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
         // Note: graphicsScene->clear() will delete all items, so we need to null out pointers
         // and recreate them in drawHorizontalLines()
         for (auto &line : m_horizontalLines) {
             if (line.lineItem) {
-                // Remove from scene before clear() deletes it
-                if (graphicsScene->items().contains(line.lineItem)) {
-                    graphicsScene->removeItem(line.lineItem);
+                // Remove from overlayScene before clear() deletes it
+                if (overlayScene && overlayScene->items().contains(line.lineItem)) {
+                    overlayScene->removeItem(line.lineItem);
                 }
                 // Delete the item since clear() will delete it anyway
                 delete line.lineItem;
@@ -1357,10 +1358,11 @@ int BTWGraph::removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal 
 void BTWGraph::clearHorizontalLines()
 {
     // Remove all graphics items
+    // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
     for (auto &line : m_horizontalLines) {
         if (line.lineItem) {
-            if (graphicsScene) {
-                graphicsScene->removeItem(line.lineItem);
+            if (overlayScene) {
+                overlayScene->removeItem(line.lineItem);
             }
             delete line.lineItem;
             line.lineItem = nullptr;
@@ -1373,7 +1375,8 @@ void BTWGraph::clearHorizontalLines()
 
 void BTWGraph::drawHorizontalLines()
 {
-    if (!graphicsScene || !dataRangesValid || drawingArea.isEmpty()) {
+    // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+    if (!overlayScene || !dataRangesValid || drawingArea.isEmpty()) {
         return;
     }
     
@@ -1386,8 +1389,9 @@ void BTWGraph::drawHorizontalLines()
         if (screenY < 0 || screenY < drawingArea.top() || screenY > drawingArea.bottom()) {
             // Line is outside visible range, but keep the cached item
             // Just hide it or remove it from scene
-            if (line.lineItem && graphicsScene->items().contains(line.lineItem)) {
-                graphicsScene->removeItem(line.lineItem);
+            // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+            if (line.lineItem && overlayScene && overlayScene->items().contains(line.lineItem)) {
+                overlayScene->removeItem(line.lineItem);
             }
             continue;
         }
@@ -1399,9 +1403,10 @@ void BTWGraph::drawHorizontalLines()
             // Update existing cached line - just update position
             line.lineItem->setLine(drawingArea.left(), screenY, drawingArea.right(), screenY);
             
-            // Re-add to scene if it was removed
-            if (!graphicsScene->items().contains(line.lineItem)) {
-                graphicsScene->addItem(line.lineItem);
+            // Re-add to overlayScene if it was removed
+            // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+            if (overlayScene && !overlayScene->items().contains(line.lineItem)) {
+                overlayScene->addItem(line.lineItem);
             }
         } else {
             // Create new cached line item (horizontal line spanning full width)
@@ -1409,7 +1414,10 @@ void BTWGraph::drawHorizontalLines()
             line.lineItem->setPen(QPen(line.color, line.width));
             line.lineItem->setZValue(1000);  // Above data, below markers
             
-            graphicsScene->addItem(line.lineItem);
+            // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
+            if (overlayScene) {
+                overlayScene->addItem(line.lineItem);
+            }
         }
     }
 }

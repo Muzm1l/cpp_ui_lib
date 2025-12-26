@@ -258,12 +258,19 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                     return;
                 }
             }
-        } else {
+        }
+    }
+    
+    // OPTIMIZATION: Check overlayScene for RTW symbols (they're now in overlayScene)
+    if (overlayScene) {
+        QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
+        
+        if (!itemAtPos) {
             // If no item found at exact position, try a small bounding box search for symbols
             const qreal searchRadius = 15.0; // Search within 15 pixels (slightly larger than R markers)
             QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
                            searchRadius * 2, searchRadius * 2);
-            QList<QGraphicsItem*> itemsInArea = graphicsScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
+            QList<QGraphicsItem*> itemsInArea = overlayScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
             
             // Look for RTW symbols (pixmap items with stored data) in the nearby items
             for (QGraphicsItem *item : itemsInArea) {
@@ -294,12 +301,39 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                     }
                 }
             }
-            
-            DEBUG_OUT() << "RTWGraph: No item found at scene position:" << scenePos;
-            DEBUG_OUT() << "RTWGraph: Graphics scene items count:" << graphicsScene->items().size();
+        } else {
+            // Check if we clicked on an RTW symbol (QGraphicsPixmapItem) in overlayScene
+            QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
+            if (pixmapItem) {
+                // Check if this pixmap item has symbol data stored (data(0) = timestamp)
+                QVariant timestampVariant = pixmapItem->data(0);
+                QVariant symbolNameVariant = pixmapItem->data(1);
+                
+                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() && 
+                    symbolNameVariant.isValid()) {
+                    // This is an RTW symbol - get timestamp and symbol name from stored data
+                    QDateTime timestamp = timestampVariant.value<QDateTime>();
+                    QString symbolName = symbolNameVariant.toString();
+                    
+                    if (timestamp.isValid()) {
+                        DEBUG_OUT() << "========================================";
+                        DEBUG_OUT() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED";
+                        DEBUG_OUT() << "========================================";
+                        DEBUG_OUT() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
+                        DEBUG_OUT() << "RTWGraph: Symbol name:" << symbolName;
+                        DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+                        DEBUG_OUT() << "========================================";
+                        
+                        // Emit signal for external integration
+                        emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
+                    } else {
+                        DEBUG_OUT() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
+                    }
+                    // Don't call parent - we've handled the symbol click
+                    return;
+                }
+            }
         }
-    } else {
-        DEBUG_OUT() << "RTWGraph: graphicsScene is null!";
     }
     
     // Call parent implementation for other clicks
@@ -490,7 +524,8 @@ void RTWGraph::drawRTWSymbols()
 {
     // Follow the same pattern as R markers - read symbols from dataSource
     // This ensures symbols persist with track changes and zoom customization
-    if (!graphicsScene || !dataSource)
+    // OPTIMIZATION: Use overlayScene instead of graphicsScene for symbols (interactive overlays)
+    if (!overlayScene || !dataSource)
     {
         return;
     }
@@ -501,7 +536,7 @@ void RTWGraph::drawRTWSymbols()
     if (m_renderState != RenderState::FULL_REDRAW)
     {
         // Remove all QGraphicsPixmapItem objects with z-value 1000 (RTW symbols)
-        QList<QGraphicsItem*> allItems = graphicsScene->items();
+        QList<QGraphicsItem*> allItems = overlayScene->items();
         for (QGraphicsItem* item : allItems)
         {
             QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
@@ -511,7 +546,7 @@ void RTWGraph::drawRTWSymbols()
                 QVariant timestampVariant = pixmapItem->data(0);
                 if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>())
                 {
-                    graphicsScene->removeItem(pixmapItem);
+                    overlayScene->removeItem(pixmapItem);
                     delete pixmapItem;
                 }
             }
@@ -650,7 +685,8 @@ void RTWGraph::drawRTWSymbols()
         pixmapItem->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
         pixmapItem->setAcceptHoverEvents(true);
         
-        graphicsScene->addItem(pixmapItem);
+        // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
+        overlayScene->addItem(pixmapItem);
         symbolsDrawn++;
     }
     

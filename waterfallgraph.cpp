@@ -1032,7 +1032,8 @@ void WaterfallGraph::transitionToAppropriateState()
 void WaterfallGraph::drawBTWSymbols()
 {
     // Follow the same pattern as RTW symbols - read symbols from dataSource
-    if (!graphicsScene || !dataSource)
+    // OPTIMIZATION: Use overlayScene instead of graphicsScene for symbols (interactive overlays)
+    if (!overlayScene || !dataSource)
     {
         return;
     }
@@ -1043,13 +1044,13 @@ void WaterfallGraph::drawBTWSymbols()
     if (m_renderState != RenderState::FULL_REDRAW)
     {
         // Remove all QGraphicsPixmapItem objects with z-value 1003 (BTW symbols/magenta circles)
-        QList<QGraphicsItem*> allItems = graphicsScene->items();
+        QList<QGraphicsItem*> allItems = overlayScene->items();
         for (QGraphicsItem* item : allItems)
         {
             QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
             if (pixmapItem && pixmapItem->zValue() == 1003)
             {
-                graphicsScene->removeItem(pixmapItem);
+                overlayScene->removeItem(pixmapItem);
                 delete pixmapItem;
             }
         }
@@ -1109,7 +1110,8 @@ void WaterfallGraph::drawBTWSymbols()
         pixmapItem->setPos(screenPos.x() - symbolPixmap.width()/2, screenPos.y() - symbolPixmap.height()/2);
         pixmapItem->setZValue(1003); // Above markers but below interactive items
         
-        graphicsScene->addItem(pixmapItem);
+        // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
+        overlayScene->addItem(pixmapItem);
     }
 
     // If only ranges need update
@@ -1665,6 +1667,7 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
                                                  const QColor &pointColor, qreal pointSize)
 {
     // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
+    Q_UNUSED(pointSize); // Not used in batched rendering, but kept for API compatibility
     // This eliminates per-item overhead and enables single drawPoints() call
     
     if (visibleData.empty())
@@ -1877,24 +1880,21 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
         // Check if the click is within the drawing area
         if (drawingArea.contains(scenePos))
         {
-            // Check if we clicked on a magenta circle (BTW symbol) in graphicsScene
-            if (graphicsScene) {
-                QGraphicsItem *itemAtPos = graphicsScene->itemAt(scenePos, QTransform());
+            // Check if we clicked on a magenta circle (BTW symbol) in overlayScene
+            // OPTIMIZATION: Symbols are now in overlayScene (interactive overlays)
+            if (overlayScene) {
+                QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
                 if (itemAtPos) {
-                    QGraphicsEllipseItem *ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(itemAtPos);
-                    if (ellipseItem) {
-                        // Check if it's a magenta circle by checking the brush color
-                        QBrush brush = ellipseItem->brush();
-                        if (brush.color() == QColor(255, 0, 255)) { // Magenta color
-                            // This is a magenta circle - extract timestamp and value
-                            QDateTime timestamp = mapScreenToTime(scenePos.y());
-                            qreal value = mapScreenXToRange(scenePos.x());
-                            
-                            if (timestamp.isValid()) {
-                                emit markerTimestampValueChanged(timestamp, value);
-                            }
-                            return; // Don't process further
+                    QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
+                    if (pixmapItem && pixmapItem->zValue() == 1003) {
+                        // This is a BTW magenta circle symbol - extract timestamp and value
+                        QDateTime timestamp = mapScreenToTime(scenePos.y());
+                        qreal value = mapScreenXToRange(scenePos.x());
+                        
+                        if (timestamp.isValid()) {
+                            emit markerTimestampValueChanged(timestamp, value);
                         }
+                        return; // Don't process further
                     }
                 }
             }
@@ -2295,6 +2295,23 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
         painter.drawPoints(points.constData(), points.size());
     }
     
+    // Draw data lines (ADOPTED series, etc.)
+    for (auto it = m_dataLinePaths.begin(); it != m_dataLinePaths.end(); ++it)
+    {
+        const QString &seriesLabel = it.key();
+        const QPainterPath &path = it.value();
+        
+        if (path.isEmpty())
+            continue;
+        
+        // Get color for this series
+        QColor lineColor = m_dataLineColors.value(seriesLabel, Qt::yellow);
+        painter.setPen(QPen(lineColor, 2));
+        
+        // Draw the path
+        painter.drawPath(path);
+    }
+    
     // Note: Overlays (crosshair, markers, selection) are still rendered via QGraphicsView
     // which is layered on top of this widget
     Q_UNUSED(event); // Event parameter not used, but required by Qt signature
@@ -2621,6 +2638,12 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     {
         DEBUG_OUT() << "drawDataLine: no data available for series" << seriesLabel;
         // Cleanup any existing items for this series
+        // OPTIMIZATION: Clear stored paths for paintEvent rendering
+        m_dataLinePaths.remove(seriesLabel);
+        m_dataLineColors.remove(seriesLabel);
+        update(); // Trigger repaint
+        
+        // Legacy cleanup (old QGraphicsPathItem code)
         auto pathIt = m_seriesPathItems.find(seriesLabel);
         if (pathIt != m_seriesPathItems.end() && pathIt->second)
         {
@@ -2682,6 +2705,12 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     {
         DEBUG_OUT() << "drawDataLine: no visible points within current time range for series" << seriesLabel;
         // Cleanup any existing items for this series
+        // OPTIMIZATION: Clear stored paths for paintEvent rendering
+        m_dataLinePaths.remove(seriesLabel);
+        m_dataLineColors.remove(seriesLabel);
+        update(); // Trigger repaint
+        
+        // Legacy cleanup (old QGraphicsPathItem code)
         auto pathIt = m_seriesPathItems.find(seriesLabel);
         if (pathIt != m_seriesPathItems.end() && pathIt->second)
         {
@@ -2716,6 +2745,11 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     // Clean up old items on FULL_REDRAW
     if (m_renderState == RenderState::FULL_REDRAW)
     {
+        // OPTIMIZATION: Clear stored paths (will be recreated below)
+        m_dataLinePaths.remove(seriesLabel);
+        m_dataLineColors.remove(seriesLabel);
+        
+        // Legacy cleanup (old QGraphicsPathItem code)
         auto pathIt = m_seriesPathItems.find(seriesLabel);
         if (pathIt != m_seriesPathItems.end() && pathIt->second)
         {
@@ -2815,35 +2849,25 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         path.lineTo(point);
     }
 
-    // Update or create path item
+    // OPTIMIZATION: Store path and color for paintEvent rendering instead of QGraphicsPathItem
+    // This eliminates QGraphicsScene overhead for data lines
+    m_dataLinePaths[seriesLabel] = path;
+    m_dataLineColors[seriesLabel] = seriesColor;
+    
+    // Trigger repaint (paintEvent will draw the path)
+    update();
+    
+    // Clean up old QGraphicsPathItem if it exists (legacy code cleanup)
     auto pathIt = m_seriesPathItems.find(seriesLabel);
     if (pathIt != m_seriesPathItems.end() && pathIt->second)
     {
-        if (m_renderState == RenderState::INCREMENTAL_UPDATE || m_renderState == RenderState::RANGE_UPDATE_ONLY)
+        // Check if item belongs to this scene before removing
+        if (pathIt->second->scene() == graphicsScene)
         {
-            // Update existing path
-            pathIt->second->setPath(path);
+            graphicsScene->removeItem(pathIt->second);
         }
-        else
-        {
-            // FULL_REDRAW: recreate
-            // Check if item belongs to this scene before removing
-            if (pathIt->second->scene() == graphicsScene)
-            {
-                graphicsScene->removeItem(pathIt->second);
-            }
-            delete pathIt->second;
-            QPen linePen(seriesColor, 2);
-            QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
-            m_seriesPathItems[seriesLabel] = pathItem;
-        }
-    }
-    else
-    {
-        // Create new path
-        QPen linePen(seriesColor, 2);
-        QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
-        m_seriesPathItems[seriesLabel] = pathItem;
+        delete pathIt->second;
+        m_seriesPathItems.erase(pathIt);
     }
 
     // Draw data points if enabled
