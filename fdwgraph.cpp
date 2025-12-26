@@ -105,8 +105,11 @@ void FDWGraph::draw()
         DEBUG_OUT() << "FDWGraph: Data source is empty, cleaned up all scatterplot items";
     }
     
-    // Draw BTW symbols (magenta circles) if any exist in data source (only on full redraw)
-    if (needsFullClear)
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    // CRITICAL FIX: Draw during both full redraw and incremental updates
+    // Symbols need to be redrawn when time range changes (timer ticks, animation, zoom)
+    // because their Y positions depend on the time range
+    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
     {
         drawBTWSymbols();
     }

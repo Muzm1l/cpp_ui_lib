@@ -74,7 +74,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_overlaySceneRectValid(false),
     m_mapScreenToTimeCachedYPos(-1.0),
     m_mapScreenToTimeCachedTime(QDateTime()),
-    m_mapScreenToTimeCacheValid(false)
+    m_mapScreenToTimeCacheValid(false),
+    m_mapDataToScreenCacheVersion(0)
 {
     // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
     // Using default size (4x4 pixel rectangle)
@@ -434,6 +435,10 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, cons
     markSeriesDirty(seriesLabel);
     markRangeUpdateNeeded();
     dataRangesValid = false;
+    
+    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when data ranges become invalid
+    // Y range will change, making cached mappings invalid
+    m_mapDataToScreenCache.clear();
 
     // Use incremental draw instead of full redraw
     drawIncremental();
@@ -461,6 +466,10 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
     markSeriesDirty(seriesLabel);
     markRangeUpdateNeeded();
     dataRangesValid = false;
+    
+    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when data ranges become invalid
+    // Y range will change, making cached mappings invalid
+    m_mapDataToScreenCache.clear();
 
     // Use incremental draw instead of full redraw
     drawIncremental();
@@ -538,6 +547,9 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     timeInterval = interval;
     // Invalidate coordinate mapping caches (Issue #1)
     m_cachesValid = false;
+    
+    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when caches become invalid
+    m_mapDataToScreenCache.clear();
 
     // Always update time range based on new interval
     if (customTimeRangeEnabled)
@@ -690,10 +702,17 @@ void WaterfallGraph::draw()
     if (!graphicsScene)
         return;
 
-    // Mark for full redraw (automatically marks all series dirty)
-    setRenderState(RenderState::FULL_REDRAW);
+    // Only set FULL_REDRAW if we're in CLEAN state (no pending updates)
+    // Otherwise respect the current state (INCREMENTAL_UPDATE, etc.) that was set
+    // by methods like setTimeRange() or addDataPoint()
+    if (m_renderState == RenderState::CLEAN)
+    {
+        setRenderState(RenderState::FULL_REDRAW);
+    }
+    // If state is already INCREMENTAL_UPDATE, RANGE_UPDATE_ONLY, or FULL_REDRAW,
+    // keep it - don't override incremental updates with full redraws
 
-    // Use incremental draw which will handle the full redraw state
+    // Use incremental draw which will handle the current state
     drawIncremental();
 }
 
@@ -855,6 +874,24 @@ void WaterfallGraph::drawBTWSymbols()
     if (!graphicsScene || !dataSource)
     {
         return;
+    }
+    
+    // CRITICAL FIX: Remove old BTW symbol items (magenta circles) before drawing new ones
+    // This prevents duplicates when time range changes and symbols are redrawn
+    // Only remove if not doing a full clear (full clear already cleared the scene)
+    if (m_renderState != RenderState::FULL_REDRAW)
+    {
+        // Remove all QGraphicsPixmapItem objects with z-value 1003 (BTW symbols/magenta circles)
+        QList<QGraphicsItem*> allItems = graphicsScene->items();
+        for (QGraphicsItem* item : allItems)
+        {
+            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+            if (pixmapItem && pixmapItem->zValue() == 1003)
+            {
+                graphicsScene->removeItem(pixmapItem);
+                delete pixmapItem;
+            }
+        }
     }
     
     // Get symbols from dataSource
@@ -1680,6 +1717,15 @@ void WaterfallGraph::setupDrawingArea()
     // Invalidate mapScreenToTime cache if drawing area changed
     if (oldDrawingArea != drawingArea) {
         m_mapScreenToTimeCacheValid = false;
+        
+        // OPTIMIZATION FIX #1: Invalidate mapDataToScreen cache when drawing area SIZE changes
+        // Only clear cache if size actually changed (not just position)
+        // This prevents unnecessary cache clearing during initialization
+        bool sizeChanged = (oldDrawingArea.size() != drawingArea.size());
+        if (sizeChanged) {
+            m_mapDataToScreenCache.clear();
+            m_mapDataToScreenCacheVersion++;
+        }
     }
     
     // Ensure coordinate mapping cache is valid (Issue #1)
@@ -2230,6 +2276,15 @@ void WaterfallGraph::updateCoordinateMappingCaches() const
     }
     
     m_cachesValid = (m_cachedTimeIntervalMs > 0 && m_cachedYRange > 0.0 && m_cachedTimeMaxEpoch != 0);
+    
+    // OPTIMIZATION FIX #1: Invalidate mapDataToScreen cache when coordinate mapping changes
+    // Increment version to invalidate all cached results
+    m_mapDataToScreenCacheVersion++;
+    if (m_mapDataToScreenCacheVersion < 0) {
+        // Prevent overflow - clear cache and reset version
+        m_mapDataToScreenCache.clear();
+        m_mapDataToScreenCacheVersion = 0;
+    }
 }
 
 /**
@@ -2292,18 +2347,21 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
         return QPointF(0, 0);
     }
 
-    // OPTIMIZED: Use cached values directly - cache is updated in updateDataRanges() before drawing
-    // Cache check removed from hot path to eliminate overhead when called thousands of times
-    // Cache is guaranteed valid when this function is called during normal drawing operations
-
     // Fast path: use cached values (Issue #1)
     if (!qIsFinite(yValue) || m_cachedYRange <= 0.0)
     {
         return QPointF(0, 0);
     }
     
+    // CACHE DISABLED: Cache lookup removed to fix graph update issues
+    // The cache was causing graphs to not update when data changed
+    // MapDataToScreenCacheKey cacheKey{yValue, timestampEpoch};
+    // ... cache lookup code removed ...
+    
+    // OPTIMIZATION FIX #5: Precompute common values to reduce calculations
     // Use cached reciprocal instead of division
-    qreal x = drawingArea.left() + ((yValue - yMin) * m_cachedYRangeReciprocal) * drawingArea.width();
+    qreal normalizedX = (yValue - yMin) * m_cachedYRangeReciprocal;
+    qreal x = drawingArea.left() + normalizedX * drawingArea.width();
 
     // Map timestamp to y-coordinate using cached reciprocal
     if (m_cachedTimeIntervalMs <= 0)
@@ -2317,8 +2375,9 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
     qint64 timestampEpoch = timestamp.toMSecsSinceEpoch();
     qint64 timeOffset = m_cachedTimeMaxEpoch - timestampEpoch; // Positive = timestamp is in the past
     
-    // Use cached reciprocal instead of division
-    qreal y = drawingArea.top() + (timeOffset * m_cachedTimeIntervalMsReciprocal) * drawingArea.height();
+    // OPTIMIZATION FIX #5: Precompute normalized Y value
+    qreal normalizedY = timeOffset * m_cachedTimeIntervalMsReciprocal;
+    qreal y = drawingArea.top() + normalizedY * drawingArea.height();
 
     // Validate result
     if (!qIsFinite(x) || !qIsFinite(y))
@@ -2326,7 +2385,13 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
         return QPointF(0, 0);
     }
 
-    return QPointF(x, y);
+    QPointF result(x, y);
+    
+    // CACHE DISABLED: Cache storage removed to fix graph update issues
+    // The cache was causing graphs to not update when data changed
+    // ... cache storage code removed ...
+
+    return result;
 }
 
 /**
@@ -3644,6 +3709,10 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &color)
 {
     seriesColors[seriesLabel] = color;
+    
+    // OPTIMIZATION FIX #3: Update cache when explicit color is set
+    // Remove from cache if it exists (explicit color takes precedence)
+    m_seriesColorCache.erase(seriesLabel);
 }
 
 /**
@@ -3654,10 +3723,18 @@ void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &co
  */
 QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 {
+    // OPTIMIZATION FIX #3: Check explicit color map first
     auto it = seriesColors.find(seriesLabel);
     if (it != seriesColors.end())
     {
         return it->second;
+    }
+
+    // OPTIMIZATION FIX #3: Check cache for computed default color
+    auto cacheIt = m_seriesColorCache.find(seriesLabel);
+    if (cacheIt != m_seriesColorCache.end())
+    {
+        return cacheIt->second;
     }
 
     // Return a default color based on series index
@@ -3666,7 +3743,12 @@ QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 
     // Generate a consistent color based on the series label hash
     uint hash = qHash(seriesLabel);
-    return defaultColors[hash % (sizeof(defaultColors) / sizeof(defaultColors[0]))];
+    QColor defaultColor = defaultColors[hash % (sizeof(defaultColors) / sizeof(defaultColors[0]))];
+    
+    // OPTIMIZATION FIX #3: Cache the computed default color for future lookups
+    m_seriesColorCache[seriesLabel] = defaultColor;
+    
+    return defaultColor;
 }
 
 /**

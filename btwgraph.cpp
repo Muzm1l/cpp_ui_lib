@@ -149,7 +149,7 @@ void BTWGraph::draw()
         DEBUG_OUT() << "BTWGraph: Data source is empty, cleaned up all scatterplot items";
     }
     
-    // These items only need redrawing on full clear
+    // These items need to be redrawn when time range changes or data updates
     if (needsFullClear)
     {
         // Draw BTW symbols (magenta circles from other graphs)
@@ -169,6 +169,18 @@ void BTWGraph::draw()
         // Even on incremental updates, we need to update horizontal lines
         // because they can be added/removed dynamically
         drawHorizontalLines();
+        
+        // CRITICAL FIX: Also update shaded regions during incremental updates
+        // Shaded regions need to be redrawn when time range changes (RANGE_UPDATE_ONLY)
+        // or when data is added (INCREMENTAL_UPDATE) because their Y coordinates
+        // depend on the time range. Without this, shaded regions don't appear
+        // until a manual marker triggers a full redraw.
+        drawShadedRegions();
+        
+        // CRITICAL FIX: Also update BTW symbols during incremental updates
+        // Symbols need to be redrawn when time range changes (timer ticks, animation, zoom)
+        // because their Y positions depend on the time range
+        drawBTWSymbols();
     }
     
     // Sync interactive overlay markers with the new time range
@@ -714,6 +726,24 @@ void BTWGraph::drawBTWSymbols()
     if (!graphicsScene || !dataSource)
     {
         return;
+    }
+    
+    // CRITICAL FIX: Remove old BTW symbol items (magenta circles) before drawing new ones
+    // This prevents duplicates when time range changes and symbols are redrawn
+    // Only remove if not doing a full clear (full clear already cleared the scene)
+    if (m_renderState != RenderState::FULL_REDRAW)
+    {
+        // Remove all QGraphicsPixmapItem objects with z-value 1003 (BTW symbols/magenta circles)
+        QList<QGraphicsItem*> allItems = graphicsScene->items();
+        for (QGraphicsItem* item : allItems)
+        {
+            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+            if (pixmapItem && pixmapItem->zValue() == 1003)
+            {
+                graphicsScene->removeItem(pixmapItem);
+                delete pixmapItem;
+            }
+        }
     }
     
     // Get symbols from dataSource (filtered by time range using binary search)

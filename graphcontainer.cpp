@@ -213,8 +213,9 @@ void GraphContainer::onTimerTick()
                         TimeSelectionSpan newWindow(newTimeMin, newTimeMax);
                         m_timelineView->setVisibleTimeWindow(newWindow);
                         
-                        // Redraw graph to show updated data
-                        redrawWaterfallGraph();
+                        // Don't force full redraw - setTimeRange() sets INCREMENTAL_UPDATE state
+                        // The graph will redraw incrementally when draw() is called (which respects the state)
+                        // This prevents unnecessary full redraws every second
                     }
                     // NOTE: Removed unconditional redraw - only redraw when new data arrives
                     // This prevents unnecessary CPU usage from constant full redraws
@@ -1504,10 +1505,16 @@ void GraphContainer::onDataChanged(GraphType graphType)
         // Update zoom panel limits to reflect new data ranges
         initializeZoomPanelLimits();
 
-        // Force full redraw of the waterfall graph when new data arrives
+        // CRITICAL FIX: Trigger graph redraw when data changes
+        // Data was added to the shared WaterfallData object via GraphLayout,
+        // but the graph doesn't know to redraw because addDataPoint() wasn't called on it
+        // Call draw() to trigger a redraw - it will use incremental updates if the state allows
         if (m_currentWaterfallGraph)
         {
-            m_currentWaterfallGraph->forceFullRedraw();
+            // Trigger redraw - draw() will check the current render state
+            // If setTimeRange() above set INCREMENTAL_UPDATE, it will use that
+            // Otherwise it will do a full redraw
+            m_currentWaterfallGraph->draw();
         }
         
         // Ensure timer is running to continue animation after data update

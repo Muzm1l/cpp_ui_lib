@@ -251,6 +251,25 @@ protected:
     mutable QDateTime m_mapScreenToTimeCachedTime;     // Last cached time result for mapScreenToTime
     mutable bool m_mapScreenToTimeCacheValid; // Flag to track cache validity
 
+    // mapDataToScreen() result cache (Performance optimization - Fix #1)
+    // Cache mapping (yValue, timestamp) -> QPointF to avoid recalculating same points
+    struct MapDataToScreenCacheKey {
+        qreal yValue;
+        qint64 timestampEpoch;  // Use epoch for faster comparison
+        
+        bool operator<(const MapDataToScreenCacheKey& other) const {
+            if (timestampEpoch != other.timestampEpoch)
+                return timestampEpoch < other.timestampEpoch;
+            return yValue < other.yValue;
+        }
+    };
+    mutable std::map<MapDataToScreenCacheKey, QPointF> m_mapDataToScreenCache;
+    mutable qint64 m_mapDataToScreenCacheVersion;  // Increment when cache should be invalidated
+    static constexpr size_t MAX_MAP_DATA_TO_SCREEN_CACHE_SIZE = 10000;  // Limit cache size
+    
+    // getSeriesColor() result cache (Performance optimization - Fix #3)
+    mutable std::map<QString, QColor> m_seriesColorCache;  // Cache computed default colors
+
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;

@@ -106,8 +106,10 @@ void RTWGraph::draw()
             {
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw ADOPTED series as line (only on full redraw)
-                    if (needsFullClear)
+                    // Draw ADOPTED series as line
+                    // CRITICAL FIX: Draw during both full redraw and incremental updates
+                    // The line needs to update when data changes or time range changes
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
                     {
                         DEBUG_OUT() << "RTW: draw() - drawing ADOPTED series as line";
                         drawDataLine(seriesLabel, false);
@@ -133,16 +135,20 @@ void RTWGraph::draw()
         DEBUG_OUT() << "RTW: draw() - no dataSource";
     }
 
-    // These items only need redrawing on full clear
-    if (needsFullClear)
+    // These items need to be redrawn when time range changes or data updates
+    // CRITICAL FIX: Always draw symbols and markers - they need to update positions
+    // when time range changes (timer ticks, animation, zoom) or when new symbols are added
+    // Symbols are positioned based on time range, so they must be redrawn whenever
+    // the time range changes (INCREMENTAL_UPDATE, RANGE_UPDATE_ONLY, or FULL_REDRAW)
+    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
     {
         // Draw manually placed RTW R markers from data source
         drawCustomRMarkers();
         
-        // Draw RTW symbols
+        // Draw RTW symbols (will remove old ones if not full clear)
         drawRTWSymbols();
         
-        // Draw BTW symbols (magenta circles from BTW graph markers)
+        // Draw BTW symbols (magenta circles from BTW graph markers) (will remove old ones if not full clear)
         drawBTWSymbols();
     }
     
@@ -424,6 +430,11 @@ void RTWGraph::addRTWSymbol(const QString &symbolName, const QDateTime &timestam
     
     DEBUG_OUT() << "RTW: Added symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "to data source";
     
+    // CRITICAL FIX: Set render state to FULL_REDRAW to ensure symbols are drawn
+    // When draw() is called, it checks needsFullClear || RANGE_UPDATE_ONLY to draw symbols
+    // If render state is CLEAN, symbols won't be drawn, so we need to set it to FULL_REDRAW
+    setRenderState(RenderState::FULL_REDRAW);
+    
     // Trigger redraw - same pattern as when data is added via setData()
     // The symbol will be drawn in drawRTWSymbols() which is called from draw()
     draw();
@@ -482,6 +493,29 @@ void RTWGraph::drawRTWSymbols()
     if (!graphicsScene || !dataSource)
     {
         return;
+    }
+    
+    // CRITICAL FIX: Remove old RTW symbol items before drawing new ones
+    // This prevents duplicates when time range changes and symbols are redrawn
+    // Only remove if not doing a full clear (full clear already cleared the scene)
+    if (m_renderState != RenderState::FULL_REDRAW)
+    {
+        // Remove all QGraphicsPixmapItem objects with z-value 1000 (RTW symbols)
+        QList<QGraphicsItem*> allItems = graphicsScene->items();
+        for (QGraphicsItem* item : allItems)
+        {
+            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+            if (pixmapItem && pixmapItem->zValue() == 1000)
+            {
+                // Check if this is an RTW symbol (has timestamp data stored)
+                QVariant timestampVariant = pixmapItem->data(0);
+                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>())
+                {
+                    graphicsScene->removeItem(pixmapItem);
+                    delete pixmapItem;
+                }
+            }
+        }
     }
     
     // Get symbols from dataSource (same pattern as R markers get data from dataSource)
