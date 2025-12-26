@@ -28,6 +28,7 @@
 #include <QEvent>
 #include <QResizeEvent>
 #include <QShowEvent>
+#include <QPaintEvent>
 #include <QTime>
 #include <QTimer>
 #include <QVBoxLayout>
@@ -115,6 +116,8 @@ protected:
     // Override show event
     void showEvent(QShowEvent *event) override;
 
+    // Override paint event for direct rendering (replaces QGraphicsScene)
+    void paintEvent(QPaintEvent *event) override;
 
     // Auto-update Y range flag
     bool autoUpdateYRange;
@@ -241,6 +244,12 @@ protected:
     std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;
     // Track scatterplot pixmap items per series for incremental updates
     std::map<QString, std::vector<QGraphicsPixmapItem*>> m_seriesScatterplotItems;
+    
+    // Direct rendering support (replaces QGraphicsScene for data rendering)
+    QPixmap m_waterfallBuffer;  // Scroll buffer for waterfall rendering
+    QMap<QString, QVector<QPointF>> m_scatterPoints;  // Batched scatter points per series
+    QMap<QString, QColor> m_scatterColors;  // Colors per series for scatter points
+    bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
 
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
     // Avoids O(n) filtering on every draw by caching already-filtered data

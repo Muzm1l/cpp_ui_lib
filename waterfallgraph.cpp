@@ -77,7 +77,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_mapScreenToTimeCachedYPos(-1.0),
     m_mapScreenToTimeCachedTime(QDateTime()),
     m_mapScreenToTimeCacheValid(false),
-    m_mapDataToScreenCacheVersion(0)
+    m_mapDataToScreenCacheVersion(0),
+    m_needsWaterfallRedraw(true)
 {
     // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
     // Using default size (4x4 pixel rectangle)
@@ -105,7 +106,9 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
 
     // Create graphics view
     graphicsView = new QGraphicsView(graphicsScene, this);
-    graphicsView->setRenderHint(QPainter::Antialiasing);
+    // Antialiasing disabled for bulk rendering (waterfall, scatter plots) - enabled only for overlays
+    // This reduces QRasterPaintEngine overhead significantly
+    // graphicsView->setRenderHint(QPainter::Antialiasing); // DISABLED for performance
     graphicsView->setDragMode(QGraphicsView::NoDrag);                   // We'll handle our own mouse events
     graphicsView->setMouseTracking(true);                               // Enable mouse tracking
     graphicsView->setAttribute(Qt::WA_TransparentForMouseEvents, true); // Make transparent to mouse events
@@ -155,11 +158,16 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     overlayView->setAttribute(Qt::WA_TranslucentBackground, true);
 
     // Set up layout to make the main graphics view fill the widget with no margins
+    // NOTE: graphicsView is now hidden - rendering is done via paintEvent() for better performance
+    // Keeping graphicsView for backward compatibility but it's not used for data rendering
     QVBoxLayout *layout = new QVBoxLayout(this);
     layout->setContentsMargins(0, 0, 0, 0);
     layout->setSpacing(0);
     layout->addWidget(graphicsView);
     setLayout(layout);
+    
+    // Hide graphicsView - we now render directly via paintEvent()
+    graphicsView->hide();
 
     // Position overlay view on top of the main view using absolute positioning
     overlayView->setParent(this);
@@ -369,23 +377,35 @@ void WaterfallGraph::attachEngine(GraphEngine *engine)
         // Connect engine signals
         connect(m_engine, &GraphEngine::dataAppended,
                 this, [this](const QString &seriesLabel) {
+            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
+            if (!isVisible())
+                return;
             markSeriesDirty(seriesLabel);
             markRangeUpdateNeeded();
             drawIncremental();
         });
         
         connect(m_engine, &GraphEngine::dataRangeChanged, this, [this]() {
+            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
+            if (!isVisible())
+                return;
             markRangeUpdateNeeded();
             dataRangesValid = false;
             drawIncremental();
         });
         
         connect(m_engine, &GraphEngine::symbolsChanged, this, [this]() {
+            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
+            if (!isVisible())
+                return;
             setRenderState(RenderState::INCREMENTAL_UPDATE);
             drawIncremental();
         });
         
         connect(m_engine, &GraphEngine::markersChanged, this, [this]() {
+            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
+            if (!isVisible())
+                return;
             setRenderState(RenderState::INCREMENTAL_UPDATE);
             drawIncremental();
         });
@@ -859,6 +879,10 @@ void WaterfallGraph::draw()
  */
 void WaterfallGraph::drawIncremental()
 {
+    // Skip updates if widget is not visible (optimization: avoid wasted CPU)
+    if (!isVisible())
+        return;
+    
     if (!graphicsScene)
         return;
 
@@ -1640,25 +1664,19 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
                                                  const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
                                                  const QColor &pointColor, qreal pointSize)
 {
-    if (!graphicsScene)
-    {
-        return;
-    }
-    
-    // Remove all existing items
-    cleanupScatterplotItems(seriesLabel);
+    // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
+    // This eliminates per-item overhead and enables single drawPoints() call
     
     if (visibleData.empty())
     {
+        m_scatterPoints[seriesLabel].clear();
         return;
     }
     
-    // Get cached pixmap
-    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
-    
-    // Create items for all visible points - use epoch milliseconds (no timezone conversion!)
-    std::vector<QGraphicsPixmapItem*> &items = m_seriesScatterplotItems[seriesLabel];
-    items.reserve(visibleData.size());
+    // Build batched point vector
+    QVector<QPointF> &points = m_scatterPoints[seriesLabel];
+    points.clear();
+    points.reserve(visibleData.size());
     
     for (const auto &dataPoint : visibleData)
     {
@@ -1675,12 +1693,14 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
             continue; // Skip invalid screen coordinates
         }
         
-        QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pointPixmap);
-        item->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
-        item->setZValue(120);
-        graphicsScene->addItem(item);
-        items.push_back(item);
+        points.append(screenPoint);
     }
+    
+    // Store color for this series (used in paintEvent)
+    m_scatterColors[seriesLabel] = pointColor;
+    
+    // Trigger repaint (paintEvent will draw the batched points)
+    update();
 }
 
 /**
@@ -1698,123 +1718,44 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
                                                          const std::vector<std::pair<qreal, qint64>> &newVisibleData, // epoch ms
                                                          const QColor &pointColor, qreal pointSize)
 {
-    if (!graphicsScene)
-    {
-        return;
-    }
+    // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
+    // For incremental updates, we rebuild the point vector (fast operation)
+    Q_UNUSED(pointSize); // Not used in batched rendering, but kept for API compatibility
     
     if (newVisibleData.empty())
     {
-        // No visible data - remove all items
-        cleanupScatterplotItems(seriesLabel);
+        m_scatterPoints[seriesLabel].clear();
+        update();
         return;
     }
     
-    // For incremental updates, we need to match items to data points by timestamp
-    // since the time range might have changed. If the data is completely different,
-    // fall back to full rebuild.
-    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
-    if (itemIt == m_seriesScatterplotItems.end() || itemIt->second.empty())
+    // Build batched point vector (same as full update - vector rebuild is fast)
+    QVector<QPointF> &points = m_scatterPoints[seriesLabel];
+    points.clear();
+    points.reserve(newVisibleData.size());
+    
+    for (const auto &dataPoint : newVisibleData)
     {
-        // No existing items - do full rebuild
-        updateScatterplotItemsFull(seriesLabel, newVisibleData, pointColor, pointSize);
-        return;
-    }
-    
-    // Get cached visible data to match by timestamp
-    auto cacheIt = m_cachedVisibleData.find(seriesLabel);
-    if (cacheIt == m_cachedVisibleData.end())
-    {
-        // No cache - do full rebuild
-        updateScatterplotItemsFull(seriesLabel, newVisibleData, pointColor, pointSize);
-        return;
-    }
-    
-    const std::vector<std::pair<qreal, qint64>> &oldVisibleData = cacheIt->second; // epoch ms
-    std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
-    
-    // If the data sets are too different, do full rebuild
-    // This happens when time range changes significantly
-    if (oldVisibleData.size() != items.size())
-    {
-        updateScatterplotItemsFull(seriesLabel, newVisibleData, pointColor, pointSize);
-        return;
-    }
-    
-    QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
-    
-    // Match items to new data by timestamp (assuming data is sorted by time)
-    // For now, do a simple index-based update if counts match
-    // TODO: Implement proper timestamp-based matching for better performance
-    size_t oldCount = items.size();
-    size_t newCount = newVisibleData.size();
-    
-    // Update positions for matching items - use epoch milliseconds (no timezone conversion!)
-    size_t updateCount = std::min(oldCount, newCount);
-    for (size_t i = 0; i < updateCount; ++i)
-    {
-        if (items[i] && i < newVisibleData.size())
+        // dataPoint.second is now qint64 (epoch ms), not QDateTime
+        if (dataPoint.second == 0)
         {
-            const auto &dataPoint = newVisibleData[i];
-            // dataPoint.second is now qint64 (epoch ms), not QDateTime
-            if (dataPoint.second == 0)
-            {
-                continue; // Skip invalid timestamps
-            }
-            
-            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
-            if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
-            {
-                continue;
-            }
-            
-            items[i]->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
+            continue; // Skip invalid timestamps
         }
+        
+        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
+        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        {
+            continue;
+        }
+        
+        points.append(screenPoint);
     }
     
-    if (newCount > oldCount)
-    {
-        // New points added - create items for new ones only - use epoch milliseconds (no timezone conversion!)
-        items.reserve(newCount);
-        for (size_t i = oldCount; i < newCount; ++i)
-        {
-            const auto &dataPoint = newVisibleData[i];
-            // dataPoint.second is now qint64 (epoch ms), not QDateTime
-            if (dataPoint.second == 0)
-            {
-                continue; // Skip invalid timestamps
-            }
-            
-            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
-            if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
-            {
-                continue;
-            }
-            
-            QGraphicsPixmapItem *item = new QGraphicsPixmapItem(pointPixmap);
-            item->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
-            item->setZValue(120);
-            graphicsScene->addItem(item);
-            items.push_back(item);
-        }
-    }
-    else if (newCount < oldCount)
-    {
-        // Points removed - delete excess items
-        for (size_t i = newCount; i < oldCount; ++i)
-        {
-            if (items[i])
-            {
-                // Check if item belongs to this scene before removing
-                if (items[i]->scene() == graphicsScene)
-                {
-                    graphicsScene->removeItem(items[i]);
-                }
-                delete items[i];
-            }
-        }
-        items.resize(newCount);
-    }
+    // Store color for this series (used in paintEvent)
+    m_scatterColors[seriesLabel] = pointColor;
+    
+    // Trigger repaint (paintEvent will draw the batched points)
+    update();
 }
 
 /**
@@ -2272,7 +2213,7 @@ void WaterfallGraph::showEvent(QShowEvent *event)
 {
     QWidget::showEvent(event);
 
-    // Ensure graphics view fits the widget exactly
+    // Ensure graphics view fits the widget exactly (hidden but kept for compatibility)
     if (graphicsView)
     {
         graphicsView->resize(this->size());
@@ -2303,13 +2244,60 @@ void WaterfallGraph::showEvent(QShowEvent *event)
     }
 
     // Start cursor update timer if cursor layer is enabled
-    if (m_cursorLayerEnabled && !cursorUpdateTimer->isActive())
+    if (m_cursorLayerEnabled && cursorUpdateTimer && !cursorUpdateTimer->isActive())
     {
         cursorUpdateTimer->start();
     }
 
     // Update graphics dimensions now that we're visible
     updateGraphicsDimensions();
+}
+
+/**
+ * @brief Paint event for direct rendering (replaces QGraphicsScene for data rendering)
+ * 
+ * This method renders waterfall buffer and batched scatter points directly using QPainter.
+ * Overlays (crosshair, markers, selection) still use QGraphicsView for interactivity.
+ */
+void WaterfallGraph::paintEvent(QPaintEvent *event)
+{
+    QPainter painter(this);
+    
+    // Disable antialiasing for bulk rendering (waterfall, scatter plots)
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    
+    // Draw waterfall buffer if available
+    if (!m_waterfallBuffer.isNull())
+    {
+        QRect widgetRect = rect();
+        painter.drawPixmap(widgetRect, m_waterfallBuffer, m_waterfallBuffer.rect());
+    }
+    else
+    {
+        // Fill with black background if no buffer
+        painter.fillRect(rect(), Qt::black);
+    }
+    
+    // Draw batched scatter points
+    for (auto it = m_scatterPoints.begin(); it != m_scatterPoints.end(); ++it)
+    {
+        const QString &seriesLabel = it.key();
+        const QVector<QPointF> &points = it.value();
+        
+        if (points.isEmpty())
+            continue;
+        
+        // Get color for this series
+        QColor pointColor = m_scatterColors.value(seriesLabel, Qt::white);
+        painter.setPen(QPen(pointColor, 1));
+        
+        // Draw all points in a single call (batched rendering)
+        painter.drawPoints(points.constData(), points.size());
+    }
+    
+    // Note: Overlays (crosshair, markers, selection) are still rendered via QGraphicsView
+    // which is layered on top of this widget
+    Q_UNUSED(event); // Event parameter not used, but required by Qt signature
 }
 
 /**
