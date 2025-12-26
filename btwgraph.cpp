@@ -124,9 +124,9 @@ void BTWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points
-                    // Only redraw line on full clear
-                    if (needsFullClear)
+                    // Draw ADOPTED series as solid line (no points)
+                    // Draw during both full redraw and incremental updates
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
                     {
                         drawDataLine(seriesLabel, false);
                     }

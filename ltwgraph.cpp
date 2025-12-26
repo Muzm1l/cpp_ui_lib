@@ -89,8 +89,9 @@ void LTWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points (only on full redraw)
-                    if (needsFullClear)
+                    // Draw ADOPTED series as solid line (no points)
+                    // Draw during both full redraw and incremental updates
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
                     {
                         DEBUG_OUT() << "LTW: draw() - drawing ADOPTED series as line";
                         drawDataLine(seriesLabel, false);
@@ -98,13 +99,8 @@ void LTWGraph::draw()
                 }
                 else
                 {
-                    // Draw custom markers for other series with adaptive sampling
-                    // Note: drawCustomMarkers doesn't support incremental yet, so always redraw on full clear
-                    if (needsFullClear)
-                    {
-                        DEBUG_OUT() << "LTW: draw() - drawing custom markers for series:" << seriesLabel;
-                        drawCustomMarkers(seriesLabel, seriesColor);
-                    }
+                    // Draw scatterplot for other series - respects render state internally
+                    drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
             }
         }

@@ -26,7 +26,6 @@ protected:
     void onMouseDrag(const QPointF &scenePos) override;
     
     // Override drawDataLine to use dashed lines
-    void drawDataLine(const QString &seriesLabel, bool plotPoints = true) override;
 
 private:
     // FDW-specific properties and methods can be added here

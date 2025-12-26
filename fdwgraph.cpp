@@ -84,8 +84,9 @@ void FDWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points (only on full redraw)
-                    if (needsFullClear)
+                    // Draw ADOPTED series as solid line (no points)
+                    // Draw during both full redraw and incremental updates
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
                     {
                         drawDataLine(seriesLabel, false);
                     }
@@ -156,103 +157,7 @@ void FDWGraph::drawFDWScatterplot()
     DEBUG_OUT() << "FDW scatterplot drawn";
 }
 
-/**
- * @brief Override drawDataLine to use dashed lines for FDW graph
- *
- */
-void FDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
-{
-    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
-    {
-        return;
-    }
-
-    const auto &yData = dataSource->getYDataSeries(seriesLabel);
-    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-
-    if (yData.empty() || timestamps.empty())
-    {
-        DEBUG_OUT() << "FDW: drawDataLine - no data available for series" << seriesLabel;
-        return;
-    }
-
-    if (yData.size() != timestamps.size())
-    {
-        DEBUG_OUT() << "FDW: drawDataLine - data size mismatch for series" << seriesLabel
-                 << "- yData:" << yData.size() << "timestamps:" << timestamps.size();
-        return;
-    }
-
-    // Use cached visible data for O(k) incremental filtering instead of O(n) full filter
-    // Cache is automatically updated when time range or data changes
-    if (!isVisibleDataCacheValid(seriesLabel))
-    {
-        // Check if we can do incremental update (same time range, just new data)
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt != m_cachedTimeRange.end() &&
-            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
-        {
-            updateVisibleDataCacheIncremental(seriesLabel);
-        }
-        else
-        {
-            updateVisibleDataCacheFull(seriesLabel);
-        }
-    }
-
-    const std::vector<std::pair<qreal, QDateTime>> &visibleData = m_cachedVisibleData[seriesLabel];
-
-    if (visibleData.empty())
-    {
-        DEBUG_OUT() << "FDW: drawDataLine - no visible points within current time range for series" << seriesLabel;
-        return;
-    }
-
-    QColor seriesColor = getSeriesColor(seriesLabel);
-
-    if (visibleData.size() < 2)
-    {
-        // Draw a single point if we only have one data point
-        QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-        QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-        DEBUG_OUT() << "FDW data line drawn (dashed) for series" << seriesLabel << "with 1 visible point";
-        return;
-    }
-
-    // Create a path for the line
-    QPainterPath path;
-    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-    path.moveTo(firstPoint);
-
-    // Add lines connecting all visible data points
-    for (size_t i = 1; i < visibleData.size(); ++i)
-    {
-        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        path.lineTo(point);
-    }
-
-    // Draw the line with dashed style
-    QPen linePen(seriesColor, 2);
-    linePen.setStyle(Qt::DashLine);
-    linePen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
-    graphicsScene->addPath(path, linePen);
-
-    // Draw data points if enabled
-    if (plotPoints)
-    {
-        // Draw data points
-        QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        for (const auto &dataPoint : visibleData)
-        {
-            QPointF point = mapDataToScreen(dataPoint.first, dataPoint.second);
-            graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
-        }
-    }
-
-    DEBUG_OUT() << "FDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size()
-             << "visible points out of" << yData.size() << "total points";
-}
+// drawDataLine() override removed - now uses base class which draws solid lines for ADOPTED
 
 /**
  * @brief Draw dashed white vertical line at 0 value
