@@ -333,8 +333,23 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
             seriesLabels.push_back(seriesPair.first);
         }
         
-        // Create WaterfallData with series labels
-        m_dataSources[graphType] = new WaterfallData(graphTypeToString(graphType), seriesLabels);
+        // NEW: Create engine (owns WaterfallData internally)
+        m_engines[graphType] = new GraphEngine(graphType, seriesLabels, this);
+        
+        // TEMPORARY: Also populate m_dataSources for backward compatibility
+        // This will be removed in later phase
+        m_dataSources[graphType] = m_engines[graphType]->dataMutable();
+        
+        // Connect engine signals
+        connect(m_engines[graphType], &GraphEngine::dataAppended,
+                this, [this, graphType](const QString &seriesLabel) {
+            // Notify containers
+            for (auto *container : m_graphContainers) {
+                if (container) {
+                    container->onDataChanged(graphType);
+                }
+            }
+        });
         
         // Set colors for each series (this will require updating WaterfallData to support colors)
         for (const auto& seriesPair : seriesData) {
@@ -763,10 +778,10 @@ void GraphLayout::setCurrentDataOption(const GraphType &graphType)
 void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, qreal yValue, const QDateTime &timestamp)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
-        it->second->addDataPointToSeries(seriesLabel, yValue, timestamp);
+        it->second->addDataPoint(seriesLabel, yValue, timestamp);
         DEBUG_OUT() << "Added data point to" << dataSourceLabel << "series" << seriesLabel << "y:" << yValue << "time:" << timestamp.toString();
 
         // Notify all containers that have this data source to update their UI
@@ -780,17 +795,17 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QSt
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Engine not found:" << dataSourceLabel;
     }
 }
 
 void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
-        it->second->addDataPointsToSeries(seriesLabel, yValues, timestamps);
+        it->second->addDataPoints(seriesLabel, yValues, timestamps);
         DEBUG_OUT() << "Added" << yValues.size() << "data points to" << dataSourceLabel << "series" << seriesLabel;
 
         // Notify all containers that have this data source to update their UI
@@ -804,15 +819,15 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QS
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Engine not found:" << dataSourceLabel;
     }
 }
 
 void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         it->second->setDataSeries(seriesLabel, yData, timestamps);
         DEBUG_OUT() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
@@ -828,15 +843,15 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Engine not found:" << dataSourceLabel;
     }
 }
 
 void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         // Get the specific series data from the WaterfallData object
         auto seriesData = data.getAllDataSeries(seriesLabel);
@@ -862,15 +877,15 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Engine not found:" << dataSourceLabel;
     }
 }
 
 void GraphLayout::clearDataSource(const GraphType &graphType, const QString &seriesLabel)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         it->second->clearDataSeries(seriesLabel);
         DEBUG_OUT() << "Cleared data for" << dataSourceLabel << "series" << seriesLabel;
@@ -886,7 +901,7 @@ void GraphLayout::clearDataSource(const GraphType &graphType, const QString &ser
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << dataSourceLabel;
+        DEBUG_OUT() << "Engine not found:" << dataSourceLabel;
     }
 }
 
@@ -894,13 +909,26 @@ void GraphLayout::clearDataSource(const GraphType &graphType, const QString &ser
 
 WaterfallData *GraphLayout::getDataSource(const GraphType &graphType)
 {
-    auto it = m_dataSources.find(graphType);
-    return (it != m_dataSources.end()) ? it->second : nullptr;
+    // NEW: Get from engine (maintains backward compatibility)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end()) {
+        return it->second->dataMutable();
+    }
+    
+    // FALLBACK: Check old m_dataSources (for safety during transition)
+    auto oldIt = m_dataSources.find(graphType);
+    return (oldIt != m_dataSources.end()) ? oldIt->second : nullptr;
 }
 
 bool GraphLayout::hasDataSource(const GraphType &graphType) const
 {
-    return m_dataSources.find(graphType) != m_dataSources.end();
+    return m_engines.find(graphType) != m_engines.end();
+}
+
+GraphEngine* GraphLayout::getEngine(const GraphType &graphType)
+{
+    auto it = m_engines.find(graphType);
+    return (it != m_engines.end()) ? it->second : nullptr;
 }
 
 std::vector<GraphType> GraphLayout::getDataSourceLabels() const
@@ -2119,20 +2147,20 @@ void GraphLayout::clearAllGraphs()
 {
     DEBUG_OUT() << "GraphLayout: clearAllGraphs() - clearing all data, markers, and symbols from all graphs";
     
-    // Clear all data sources
-    for (auto &pair : m_dataSources)
+    // Clear all engines
+    for (auto &pair : m_engines)
     {
-        WaterfallData *dataSource = pair.second;
-        if (dataSource)
+        GraphEngine *engine = pair.second;
+        if (engine)
         {
             // Clear all data series
-            dataSource->clearAllDataSeries();
+            engine->clearAllDataSeries();
             
             // Clear all markers and symbols
-            dataSource->clearRTWSymbols();
-            dataSource->clearBTWSymbols();
-            dataSource->clearBTWMarkers();
-            dataSource->clearRTWRMarkers();
+            engine->clearRTWSymbols();
+            engine->clearBTWSymbols();
+            engine->clearBTWMarkers();
+            engine->clearRTWRMarkers();
             
             DEBUG_OUT() << "GraphLayout: Cleared data for graph type:" << static_cast<int>(pair.first);
         }
@@ -2155,8 +2183,8 @@ void GraphLayout::clearAllGraphs()
 
 void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->addRTWSymbol(symbolName, timestamp, range);
         redrawGraph(graphType);
@@ -2164,14 +2192,14 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot add RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add RTW symbol - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 
 bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         bool removed = it->second->removeRTWSymbol(symbolName, timestamp, range, toleranceMs, rangeTolerance);
         if (removed)
@@ -2183,15 +2211,15 @@ bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &sym
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot remove RTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot remove RTW symbol - engine not found for graph type" << static_cast<int>(graphType);
         return false;
     }
 }
 
 void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->addBTWSymbol(symbolName, timestamp, range);
         redrawGraph(graphType);
@@ -2199,14 +2227,14 @@ void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbol
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot add BTW symbol - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add BTW symbol - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 
 void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal delta)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->addBTWMarker(timestamp, range, delta);
         redrawGraph(graphType);
@@ -2217,14 +2245,14 @@ void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &time
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot add BTW marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add BTW marker - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 
 void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->addRTWRMarker(timestamp, range);
         redrawGraph(graphType);
@@ -2232,14 +2260,14 @@ void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &tim
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot add RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot add RTW R marker - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 
 bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         bool removed = it->second->removeBTWMarker(timestamp, range, toleranceMs, rangeTolerance);
         if (removed)
@@ -2251,15 +2279,15 @@ bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &t
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot remove BTW marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot remove BTW marker - engine not found for graph type" << static_cast<int>(graphType);
         return false;
     }
 }
 
 bool GraphLayout::removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         bool removed = it->second->removeRTWRMarker(timestamp, range, toleranceMs, rangeTolerance);
         if (removed)
@@ -2271,15 +2299,15 @@ bool GraphLayout::removeRTWRMarker(const GraphType &graphType, const QDateTime &
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot remove RTW R marker - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot remove RTW R marker - engine not found for graph type" << static_cast<int>(graphType);
         return false;
     }
 }
 
 void GraphLayout::clearRTWSymbols(const GraphType &graphType)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->clearRTWSymbols();
         redrawGraph(graphType);
@@ -2293,8 +2321,8 @@ void GraphLayout::clearRTWSymbols(const GraphType &graphType)
 
 void GraphLayout::clearBTWSymbols(const GraphType &graphType)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->clearBTWSymbols();
         redrawGraph(graphType);
@@ -2302,14 +2330,14 @@ void GraphLayout::clearBTWSymbols(const GraphType &graphType)
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot clear BTW symbols - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear BTW symbols - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 
 void GraphLayout::clearBTWMarkers(const GraphType &graphType)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->clearBTWMarkers();
         redrawGraph(graphType);
@@ -2317,14 +2345,14 @@ void GraphLayout::clearBTWMarkers(const GraphType &graphType)
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot clear BTW markers - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear BTW markers - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 
 void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end() && it->second)
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
     {
         it->second->clearRTWRMarkers();
         redrawGraph(graphType);
@@ -2332,7 +2360,7 @@ void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
     }
     else
     {
-        DEBUG_OUT() << "GraphLayout: Cannot clear RTW R markers - data source not found for graph type" << static_cast<int>(graphType);
+        DEBUG_OUT() << "GraphLayout: Cannot clear RTW R markers - engine not found for graph type" << static_cast<int>(graphType);
     }
 }
 

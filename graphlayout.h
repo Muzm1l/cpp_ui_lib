@@ -4,6 +4,7 @@
 #include "graphcontainer.h"
 #include "graphtype.h"
 #include "waterfalldata.h"
+#include "graphengine.h"
 #include <QDateTime>
 #include <QHBoxLayout>
 #include <QResizeEvent>
@@ -72,6 +73,9 @@ public:
     WaterfallData *getDataSource(const GraphType &graphType);
     bool hasDataSource(const GraphType &graphType) const;
     std::vector<GraphType> getDataSourceLabels() const;
+    
+    // Engine management (for views to attach/detach)
+    GraphEngine* getEngine(const GraphType &graphType);
     
     // Series-specific data source management
     bool hasSeriesInDataSource(const GraphType &graphType, const QString &seriesLabel) const;
@@ -305,6 +309,10 @@ private:
     QHBoxLayout *m_graphContainersRow1Layout;
     QHBoxLayout *m_graphContainersRow2Layout;
 
+    // NEW: Engine storage (owns WaterfallData internally)
+    std::map<GraphType, GraphEngine*> m_engines;
+
+    // OLD: Keep m_dataSources for backward compatibility during transition
     std::map<GraphType, WaterfallData *> m_dataSources;
 
     // Series colors map

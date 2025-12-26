@@ -24,6 +24,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     graphcontainer.cpp \
+    graphengine.cpp \
     graphlayout.cpp \
     graphtype.cpp \
     main.cpp \
@@ -58,6 +59,7 @@ SOURCES += \
 
 HEADERS += \
     graphcontainer.h \
+    graphengine.h \
     graphlayout.h \
     graphtype.h \
     mainwindow.h \

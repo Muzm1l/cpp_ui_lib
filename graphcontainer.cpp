@@ -1,4 +1,6 @@
 #include "graphcontainer.h"
+#include "graphlayout.h"
+#include "graphengine.h"
 #include "btwinteractiveoverlay.h"
 #include "debugutils.h"
 #include <QDebug>
@@ -815,21 +817,53 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         return;
     }
     
-    // Set up the data source
-    WaterfallData *dataSource = nullptr;
-    auto it = dataOptions.find(graphType);
-    if (it != dataOptions.end())
+    // Attach engine from GraphLayout (preferred) or use data source (backward compatibility)
+    GraphLayout *graphLayout = qobject_cast<GraphLayout*>(parent());
+    if (graphLayout)
     {
-        dataSource = it->second;
+        GraphEngine *engine = graphLayout->getEngine(graphType);
+        if (engine)
+        {
+            graph->attachEngine(engine);
+        }
+        else
+        {
+            // Fallback: use data source (backward compatibility)
+            WaterfallData *dataSource = nullptr;
+            auto it = dataOptions.find(graphType);
+            if (it != dataOptions.end())
+            {
+                dataSource = it->second;
+            }
+            else
+            {
+                dataSource = &waterfallData;
+            }
+            
+            if (dataSource)
+            {
+                graph->setDataSource(*dataSource);
+            }
+        }
     }
     else
     {
-        dataSource = &waterfallData;
-    }
-    
-    if (dataSource)
-    {
-        graph->setDataSource(*dataSource);
+        // No layout parent - use data source directly
+        WaterfallData *dataSource = nullptr;
+        auto it = dataOptions.find(graphType);
+        if (it != dataOptions.end())
+        {
+            dataSource = it->second;
+        }
+        else
+        {
+            dataSource = &waterfallData;
+        }
+        
+        if (dataSource)
+        {
+            graph->setDataSource(*dataSource);
+        }
     }
     
     // Set the auto update Y range for the waterfall graph if it has stored range limits
@@ -970,21 +1004,59 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
     {
         WaterfallGraph *targetGraph = it->second;
         
-        // Update data source if needed
-        WaterfallData *dataSource = nullptr;
-        auto dataIt = dataOptions.find(graphType);
-        if (dataIt != dataOptions.end())
+        // Detach old graph's engine if switching
+        if (m_currentWaterfallGraph && m_currentWaterfallGraph != targetGraph)
         {
-            dataSource = dataIt->second;
+            m_currentWaterfallGraph->detachEngine();
+        }
+        
+        // Attach engine from GraphLayout (preferred) or use data source (backward compatibility)
+        GraphLayout *graphLayout = qobject_cast<GraphLayout*>(parent());
+        if (graphLayout)
+        {
+            GraphEngine *engine = graphLayout->getEngine(graphType);
+            if (engine)
+            {
+                targetGraph->attachEngine(engine);
+            }
+            else
+            {
+                // Fallback: use data source (backward compatibility)
+                WaterfallData *dataSource = nullptr;
+                auto dataIt = dataOptions.find(graphType);
+                if (dataIt != dataOptions.end())
+                {
+                    dataSource = dataIt->second;
+                }
+                else
+                {
+                    dataSource = &waterfallData;
+                }
+                
+                if (dataSource)
+                {
+                    targetGraph->setDataSource(*dataSource);
+                }
+            }
         }
         else
         {
-            dataSource = &waterfallData;
-        }
-        
-        if (dataSource)
-        {
-            targetGraph->setDataSource(*dataSource);
+            // No layout parent - use data source directly
+            WaterfallData *dataSource = nullptr;
+            auto dataIt = dataOptions.find(graphType);
+            if (dataIt != dataOptions.end())
+            {
+                dataSource = dataIt->second;
+            }
+            else
+            {
+                dataSource = &waterfallData;
+            }
+            
+            if (dataSource)
+            {
+                targetGraph->setDataSource(*dataSource);
+            }
         }
         
         // Set the auto update Y range for the waterfall graph if it has stored range limits

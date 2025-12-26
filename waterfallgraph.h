@@ -39,6 +39,9 @@
 #include <functional>
 #include "sharedsyncstate.h"
 
+// Forward declaration
+class GraphEngine;
+
 class WaterfallGraph : public QWidget
 {
     Q_OBJECT
@@ -50,6 +53,11 @@ public:
     // Data source management
     void setDataSource(WaterfallData &dataSource);
     WaterfallData *getDataSource() const;
+    
+    // Engine management (NEW - attach/detach pattern)
+    void attachEngine(GraphEngine *engine);
+    void detachEngine();
+    GraphEngine* getEngine() const { return m_engine; }
 
     // Time interval configuration
     void setTimeInterval(TimeInterval interval);
@@ -169,6 +177,7 @@ protected:
     // Visible data cache management (Plan 2: Incremental Rendering)
     void invalidateVisibleDataCache(const QString &seriesLabel);
     void invalidateAllVisibleDataCache();
+    void resetViewState(); // Reset view state when engine changes
     void updateVisibleDataCacheIncremental(const QString &seriesLabel);
     void updateVisibleDataCacheFull(const QString &seriesLabel);
     bool isVisibleDataCacheValid(const QString &seriesLabel) const;
@@ -210,7 +219,8 @@ protected:
     TimeInterval timeInterval;
 
     // Data source reference
-    WaterfallData *dataSource;
+    GraphEngine *m_engine; // Reference to engine (not owned)
+    WaterfallData *dataSource; // Points to m_engine->dataMutable() when attached
 
     // Multi-series support
     std::map<QString, QColor> seriesColors;

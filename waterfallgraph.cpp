@@ -1,5 +1,6 @@
 #include "waterfallgraph.h"
 #include "waterfalldata.h"  // For BTWSymbolData
+#include "graphengine.h"
 #include "debugutils.h"
 #include <QApplication>
 #include <QPointF>
@@ -44,6 +45,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     customTimeMin(QDateTime()), 
     customTimeMax(QDateTime()), 
     timeInterval(timeInterval), 
+    m_engine(nullptr),
     dataSource(nullptr), 
     isDragging(false), 
     isDrawing(false),
@@ -334,7 +336,138 @@ void WaterfallGraph::setDataSource(WaterfallData &dataSource)
  */
 WaterfallData *WaterfallGraph::getDataSource() const
 {
+    // If engine is attached, return engine's data, otherwise return dataSource (backward compatibility)
+    if (m_engine) {
+        return m_engine->dataMutable();
+    }
     return dataSource;
+}
+
+/**
+ * @brief Attach a GraphEngine to this view.
+ * 
+ * The view will use the engine's data and connect to its signals.
+ * This follows the Qt game engine pattern: separate simulation (engine) from rendering (view).
+ */
+void WaterfallGraph::attachEngine(GraphEngine *engine)
+{
+    if (m_engine == engine) {
+        return; // Already attached
+    }
+    
+    // Disconnect old engine signals
+    if (m_engine) {
+        disconnect(m_engine, nullptr, this, nullptr);
+    }
+    
+    m_engine = engine;
+    
+    if (m_engine) {
+        // Update dataSource pointer (backward compatibility)
+        dataSource = m_engine->dataMutable();
+        
+        // Connect engine signals
+        connect(m_engine, &GraphEngine::dataAppended,
+                this, [this](const QString &seriesLabel) {
+            markSeriesDirty(seriesLabel);
+            markRangeUpdateNeeded();
+            drawIncremental();
+        });
+        
+        connect(m_engine, &GraphEngine::dataRangeChanged, this, [this]() {
+            markRangeUpdateNeeded();
+            dataRangesValid = false;
+            drawIncremental();
+        });
+        
+        connect(m_engine, &GraphEngine::symbolsChanged, this, [this]() {
+            setRenderState(RenderState::INCREMENTAL_UPDATE);
+            drawIncremental();
+        });
+        
+        connect(m_engine, &GraphEngine::markersChanged, this, [this]() {
+            setRenderState(RenderState::INCREMENTAL_UPDATE);
+            drawIncremental();
+        });
+        
+        // Reset view state
+        resetViewState();
+        
+        // Force full redraw
+        setRenderState(RenderState::FULL_REDRAW);
+        draw();
+        
+        DEBUG_OUT() << "WaterfallGraph: Attached engine for graph type" << static_cast<int>(m_engine->getGraphType());
+    } else {
+        dataSource = nullptr;
+        DEBUG_OUT() << "WaterfallGraph: Detached engine (null engine provided)";
+    }
+}
+
+/**
+ * @brief Detach the current engine from this view.
+ */
+void WaterfallGraph::detachEngine()
+{
+    if (m_engine) {
+        GraphType oldType = m_engine->getGraphType();
+        disconnect(m_engine, nullptr, this, nullptr);
+        m_engine = nullptr;
+        dataSource = nullptr;
+        DEBUG_OUT() << "WaterfallGraph: Detached engine for graph type" << static_cast<int>(oldType);
+        
+        // Only reset view state if graphics scene is initialized
+        // This prevents segfaults when detaching from uninitialized graphs
+        if (graphicsScene) {
+            resetViewState();
+        }
+    }
+}
+
+/**
+ * @brief Reset view state when engine changes.
+ * 
+ * Clears cached data and graphics items (but preserves overlay/cursor layers).
+ */
+void WaterfallGraph::resetViewState()
+{
+    // Clear cached data
+    invalidateAllVisibleDataCache();
+    
+    // Clear scatterplot item vectors first (before clearing scene items)
+    for (auto& pair : m_seriesScatterplotItems) {
+        for (QGraphicsPixmapItem* item : pair.second) {
+            if (item) {
+                // Remove from scene if it's still in a scene
+                if (item->scene() && graphicsScene && item->scene() == graphicsScene) {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+        pair.second.clear();
+    }
+    m_seriesScatterplotItems.clear();
+    
+    // Clear graphics items (keep overlay/cursor layers)
+    // Only do this if graphicsScene is initialized
+    if (graphicsScene) {
+        // Get a copy of items list to avoid iterator invalidation
+        QList<QGraphicsItem*> items = graphicsScene->items();
+        for (QGraphicsItem* item : items) {
+            if (item && item->zValue() < 1000) { // Keep overlays (z >= 1000)
+                // Check if item is still in the scene before removing
+                if (item->scene() == graphicsScene) {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+    }
+    
+    // Invalidate ranges
+    dataRangesValid = false;
+    m_rangeUpdateNeeded = true;
 }
 
 /**
