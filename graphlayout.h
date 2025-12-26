@@ -309,11 +309,8 @@ private:
     QHBoxLayout *m_graphContainersRow1Layout;
     QHBoxLayout *m_graphContainersRow2Layout;
 
-    // NEW: Engine storage (owns WaterfallData internally)
+    // Engine storage (owns WaterfallData internally)
     std::map<GraphType, GraphEngine*> m_engines;
-
-    // OLD: Keep m_dataSources for backward compatibility during transition
-    std::map<GraphType, WaterfallData *> m_dataSources;
 
     // Series colors map
     std::map<QString, QColor> m_seriesColorsMap;

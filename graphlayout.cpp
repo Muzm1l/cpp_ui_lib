@@ -333,12 +333,8 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
             seriesLabels.push_back(seriesPair.first);
         }
         
-        // NEW: Create engine (owns WaterfallData internally)
+        // Create engine (owns WaterfallData internally)
         m_engines[graphType] = new GraphEngine(graphType, seriesLabels, this);
-        
-        // TEMPORARY: Also populate m_dataSources for backward compatibility
-        // This will be removed in later phase
-        m_dataSources[graphType] = m_engines[graphType]->dataMutable();
         
         // Connect engine signals
         connect(m_engines[graphType], &GraphEngine::dataAppended,
@@ -428,12 +424,12 @@ void GraphLayout::initializeContainers()
 void GraphLayout::attachContainerDataSources()
 {
     // Go through each of the graph containers and attach each of the
-    // data sources using the key as the title and the value as the datasource
+    // engines using the key as the title and the engine's data as the datasource
     for (auto *container : m_graphContainers)
     {
-        for (auto &dataSource : m_dataSources)
+        for (auto &enginePair : m_engines)
         {
-            container->addDataOption(dataSource.first, *dataSource.second);
+            container->addDataOption(enginePair.first, *enginePair.second->dataMutable());
         }
     }
 }
@@ -909,15 +905,8 @@ void GraphLayout::clearDataSource(const GraphType &graphType, const QString &ser
 
 WaterfallData *GraphLayout::getDataSource(const GraphType &graphType)
 {
-    // NEW: Get from engine (maintains backward compatibility)
     auto it = m_engines.find(graphType);
-    if (it != m_engines.end()) {
-        return it->second->dataMutable();
-    }
-    
-    // FALLBACK: Check old m_dataSources (for safety during transition)
-    auto oldIt = m_dataSources.find(graphType);
-    return (oldIt != m_dataSources.end()) ? oldIt->second : nullptr;
+    return (it != m_engines.end()) ? it->second->dataMutable() : nullptr;
 }
 
 bool GraphLayout::hasDataSource(const GraphType &graphType) const
@@ -934,7 +923,7 @@ GraphEngine* GraphLayout::getEngine(const GraphType &graphType)
 std::vector<GraphType> GraphLayout::getDataSourceLabels() const
 {
     std::vector<GraphType> labels;
-    for (const auto &pair : m_dataSources)
+    for (const auto &pair : m_engines)
     {
         labels.push_back(pair.first);
     }
@@ -945,8 +934,8 @@ std::vector<GraphType> GraphLayout::getDataSourceLabels() const
 
 bool GraphLayout::hasSeriesInDataSource(const GraphType &graphType, const QString &seriesLabel) const
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         return it->second->hasDataSeries(seriesLabel);
     }
@@ -955,8 +944,8 @@ bool GraphLayout::hasSeriesInDataSource(const GraphType &graphType, const QStrin
 
 std::vector<QString> GraphLayout::getSeriesLabelsInDataSource(const GraphType &graphType) const
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         return it->second->getDataSeriesLabels();
     }
@@ -965,32 +954,32 @@ std::vector<QString> GraphLayout::getSeriesLabelsInDataSource(const GraphType &g
 
 void GraphLayout::addSeriesToDataSource(const GraphType &graphType, const QString &seriesLabel)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         // Create empty vectors for the new series
         std::vector<qreal> emptyYData;
         std::vector<QDateTime> emptyTimestamps;
-        it->second->addDataSeries(seriesLabel, emptyYData, emptyTimestamps);
-        DEBUG_OUT() << "Added series" << seriesLabel << "to data source" << graphTypeToString(graphType);
+        it->second->setDataSeries(seriesLabel, emptyYData, emptyTimestamps);
+        DEBUG_OUT() << "Added series" << seriesLabel << "to engine" << graphTypeToString(graphType);
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Engine not found:" << graphTypeToString(graphType);
     }
 }
 
 void GraphLayout::removeSeriesFromDataSource(const GraphType &graphType, const QString &seriesLabel)
 {
-    auto it = m_dataSources.find(graphType);
-    if (it != m_dataSources.end())
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
     {
         it->second->clearDataSeries(seriesLabel);
-        DEBUG_OUT() << "Cleared series" << seriesLabel << "from data source" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Cleared series" << seriesLabel << "from engine" << graphTypeToString(graphType);
     }
     else
     {
-        DEBUG_OUT() << "Data source not found:" << graphTypeToString(graphType);
+        DEBUG_OUT() << "Engine not found:" << graphTypeToString(graphType);
     }
 }
 

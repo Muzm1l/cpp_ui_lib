@@ -1045,7 +1045,8 @@ QBrush BTWGraph::getCachedHatchBrush()
 
 void BTWGraph::drawShadedRegions()
 {
-    if (!graphicsScene || m_shadedRegions.isEmpty() || !dataRangesValid) {
+    // Safety checks: Only draw if scene is initialized and graph is ready
+    if (!graphicsScene || m_shadedRegions.isEmpty() || !dataRangesValid || !isVisible()) {
         return;
     }
     
@@ -1099,14 +1100,24 @@ void BTWGraph::drawShadedRegions()
         if (shouldDraw) {
             // OPTIMIZATION: Update existing polygon instead of recreating
             if (item.polygonItem) {
-                // Update polygon coordinates
-                QPolygonF polygon;
-                polygon << QPointF(startX, topY)
-                        << QPointF(endX, topY)
-                        << QPointF(endX, bottomY)
-                        << QPointF(startX, bottomY);
-                item.polygonItem->setPolygon(polygon);
-            } else {
+                // Safety check: Verify polygon item is still valid and in a scene
+                if (item.polygonItem->scene() != graphicsScene) {
+                    // Item was removed from scene, delete and recreate
+                    delete item.polygonItem;
+                    item.polygonItem = nullptr;
+                } else {
+                    // Update polygon coordinates
+                    QPolygonF polygon;
+                    polygon << QPointF(startX, topY)
+                            << QPointF(endX, topY)
+                            << QPointF(endX, bottomY)
+                            << QPointF(startX, bottomY);
+                    item.polygonItem->setPolygon(polygon);
+                }
+            }
+            
+            // Create new item if it doesn't exist (or was invalidated above)
+            if (!item.polygonItem) {
                 // Create new item only if it doesn't exist
                 QPolygonF polygon;
                 polygon << QPointF(startX, topY)

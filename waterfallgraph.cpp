@@ -720,13 +720,17 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     }
 
     // Force redraw regardless of data presence to update grid and layout
-    draw();
-
-    // Explicitly update the graphics view to ensure repaint
-    if (graphicsView)
+    // Only draw if graph is visible and initialized to avoid issues with non-visible graphs
+    if (isVisible() && graphicsScene)
     {
-        graphicsView->update();
-        graphicsView->viewport()->update();
+        draw();
+
+        // Explicitly update the graphics view to ensure repaint
+        if (graphicsView)
+        {
+            graphicsView->update();
+            graphicsView->viewport()->update();
+        }
     }
 
     DEBUG_OUT() << "Time interval set to:" << timeIntervalToString(interval);

@@ -1167,6 +1167,7 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
     // Update ALL waterfall graphs' time interval (not just current one)
     // This ensures all graphs have the correct interval when switching between them
     // setTimeInterval() updates the interval, recalculates time ranges, and triggers a redraw
+    // Note: setTimeInterval() now only draws if graph is visible, so it's safe to call on all graphs
     for (auto &pair : m_waterfallGraphs)
     {
         if (pair.second)
