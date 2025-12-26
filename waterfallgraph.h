@@ -185,16 +185,17 @@ protected:
     size_t findLastVisibleIndex(const std::vector<QDateTime> &timestamps, const QDateTime &timeMax) const;
 
     // Incremental graphics item management (State Machine Based)
+    // Use epoch milliseconds to avoid QDateTime timezone conversion in hot path
     void updateScatterplotItemsIncremental(const QString &seriesLabel, 
-                                           const std::vector<std::pair<qreal, QDateTime>> &newVisibleData,
+                                           const std::vector<std::pair<qreal, qint64>> &newVisibleData, // epoch ms
                                            const QColor &pointColor, qreal pointSize);
     void updateScatterplotItemsFull(const QString &seriesLabel,
-                                    const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                    const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
                                     const QColor &pointColor, qreal pointSize);
     void removeScatterplotItemsOutsideRange(const QString &seriesLabel, 
                                             const QDateTime &oldTimeMin, const QDateTime &newTimeMin);
     void updateScatterplotItemPositions(const QString &seriesLabel,
-                                        const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                        const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
                                         qreal pointSize);
     void cleanupScatterplotItems(const QString &seriesLabel);
     void cleanupAllScatterplotItems();
@@ -243,7 +244,8 @@ protected:
 
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
     // Avoids O(n) filtering on every draw by caching already-filtered data
-    std::map<QString, std::vector<std::pair<qreal, QDateTime>>> m_cachedVisibleData;
+    // Uses epoch milliseconds to avoid QDateTime timezone conversion in hot path
+    std::map<QString, std::vector<std::pair<qreal, qint64>>> m_cachedVisibleData; // epoch ms instead of QDateTime
     std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
@@ -350,6 +352,7 @@ public:
     // Coordinate mapping methods (public for overlay sync)
     qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const; // Convert data to screen coordinates
+    QPointF mapDataToScreen(qreal yValue, qint64 timestampEpochMs) const; // Overload with epoch milliseconds (no timezone conversion!)
     
     // Mouse selection control
     void setMouseSelectionEnabled(bool enabled);

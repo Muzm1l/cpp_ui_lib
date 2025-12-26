@@ -47,6 +47,13 @@ void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<Q
     // Store the data
     this->dataSeriesYData[dataTitle] = yData;
     this->dataSeriesTimestamps[dataTitle] = timestamps;
+    
+    // Store epoch milliseconds in parallel (convert once, not in hot path)
+    dataSeriesTimestampsEpoch[dataTitle].clear();
+    dataSeriesTimestampsEpoch[dataTitle].reserve(timestamps.size());
+    for (const QDateTime& ts : timestamps) {
+        dataSeriesTimestampsEpoch[dataTitle].push_back(ts.toMSecsSinceEpoch());
+    }
 
     validateDataConsistency();
 }
@@ -55,6 +62,7 @@ void WaterfallData::clearData()
 {
     dataSeriesYData[dataTitle].clear();
     dataSeriesTimestamps[dataTitle].clear();
+    dataSeriesTimestampsEpoch[dataTitle].clear();
 }
 
 
@@ -268,6 +276,13 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
     // Store the data series
     dataSeriesYData[seriesLabel] = yData;
     dataSeriesTimestamps[seriesLabel] = timestamps;
+    
+    // Store epoch milliseconds in parallel (convert once, not in hot path)
+    dataSeriesTimestampsEpoch[seriesLabel].clear();
+    dataSeriesTimestampsEpoch[seriesLabel].reserve(timestamps.size());
+    for (const QDateTime& ts : timestamps) {
+        dataSeriesTimestampsEpoch[seriesLabel].push_back(ts.toMSecsSinceEpoch());
+    }
 
     validateDataSeriesConsistency(seriesLabel);
 }
@@ -276,6 +291,8 @@ void WaterfallData::addDataPointToSeries(const QString& seriesLabel, qreal yValu
 {
     dataSeriesYData[seriesLabel].push_back(yValue);
     dataSeriesTimestamps[seriesLabel].push_back(timestamp);
+    // Store epoch milliseconds in parallel (convert once, not in hot path)
+    dataSeriesTimestampsEpoch[seriesLabel].push_back(timestamp.toMSecsSinceEpoch());
 
     validateDataSeriesConsistency(seriesLabel);
 }
@@ -292,6 +309,11 @@ void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std:
     // Append the data to existing series
     dataSeriesYData[seriesLabel].insert(dataSeriesYData[seriesLabel].end(), yValues.begin(), yValues.end());
     dataSeriesTimestamps[seriesLabel].insert(dataSeriesTimestamps[seriesLabel].end(), timestamps.begin(), timestamps.end());
+    
+    // Store epoch milliseconds in parallel (convert once, not in hot path)
+    for (const QDateTime& ts : timestamps) {
+        dataSeriesTimestampsEpoch[seriesLabel].push_back(ts.toMSecsSinceEpoch());
+    }
 
     validateDataSeriesConsistency(seriesLabel);
 }
@@ -300,12 +322,14 @@ void WaterfallData::clearDataSeries(const QString& seriesLabel)
 {
     dataSeriesYData.erase(seriesLabel);
     dataSeriesTimestamps.erase(seriesLabel);
+    dataSeriesTimestampsEpoch.erase(seriesLabel);
 }
 
 void WaterfallData::clearAllDataSeries()
 {
     dataSeriesYData.clear();
     dataSeriesTimestamps.clear();
+    dataSeriesTimestampsEpoch.clear();
 }
 
 std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeries(const QString& seriesLabel) const
@@ -445,6 +469,13 @@ const std::vector<QDateTime>& WaterfallData::getTimestampsSeries(const QString& 
     static const std::vector<QDateTime> emptyVector;
     auto it = dataSeriesTimestamps.find(seriesLabel);
     return (it != dataSeriesTimestamps.end()) ? it->second : emptyVector;
+}
+
+const std::vector<qint64>& WaterfallData::getTimestampsEpochSeries(const QString& seriesLabel) const
+{
+    static const std::vector<qint64> emptyVector;
+    auto it = dataSeriesTimestampsEpoch.find(seriesLabel);
+    return (it != dataSeriesTimestampsEpoch.end()) ? it->second : emptyVector;
 }
 
 size_t WaterfallData::getDataSeriesSize(const QString& seriesLabel) const
@@ -600,6 +631,13 @@ void WaterfallData::setDataSeries(const QString& seriesLabel, const std::vector<
     // Store the data series
     dataSeriesYData[seriesLabel] = yData;
     dataSeriesTimestamps[seriesLabel] = timestamps;
+    
+    // Store epoch milliseconds in parallel (convert once, not in hot path)
+    dataSeriesTimestampsEpoch[seriesLabel].clear();
+    dataSeriesTimestampsEpoch[seriesLabel].reserve(timestamps.size());
+    for (const QDateTime& ts : timestamps) {
+        dataSeriesTimestampsEpoch[seriesLabel].push_back(ts.toMSecsSinceEpoch());
+    }
 
     validateDataSeriesConsistency(seriesLabel);
 }

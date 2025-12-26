@@ -1319,13 +1319,14 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
 {
     if (!dataSource)
     {
+        m_cachedVisibleData[seriesLabel].clear();
         return;
     }
     
     const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    const std::vector<qint64> &timestampsEpoch = dataSource->getTimestampsEpochSeries(seriesLabel); // Use epoch milliseconds
     
-    if (yData.empty() || timestamps.empty() || yData.size() != timestamps.size())
+    if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
     {
         m_cachedVisibleData[seriesLabel].clear();
         m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
@@ -1334,18 +1335,25 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
         return;
     }
     
-    // Use binary search to find visible range
-    size_t firstIdx = findFirstVisibleIndex(timestamps, timeMin);
-    size_t lastIdx = findLastVisibleIndex(timestamps, timeMax);
+    // Convert timeMin/timeMax to epoch ONCE (not per point!)
+    qint64 timeMinEpoch = timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0;
+    qint64 timeMaxEpoch = timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0;
     
-    // Build filtered visible data
-    std::vector<std::pair<qreal, QDateTime>> &cache = m_cachedVisibleData[seriesLabel];
+    // Use binary search on epoch milliseconds (much faster than QDateTime comparison)
+    auto startIt = std::lower_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMinEpoch);
+    auto endIt = std::upper_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMaxEpoch);
+    
+    size_t firstIdx = std::distance(timestampsEpoch.begin(), startIt);
+    size_t lastIdx = std::distance(timestampsEpoch.begin(), endIt);
+    
+    // Build filtered visible data - NO QDateTime CONVERSION IN LOOP!
+    std::vector<std::pair<qreal, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     cache.clear();
     cache.reserve(lastIdx - firstIdx);
     
     for (size_t i = firstIdx; i < lastIdx && i < yData.size(); ++i)
     {
-        cache.emplace_back(yData[i], timestamps[i]);
+        cache.emplace_back(yData[i], timestampsEpoch[i]); // Store epoch ms, not QDateTime
     }
     
     // Update tracking
@@ -1379,9 +1387,9 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     }
     
     const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    const std::vector<qint64> &timestampsEpoch = dataSource->getTimestampsEpochSeries(seriesLabel); // Use epoch milliseconds
     
-    if (yData.empty() || timestamps.empty() || yData.size() != timestamps.size())
+    if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
     {
         return;
     }
@@ -1407,15 +1415,19 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
         return;
     }
     
-    // Process only new data points
-    std::vector<std::pair<qreal, QDateTime>> &cache = m_cachedVisibleData[seriesLabel];
+    // Convert timeMin/timeMax to epoch ONCE (not per point!)
+    qint64 timeMinEpoch = timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0;
+    qint64 timeMaxEpoch = timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0;
+    
+    // Process only new data points - NO QDateTime CONVERSION IN LOOP!
+    std::vector<std::pair<qreal, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     
     for (size_t i = lastProcessed; i < yData.size(); ++i)
     {
-        const QDateTime &ts = timestamps[i];
-        if (ts >= timeMin && ts <= timeMax)
+        qint64 tsEpoch = timestampsEpoch[i];
+        if (tsEpoch >= timeMinEpoch && tsEpoch <= timeMaxEpoch)
         {
-            cache.emplace_back(yData[i], ts);
+            cache.emplace_back(yData[i], tsEpoch); // Store epoch ms, not QDateTime
         }
     }
     
@@ -1486,7 +1498,7 @@ void WaterfallGraph::cleanupAllScatterplotItems()
  * @param pointSize Size of points for positioning
  */
 void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
-                                                     const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                                     const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
                                                      qreal pointSize)
 {
     if (!graphicsScene)
@@ -1502,18 +1514,15 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
     
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
-    // Update positions for all existing items
+    // Update positions for all existing items - use epoch milliseconds (no timezone conversion!)
     for (size_t i = 0; i < items.size() && i < visibleData.size(); ++i)
     {
         if (items[i])
         {
             const auto &dataPoint = visibleData[i];
-            if (!dataPoint.second.isValid())
-            {
-                continue;
-            }
+            // dataPoint.second is now qint64 (epoch ms), not QDateTime
             
-            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
             if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
             {
                 continue;
@@ -1556,14 +1565,17 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
         return;
     }
     
-    const std::vector<std::pair<qreal, QDateTime>> &cachedData = cacheIt->second;
+    const std::vector<std::pair<qreal, qint64>> &cachedData = cacheIt->second; // epoch ms
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
+    
+    // Convert newTimeMin to epoch ONCE (not per iteration!)
+    qint64 newTimeMinEpoch = newTimeMin.isValid() ? newTimeMin.toMSecsSinceEpoch() : 0;
     
     // Use binary search to find first item that should be kept (>= newTimeMin)
     size_t firstKeepIndex = 0;
     for (size_t i = 0; i < cachedData.size(); ++i)
     {
-        if (cachedData[i].second >= newTimeMin)
+        if (cachedData[i].second >= newTimeMinEpoch) // Compare epoch ms, not QDateTime
         {
             firstKeepIndex = i;
             break;
@@ -1625,7 +1637,7 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
  * @param pointSize Size of points
  */
 void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
-                                                 const std::vector<std::pair<qreal, QDateTime>> &visibleData,
+                                                 const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
                                                  const QColor &pointColor, qreal pointSize)
 {
     if (!graphicsScene)
@@ -1644,18 +1656,20 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
     // Get cached pixmap
     QPixmap pointPixmap = getPointPixmap(pointColor, pointSize);
     
-    // Create items for all visible points
+    // Create items for all visible points - use epoch milliseconds (no timezone conversion!)
     std::vector<QGraphicsPixmapItem*> &items = m_seriesScatterplotItems[seriesLabel];
     items.reserve(visibleData.size());
     
     for (const auto &dataPoint : visibleData)
     {
-        if (!dataPoint.second.isValid())
+        // dataPoint.second is now qint64 (epoch ms), not QDateTime - no isValid() check needed
+        // Just check if it's non-zero (0 is invalid epoch)
+        if (dataPoint.second == 0)
         {
             continue; // Skip invalid timestamps
         }
         
-        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
         if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
         {
             continue; // Skip invalid screen coordinates
@@ -1681,7 +1695,7 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
  * @param pointSize Size of points
  */
 void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabel,
-                                                         const std::vector<std::pair<qreal, QDateTime>> &newVisibleData,
+                                                         const std::vector<std::pair<qreal, qint64>> &newVisibleData, // epoch ms
                                                          const QColor &pointColor, qreal pointSize)
 {
     if (!graphicsScene)
@@ -1716,7 +1730,7 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
         return;
     }
     
-    const std::vector<std::pair<qreal, QDateTime>> &oldVisibleData = cacheIt->second;
+    const std::vector<std::pair<qreal, qint64>> &oldVisibleData = cacheIt->second; // epoch ms
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
     // If the data sets are too different, do full rebuild
@@ -1735,19 +1749,20 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
     size_t oldCount = items.size();
     size_t newCount = newVisibleData.size();
     
-    // Update positions for matching items
+    // Update positions for matching items - use epoch milliseconds (no timezone conversion!)
     size_t updateCount = std::min(oldCount, newCount);
     for (size_t i = 0; i < updateCount; ++i)
     {
         if (items[i] && i < newVisibleData.size())
         {
             const auto &dataPoint = newVisibleData[i];
-            if (!dataPoint.second.isValid())
+            // dataPoint.second is now qint64 (epoch ms), not QDateTime
+            if (dataPoint.second == 0)
             {
-                continue;
+                continue; // Skip invalid timestamps
             }
             
-            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
             if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
             {
                 continue;
@@ -1759,17 +1774,18 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
     
     if (newCount > oldCount)
     {
-        // New points added - create items for new ones only
+        // New points added - create items for new ones only - use epoch milliseconds (no timezone conversion!)
         items.reserve(newCount);
         for (size_t i = oldCount; i < newCount; ++i)
         {
             const auto &dataPoint = newVisibleData[i];
-            if (!dataPoint.second.isValid())
+            // dataPoint.second is now qint64 (epoch ms), not QDateTime
+            if (dataPoint.second == 0)
             {
-                continue;
+                continue; // Skip invalid timestamps
             }
             
-            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
             if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
             {
                 continue;
@@ -2532,6 +2548,52 @@ QPointF WaterfallGraph::mapDataToScreen(qreal yValue, const QDateTime &timestamp
 }
 
 /**
+ * @brief Map data coordinates to screen coordinates (overload with epoch milliseconds).
+ * 
+ * This overload avoids QDateTime timezone conversion in the hot path.
+ * Use this when you already have epoch milliseconds (e.g., from cached data).
+ *
+ * @param yValue
+ * @param timestampEpochMs Epoch milliseconds (no timezone conversion needed!)
+ * @return QPointF
+ */
+QPointF WaterfallGraph::mapDataToScreen(qreal yValue, qint64 timestampEpochMs) const
+{
+    if (!dataRangesValid || drawingArea.isEmpty())
+    {
+        return QPointF(0, 0);
+    }
+    
+    if (m_cachedTimeMaxEpoch == 0 || m_cachedTimeIntervalMs <= 0)
+    {
+        return QPointF(0, 0);
+    }
+    
+    // Fast path: use cached values
+    if (!qIsFinite(yValue) || m_cachedYRange <= 0.0)
+    {
+        return QPointF(0, 0);
+    }
+    
+    // Map Y value to X coordinate
+    qreal normalizedX = (yValue - yMin) * m_cachedYRangeReciprocal;
+    qreal x = drawingArea.left() + normalizedX * drawingArea.width();
+    
+    // Map timestamp to Y coordinate - NO TIMEZONE CONVERSION!
+    qint64 timeOffset = m_cachedTimeMaxEpoch - timestampEpochMs; // Positive = timestamp is in the past
+    qreal normalizedY = timeOffset * m_cachedTimeIntervalMsReciprocal;
+    qreal y = drawingArea.top() + normalizedY * drawingArea.height();
+    
+    // Validate result
+    if (!qIsFinite(x) || !qIsFinite(y))
+    {
+        return QPointF(0, 0);
+    }
+    
+    return QPointF(x, y);
+}
+
+/**
  * @brief Map screen X coordinate to data range value (inverse of mapDataToScreen X mapping)
  *
  * @param xPos Screen X position
@@ -2626,7 +2688,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         }
     }
 
-    const std::vector<std::pair<qreal, QDateTime>> &visibleData = m_cachedVisibleData[seriesLabel];
+    const std::vector<std::pair<qreal, qint64>> &visibleData = m_cachedVisibleData[seriesLabel]; // epoch ms
 
     if (visibleData.empty())
     {
@@ -3440,7 +3502,7 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         }
     }
     
-    const std::vector<std::pair<qreal, QDateTime>> &visibleData = m_cachedVisibleData[seriesLabel];
+    const std::vector<std::pair<qreal, qint64>> &visibleData = m_cachedVisibleData[seriesLabel]; // epoch ms
 
     if (visibleData.empty())
     {
@@ -3608,7 +3670,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         }
     }
     
-    const std::vector<std::pair<qreal, QDateTime>> &visibleData = m_cachedVisibleData[seriesLabel];
+    const std::vector<std::pair<qreal, qint64>> &visibleData = m_cachedVisibleData[seriesLabel]; // epoch ms
 
     if (visibleData.empty())
     {
@@ -3702,46 +3764,18 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         return;
     }
 
-    // Multiple points - create/update path with LOD for high intervals
-    QPainterPath path;
-    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-    path.moveTo(firstPoint);
-    size_t lodStep = calculateLODStep(visibleData.size());
-    for (size_t i = 1; i < visibleData.size(); i += lodStep)
-    {
-        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        path.lineTo(point);
-    }
-
-    // Update or create path item
+    // Multiple points - remove any existing path items (no connecting lines for scatterplots)
+    // Scatterplots should only show points, not lines connecting them
     auto pathIt = m_seriesPathItems.find(seriesLabel);
     if (pathIt != m_seriesPathItems.end() && pathIt->second)
     {
-        // Update existing path
-        if (m_renderState == RenderState::INCREMENTAL_UPDATE || m_renderState == RenderState::RANGE_UPDATE_ONLY)
+        // Remove existing path item (connecting lines)
+        if (pathIt->second->scene() == graphicsScene)
         {
-            pathIt->second->setPath(path);
+            graphicsScene->removeItem(pathIt->second);
         }
-        else
-        {
-            // FULL_REDRAW: recreate
-            // Check if item belongs to this scene before removing
-            if (pathIt->second->scene() == graphicsScene)
-            {
-                graphicsScene->removeItem(pathIt->second);
-            }
-            delete pathIt->second;
-            QPen linePen(seriesColor, 2);
-            QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
-            m_seriesPathItems[seriesLabel] = pathItem;
-        }
-    }
-    else
-    {
-        // Create new path
-        QPen linePen(seriesColor, 2);
-        QGraphicsPathItem *pathItem = graphicsScene->addPath(path, linePen);
-        m_seriesPathItems[seriesLabel] = pathItem;
+        delete pathIt->second;
+        m_seriesPathItems.erase(pathIt);
     }
 
     // Handle point items (ellipses at each data point)

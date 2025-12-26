@@ -97,6 +97,7 @@ public:
     // Direct access to data series vectors
     const std::vector<qreal>& getYDataSeries(const QString& seriesLabel) const;
     const std::vector<QDateTime>& getTimestampsSeries(const QString& seriesLabel) const;
+    const std::vector<qint64>& getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
 
     // Data series utility methods
     size_t getDataSeriesSize(const QString& seriesLabel) const;
@@ -167,6 +168,7 @@ private:
     // Multiple data series storage
     std::map<QString, std::vector<qreal>> dataSeriesYData;
     std::map<QString, std::vector<QDateTime>> dataSeriesTimestamps;
+    std::map<QString, std::vector<qint64>> dataSeriesTimestampsEpoch; // Parallel storage for epoch milliseconds (performance optimization)
 
     // RTW Symbol storage (persists with track data)
     std::vector<RTWSymbolData> rtwSymbols;
