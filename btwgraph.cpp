@@ -67,10 +67,18 @@ void BTWGraph::draw()
     {
         // Clear existing items - ensure complete clearing before drawing
         // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
-        // Shaded region polygon items will be recreated in drawShadedRegions() from stored data
-        // Clear polygon item pointers since clear() will delete them
+        // Shaded region polygon items are in overlayScene, so we need to remove them explicitly
+        // Clear polygon items from overlayScene before nulling pointers
         for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
-            it.value().polygonItem = nullptr;
+            if (it.value().polygonItem) {
+                // Actually remove from overlayScene, not just null the pointer
+                QGraphicsScene *itemScene = it.value().polygonItem->scene();
+                if (itemScene && itemScene == overlayScene) {
+                    overlayScene->removeItem(it.value().polygonItem);
+                }
+                delete it.value().polygonItem;
+                it.value().polygonItem = nullptr;
+            }
         }
         
         // Clear horizontal line items from scene before clearing
@@ -993,8 +1001,8 @@ void BTWGraph::clearShadedRegions()
 {
     // Remove all graphics items from scene
     for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
-        if (it.value().polygonItem && graphicsScene) {
-            graphicsScene->removeItem(it.value().polygonItem);
+        if (it.value().polygonItem && overlayScene) {
+            overlayScene->removeItem(it.value().polygonItem);
             delete it.value().polygonItem;
         }
     }
@@ -1047,7 +1055,7 @@ QBrush BTWGraph::getCachedHatchBrush()
 void BTWGraph::drawShadedRegions()
 {
     // Safety checks: Only draw if scene is initialized and graph is ready
-    if (!graphicsScene || m_shadedRegions.isEmpty() || !dataRangesValid || !isVisible()) {
+    if (!overlayScene || m_shadedRegions.isEmpty() || !dataRangesValid || !isVisible()) {
         return;
     }
     
@@ -1080,7 +1088,7 @@ void BTWGraph::drawShadedRegions()
         if (data.startX >= data.endX) {
             // Remove item if it exists and region is invalid
             if (item.polygonItem) {
-                graphicsScene->removeItem(item.polygonItem);
+                overlayScene->removeItem(item.polygonItem);
                 delete item.polygonItem;
                 item.polygonItem = nullptr;
             }
@@ -1102,7 +1110,7 @@ void BTWGraph::drawShadedRegions()
             // OPTIMIZATION: Update existing polygon instead of recreating
             if (item.polygonItem) {
                 // Safety check: Verify polygon item is still valid and in a scene
-                if (item.polygonItem->scene() != graphicsScene) {
+                if (item.polygonItem->scene() != overlayScene) {
                     // Item was removed from scene, delete and recreate
                     delete item.polygonItem;
                     item.polygonItem = nullptr;
@@ -1131,13 +1139,13 @@ void BTWGraph::drawShadedRegions()
                 polygonItem->setPen(QPen(borderColor, 1));
                 polygonItem->setZValue(500);  // Below markers but above grid
                 
-                graphicsScene->addItem(polygonItem);
+                overlayScene->addItem(polygonItem);
                 item.polygonItem = polygonItem;
             }
         } else {
             // Remove item if region is not visible
             if (item.polygonItem) {
-                graphicsScene->removeItem(item.polygonItem);
+                overlayScene->removeItem(item.polygonItem);
                 delete item.polygonItem;
                 item.polygonItem = nullptr;
             }

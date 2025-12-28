@@ -78,7 +78,9 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_mapScreenToTimeCachedTime(QDateTime()),
     m_mapScreenToTimeCacheValid(false),
     m_mapDataToScreenCacheVersion(0),
-    m_needsWaterfallRedraw(true)
+    m_needsWaterfallRedraw(true),
+    m_waterfallBufferHeight(0),
+    m_lastWaterfallRowTime(QDateTime())
 {
     // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
     // Using default size (4x4 pixel rectangle)
@@ -1094,8 +1096,10 @@ void WaterfallGraph::drawBTWSymbols()
     // Draw symbols using cached pixmap for better performance
     for (const auto& symbolData : visibleSymbols)
     {
-        // Map symbol position to screen coordinates
-        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
+        // OPTIMIZATION: Use epoch milliseconds to avoid timezone conversion in mapDataToScreen
+        // Convert timestamp once here instead of inside mapDataToScreen (avoids /etc/localtime reads)
+        qint64 timestampEpoch = symbolData.timestamp.toMSecsSinceEpoch();
+        QPointF screenPos = mapDataToScreen(symbolData.range, timestampEpoch);
         
         // Check if point is within visible area
         if (!drawingArea.contains(screenPos))
@@ -1795,6 +1799,9 @@ void WaterfallGraph::updateGraphicsDimensions()
 
         // Update the drawing area
         setupDrawingArea();
+        
+        // OPTIMIZATION: Initialize waterfall buffer when dimensions change
+        initializeWaterfallBuffer(widgetSize);
 
         // Redraw the scene
         draw();
@@ -2202,6 +2209,107 @@ void WaterfallGraph::resizeEvent(QResizeEvent *event)
 
     // Update graphics dimensions when the widget is resized
     updateGraphicsDimensions();
+    
+    // OPTIMIZATION: Resize waterfall buffer on widget resize
+    if (event->size().width() > 0 && event->size().height() > 0)
+    {
+        initializeWaterfallBuffer(event->size());
+    }
+}
+
+/**
+ * @brief Initialize or resize the waterfall buffer pixmap
+ * 
+ * Creates a fixed-size buffer matching the widget size for efficient scrolling.
+ * 
+ * @param size The size of the buffer (should match widget size)
+ */
+void WaterfallGraph::initializeWaterfallBuffer(const QSize &size)
+{
+    if (size.width() <= 0 || size.height() <= 0)
+    {
+        return;
+    }
+    
+    // Only recreate if size changed
+    if (m_waterfallBuffer.size() != size)
+    {
+        m_waterfallBuffer = QPixmap(size);
+        m_waterfallBuffer.fill(Qt::black); // Initialize with black background
+        m_waterfallBufferHeight = size.height();
+        m_needsWaterfallRedraw = true; // Mark for full redraw on next update
+        
+        DEBUG_OUT() << "WaterfallGraph: Initialized waterfall buffer size:" << size;
+    }
+}
+
+/**
+ * @brief Scroll the waterfall buffer by the specified number of pixels
+ * 
+ * This is an O(1) operation that shifts the buffer content, avoiding full redraws.
+ * New content should be drawn at the bottom after scrolling.
+ * 
+ * @param pixels Number of pixels to scroll (positive = scroll down, negative = scroll up)
+ */
+void WaterfallGraph::scrollWaterfallBuffer(int pixels)
+{
+    if (m_waterfallBuffer.isNull() || pixels == 0)
+    {
+        return;
+    }
+    
+    QRect bufferRect = m_waterfallBuffer.rect();
+    
+    // Scroll the buffer: negative pixels scrolls content down (new row at top)
+    // This is the typical waterfall behavior: new data appears at bottom, old data scrolls up
+    m_waterfallBuffer.scroll(0, -pixels, bufferRect);
+    
+    // Fill the scrolled area with black (or could preserve edge pixels)
+    QPainter painter(&m_waterfallBuffer);
+    painter.setRenderHint(QPainter::Antialiasing, false);
+    
+    if (pixels > 0)
+    {
+        // Scrolled down: fill top pixels with black
+        painter.fillRect(0, 0, bufferRect.width(), pixels, Qt::black);
+    }
+    else
+    {
+        // Scrolled up: fill bottom pixels with black
+        int absPixels = -pixels;
+        painter.fillRect(0, bufferRect.height() - absPixels, bufferRect.width(), absPixels, Qt::black);
+    }
+    
+    painter.end();
+}
+
+/**
+ * @brief Update waterfall buffer with a new row at the bottom
+ * 
+ * This method should be called after scrolling the buffer to draw the new data row.
+ * For now, this is a placeholder - full implementation depends on the rendering mode.
+ * In a traditional waterfall, this would draw a row representing the latest time slice.
+ */
+void WaterfallGraph::updateWaterfallBufferRow()
+{
+    if (m_waterfallBuffer.isNull() || m_waterfallBufferHeight <= 0)
+    {
+        return;
+    }
+    
+    // For now, just mark that buffer needs update
+    // Full implementation would:
+    // 1. Get latest data point(s) for visible series
+    // 2. Map to screen coordinates
+    // 3. Draw row at bottom of buffer (y = m_waterfallBufferHeight - 1)
+    // 4. This would be called after scrollWaterfallBuffer(1) for incremental updates
+    
+    // Note: Current implementation uses scatter plots, so waterfall buffer
+    // is primarily for background. Full row-by-row rendering would require
+    // a different rendering mode (heatmap-style waterfall).
+    
+    // For now, trigger a repaint so the buffer is displayed
+    update();
 }
 
 /**
@@ -2251,6 +2359,12 @@ void WaterfallGraph::showEvent(QShowEvent *event)
 
     // Update graphics dimensions now that we're visible
     updateGraphicsDimensions();
+    
+    // OPTIMIZATION: Initialize waterfall buffer when widget becomes visible
+    if (this->size().width() > 0 && this->size().height() > 0)
+    {
+        initializeWaterfallBuffer(this->size());
+    }
 }
 
 /**
@@ -2289,7 +2403,7 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
         
         // Get color for this series
         QColor pointColor = m_scatterColors.value(seriesLabel, Qt::white);
-        painter.setPen(QPen(pointColor, 1));
+        painter.setPen(QPen(pointColor, 2));  // Doubled from 1 to 2 for larger points
         
         // Draw all points in a single call (batched rendering)
         painter.drawPoints(points.constData(), points.size());

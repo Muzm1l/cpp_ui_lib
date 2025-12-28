@@ -893,8 +893,10 @@ void BTWInteractiveOverlay::syncMarkersWithTimeline()
             rangeValue = m_btwGraph->mapScreenXToRange(currentX);
         }
         
-        // Map the stored range and timestamp to new screen position
-        QPointF newScreenPos = m_btwGraph->mapDataToScreen(rangeValue, timestamp);
+        // OPTIMIZATION: Use epoch milliseconds to avoid timezone conversion in mapDataToScreen
+        // Convert timestamp once here instead of inside mapDataToScreen (avoids /etc/localtime reads)
+        qint64 timestampEpoch = timestamp.toMSecsSinceEpoch();
+        QPointF newScreenPos = m_btwGraph->mapDataToScreen(rangeValue, timestampEpoch);
         
         // Update both X and Y positions based on stored data values
         if (newScreenPos != marker->pos()) {

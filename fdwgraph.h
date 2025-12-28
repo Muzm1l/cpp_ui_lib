@@ -31,6 +31,7 @@ private:
     // FDW-specific properties and methods can be added here
     void drawFDWScatterplot();
     void drawZeroAxis();
+    QGraphicsLineItem *m_zeroAxisLineItem;  // Store reference to zero axis line for updates
 };
 
 #endif // FDWGRAPH_H

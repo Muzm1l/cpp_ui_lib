@@ -11,7 +11,8 @@
  * @param timeInterval Time interval for the waterfall display
  */
 BDWGraph::BDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
+    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval),
+      m_zeroAxisLineItem(nullptr)
 {
     DEBUG_OUT() << "BDWGraph constructor called";
 }
@@ -53,6 +54,16 @@ void BDWGraph::draw()
         m_seriesPathItems.clear();
         m_seriesPointItems.clear();
         
+        // Clear zero axis line from overlayScene on full redraw (layout changes, graph switches)
+        if (m_zeroAxisLineItem) {
+            QGraphicsScene *itemScene = m_zeroAxisLineItem->scene();
+            if (itemScene && itemScene == overlayScene) {
+                overlayScene->removeItem(m_zeroAxisLineItem);
+            }
+            delete m_zeroAxisLineItem;
+            m_zeroAxisLineItem = nullptr;
+        }
+        
         graphicsScene->clear();
         graphicsScene->update(); // Force immediate update to ensure clearing is visible
     }
@@ -64,8 +75,11 @@ void BDWGraph::draw()
         drawGrid();
     }
 
-    // Draw dashed grey vertical axis at 0 value (only on full redraw)
-    if (needsFullClear)
+    // Draw dashed grey vertical axis at 0 value (update on full redraw, range updates, incremental updates, and when line doesn't exist)
+    // Range updates happen when zoom panel changes, so we need to update the line position
+    // Incremental updates happen when time range changes (timer ticks, animation), so line position needs updating
+    // Also draw if line doesn't exist yet (e.g., when graph is first selected)
+    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE || !m_zeroAxisLineItem)
     {
         drawZeroAxis();
     }
@@ -164,8 +178,20 @@ void BDWGraph::drawBDWScatterplot()
  */
 void BDWGraph::drawZeroAxis()
 {
-    if (!graphicsScene) {
+    if (!overlayScene) {
         return;
+    }
+
+    // Remove old line if it exists to prevent duplication
+    if (m_zeroAxisLineItem) {
+        // Safety check: Verify item is still valid and in the scene before removing
+        // Check if item has a scene and it matches overlayScene
+        QGraphicsScene *itemScene = m_zeroAxisLineItem->scene();
+        if (itemScene && itemScene == overlayScene) {
+            overlayScene->removeItem(m_zeroAxisLineItem);
+        }
+        delete m_zeroAxisLineItem;
+        m_zeroAxisLineItem = nullptr;
     }
 
     // Map zero axis value (zoom panel middle sticker value) to screen coordinates using current time as timestamp
@@ -180,8 +206,8 @@ void BDWGraph::drawZeroAxis()
     QPen zeroAxisPen(QColor(255, 255, 255), 1.0, Qt::DashLine); // White dashed line
     zeroAxisPen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
     
-    // Draw the vertical line
-    graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
+    // Draw the vertical line and store reference for future updates
+    m_zeroAxisLineItem = overlayScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
     
     DEBUG_OUT() << "BDW zero axis drawn at x:" << zeroPoint.x();
 }

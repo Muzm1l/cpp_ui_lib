@@ -247,11 +247,18 @@ protected:
     
     // Direct rendering support (replaces QGraphicsScene for data rendering)
     QPixmap m_waterfallBuffer;  // Scroll buffer for waterfall rendering
+    int m_waterfallBufferHeight;  // Current buffer height (matches widget height)
+    QDateTime m_lastWaterfallRowTime;  // Timestamp of last row drawn (for incremental updates)
     QMap<QString, QVector<QPointF>> m_scatterPoints;  // Batched scatter points per series
     QMap<QString, QColor> m_scatterColors;  // Colors per series for scatter points
     QMap<QString, QPainterPath> m_dataLinePaths;  // Store paths for data lines (ADOPTED, etc.)
     QMap<QString, QColor> m_dataLineColors;  // Colors per series for data lines
     bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
+    
+    // Waterfall buffer management methods
+    void initializeWaterfallBuffer(const QSize &size);
+    void scrollWaterfallBuffer(int pixels);
+    void updateWaterfallBufferRow();  // Draw new row at bottom after scrolling
 
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
     // Avoids O(n) filtering on every draw by caching already-filtered data
