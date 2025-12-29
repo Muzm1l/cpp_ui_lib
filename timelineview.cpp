@@ -574,7 +574,17 @@ void TimelineVisualizerWidget::setShowRelativeLabels(bool showRelative)
             segmentDrawer->setShowRelativeLabel(showRelative);
         }
     }
+    
+    // CRITICAL FIX: Invalidate timestamp cache to force regeneration with new mode
+    // The cache stores labels in either absolute or relative format, so when mode changes,
+    // we need to regenerate all labels with the new format
+    m_cachedTimestampLabels.clear();
+    m_lastCachedWindowStart = QDateTime(); // Invalidate cache keys
+    m_lastCachedWindowEnd = QDateTime();
+    m_backgroundNeedsRedraw = true; // Force background redraw
+    update(); // Trigger repaint
 }
+
 
 void TimelineVisualizerWidget::setChevronLabel1(const QString &label)
 {
@@ -1516,7 +1526,36 @@ void TimelineVisualizerWidget::updateCachedTimestampLabels()
             normalizedY = qMax(0.0, qMin(1.0, normalizedY));
             
             CachedTimestampLabel label;
-            label.text = time.toString("HH:mm");
+            
+            // CRITICAL FIX: Generate relative or absolute labels based on mode
+            if (m_showRelativeLabels)
+            {
+                // Calculate relative time difference from window end (represents "now")
+                qint64 diffMs = time.msecsTo(windowEnd);
+                qint64 diffSeconds = diffMs / 1000;
+                int diffHours = static_cast<int>(diffSeconds / 3600);
+                int diffMinutes = static_cast<int>((diffSeconds % 3600) / 60);
+                
+                // Format as "-HH:MM" or "+HH:MM"
+                if (diffSeconds >= 0)
+                {
+                    label.text = QString("+%1:%2")
+                        .arg(diffHours, 2, 10, QChar('0'))
+                        .arg(diffMinutes, 2, 10, QChar('0'));
+                }
+                else
+                {
+                    label.text = QString("-%1:%2")
+                        .arg(-diffHours, 2, 10, QChar('0'))
+                        .arg(-diffMinutes, 2, 10, QChar('0'));
+                }
+            }
+            else
+            {
+                // Absolute time format
+                label.text = time.toString("HH:mm");
+            }
+            
             label.normalizedY = normalizedY;
             m_cachedTimestampLabels.push_back(label);
         }
@@ -1552,14 +1591,16 @@ void TimelineVisualizerWidget::updateCachedTimestampLabels()
     
     m_lastCachedWindowStart = windowStart;
     m_lastCachedWindowEnd = windowEnd;
+    m_lastCachedShowRelativeLabels = m_showRelativeLabels; // Track mode for cache invalidation
 }
 
 void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea)
 {
-    // Check if cache needs update (only recalculate when time window changes)
+    // Check if cache needs update (time window changed OR mode changed)
     TimeSelectionSpan visibleWindow = m_sliderState.getTimeWindow();
     if (visibleWindow.startTime != m_lastCachedWindowStart || 
-        visibleWindow.endTime != m_lastCachedWindowEnd)
+        visibleWindow.endTime != m_lastCachedWindowEnd ||
+        m_showRelativeLabels != m_lastCachedShowRelativeLabels) // CRITICAL FIX: Check mode change
     {
         updateCachedTimestampLabels();
     }
