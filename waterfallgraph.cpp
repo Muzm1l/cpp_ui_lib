@@ -2410,6 +2410,7 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
     }
     
     // Draw data lines (ADOPTED series, etc.)
+    // Render single paths (for small datasets)
     for (auto it = m_dataLinePaths.begin(); it != m_dataLinePaths.end(); ++it)
     {
         const QString &seriesLabel = it.key();
@@ -2424,6 +2425,29 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
         
         // Draw the path
         painter.drawPath(path);
+    }
+    
+    // Render batched paths (for large datasets - reduces QRasterPaintEngine::stroke() overhead)
+    for (auto it = m_batchedLinePaths.begin(); it != m_batchedLinePaths.end(); ++it)
+    {
+        const QString &seriesLabel = it.key();
+        const QVector<QPainterPath> &batchedPaths = it.value();
+        
+        if (batchedPaths.isEmpty())
+            continue;
+        
+        // Get color for this series
+        QColor lineColor = m_dataLineColors.value(seriesLabel, Qt::yellow);
+        painter.setPen(QPen(lineColor, 2));
+        
+        // Draw all batched paths for this series
+        for (const QPainterPath &path : batchedPaths)
+        {
+            if (!path.isEmpty())
+            {
+                painter.drawPath(path);
+            }
+        }
     }
     
     // Note: Overlays (crosshair, markers, selection) are still rendered via QGraphicsView
@@ -2756,6 +2780,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         // Cleanup any existing items for this series
         // OPTIMIZATION: Clear stored paths for paintEvent rendering
         m_dataLinePaths.remove(seriesLabel);
+        m_batchedLinePaths.remove(seriesLabel);
         m_dataLineColors.remove(seriesLabel);
         update(); // Trigger repaint
         
@@ -2823,6 +2848,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         // Cleanup any existing items for this series
         // OPTIMIZATION: Clear stored paths for paintEvent rendering
         m_dataLinePaths.remove(seriesLabel);
+        m_batchedLinePaths.remove(seriesLabel);
         m_dataLineColors.remove(seriesLabel);
         update(); // Trigger repaint
         
@@ -2863,6 +2889,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     {
         // OPTIMIZATION: Clear stored paths (will be recreated below)
         m_dataLinePaths.remove(seriesLabel);
+        m_batchedLinePaths.remove(seriesLabel);
         m_dataLineColors.remove(seriesLabel);
         
         // Legacy cleanup (old QGraphicsPathItem code)
@@ -2960,19 +2987,41 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 
     // Add lines connecting all visible data points with LOD for high intervals
     size_t lodStep = calculateLODStep(visibleData.size());
-    for (size_t i = 1; i < visibleData.size(); i += lodStep)
+    
+    // Calculate effective point count after LOD (approximate)
+    size_t effectivePointCount = (visibleData.size() + lodStep - 1) / lodStep;
+    
+    // GEOMETRY BATCHING: For large datasets, split into multiple paths to reduce
+    // QRasterPaintEngine::stroke() overhead. Single path for small datasets maintains
+    // backward compatibility and optimal performance.
+    if (effectivePointCount > BATCH_THRESHOLD)
     {
-        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
-        {
-            continue; // Skip invalid points
-        }
-        path.lineTo(point);
+        // Build batched paths (more efficient than splitting a single path)
+        buildBatchedLinePaths(seriesLabel, visibleData, lodStep, seriesColor);
+        // Clear single path since we're using batched paths
+        m_dataLinePaths.remove(seriesLabel);
     }
-
-    // OPTIMIZATION: Store path and color for paintEvent rendering instead of QGraphicsPathItem
-    // This eliminates QGraphicsScene overhead for data lines
-    m_dataLinePaths[seriesLabel] = path;
+    else
+    {
+        // Build single path (existing behavior for small datasets)
+        for (size_t i = 1; i < visibleData.size(); i += lodStep)
+        {
+            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+            if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+            {
+                continue; // Skip invalid points
+            }
+            path.lineTo(point);
+        }
+        
+        // OPTIMIZATION: Store path and color for paintEvent rendering instead of QGraphicsPathItem
+        // This eliminates QGraphicsScene overhead for data lines
+        m_dataLinePaths[seriesLabel] = path;
+        // Clear batched paths since we're using single path
+        m_batchedLinePaths.remove(seriesLabel);
+    }
+    
+    // Store color for both single and batched paths
     m_dataLineColors[seriesLabel] = seriesColor;
     
     // Trigger repaint (paintEvent will draw the path)
@@ -3101,6 +3150,79 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     }
 
     DEBUG_OUT() << "Data line drawn for series" << seriesLabel << "with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
+}
+
+/**
+ * @brief Build batched line paths for large datasets to reduce QRasterPaintEngine::stroke() overhead
+ * 
+ * This method splits large datasets into multiple QPainterPath objects, each containing
+ * up to BATCH_SIZE points. This reduces the overhead of QRasterPaintEngine::stroke()
+ * which is called once per path element.
+ * 
+ * @param seriesLabel Series identifier
+ * @param visibleData Filtered visible data points (value, epoch_ms pairs)
+ * @param lodStep Level-of-detail step (skip every N points)
+ * @param seriesColor Color for the line
+ */
+void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
+                                            const std::vector<std::pair<qreal, qint64>> &visibleData,
+                                            size_t lodStep,
+                                            const QColor &seriesColor)
+{
+    if (visibleData.empty())
+    {
+        m_batchedLinePaths.remove(seriesLabel);
+        return;
+    }
+    
+    QVector<QPainterPath> batchedPaths;
+    QPainterPath currentBatch;
+    size_t pointsInCurrentBatch = 0;
+    
+    // Map first point
+    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
+    if (firstPoint.isNull() || !qIsFinite(firstPoint.x()) || !qIsFinite(firstPoint.y()))
+    {
+        m_batchedLinePaths.remove(seriesLabel);
+        return;
+    }
+    currentBatch.moveTo(firstPoint);
+    pointsInCurrentBatch = 1;
+    
+    // Process remaining points with LOD
+    for (size_t i = lodStep; i < visibleData.size(); i += lodStep)
+    {
+        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
+        if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+        {
+            continue; // Skip invalid points
+        }
+        
+        currentBatch.lineTo(point);
+        pointsInCurrentBatch++;
+        
+        // When batch reaches BATCH_SIZE, start a new batch
+        if (pointsInCurrentBatch >= BATCH_SIZE)
+        {
+            batchedPaths.append(currentBatch);
+            currentBatch = QPainterPath();
+            // Start new batch from current point (connect batches visually)
+            currentBatch.moveTo(point);
+            pointsInCurrentBatch = 1;
+        }
+    }
+    
+    // Add the last batch if it has any points
+    if (pointsInCurrentBatch > 0)
+    {
+        batchedPaths.append(currentBatch);
+    }
+    
+    // Store batched paths
+    m_batchedLinePaths[seriesLabel] = batchedPaths;
+    
+    DEBUG_OUT() << "Built" << batchedPaths.size() << "batched paths for series" << seriesLabel
+                << "with" << visibleData.size() << "visible points (LOD step:" << lodStep << ")";
 }
 
 // Mouse selection functionality implementation

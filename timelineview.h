@@ -252,6 +252,7 @@ private:
     std::vector<CachedTimestampLabel> m_cachedTimestampLabels;
     QDateTime m_lastCachedWindowStart;
     QDateTime m_lastCachedWindowEnd;
+    bool m_lastCachedShowRelativeLabels;  // Track last mode to detect changes
 
     // Cached background pixmap for performance (avoid redrawing static elements on every paint)
     QPixmap m_cachedBackground;

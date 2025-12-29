@@ -151,6 +151,10 @@ protected:
 
     // Data plotting methods
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
+    void buildBatchedLinePaths(const QString &seriesLabel,
+                               const std::vector<std::pair<qreal, qint64>> &visibleData,
+                               size_t lodStep,
+                               const QColor &seriesColor);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
@@ -251,7 +255,8 @@ protected:
     QDateTime m_lastWaterfallRowTime;  // Timestamp of last row drawn (for incremental updates)
     QMap<QString, QVector<QPointF>> m_scatterPoints;  // Batched scatter points per series
     QMap<QString, QColor> m_scatterColors;  // Colors per series for scatter points
-    QMap<QString, QPainterPath> m_dataLinePaths;  // Store paths for data lines (ADOPTED, etc.)
+    QMap<QString, QPainterPath> m_dataLinePaths;  // Store paths for data lines (ADOPTED, etc.) - single path for small datasets
+    QMap<QString, QVector<QPainterPath>> m_batchedLinePaths;  // Batched paths for large datasets (>1000 points)
     QMap<QString, QColor> m_dataLineColors;  // Colors per series for data lines
     bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
     
@@ -296,6 +301,8 @@ protected:
     mutable std::map<MapDataToScreenCacheKey, QPointF> m_mapDataToScreenCache;
     mutable qint64 m_mapDataToScreenCacheVersion;  // Increment when cache should be invalidated
     static constexpr size_t MAX_MAP_DATA_TO_SCREEN_CACHE_SIZE = 10000;  // Limit cache size
+    static constexpr size_t BATCH_THRESHOLD = 1000;  // Threshold for batching paths (points after LOD)
+    static constexpr size_t BATCH_SIZE = 100;  // Number of points per batched path
     
     // getSeriesColor() result cache (Performance optimization - Fix #3)
     mutable std::map<QString, QColor> m_seriesColorCache;  // Cache computed default colors
