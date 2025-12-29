@@ -1138,6 +1138,13 @@ void GraphContainer::onTimeIntervalChanged(TimeInterval interval)
 {
     DEBUG_OUT() << "GraphContainer: Handling time interval change to" << timeIntervalToString(interval);
 
+    // Update sync state immediately so other components (like SCWWindow) can see the change
+    if (m_syncState)
+    {
+        m_syncState->currentInterval = interval;
+        m_syncState->hasInterval = true;
+    }
+
     // Update the time interval locally
     updateTimeInterval(interval);
 

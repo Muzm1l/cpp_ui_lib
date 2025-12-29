@@ -71,6 +71,10 @@ public:
     void setGridDivisions(int divisions);
     int getGridDivisions() const;
 
+    // Line vs scatterplot drawing configuration
+    void setUseLineDrawing(bool useLines);
+    bool getUseLineDrawing() const;
+
     // Data handling (delegates to data source)
     void setData(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void setData(const WaterfallData &data);
@@ -259,6 +263,7 @@ protected:
     QMap<QString, QVector<QPainterPath>> m_batchedLinePaths;  // Batched paths for large datasets (>1000 points)
     QMap<QString, QColor> m_dataLineColors;  // Colors per series for data lines
     bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
+    bool m_useLineDrawing;  // Flag to use line drawing instead of scatterplot for all series
     
     // Waterfall buffer management methods
     void initializeWaterfallBuffer(const QSize &size);

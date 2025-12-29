@@ -654,8 +654,11 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[0]->setCustomYRange(-20.0, 20.0);
         m_waterfallGraphs[0]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[0]->setDataSource(*adoptedDataSource);
+        m_waterfallGraphs[0]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[0]->installEventFilter(this);
         m_seriesLayouts[0]->addWidget(m_waterfallGraphs[0], 1);
+        // Force initial draw to ensure graph is rendered
+        m_waterfallGraphs[0]->draw();
         DEBUG_OUT() << "Created and connected WaterfallGraph for window 1, series:" << adoptedLabel;
     }
     
@@ -688,8 +691,11 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[windowIndex]->setCustomYRange(-20.0, 20.0);
         m_waterfallGraphs[windowIndex]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[windowIndex]->setDataSource(*dataSource);
+        m_waterfallGraphs[windowIndex]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[windowIndex]->installEventFilter(this);
         m_seriesLayouts[windowIndex]->addWidget(m_waterfallGraphs[windowIndex], 1);
+        // Force initial draw to ensure graph is rendered
+        m_waterfallGraphs[windowIndex]->draw();
         
         DEBUG_OUT() << "Created and connected WaterfallGraph for window" << (windowIndex+1) << "series:" << seriesLabel;
     }
@@ -708,8 +714,11 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[5]->setCustomYRange(-20.0, 20.0);
         m_waterfallGraphs[5]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[5]->setDataSource(*dataSourceB);
+        m_waterfallGraphs[5]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[5]->installEventFilter(this);
         m_seriesLayouts[5]->addWidget(m_waterfallGraphs[5], 1);
+        // Force initial draw to ensure graph is rendered
+        m_waterfallGraphs[5]->draw();
         DEBUG_OUT() << "Created and connected WaterfallGraph for window 6, initial series:" << seriesLabelB;
     }
     
@@ -727,8 +736,11 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[6]->setCustomYRange(-20.0, 20.0);
         m_waterfallGraphs[6]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[6]->setDataSource(*dataSourceA);
+        m_waterfallGraphs[6]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[6]->installEventFilter(this);
         m_seriesLayouts[6]->addWidget(m_waterfallGraphs[6], 1);
+        // Force initial draw to ensure graph is rendered
+        m_waterfallGraphs[6]->draw();
         DEBUG_OUT() << "Created and connected WaterfallGraph for window 7, initial series:" << seriesLabelA;
     }
     
@@ -746,8 +758,11 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[7]->setCustomYRange(-20.0, 20.0);
         m_waterfallGraphs[7]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[7]->setDataSource(*dataSourceE);
+        m_waterfallGraphs[7]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[7]->installEventFilter(this);
         m_seriesLayouts[7]->addWidget(m_waterfallGraphs[7], 1);
+        // Force initial draw to ensure graph is rendered
+        m_waterfallGraphs[7]->draw();
         DEBUG_OUT() << "Created and connected WaterfallGraph for window 8, initial series:" << seriesLabelE;
     }
     

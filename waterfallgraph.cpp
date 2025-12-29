@@ -67,6 +67,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_cachedYRangeReciprocal(0.0),
     m_cachedTimeIntervalMsReciprocal(0.0),
     m_cachedTimeMaxEpoch(0),
+    m_useLineDrawing(false),  // Default to scatterplot for backward compatibility
     m_cachesValid(false),
     m_cachedCursorSceneRect(QRectF()),
     m_cachedOverlaySceneRect(QRectF()),
@@ -705,6 +706,9 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     
     // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when caches become invalid
     m_mapDataToScreenCache.clear();
+    
+    // Invalidate visible data cache since interval change affects visible data window
+    invalidateAllVisibleDataCache();
 
     // Always update time range based on new interval
     if (customTimeRangeEnabled)
@@ -745,6 +749,8 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     // Only draw if graph is visible and initialized to avoid issues with non-visible graphs
     if (isVisible() && graphicsScene)
     {
+        // Time interval change requires full redraw since visible data window changes significantly
+        setRenderState(RenderState::FULL_REDRAW);
         draw();
 
         // Explicitly update the graphics view to ensure repaint
@@ -792,6 +798,22 @@ void WaterfallGraph::setGridEnabled(bool enabled)
         draw(); // Redraw to show/hide grid
         DEBUG_OUT() << "Grid" << (enabled ? "enabled" : "disabled");
     }
+}
+
+void WaterfallGraph::setUseLineDrawing(bool useLines)
+{
+    if (m_useLineDrawing != useLines)
+    {
+        m_useLineDrawing = useLines;
+        setRenderState(RenderState::FULL_REDRAW); // Drawing mode change requires full redraw
+        draw(); // Redraw with new drawing mode
+        DEBUG_OUT() << "Line drawing" << (useLines ? "enabled" : "disabled");
+    }
+}
+
+bool WaterfallGraph::getUseLineDrawing() const
+{
+    return m_useLineDrawing;
 }
 
 /**
@@ -921,10 +943,21 @@ void WaterfallGraph::drawIncremental()
                 {
                     if (isSeriesVisible(seriesLabel))
                     {
-                        drawDataSeries(seriesLabel);
+                        // Use line drawing if flag is set, otherwise use scatterplot
+                        if (m_useLineDrawing)
+                        {
+                            drawDataLine(seriesLabel, false);
+                        }
+                        else
+                        {
+                            drawDataSeries(seriesLabel);
+                        }
                     }
                 }
             }
+
+            // Draw BTW symbols (magenta circles) after drawing data series
+            drawBTWSymbols();
 
             m_dirtySeries.clear();
             m_renderState = RenderState::CLEAN;
@@ -991,10 +1024,21 @@ void WaterfallGraph::drawIncremental()
                 {
                     if (isSeriesVisible(seriesLabel))
                     {
-                        drawDataSeries(seriesLabel);
+                        // Use line drawing if flag is set, otherwise use scatterplot
+                        if (m_useLineDrawing)
+                        {
+                            drawDataLine(seriesLabel, false);
+                        }
+                        else
+                        {
+                            drawDataSeries(seriesLabel);
+                        }
                     }
                 }
             }
+
+            // Draw BTW symbols (magenta circles) after drawing data series
+            drawBTWSymbols();
 
             m_dirtySeries.clear();
             m_renderState = RenderState::CLEAN;
@@ -1021,8 +1065,9 @@ void WaterfallGraph::transitionToAppropriateState()
         return;
     }
     
-    // Draw BTW symbols (magenta circles) if any exist in data source
-    drawBTWSymbols();
+    // Note: drawBTWSymbols() is now called explicitly in drawIncremental() 
+    // for both INCREMENTAL_UPDATE and FULL_REDRAW states, so we don't need to call it here
+    // This prevents duplicate calls that could cause symbol duplication
     
     isDrawing = false;
 }
@@ -1040,22 +1085,25 @@ void WaterfallGraph::drawBTWSymbols()
         return;
     }
     
-    // CRITICAL FIX: Remove old BTW symbol items (magenta circles) before drawing new ones
-    // This prevents duplicates when time range changes and symbols are redrawn
-    // Only remove if not doing a full clear (full clear already cleared the scene)
-    if (m_renderState != RenderState::FULL_REDRAW)
+    // CRITICAL FIX: Always remove old BTW symbol items (magenta circles) before drawing new ones
+    // This prevents duplicates when drawBTWSymbols() is called multiple times
+    // Even during FULL_REDRAW, we need to clean up because overlayScene is not cleared
+    // (only graphicsScene is cleared during FULL_REDRAW)
+    QList<QGraphicsItem*> allItems = overlayScene->items();
+    QList<QGraphicsItem*> itemsToRemove;
+    for (QGraphicsItem* item : allItems)
     {
-        // Remove all QGraphicsPixmapItem objects with z-value 1003 (BTW symbols/magenta circles)
-        QList<QGraphicsItem*> allItems = overlayScene->items();
-        for (QGraphicsItem* item : allItems)
+        QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+        if (pixmapItem && pixmapItem->zValue() == 1003)
         {
-            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
-            if (pixmapItem && pixmapItem->zValue() == 1003)
-            {
-                overlayScene->removeItem(pixmapItem);
-                delete pixmapItem;
-            }
+            itemsToRemove.append(pixmapItem);
         }
+    }
+    // Remove items after iteration to avoid modifying list while iterating
+    for (QGraphicsItem* item : itemsToRemove)
+    {
+        overlayScene->removeItem(item);
+        delete item;
     }
     
     // Get symbols from dataSource

@@ -239,8 +239,8 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup RTW Symbols test
     setupRTWSymbolsTest();
 
-    // Setup SCWWindow in a new tab (DISABLED)
-    // setupSCWWindow();
+    // Setup SCWWindow in a new tab
+    setupSCWWindow();
     
     // Connect BTW symbol signal to SCWWindow (if it exists)
     // This will add magenta circles to SCW graphs whenever BTW markers are placed
