@@ -2740,7 +2740,9 @@ qreal WaterfallGraph::mapScreenXToRange(qreal xPos) const
  */
 void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 {
-    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
+    // CRITICAL FIX: Don't require graphicsScene - rendering is now via paintEvent()
+    // graphicsScene is only needed for legacy QGraphicsPathItem cleanup
+    if (!dataSource || dataSource->isEmpty() || !dataRangesValid)
     {
         return;
     }
@@ -2926,9 +2928,14 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
                 }
                 pointIt->second.clear();
             }
-            QPen pointPen(seriesColor, 0); // No stroke (width 0)
-            QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-            m_seriesPointItems[seriesLabel].push_back(pointItem);
+            // CRITICAL FIX: Only add to graphicsScene if it exists (legacy support)
+            // Main rendering is now via paintEvent(), so single points are handled there
+            if (graphicsScene)
+            {
+                QPen pointPen(seriesColor, 0); // No stroke (width 0)
+                QGraphicsEllipseItem *pointItem = graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
+                m_seriesPointItems[seriesLabel].push_back(pointItem);
+            }
         }
         else
         {
@@ -3123,7 +3130,20 @@ void WaterfallGraph::startSelection(const QPointF &scenePos)
 
     DEBUG_OUT() << "Creating new selection rectangle";
 
-    overlayScene->addItem(selectionRect);
+    // CRITICAL FIX: Recreate selectionRect if it was deleted (e.g., by overlayScene->clear())
+    if (!selectionRect)
+    {
+        selectionRect = new QGraphicsRectItem();
+        selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine));    // White dashed line
+        selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
+        selectionRect->setZValue(1000);                             // Ensure it's drawn on top
+    }
+
+    // Add to scene if not already added
+    if (overlayScene && selectionRect->scene() != overlayScene)
+    {
+        overlayScene->addItem(selectionRect);
+    }
 
     // Initialize with a small rectangle at the start position
     selectionRect->setRect(scenePos.x() - 1, scenePos.y() - 1, 2, 2);
@@ -3216,9 +3236,20 @@ void WaterfallGraph::endSelection()
 
 void WaterfallGraph::clearSelection()
 {
-    if (selectionRect)
+    if (selectionRect && overlayScene)
     {
-        overlayScene->removeItem(selectionRect);
+        // CRITICAL FIX: Check if item is actually in the scene before removing
+        // overlayScene->removeItem() internally calls item->scene(), which can crash
+        // if the item is in an invalid state or already removed (e.g., after overlayScene->clear())
+        // Also check if overlayScene is valid to prevent crashes during destruction
+        QGraphicsScene *itemScene = selectionRect->scene();
+        if (itemScene && itemScene == overlayScene)
+        {
+            overlayScene->removeItem(selectionRect);
+        }
+        // Note: Don't delete selectionRect here - it's a member variable that may be reused
+        // If overlayScene was cleared, selectionRect is already deleted and will be nullptr
+        // or we need to recreate it when needed
     }
 }
 
@@ -3592,7 +3623,9 @@ QPixmap WaterfallGraph::getPointPixmap(const QColor &color, qreal size)
  */
 void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &pointColor, qreal pointSize, const QColor & /*outlineColor*/)
 {
-    if (!graphicsScene || !dataSource)
+    // CRITICAL FIX: Don't require graphicsScene - rendering is now via paintEvent()
+    // graphicsScene is only needed for legacy QGraphicsScene item cleanup
+    if (!dataSource)
         return;
 
     // Get the default data series
@@ -3659,6 +3692,11 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         updateScatterplotItemPositions(seriesLabel, visibleData, pointSize);
     }
 
+    // CRITICAL FIX: Ensure update() is called to trigger paintEvent() for scatterplot rendering
+    // updateScatterplotItemsFull/Incremental already call update(), but ensure it's called here too
+    // in case the state machine path doesn't call those methods
+    update();
+    
     DEBUG_OUT() << "Scatterplot drawn with" << visibleData.size() << "points (state:" 
              << static_cast<int>(m_renderState) << ")";
 }
@@ -3727,7 +3765,9 @@ void WaterfallGraph::drawAllDataSeries()
  */
 void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 {
-    if (!graphicsScene || !dataSource || !dataRangesValid)
+    // CRITICAL FIX: Don't require graphicsScene - rendering is now via paintEvent()
+    // graphicsScene is only needed for legacy QGraphicsScene item cleanup
+    if (!dataSource || !dataRangesValid)
     {
         DEBUG_OUT() << "drawDataSeries: Early return for series:" << seriesLabel;
         return;
@@ -3993,6 +4033,31 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
             }
         }
     }
+    
+    // CRITICAL FIX: Also update m_scatterPoints for paintEvent() rendering
+    // drawDataSeries() creates QGraphicsEllipseItem objects (legacy), but paintEvent() uses m_scatterPoints
+    // We need to update both to ensure paintEvent() rendering works when drawDataSeries() is called
+    QVector<QPointF> &scatterPoints = m_scatterPoints[seriesLabel];
+    scatterPoints.clear();
+    scatterPoints.reserve(visibleData.size());
+    
+    for (const auto &dataPoint : visibleData)
+    {
+        if (dataPoint.second == 0)
+            continue; // Skip invalid timestamps
+        
+        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second);
+        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+            continue; // Skip invalid screen coordinates
+        
+        scatterPoints.append(screenPoint);
+    }
+    
+    // Store color for paintEvent rendering
+    m_scatterColors[seriesLabel] = seriesColor;
+    
+    // Trigger repaint (paintEvent will draw the batched points)
+    update();
 }
 
 // Multi-series support methods implementation
@@ -4279,10 +4344,14 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
     this->timeMin = timeMin;
     this->timeMax = timeMax;
 
-    // Time range change uses incremental update - existing items can be repositioned
-    // rather than clearing everything and recreating from scratch.
-    // Caller is responsible for calling draw() if needed.
-    setRenderState(RenderState::INCREMENTAL_UPDATE);
+    // CRITICAL FIX: Time range change via slider requires FULL_REDRAW
+    // The visible data window completely changes, so we need to:
+    // - Clear all old graphics items (outside new time range)
+    // - Rebuild drawing area (recalculate coordinate mappings)
+    // - Redraw all series from scratch with new time range
+    // INCREMENTAL_UPDATE doesn't clear old items, which can cause stale data to remain visible
+    // setRenderState(FULL_REDRAW) automatically marks all series as dirty via markAllSeriesDirty()
+    setRenderState(RenderState::FULL_REDRAW);
 
     DEBUG_OUT() << "Custom time range set to:" << timeMin.toString() << "to" << timeMax.toString();
 }

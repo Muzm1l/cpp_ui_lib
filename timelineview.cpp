@@ -710,15 +710,8 @@ void TimelineVisualizerWidget::renderBackgroundToCache()
     painter.setPen(QPen(QColor(150, 150, 150), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
     
-    // Draw slider indicator if visible
-    if (m_sliderVisible)
-    {
-        QRect sliderRect = SliderGeometry::calculateSliderRect(
-            rect().height(), rect().width(), m_timeLineLength,
-            m_sliderState.getYPosition());
-        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
-        painter.fillRect(sliderRect, sliderColor);
-    }
+    // CRITICAL FIX: Slider is NOT drawn in background cache - it's drawn directly in paintEvent()
+    // This ensures immediate updates during drag without expensive cache regeneration
     
     // Draw regular interval timestamps
     drawRegularIntervalTimestamps(painter, rect());
@@ -813,6 +806,17 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
 
     // Fast blit of cached background (all static elements)
     painter.drawPixmap(0, 0, m_cachedBackground);
+    
+    // CRITICAL FIX: Draw slider directly (not in cache) for immediate updates during drag
+    // The slider is dynamic and changes position frequently, so it shouldn't be cached
+    if (m_sliderVisible)
+    {
+        QRect sliderRect = SliderGeometry::calculateSliderRect(
+            rect().height(), rect().width(), m_timeLineLength,
+            m_sliderState.getYPosition());
+        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
+        painter.fillRect(sliderRect, sliderColor);
+    }
     
     // Draw only the crosshair timestamp label on top (lightweight, changes with mouse movement)
     if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid() && 
@@ -1128,8 +1132,9 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
         
-        // Invalidate background cache since slider position changed during drag
-        m_backgroundNeedsRedraw = true;
+        // CRITICAL FIX: Don't invalidate background cache during drag
+        // Slider is now drawn directly in paintEvent(), so cache doesn't need regeneration
+        // This improves performance during drag operations
         
         // Update manoeuvre overlay time range during drag
         if (m_manoeuvreOverlay)

@@ -69,6 +69,19 @@ void RTWGraph::draw()
         
         graphicsScene->clear();
         graphicsScene->update(); // Force immediate update to ensure clearing is visible
+        
+        // CRITICAL FIX: Also clear overlayScene to remove RTW symbols
+        // RTW symbols are in overlayScene, not graphicsScene
+        // Without this, symbols accumulate on every FULL_REDRAW
+        // NOTE: overlayScene->clear() deletes all items including selectionRect, crosshair, etc.
+        // These will be recreated when needed (selectionRect in startSelection(), crosshair in setupCrosshair())
+        overlayScene->clear();
+        overlayScene->update();
+        
+        // CRITICAL FIX: After clearing overlayScene, selectionRect is deleted
+        // Set it to nullptr to prevent crashes when clearSelection() is called
+        // selectionRect will be recreated in startSelection() when needed
+        selectionRect = nullptr;
     }
     
     setupDrawingArea();
@@ -530,27 +543,29 @@ void RTWGraph::drawRTWSymbols()
         return;
     }
     
-    // CRITICAL FIX: Remove old RTW symbol items before drawing new ones
+    // CRITICAL FIX: Always remove old RTW symbol items before drawing new ones
     // This prevents duplicates when time range changes and symbols are redrawn
-    // Only remove if not doing a full clear (full clear already cleared the scene)
-    if (m_renderState != RenderState::FULL_REDRAW)
+    // Remove ALL items with z-value 1000, regardless of render state
+    // Use two-pass approach to avoid iterator invalidation
+    QList<QGraphicsItem*> allItems = overlayScene->items();
+    QList<QGraphicsItem*> itemsToRemove;
+    
+    for (QGraphicsItem* item : allItems)
     {
-        // Remove all QGraphicsPixmapItem objects with z-value 1000 (RTW symbols)
-        QList<QGraphicsItem*> allItems = overlayScene->items();
-        for (QGraphicsItem* item : allItems)
+        QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+        if (pixmapItem && pixmapItem->zValue() == 1000)
         {
-            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
-            if (pixmapItem && pixmapItem->zValue() == 1000)
-            {
-                // Check if this is an RTW symbol (has timestamp data stored)
-                QVariant timestampVariant = pixmapItem->data(0);
-                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>())
-                {
-                    overlayScene->removeItem(pixmapItem);
-                    delete pixmapItem;
-                }
-            }
+            // Remove ALL pixmap items with z-value 1000 (RTW symbols)
+            // Don't check data(0) validity - some symbols might not have it set correctly
+            itemsToRemove.append(pixmapItem);
         }
+    }
+    
+    // Remove items in separate loop to avoid iterator invalidation
+    for (QGraphicsItem* item : itemsToRemove)
+    {
+        overlayScene->removeItem(item);
+        delete item;
     }
     
     // Get symbols from dataSource (same pattern as R markers get data from dataSource)
