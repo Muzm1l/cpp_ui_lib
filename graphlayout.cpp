@@ -561,7 +561,7 @@ void GraphLayout::updateLayoutSizing()
         break;
         
     case LayoutType::GPW4WH:
-        // GPW4WH: 290 + 290 + x + 290 + 290
+        // GPW4WH: 290 + 290 + x + 290 + 290 + 3 (3px spacing between 4 containers)
         for (int i = 0; i < 4; ++i) {
             if (m_graphContainers[i] && m_graphContainers[i]->isVisible()) {
                 if (i == 2) {
@@ -572,7 +572,7 @@ void GraphLayout::updateLayoutSizing()
                 }
             }
         }
-        totalWidth = 290 + 290 + x + 290 + 290;
+        totalWidth = 290 + 290 + x + 290 + 290 + 3; // Add 3px for spacing between 4 containers
         break;
         
     case LayoutType::GPW2WV:
