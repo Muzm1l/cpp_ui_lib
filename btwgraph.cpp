@@ -66,7 +66,8 @@ void BTWGraph::draw()
     if (needsFullClear)
     {
         // Clear existing items - ensure complete clearing before drawing
-        // Automatic circle markers are in graphicsScene, so clearing graphicsScene removes them
+        // CRITICAL FIX: Automatic circle markers (blue markers) are now in overlayScene, not graphicsScene
+        // They will be cleared when overlayScene items are removed, but we need to track them
         // Shaded region polygon items are in overlayScene, so we need to remove them explicitly
         // Clear polygon items from overlayScene before nulling pointers
         for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
@@ -332,8 +333,65 @@ void BTWGraph::drawBTWScatterplot()
  */
 void BTWGraph::drawCustomCircleMarkers()
 {
-    if (!dataSource || !graphicsScene) {
+    if (!dataSource || !overlayScene) {
         return;
+    }
+
+    // CRITICAL FIX: Always remove old blue automatic marker items before drawing new ones
+    // This prevents duplicates when drawCustomCircleMarkers() is called multiple times
+    // Blue markers are now in overlayScene, not graphicsScene, so they need explicit cleanup
+    QList<QGraphicsItem*> allItems = overlayScene->items();
+    QList<QGraphicsItem*> itemsToRemove;
+    for (QGraphicsItem* item : allItems)
+    {
+        // Identify blue marker items by their zValue (1000, 1001, 1002) and type/color
+        // Blue markers consist of: circle (zValue 1000), line (1001), text (1002), outline (1001)
+        int zVal = static_cast<int>(item->zValue());
+        bool isBlueMarker = false;
+        
+        if (QGraphicsTextItem* textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item))
+        {
+            // Text items with zValue 1002 and blue text color are blue marker labels
+            if (zVal == 1002 && textItem->defaultTextColor() == Qt::blue)
+            {
+                isBlueMarker = true;
+            }
+        }
+        else if (QGraphicsEllipseItem* ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(item))
+        {
+            // Circle items with zValue 1000 and blue pen are blue marker circles
+            if (zVal == 1000 && ellipseItem->pen().color() == Qt::blue)
+            {
+                isBlueMarker = true;
+            }
+        }
+        else if (QGraphicsLineItem* lineItem = qgraphicsitem_cast<QGraphicsLineItem*>(item))
+        {
+            // Line items with zValue 1001 and blue pen are blue marker lines
+            if (zVal == 1001 && lineItem->pen().color() == Qt::blue)
+            {
+                isBlueMarker = true;
+            }
+        }
+        else if (QGraphicsRectItem* rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(item))
+        {
+            // Rect items with zValue 1001 and blue pen are blue marker text outlines
+            if (zVal == 1001 && rectItem->pen().color() == Qt::blue)
+            {
+                isBlueMarker = true;
+            }
+        }
+        
+        if (isBlueMarker)
+        {
+            itemsToRemove.append(item);
+        }
+    }
+    // Remove items after iteration to avoid modifying list while iterating
+    for (QGraphicsItem* item : itemsToRemove)
+    {
+        overlayScene->removeItem(item);
+        delete item;
     }
 
     // Get manually placed markers from data source (filtered by time range using binary search)
@@ -348,7 +406,11 @@ void BTWGraph::drawCustomCircleMarkers()
         visibleMarkers = dataSource->getBTWMarkers();
     }
 
+    // CRITICAL FIX: Always clear old blue markers, even if there are no new markers to draw
+    // This ensures blue markers are removed when clearAllGraphs() clears the data source
     if (visibleMarkers.empty()) {
+        // Still need to clear old markers even if data source is empty
+        // (The clearing code above already handles this, so we can just return)
         return;
     }
 
@@ -377,7 +439,8 @@ void BTWGraph::drawCustomCircleMarkers()
             circleOutline->setBrush(QBrush(Qt::transparent));
             circleOutline->setZValue(1000);
             
-            graphicsScene->addItem(circleOutline);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(circleOutline);
             
             // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
@@ -398,7 +461,8 @@ void BTWGraph::drawCustomCircleMarkers()
             angledLine->setPen(QPen(Qt::blue, 2));
             angledLine->setZValue(1001);
             
-            graphicsScene->addItem(angledLine);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(angledLine);
             
             // Add blue text label with rectangular outline beside the marker
             QString prefix = (deltaValue >= 0) ? "R" : "L";
@@ -416,7 +480,8 @@ void BTWGraph::drawCustomCircleMarkers()
                             screenPos.y() - textRect.height() / 2);
             textLabel->setZValue(1002);
             
-            graphicsScene->addItem(textLabel);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(textLabel);
             
             // Add rectangular outline around the text
             QGraphicsRectItem *textOutline = new QGraphicsRectItem();
@@ -426,7 +491,8 @@ void BTWGraph::drawCustomCircleMarkers()
             textOutline->setBrush(QBrush(Qt::transparent));
             textOutline->setZValue(1001);
             
-            graphicsScene->addItem(textOutline);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(textOutline);
         }
     }
 }
@@ -1138,6 +1204,10 @@ void BTWGraph::drawShadedRegions()
                 polygonItem->setBrush(hatchBrush);
                 polygonItem->setPen(QPen(borderColor, 1));
                 polygonItem->setZValue(500);  // Below markers but above grid
+                
+                // CRITICAL FIX: Make shaded region non-interactive so it doesn't block manual marker creation
+                polygonItem->setAcceptedMouseButtons(Qt::NoButton);
+                polygonItem->setAcceptHoverEvents(false);
                 
                 overlayScene->addItem(polygonItem);
                 item.polygonItem = polygonItem;

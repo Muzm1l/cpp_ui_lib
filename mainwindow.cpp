@@ -165,6 +165,49 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
+    // Test BTW blue markers - add a marker every 3 minutes
+    // Wait for graph to initialize, then start adding markers
+    QTimer::singleShot(3000, this, [this]() {
+        if (graphgrid) {
+            // Add an immediate test marker first
+            QDateTime currentTime = QDateTime::currentDateTime();
+            graphgrid->addBTWMarker(GraphType::BTW, currentTime, 40.0, 2.5);
+            DEBUG_OUT() << "MainWindow: Test - Added initial BTW blue marker at" 
+                     << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                     << "range: 40.0, delta: 2.5";
+            
+            // Create a timer to add BTW markers every 3 minutes (180 seconds = 180000 ms)
+            QTimer* btwMarkerTimer = new QTimer(this);
+            connect(btwMarkerTimer, &QTimer::timeout, this, [this]() {
+                if (graphgrid) {
+                    QDateTime currentTime = QDateTime::currentDateTime();
+                    // Add BTW marker with varying range values for testing
+                    // Use a simple pattern: range alternates between 20.0 and 60.0
+                    static bool useFirstRange = true;
+                    qreal range = useFirstRange ? 20.0 : 60.0;
+                    useFirstRange = !useFirstRange;
+                    
+                    // Delta value for the marker (affects the angle of the line)
+                    // Alternate between positive and negative for visual variety
+                    static bool usePositiveDelta = true;
+                    qreal delta = usePositiveDelta ? 2.5 : -2.5;
+                    usePositiveDelta = !usePositiveDelta;
+                    
+                    // Add the blue automatic marker
+                    graphgrid->addBTWMarker(GraphType::BTW, currentTime, range, delta);
+                    DEBUG_OUT() << "MainWindow: Test - Added BTW blue marker at" 
+                             << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                             << "range:" << range << "delta:" << delta;
+                }
+            });
+            
+            // Start the timer - first marker after 3 minutes, then every 3 minutes
+            btwMarkerTimer->start(180000); // 180000 ms = 3 minutes
+            
+            DEBUG_OUT() << "MainWindow: Test - Started BTW blue marker timer (every 3 minutes)";
+        }
+    });
+
     // Initialize some sample data for the graph
     std::vector<double> x_data = {0.0, 1.0, 2.0, 3.0, 4.0};
     std::vector<double> y1_data = {0.0, 2.0, 4.0, 6.0, 8.0};  // Linear growth
