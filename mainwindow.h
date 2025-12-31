@@ -90,6 +90,7 @@ private:
     QPushButton* endManoeuvreButton; ///< Button to end drawing a manoeuvre (new API)
     QPushButton* btwLineModeButton; ///< Button to toggle BTW horizontal line mode (Normal/DrawLine/DeleteLine)
     QPushButton* clearAllGraphsButton; ///< Button to test clearAllGraphs API
+    QPushButton* redrawGraphsButton; ///< Button to manually trigger redraw of all graphs
     
     // BTW horizontal line mode state
     BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode

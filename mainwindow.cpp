@@ -163,6 +163,41 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
+    // Create button to manually trigger redraw
+    redrawGraphsButton = new QPushButton("Redraw All Graphs", controlsWidget);
+    redrawGraphsButton->setObjectName("redrawGraphsButton");
+    redrawGraphsButton->setStyleSheet(
+        "QPushButton {"
+        "    background-color: #1976d2;"
+        "    border: 2px solid #1565c0;"
+        "    color: white;"
+        "    font-size: 12px;"
+        "    font-weight: bold;"
+        "    padding: 6px 12px;"
+        "    border-radius: 4px;"
+        "    min-width: 120px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #1565c0;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #0d47a1;"
+        "}");
+    
+    // Add button to layout
+    controlsLayout->addWidget(redrawGraphsButton);
+    
+    // Connect button click to redrawAllGraphs API
+    connect(redrawGraphsButton, &QPushButton::clicked, this, [this]() {
+        if (graphgrid) {
+            DEBUG_OUT() << "MainWindow: Redraw All Graphs button clicked - calling redrawAllGraphs()";
+            graphgrid->redrawAllGraphs();
+            DEBUG_OUT() << "MainWindow: redrawAllGraphs() completed";
+        } else {
+            DEBUG_OUT() << "MainWindow: Cannot redraw graphs - graphgrid is null";
+        }
+    });
+
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
 

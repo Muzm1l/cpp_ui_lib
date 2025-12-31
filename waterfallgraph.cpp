@@ -1002,6 +1002,15 @@ void WaterfallGraph::drawIncremental()
             }
             m_seriesPointItems.clear();
 
+            // CRITICAL FIX: Clear paintEvent() rendering caches to prevent stale data from showing
+            // when slider moves to area with no data. These caches are used by paintEvent() for
+            // direct rendering, so they must be cleared during FULL_REDRAW.
+            m_dataLinePaths.clear();
+            m_batchedLinePaths.clear();
+            m_scatterPoints.clear();
+            m_dataLineColors.clear();
+            m_scatterColors.clear();
+
             // Update drawing area and grid
             setupDrawingArea();
             if (gridEnabled)
