@@ -1360,9 +1360,10 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
             }
         }
         
-        // Connect external timeline to ALL visible containers
+        // Connect external timeline to ALL containers (not just visible ones)
         // This ensures waterfall graphs update when SCW timeline changes (SCW -> GraphLayout sync)
-        if (container && container->isVisible())
+        // We connect to all containers regardless of visibility so connections persist when layout changes
+        if (container)
         {
             // Connect time scope changes to update waterfall graph time ranges
             connect(externalTimelineView, &TimelineView::TimeScopeChanged,
