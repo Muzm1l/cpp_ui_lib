@@ -67,6 +67,10 @@ void RTWGraph::draw()
         m_seriesPathItems.clear();
         m_seriesPointItems.clear();
         
+        // CRITICAL FIX: R markers are now in overlayScene, not graphicsScene
+        // They will be cleared when overlayScene items are removed, but we need to track them
+        // (R markers are cleared in drawCustomRMarkers() before drawing new ones)
+        
         graphicsScene->clear();
         graphicsScene->update(); // Force immediate update to ensure clearing is visible
         
@@ -180,14 +184,15 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
 {
     DEBUG_OUT() << "RTWGraph mouse clicked at scene position:" << scenePos;
     
-    // Check if we clicked on an R marker (QGraphicsTextItem with text "R") in graphicsScene
-    if (graphicsScene) {
+    // CRITICAL FIX: Check if we clicked on an R marker in overlayScene (not graphicsScene)
+    // R markers are now in overlayScene, not graphicsScene
+    if (overlayScene) {
         // Use a more robust detection method: check all items at the position
         // and also check items within a small bounding box around the click
         // This handles cases where the click is slightly off the text bounding box
         
         // First, try the exact position
-        QGraphicsItem *itemAtPos = graphicsScene->itemAt(scenePos, QTransform());
+        QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
         
         // If no item found at exact position, try a small bounding box search
         // This helps when clicking near but not exactly on the text
@@ -195,12 +200,12 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
             const qreal searchRadius = 10.0; // Search within 10 pixels
             QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
                            searchRadius * 2, searchRadius * 2);
-            QList<QGraphicsItem*> itemsInArea = graphicsScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
+            QList<QGraphicsItem*> itemsInArea = overlayScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
             
             // Look for R markers in the nearby items
             for (QGraphicsItem *item : itemsInArea) {
                 QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item);
-                if (textItem && textItem->toPlainText() == "R") {
+                if (textItem && textItem->toPlainText() == "R" && textItem->defaultTextColor() == Qt::yellow) {
                     itemAtPos = item;
                     DEBUG_OUT() << "RTWGraph: Found R marker using bounding box search";
                     break;
@@ -215,7 +220,7 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
             if (textItem) {
                 QString text = textItem->toPlainText();
                 DEBUG_OUT() << "RTWGraph: Text item text:" << text;
-                if (text == "R") {
+                if (text == "R" && textItem->defaultTextColor() == Qt::yellow) {
                     // This is an R marker - calculate timestamp from Y position
                     // Use the marker's actual Y position for more accuracy
                     qreal yPos = textItem->scenePos().y() + textItem->boundingRect().height() / 2.0;
@@ -240,81 +245,6 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                 }
             }
             
-            // Check if we clicked on an RTW symbol (QGraphicsPixmapItem)
-            QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
-            if (pixmapItem) {
-                // Check if this pixmap item has symbol data stored (data(0) = timestamp)
-                QVariant timestampVariant = pixmapItem->data(0);
-                QVariant symbolNameVariant = pixmapItem->data(1);
-                
-                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() && 
-                    symbolNameVariant.isValid()) {
-                    // This is an RTW symbol - get timestamp and symbol name from stored data
-                    QDateTime timestamp = timestampVariant.value<QDateTime>();
-                    QString symbolName = symbolNameVariant.toString();
-                    
-                    if (timestamp.isValid()) {
-                        DEBUG_OUT() << "========================================";
-                        DEBUG_OUT() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED";
-                        DEBUG_OUT() << "========================================";
-                        DEBUG_OUT() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
-                        DEBUG_OUT() << "RTWGraph: Symbol name:" << symbolName;
-                        DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                        DEBUG_OUT() << "========================================";
-                        
-                        // Emit signal for external integration
-                        emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
-                    } else {
-                        DEBUG_OUT() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
-                    }
-                    // Don't call parent - we've handled the symbol click
-                    return;
-                }
-            }
-        }
-    }
-    
-    // OPTIMIZATION: Check overlayScene for RTW symbols (they're now in overlayScene)
-    if (overlayScene) {
-        QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
-        
-        if (!itemAtPos) {
-            // If no item found at exact position, try a small bounding box search for symbols
-            const qreal searchRadius = 15.0; // Search within 15 pixels (slightly larger than R markers)
-            QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
-                           searchRadius * 2, searchRadius * 2);
-            QList<QGraphicsItem*> itemsInArea = overlayScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
-            
-            // Look for RTW symbols (pixmap items with stored data) in the nearby items
-            for (QGraphicsItem *item : itemsInArea) {
-                QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
-                if (pixmapItem) {
-                    QVariant timestampVariant = pixmapItem->data(0);
-                    QVariant symbolNameVariant = pixmapItem->data(1);
-                    
-                    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() && 
-                        symbolNameVariant.isValid()) {
-                        QDateTime timestamp = timestampVariant.value<QDateTime>();
-                        QString symbolName = symbolNameVariant.toString();
-                        
-                        if (timestamp.isValid()) {
-                            DEBUG_OUT() << "========================================";
-                            DEBUG_OUT() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED (via bounding box search)";
-                            DEBUG_OUT() << "========================================";
-                            DEBUG_OUT() << "RTWGraph: Symbol clicked at scene position:" << scenePos;
-                            DEBUG_OUT() << "RTWGraph: Symbol name:" << symbolName;
-                            DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                            DEBUG_OUT() << "========================================";
-                            
-                            // Emit signal for external integration
-                            emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
-                        }
-                        // Don't call parent - we've handled the symbol click
-                        return;
-                    }
-                }
-            }
-        } else {
             // Check if we clicked on an RTW symbol (QGraphicsPixmapItem) in overlayScene
             QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
             if (pixmapItem) {
@@ -370,8 +300,8 @@ void RTWGraph::onMouseDrag(const QPointF &scenePos)
  */
 void RTWGraph::drawCustomRMarkers()
 {
-    if (!dataSource || !graphicsScene) {
-        DEBUG_OUT() << "RTW: drawCustomRMarkers early return - no dataSource or graphicsScene";
+    if (!dataSource || !overlayScene) {  // Changed from graphicsScene to overlayScene
+        DEBUG_OUT() << "RTW: drawCustomRMarkers early return - no dataSource or overlayScene";
         return;
     }
 
@@ -380,6 +310,23 @@ void RTWGraph::drawCustomRMarkers()
     
     if (rMarkers.empty()) {
         DEBUG_OUT() << "RTW: No manually placed R markers in data source";
+        // CRITICAL FIX: Still need to clear old R markers even if data source is empty
+        // This ensures R markers are removed when clearAllGraphs() clears the data source
+        QList<QGraphicsItem*> allItems = overlayScene->items();
+        QList<QGraphicsItem*> itemsToRemove;
+        for (QGraphicsItem* item : allItems)
+        {
+            QGraphicsTextItem* textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item);
+            if (textItem && textItem->toPlainText() == "R" && textItem->defaultTextColor() == Qt::yellow)
+            {
+                itemsToRemove.append(item);
+            }
+        }
+        for (QGraphicsItem* item : itemsToRemove)
+        {
+            overlayScene->removeItem(item);
+            delete item;
+        }
         return;
     }
 
@@ -395,6 +342,27 @@ void RTWGraph::drawCustomRMarkers()
         }
     } else {
         visibleMarkers = rMarkers;
+    }
+
+    // CRITICAL FIX: Always remove old R marker items before drawing new ones
+    // This prevents duplicates when drawCustomRMarkers() is called multiple times
+    // R markers are now in overlayScene, not graphicsScene, so they need explicit cleanup
+    QList<QGraphicsItem*> allItems = overlayScene->items();
+    QList<QGraphicsItem*> itemsToRemove;
+    for (QGraphicsItem* item : allItems)
+    {
+        // Identify R marker items by checking if they're QGraphicsTextItem with text "R" and yellow color
+        QGraphicsTextItem* textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item);
+        if (textItem && textItem->toPlainText() == "R" && textItem->defaultTextColor() == Qt::yellow)
+        {
+            itemsToRemove.append(item);
+        }
+    }
+    // Remove items after iteration to avoid modifying list while iterating
+    for (QGraphicsItem* item : itemsToRemove)
+    {
+        overlayScene->removeItem(item);
+        delete item;
     }
 
     if (visibleMarkers.empty()) {
@@ -435,7 +403,8 @@ void RTWGraph::drawCustomRMarkers()
             rMarker->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
             rMarker->setAcceptHoverEvents(true);
             
-            graphicsScene->addItem(rMarker);
+            // CRITICAL FIX: R markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(rMarker);
             markersDrawn++;
         }
     }

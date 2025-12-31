@@ -81,6 +81,7 @@ private:
     QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
     QLabel* markerTimestampLabel; ///< Label to display marker timestamp in first tab
     QLabel* rtwSymbolTimestampLabel; ///< Label to display RTW symbol timestamp when clicked
+    QLabel* rtwRMarkerTimestampLabel; ///< Label to display RTW R marker timestamp when clicked
 
     // Manoeuvre management buttons
     QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout
@@ -88,6 +89,7 @@ private:
     QPushButton* startManoeuvreButton; ///< Button to start drawing a manoeuvre (new API)
     QPushButton* endManoeuvreButton; ///< Button to end drawing a manoeuvre (new API)
     QPushButton* btwLineModeButton; ///< Button to toggle BTW horizontal line mode (Normal/DrawLine/DeleteLine)
+    QPushButton* clearAllGraphsButton; ///< Button to test clearAllGraphs API
     
     // BTW horizontal line mode state
     BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode

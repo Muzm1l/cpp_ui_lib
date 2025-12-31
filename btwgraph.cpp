@@ -219,7 +219,11 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
         QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
         // Filter out crosshair items - they should not prevent marker creation
-        if (itemAtPos && itemAtPos != crosshairHorizontal && itemAtPos != crosshairVertical) {
+        // CRITICAL FIX: Also filter out items that don't accept mouse buttons (like shaded regions)
+        if (itemAtPos && 
+            itemAtPos != crosshairHorizontal && 
+            itemAtPos != crosshairVertical &&
+            itemAtPos->acceptedMouseButtons() != Qt::NoButton) {  // Only block if item accepts mouse events
             // Don't add a new marker, let the interactive item handle the click
             return;
         }

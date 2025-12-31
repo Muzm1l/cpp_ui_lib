@@ -50,24 +50,25 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
     
-    // Create container widget for top bar with label and buttons
-    QWidget* topBarWidget = new QWidget(ui->originalTab);
-    topBarWidget->setObjectName("topBarWidget");
-    topBarWidget->setGeometry(QRect(10, 10, 1200, 50));
+    // Create container widget for controls below the layout combo box
+    QWidget* controlsWidget = new QWidget(ui->originalTab);
+    controlsWidget->setObjectName("controlsWidget");
+    // Position below the layout combo box (combo box is at y=30, height=32, so start at y=70)
+    controlsWidget->setGeometry(QRect(1100, 70, 300, 400));
     
-    // Create horizontal layout for buttons and timestamp label
-    QHBoxLayout* topLayout = new QHBoxLayout(topBarWidget);
-    topLayout->setContentsMargins(0, 0, 0, 0);
-    topLayout->setSpacing(10);
+    // Create vertical layout for controls (one by one below combo box)
+    QVBoxLayout* controlsLayout = new QVBoxLayout(controlsWidget);
+    controlsLayout->setContentsMargins(0, 0, 0, 0);
+    controlsLayout->setSpacing(10);
     
     // Create label to display marker timestamp in first tab
-    markerTimestampLabel = new QLabel("Marker Timestamp: --", topBarWidget);
+    markerTimestampLabel = new QLabel("Marker Timestamp: --", controlsWidget);
     markerTimestampLabel->setObjectName("markerTimestampLabel");
     markerTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid yellow; border-radius: 4px; }");
-    markerTimestampLabel->setMinimumWidth(400);
+    markerTimestampLabel->setMinimumWidth(280);
     
     // Add label to layout
-    topLayout->addWidget(markerTimestampLabel);
+    controlsLayout->addWidget(markerTimestampLabel);
     
     // Connect marker timestamp signal from graphgrid to update label
     connect(graphgrid, &GraphLayout::markerTimestampValueChanged,
@@ -80,13 +81,13 @@ MainWindow::MainWindow(QWidget *parent)
             });
 
     // Create label to display RTW symbol timestamp when clicked
-    rtwSymbolTimestampLabel = new QLabel("RTW Symbol: --", topBarWidget);
+    rtwSymbolTimestampLabel = new QLabel("RTW Symbol: --", controlsWidget);
     rtwSymbolTimestampLabel->setObjectName("rtwSymbolTimestampLabel");
     rtwSymbolTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid cyan; border-radius: 4px; }");
-    rtwSymbolTimestampLabel->setMinimumWidth(450);
+    rtwSymbolTimestampLabel->setMinimumWidth(280);
     
     // Add label to layout
-    topLayout->addWidget(rtwSymbolTimestampLabel);
+    controlsLayout->addWidget(rtwSymbolTimestampLabel);
     
     // Set debug output state programmatically (disabled by default)
     DebugUtils::setDebugEnabled(false);
@@ -104,6 +105,63 @@ MainWindow::MainWindow(QWidget *parent)
                     DEBUG_OUT() << "RTW Symbol clicked:" << symbolName << "Timestamp:" << timestampStr << "Position:" << position;
                 }
             });
+
+    // Create label to display RTW R marker timestamp when clicked
+    rtwRMarkerTimestampLabel = new QLabel("RTW R Marker: --", controlsWidget);
+    rtwRMarkerTimestampLabel->setObjectName("rtwRMarkerTimestampLabel");
+    rtwRMarkerTimestampLabel->setStyleSheet("QLabel { color: white; font-size: 14px; font-weight: bold; background-color: rgba(0, 0, 0, 200); padding: 6px; border: 2px solid yellow; border-radius: 4px; }");
+    rtwRMarkerTimestampLabel->setMinimumWidth(280);
+    
+    // Add label to layout
+    controlsLayout->addWidget(rtwRMarkerTimestampLabel);
+    
+    // Connect RTW R marker timestamp signal from graphgrid to update label
+    connect(graphgrid, &GraphLayout::RTWRMarkerTimestampCaptured,
+            [this](const QDateTime &timestamp, const QPointF &position) {
+                if (rtwRMarkerTimestampLabel && timestamp.isValid()) {
+                    QString timestampStr = timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz");
+                    rtwRMarkerTimestampLabel->setText(QString("RTW R Marker | Timestamp: %1 | Pos: (%2, %3)")
+                        .arg(timestampStr)
+                        .arg(position.x(), 0, 'f', 1)
+                        .arg(position.y(), 0, 'f', 1));
+                    DEBUG_OUT() << "RTW R Marker clicked - Timestamp:" << timestampStr << "Position:" << position;
+                }
+            });
+
+    // Create button to test clearAllGraphs API
+    clearAllGraphsButton = new QPushButton("Clear All Graphs", controlsWidget);
+    clearAllGraphsButton->setObjectName("clearAllGraphsButton");
+    clearAllGraphsButton->setStyleSheet(
+        "QPushButton {"
+        "    background-color: #d32f2f;"
+        "    border: 2px solid #b71c1c;"
+        "    color: white;"
+        "    font-size: 12px;"
+        "    font-weight: bold;"
+        "    padding: 6px 12px;"
+        "    border-radius: 4px;"
+        "    min-width: 120px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #c62828;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #b71c1c;"
+        "}");
+    
+    // Add button to layout
+    controlsLayout->addWidget(clearAllGraphsButton);
+    
+    // Connect button click to clearAllGraphs API
+    connect(clearAllGraphsButton, &QPushButton::clicked, this, [this]() {
+        if (graphgrid) {
+            DEBUG_OUT() << "MainWindow: Clear All Graphs button clicked - calling clearAllGraphs()";
+            graphgrid->clearAllGraphs();
+            DEBUG_OUT() << "MainWindow: clearAllGraphs() completed";
+        } else {
+            DEBUG_OUT() << "MainWindow: Cannot clear graphs - graphgrid is null";
+        }
+    });
 
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
@@ -205,6 +263,43 @@ MainWindow::MainWindow(QWidget *parent)
             btwMarkerTimer->start(180000); // 180000 ms = 3 minutes
             
             DEBUG_OUT() << "MainWindow: Test - Started BTW blue marker timer (every 3 minutes)";
+        }
+    });
+
+    // Test RTW R markers - add a marker every 3 minutes
+    // Wait for graph to initialize, then start adding markers
+    QTimer::singleShot(4000, this, [this]() {
+        if (graphgrid) {
+            // Add an immediate test R marker first
+            QDateTime currentTime = QDateTime::currentDateTime();
+            graphgrid->addRTWRMarker(GraphType::RTW, currentTime, 45.0);
+            DEBUG_OUT() << "MainWindow: Test - Added initial RTW R marker at" 
+                     << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                     << "range: 45.0";
+            
+            // Create a timer to add RTW R markers every 3 minutes (180 seconds = 180000 ms)
+            QTimer* rtwMarkerTimer = new QTimer(this);
+            connect(rtwMarkerTimer, &QTimer::timeout, this, [this]() {
+                if (graphgrid) {
+                    QDateTime currentTime = QDateTime::currentDateTime();
+                    // Add RTW R marker with varying range values for testing
+                    // Use a simple pattern: range alternates between 30.0 and 60.0
+                    static bool useFirstRange = true;
+                    qreal range = useFirstRange ? 30.0 : 60.0;
+                    useFirstRange = !useFirstRange;
+                    
+                    // Add the R marker
+                    graphgrid->addRTWRMarker(GraphType::RTW, currentTime, range);
+                    DEBUG_OUT() << "MainWindow: Test - Added RTW R marker at" 
+                             << currentTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                             << "range:" << range;
+                }
+            });
+            
+            // Start the timer - first marker after 3 minutes, then every 3 minutes
+            rtwMarkerTimer->start(180000); // 180000 ms = 3 minutes
+            
+            DEBUG_OUT() << "MainWindow: Test - Started RTW R marker timer (every 3 minutes)";
         }
     });
 
@@ -321,34 +416,25 @@ void MainWindow::setupTimeSelectionHistory()
 
 void MainWindow::setupManoeuvreButton()
 {
-    // Find the top bar widget and its layout
-    QWidget* topBarWidget = ui->originalTab->findChild<QWidget*>("topBarWidget");
-    if (!topBarWidget) {
-        qWarning() << "Top bar widget not found, creating new one";
-        topBarWidget = new QWidget(ui->originalTab);
-        topBarWidget->setObjectName("topBarWidget");
-        topBarWidget->setGeometry(QRect(10, 10, 1200, 50));
+    // Find the controls widget and its layout (below the layout combo box)
+    QWidget* controlsWidget = ui->originalTab->findChild<QWidget*>("controlsWidget");
+    if (!controlsWidget) {
+        qWarning() << "Controls widget not found, creating new one";
+        controlsWidget = new QWidget(ui->originalTab);
+        controlsWidget->setObjectName("controlsWidget");
+        controlsWidget->setGeometry(QRect(1100, 70, 300, 400));
     }
     
-    // Get or create the horizontal layout
-    QHBoxLayout* topLayout = qobject_cast<QHBoxLayout*>(topBarWidget->layout());
-    if (!topLayout) {
-        topLayout = new QHBoxLayout(topBarWidget);
-        topLayout->setContentsMargins(0, 0, 0, 0);
-        topLayout->setSpacing(10);
-        
-        // Add the timestamp label if it exists and isn't already in a layout
-        if (markerTimestampLabel && markerTimestampLabel->parent() == topBarWidget) {
-            topLayout->addWidget(markerTimestampLabel);
-        }
-        // Add the RTW symbol timestamp label if it exists and isn't already in a layout
-        if (rtwSymbolTimestampLabel && rtwSymbolTimestampLabel->parent() == topBarWidget) {
-            topLayout->addWidget(rtwSymbolTimestampLabel);
-        }
+    // Get or create the vertical layout
+    QVBoxLayout* controlsLayout = qobject_cast<QVBoxLayout*>(controlsWidget->layout());
+    if (!controlsLayout) {
+        controlsLayout = new QVBoxLayout(controlsWidget);
+        controlsLayout->setContentsMargins(0, 0, 0, 0);
+        controlsLayout->setSpacing(10);
     }
     
     // Create button to add manoeuvres
-    addManoeuvreButton = new QPushButton("Add Manoeuvre", topBarWidget);
+    addManoeuvreButton = new QPushButton("Add Manoeuvre", controlsWidget);
     addManoeuvreButton->setObjectName("addManoeuvreButton");
     addManoeuvreButton->setFixedSize(150, 30);
     
@@ -356,7 +442,7 @@ void MainWindow::setupManoeuvreButton()
     connect(addManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onAddManoeuvreButtonClicked);
     
     // Create button to clear manoeuvres
-    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", topBarWidget);
+    clearManoeuvresButton = new QPushButton("Clear Manoeuvres", controlsWidget);
     clearManoeuvresButton->setObjectName("clearManoeuvresButton");
     clearManoeuvresButton->setFixedSize(150, 30);
     
@@ -364,7 +450,7 @@ void MainWindow::setupManoeuvreButton()
     connect(clearManoeuvresButton, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
     
     // Create button to start manoeuvre drawing (new API)
-    startManoeuvreButton = new QPushButton("Start Manoeuvre", topBarWidget);
+    startManoeuvreButton = new QPushButton("Start Manoeuvre", controlsWidget);
     startManoeuvreButton->setObjectName("startManoeuvreButton");
     startManoeuvreButton->setFixedSize(150, 30);
     startManoeuvreButton->setStyleSheet("QPushButton { background-color: #28a745; color: white; font-weight: bold; }");
@@ -373,7 +459,7 @@ void MainWindow::setupManoeuvreButton()
     connect(startManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onStartManoeuvreButtonClicked);
     
     // Create button to end manoeuvre drawing (new API)
-    endManoeuvreButton = new QPushButton("End Manoeuvre", topBarWidget);
+    endManoeuvreButton = new QPushButton("End Manoeuvre", controlsWidget);
     endManoeuvreButton->setObjectName("endManoeuvreButton");
     endManoeuvreButton->setFixedSize(150, 30);
     endManoeuvreButton->setStyleSheet("QPushButton { background-color: #dc3545; color: white; font-weight: bold; }");
@@ -382,7 +468,7 @@ void MainWindow::setupManoeuvreButton()
     connect(endManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onEndManoeuvreButtonClicked);
     
     // Create button to toggle BTW horizontal line mode
-    btwLineModeButton = new QPushButton("BTW Mode: Normal", topBarWidget);
+    btwLineModeButton = new QPushButton("BTW Mode: Normal", controlsWidget);
     btwLineModeButton->setObjectName("btwLineModeButton");
     btwLineModeButton->setFixedSize(200, 30);
     updateBTWLineModeButton();
@@ -390,15 +476,15 @@ void MainWindow::setupManoeuvreButton()
     // Connect button click to slot
     connect(btwLineModeButton, &QPushButton::clicked, this, &MainWindow::onBTWLineModeButtonClicked);
     
-    // Add buttons to the layout
-    topLayout->addWidget(addManoeuvreButton);
-    topLayout->addWidget(clearManoeuvresButton);
-    topLayout->addWidget(startManoeuvreButton);
-    topLayout->addWidget(endManoeuvreButton);
-    topLayout->addWidget(btwLineModeButton);
-    topLayout->addStretch(); // Add stretch to push everything to the left
+    // Add buttons to the layout (vertically, one by one)
+    controlsLayout->addWidget(addManoeuvreButton);
+    controlsLayout->addWidget(clearManoeuvresButton);
+    controlsLayout->addWidget(startManoeuvreButton);
+    controlsLayout->addWidget(endManoeuvreButton);
+    controlsLayout->addWidget(btwLineModeButton);
+    controlsLayout->addStretch(); // Add stretch to push everything to the top
     
-    DEBUG_OUT() << "Manoeuvre buttons created and connected in horizontal layout";
+    DEBUG_OUT() << "Manoeuvre buttons created and connected in vertical layout below combo box";
 }
 
 void MainWindow::onAddManoeuvreButtonClicked()
