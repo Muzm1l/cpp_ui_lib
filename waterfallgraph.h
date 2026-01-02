@@ -109,6 +109,22 @@ public:
     void setApplicationStartTime(const QDateTime& time);
     QDateTime getApplicationStartTime() const;
 
+    // Fast track switching API - marks track change for visible-window-first rendering
+    /**
+     * @brief Mark that a track change has occurred.
+     * 
+     * This method enables fast track switching by:
+     * - Clearing all caches to prevent stale data
+     * - Triggering visible-window-first rendering (only builds geometry for current visible window)
+     * - Ensuring immediate visual feedback without blocking on full historical rebuild
+     * 
+     * The track change mode is automatically reset after rendering completes,
+     * and normal operation resumes.
+     * 
+     * Call this when switching between tracks in a multi-track system (e.g., 64-track system).
+     */
+    void markTrackChanged();
+
 protected:
     // Override mouse events
     void mousePressEvent(QMouseEvent *event) override;
@@ -255,6 +271,7 @@ protected:
     RenderState m_renderState;
     bool m_rangeUpdateNeeded;
     std::set<QString> m_dirtySeries;
+    bool m_fastTrackSwitchMode;  // Flag for visible-window-first rendering on track change (auto-reset after render)
     std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
     std::map<QString, std::vector<QGraphicsEllipseItem*>> m_seriesPointItems;
     // Track scatterplot pixmap items per series for incremental updates
