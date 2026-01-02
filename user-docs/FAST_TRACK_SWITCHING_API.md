@@ -277,3 +277,34 @@ The method invalidates caches in this order:
 
 This ensures no stale data remains from the previous track.
 
+Initialization
+When you pass a timer with a 10-second interval to the GraphLayout constructor:
+1. GraphLayout timer connection
+The timer is stored in m_timer, but it is not automatically connected to GraphLayout::onTimerTick().
+Connection only happens if no timer is provided (then it creates a 1-second timer and connects it).
+So GraphLayout::onTimerTick() will not be called unless you manually connect it.
+2. Timer passed to child components
+The timer is passed to all GraphContainer instances (line 361-364 in graphlayout.cpp).
+Each GraphContainer also stores the timer but doesn't connect it automatically (unless null).
+The timer is also passed to:
+TimeSelectionVisualizer (line 87 in graphcontainer.cpp)
+TimelineView (line 99 in graphcontainer.cpp)
+3. Impact on functionality
+GraphLayout::onTimerTick() won't run automatically, so:
+setCurrentTime() won't be called every 10 seconds
+The sync state's currentNavTime won't update automatically
+Child components (TimelineView, TimeSelectionVisualizer) may still use the timer if they connect it themselves.
+4. What you need to do
+If you want the timer to work with GraphLayout, you need to manually connect it after initialization:
+QTimer *timer = new QTimer();timer->setInterval(10000); // 10 secondsGraphLayout *layout = new GraphLayout(parent, layoutType, timer, seriesLabelsMap);// Manually connect the timerconnect(timer, &QTimer::timeout, layout, &GraphLayout::onTimerTick);timer->start();
+This is a design limitation: when a timer is provided, it's assumed you'll manage the connection yourself, whereas when no timer is provided, it creates and connects a default 1-second timer automatically.
+
+--------------
+
+QTimer *timer = new QTimer();
+timer->setInterval(10000); // 10 seconds
+GraphLayout *layout = new GraphLayout(parent, layoutType, timer, seriesLabelsMap);
+
+// Manually connect the timer
+connect(timer, &QTimer::timeout, layout, &GraphLayout::onTimerTick);
+timer->start();
