@@ -294,6 +294,14 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
             timestamp = QDateTime::currentDateTime();
         }
         
+        // CRITICAL FIX: Block manual marker placement below system start time
+        QDateTime appStartTime = getApplicationStartTime();
+        if (appStartTime.isValid() && timestamp < appStartTime) {
+            DEBUG_OUT() << "BTWGraph::onMouseClick: Blocked marker placement - timestamp" << timestamp.toString() 
+                     << "is before application start time" << appStartTime.toString();
+            return; // Don't create marker
+        }
+        
         // Get value from X position (range value)
         qreal value = mapScreenXToRange(scenePos.x());
         QString seriesLabel = "BTW-Click";
@@ -625,6 +633,18 @@ void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &new
         timestamp = mapScreenToTime(yPos);
     }
     
+    // CRITICAL FIX: Block marker movement below system start time
+    QDateTime appStartTime = getApplicationStartTime();
+    if (appStartTime.isValid() && timestamp.isValid() && timestamp < appStartTime) {
+        // Clamp timestamp to application start time
+        timestamp = appStartTime;
+        // Update marker position to match clamped timestamp
+        qreal clampedY = mapTimeToY(timestamp);
+        if (clampedY >= 0) {
+            marker->setPos(marker->pos().x(), clampedY);
+        }
+    }
+    
     // Update magenta circles when green marker is moved
     if (timestamp.isValid()) {
         emit manualMarkerPlaced(timestamp, newPosition);
@@ -730,6 +750,14 @@ InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp
     if (!timestamp.isValid()) {
         DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Invalid timestamp provided";
         return nullptr;
+    }
+    
+    // CRITICAL FIX: Block manual marker placement below system start time
+    QDateTime appStartTime = getApplicationStartTime();
+    if (appStartTime.isValid() && timestamp < appStartTime) {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Blocked marker placement - timestamp" << timestamp.toString() 
+                 << "is before application start time" << appStartTime.toString();
+        return nullptr; // Don't create marker
     }
     
     // Convert data coordinates (timestamp, rangeValue) to screen position

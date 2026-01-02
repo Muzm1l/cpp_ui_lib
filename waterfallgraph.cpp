@@ -81,7 +81,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_mapDataToScreenCacheVersion(0),
     m_needsWaterfallRedraw(true),
     m_waterfallBufferHeight(0),
-    m_lastWaterfallRowTime(QDateTime())
+    m_lastWaterfallRowTime(QDateTime()),
+    m_applicationStartTime(QDateTime())
 {
     // Pre-create mandatory default point colors (cyan, red, green, yellow) for optimal performance
     // Using default size (4x4 pixel rectangle)
@@ -4374,6 +4375,16 @@ void WaterfallGraph::setZeroAxisValue(qreal value)
 qreal WaterfallGraph::getZeroAxisValue() const
 {
     return m_zeroAxisValue;
+}
+
+void WaterfallGraph::setApplicationStartTime(const QDateTime& time)
+{
+    m_applicationStartTime = time;
+}
+
+QDateTime WaterfallGraph::getApplicationStartTime() const
+{
+    return m_applicationStartTime;
 }
 
 // Convenience method to force range update for manual control

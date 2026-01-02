@@ -101,6 +101,19 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
         DEBUG_OUT() << "GraphContainer constructor: TimelineView created and added to layout";
+        
+        // Set application start time on all waterfall graphs from timeline view
+        QDateTime appStartTime = m_timelineView->getApplicationStartTime();
+        if (appStartTime.isValid())
+        {
+            for (auto &pair : m_waterfallGraphs)
+            {
+                if (pair.second)
+                {
+                    pair.second->setApplicationStartTime(appStartTime);
+                }
+            }
+        }
     }
     else
     {
@@ -264,6 +277,19 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
 
         // Re-establish event connections to include the new TimelineView
         setupEventConnections();
+        
+        // Set application start time on all waterfall graphs from timeline view
+        QDateTime appStartTime = m_timelineView->getApplicationStartTime();
+        if (appStartTime.isValid())
+        {
+            for (auto &pair : m_waterfallGraphs)
+            {
+                if (pair.second)
+                {
+                    pair.second->setApplicationStartTime(appStartTime);
+                }
+            }
+        }
     }
 
     if (m_timelineSelectionView)

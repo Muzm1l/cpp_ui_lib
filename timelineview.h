@@ -92,13 +92,13 @@ public:
     
     // Drag state management
     void startDrag(const QPoint& mousePos);
-    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval);
-    void endDrag(int widgetHeight, const QTime& interval);
+    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime);
+    void endDrag(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime);
     bool isDragging() const;
     
     // Validation and synchronization
     void clampToBounds(int widgetHeight, const QTime& interval);
-    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval);
+    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime = QDateTime(), bool isDragging = false);
     void syncPositionFromTimeWindow(int widgetHeight);
     
 private:
@@ -155,6 +155,9 @@ public:
     
     //--------------syed-----------------------rebase conflict
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    
+    // Get application start time
+    QDateTime getApplicationStartTime() const { return m_applicationStartTime; }
     
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
@@ -362,6 +365,9 @@ public:
     int getLabelSpacingMinutes(TimeInterval interval) const;
     std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
     double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
+    
+    // Get application start time
+    QDateTime getApplicationStartTime() const;
     
     // Optional rendering control
     void setSliderVisible(bool visible);

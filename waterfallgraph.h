@@ -104,6 +104,10 @@ public:
     // Zero axis value (for BDW, BRW, FDW graphs)
     void setZeroAxisValue(qreal value);
     qreal getZeroAxisValue() const;
+    
+    // Application start time - timestamps before this should not be displayed
+    void setApplicationStartTime(const QDateTime& time);
+    QDateTime getApplicationStartTime() const;
 
 protected:
     // Override mouse events
@@ -226,6 +230,9 @@ protected:
     // Time range management
     bool customTimeRangeEnabled;
     QDateTime customTimeMin, customTimeMax;
+    
+    // Application start time - timestamps before this should not be displayed
+    QDateTime m_applicationStartTime;
 
     // Time interval configuration
     TimeInterval timeInterval;

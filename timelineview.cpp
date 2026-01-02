@@ -95,7 +95,8 @@ void SliderState::setYPosition(int y, int widgetHeight, const QTime& interval)
     int sliderHeight = SliderGeometry::calculateSliderHeight(interval, widgetHeight);
     QPair<int, int> bounds = SliderGeometry::getSliderBounds(widgetHeight, sliderHeight);
     m_yPosition = qBound(bounds.first, y, bounds.second);
-    syncTimeWindowFromPosition(widgetHeight, interval);
+    // Not dragging, so use normal 12-hour range
+    syncTimeWindowFromPosition(widgetHeight, interval, QDateTime(), false);
 }
 
 int SliderState::getYPosition() const
@@ -123,7 +124,7 @@ void SliderState::startDrag(const QPoint& mousePos)
     m_dragStartSliderY = m_yPosition;
 }
 
-void SliderState::updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval)
+void SliderState::updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime)
 {
     if (!m_isDragging)
         return;
@@ -137,18 +138,18 @@ void SliderState::updateDrag(const QPoint& mousePos, int widgetHeight, const QTi
     QPair<int, int> bounds = SliderGeometry::getSliderBounds(widgetHeight, sliderHeight);
     m_yPosition = qBound(bounds.first, newSliderY, bounds.second);
     
-    // Sync time window from new position
-    syncTimeWindowFromPosition(widgetHeight, interval);
+    // Sync time window from new position (with application start time check when dragging)
+    syncTimeWindowFromPosition(widgetHeight, interval, applicationStartTime, true);
 }
 
-void SliderState::endDrag(int widgetHeight, const QTime& interval)
+void SliderState::endDrag(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime)
 {
     if (!m_isDragging)
         return;
     
     m_isDragging = false;
-    // Final sync to ensure time window is accurate
-    syncTimeWindowFromPosition(widgetHeight, interval);
+    // Final sync to ensure time window is accurate (with application start time check)
+    syncTimeWindowFromPosition(widgetHeight, interval, applicationStartTime, true);
     clampToBounds(widgetHeight, interval);
 }
 
@@ -164,23 +165,58 @@ void SliderState::clampToBounds(int widgetHeight, const QTime& interval)
     m_yPosition = qBound(bounds.first, m_yPosition, bounds.second);
 }
 
-void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& interval)
+void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime, bool isDragging)
 {
     // Calculate time window based on Y position
-    // Top (Y=0) should represent "now", bottom represents "12 hours ago"
     QDateTime now = QDateTime::currentDateTime();
-    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    
+    // When dragging, use range from application start time to current time
+    // When not dragging, use normal 12-hour range
+    QDateTime rangeStart;
+    int totalMinutes;
+    
+    if (isDragging && applicationStartTime.isValid())
+    {
+        // Dragging: range from application start to current time
+        rangeStart = applicationStartTime;
+        totalMinutes = static_cast<int>(rangeStart.msecsTo(now) / 60000);
+    }
+    else
+    {
+        // Normal behavior: 12 hours ago to now
+        rangeStart = now.addSecs(-12 * 3600);
+        totalMinutes = SliderGeometry::getTwelveHoursInMinutes();
+    }
     
     // Convert Y position to time ratio (inverted: Y=0 means endTime=now)
     double positionRatio = 1.0 - (static_cast<double>(m_yPosition) / static_cast<double>(widgetHeight));
-    int minutesFromStart = static_cast<int>(positionRatio * SliderGeometry::getTwelveHoursInMinutes());
+    int minutesFromStart = static_cast<int>(positionRatio * totalMinutes);
     
     // Calculate window end time (top edge of slider)
-    QDateTime windowEnd = twelveHoursAgo.addSecs(minutesFromStart * 60);
+    QDateTime windowEnd = rangeStart.addSecs(minutesFromStart * 60);
     
     // Calculate window start time based on interval
     int intervalSeconds = interval.hour() * 3600 + interval.minute() * 60 + interval.second();
     QDateTime windowStart = windowEnd.addSecs(-intervalSeconds);
+    
+    // CRITICAL FIX: Block slider movement below system start time when dragging
+    if (isDragging && applicationStartTime.isValid() && windowStart < applicationStartTime)
+    {
+        windowStart = applicationStartTime;
+        // Recalculate window end to maintain interval, but clamp to not exceed "now"
+        windowEnd = windowStart.addSecs(intervalSeconds);
+        if (windowEnd > now)
+        {
+            windowEnd = now;
+            // If windowEnd is clamped, adjust windowStart to maintain interval
+            windowStart = windowEnd.addSecs(-intervalSeconds);
+            // Ensure windowStart doesn't go below application start time
+            if (windowStart < applicationStartTime)
+            {
+                windowStart = applicationStartTime;
+            }
+        }
+    }
     
     m_timeWindow = TimeSelectionSpan(windowStart, windowEnd);
 }
@@ -930,7 +966,7 @@ void TimelineVisualizerWidget::updateSliderFromMousePosition(const QPoint& curre
         return;
     }
     
-    m_sliderState.updateDrag(currentPos, rect().height(), m_timeLineLength);
+        m_sliderState.updateDrag(currentPos, rect().height(), m_timeLineLength, m_applicationStartTime);
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -1062,8 +1098,10 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
     
-    // Invalidate background cache since time window changed
-    m_backgroundNeedsRedraw = true;
+    // OPTIMIZATION: Only invalidate background cache if this is a user-initiated change
+    // When syncing from another timeline view, the background doesn't need to be redrawn
+    // The cache is only needed when the user drags the slider or changes interval
+    // m_backgroundNeedsRedraw = true; // REMOVED: Unnecessary cache clearing during sync
     
     // Update manoeuvre overlay time range
     if (m_manoeuvreOverlay)
@@ -1137,7 +1175,7 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
     if (m_sliderState.isDragging())
     {
         // Update slider based on mouse movement using state manager
-        m_sliderState.updateDrag(event->pos(), rect().height(), m_timeLineLength);
+        m_sliderState.updateDrag(event->pos(), rect().height(), m_timeLineLength, m_applicationStartTime);
         
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -1191,7 +1229,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton && m_sliderState.isDragging())
     {
         // End drag using state manager (finalizes position and syncs time window)
-        m_sliderState.endDrag(rect().height(), m_timeLineLength);
+        m_sliderState.endDrag(rect().height(), m_timeLineLength, m_applicationStartTime);
         
         // Check if slider is at the top (Y=0 or very close to it)
         int sliderY = m_sliderState.getYPosition();
@@ -1958,6 +1996,15 @@ void TimelineView::setTimeWindowSilent(const TimeSelectionSpan& window)
     {
         m_visualizerWidget->setTimeWindowSilent(window);
     }
+}
+
+QDateTime TimelineView::getApplicationStartTime() const
+{
+    if (m_visualizerWidget)
+    {
+        return m_visualizerWidget->getApplicationStartTime();
+    }
+    return QDateTime();
 }
 
 // Handles the mode change request from the user / outside the widget
