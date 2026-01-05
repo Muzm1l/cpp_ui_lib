@@ -71,8 +71,8 @@ public:
     std::pair<qreal, qreal> getYRangeSeries(const QString &seriesLabel) const;
     std::pair<QDateTime, QDateTime> getTimeRangeSeries(const QString &seriesLabel) const;
     bool findClosestDataPoint(const QString &seriesLabel, const QDateTime &targetTime, qint64 toleranceMs, qreal& outValue, size_t& outIndex) const;
-    const std::vector<qreal>& getYDataSeries(const QString &seriesLabel) const;
-    const std::vector<QDateTime>& getTimestampsSeries(const QString &seriesLabel) const;
+    std::vector<qreal> getYDataSeries(const QString &seriesLabel) const;
+    std::vector<QDateTime> getTimestampsSeries(const QString &seriesLabel) const;
 
 signals:
     void dataAppended(const QString &seriesLabel);

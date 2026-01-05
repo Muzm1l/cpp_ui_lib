@@ -2768,6 +2768,116 @@ void GraphLayout::redrawAllGraphs()
     DEBUG_OUT() << "GraphLayout: Redrew all graphs";
 }
 
+// Capacity management API implementation
+
+void GraphLayout::setDataSeriesCapacity(size_t capacity)
+{
+    DEBUG_OUT() << "GraphLayout: Setting data series capacity to" << capacity << "for all data sources";
+    
+    // Iterate through all engines and set capacity for their data sources
+    for (auto &pair : m_engines)
+    {
+        GraphEngine *engine = pair.second;
+        if (engine)
+        {
+            WaterfallData *dataSource = engine->dataMutable();
+            if (dataSource)
+            {
+                dataSource->setAllDataSeriesCapacity(capacity);
+                DEBUG_OUT() << "GraphLayout: Set data series capacity for graph type" << static_cast<int>(pair.first);
+            }
+        }
+    }
+}
+
+void GraphLayout::setSymbolsCapacity(size_t capacity)
+{
+    DEBUG_OUT() << "GraphLayout: Setting symbols capacity to" << capacity << "for all data sources";
+    
+    // Iterate through all engines and set capacity for their data sources
+    for (auto &pair : m_engines)
+    {
+        GraphEngine *engine = pair.second;
+        if (engine)
+        {
+            WaterfallData *dataSource = engine->dataMutable();
+            if (dataSource)
+            {
+                dataSource->setRTWSymbolsCapacity(capacity);
+                dataSource->setBTWSymbolsCapacity(capacity);
+                DEBUG_OUT() << "GraphLayout: Set symbols capacity for graph type" << static_cast<int>(pair.first);
+            }
+        }
+    }
+}
+
+void GraphLayout::setMarkersCapacity(size_t capacity)
+{
+    DEBUG_OUT() << "GraphLayout: Setting markers capacity to" << capacity << "for all data sources";
+    
+    // Iterate through all engines and set capacity for their data sources
+    for (auto &pair : m_engines)
+    {
+        GraphEngine *engine = pair.second;
+        if (engine)
+        {
+            WaterfallData *dataSource = engine->dataMutable();
+            if (dataSource)
+            {
+                dataSource->setBTWMarkersCapacity(capacity);
+                dataSource->setRTWRMarkersCapacity(capacity);
+                DEBUG_OUT() << "GraphLayout: Set markers capacity for graph type" << static_cast<int>(pair.first);
+            }
+        }
+    }
+}
+
+void GraphLayout::setRenderingCachesCapacity(size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity)
+{
+    DEBUG_OUT() << "GraphLayout: Setting rendering caches capacity - scatter:" << scatterCapacity 
+                << "line paths:" << linePathsCapacity << "cached data:" << cachedDataCapacity;
+    
+    // Iterate through all containers and set capacity for their graphs
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            // Get all graph types available in this container
+            std::vector<GraphType> graphTypes = {GraphType::BDW, GraphType::BRW, GraphType::BTW, 
+                                                 GraphType::FDW, GraphType::FTW, GraphType::LTW, GraphType::RTW};
+            
+            for (GraphType graphType : graphTypes)
+            {
+                WaterfallGraph *graph = container->getWaterfallGraph(graphType);
+                if (graph)
+                {
+                    graph->reserveAllRenderingCachesCapacity(scatterCapacity, linePathsCapacity, cachedDataCapacity);
+                    DEBUG_OUT() << "GraphLayout: Set rendering caches capacity for graph type" << static_cast<int>(graphType);
+                }
+            }
+        }
+    }
+}
+
+void GraphLayout::setAllArraysCapacity(size_t dataSeriesCapacity, size_t symbolsCapacity, size_t markersCapacity,
+                                       size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity)
+{
+    DEBUG_OUT() << "GraphLayout: Setting all arrays capacity - data series:" << dataSeriesCapacity
+                << "symbols:" << symbolsCapacity << "markers:" << markersCapacity
+                << "scatter:" << scatterCapacity << "line paths:" << linePathsCapacity 
+                << "cached data:" << cachedDataCapacity;
+    
+    // Set capacity for all data sources
+    setDataSeriesCapacity(dataSeriesCapacity);
+    setSymbolsCapacity(symbolsCapacity);
+    setMarkersCapacity(markersCapacity);
+    
+    // Set capacity for all graphs
+    setRenderingCachesCapacity(scatterCapacity, linePathsCapacity, cachedDataCapacity);
+    
+    DEBUG_OUT() << "GraphLayout: Set all arrays capacity completed";
+}
+
 void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* unusedRange */)
 {
     DEBUG_OUT() << "GraphLayout: Adding BTW symbol (magenta circle) to all graphs at timestamp" << timestamp.toString();

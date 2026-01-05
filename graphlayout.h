@@ -274,6 +274,63 @@ public:
     // Redraw all graphs
     void redrawAllGraphs();
 
+    // Capacity management API - set sizes for all arrays used to store graph data
+    /**
+     * @brief Set capacity for all data series arrays in all data sources
+     * 
+     * Reserves capacity for Y data, timestamps, and epoch timestamps vectors
+     * in all data sources to reduce reallocations during data addition.
+     * 
+     * @param capacity Number of elements to reserve for each data series
+     */
+    void setDataSeriesCapacity(size_t capacity);
+    
+    /**
+     * @brief Set capacity for all symbol arrays in all data sources
+     * 
+     * Reserves capacity for RTW and BTW symbols vectors in all data sources.
+     * 
+     * @param capacity Number of elements to reserve for symbols
+     */
+    void setSymbolsCapacity(size_t capacity);
+    
+    /**
+     * @brief Set capacity for all marker arrays in all data sources
+     * 
+     * Reserves capacity for BTW markers and RTW R markers vectors in all data sources.
+     * 
+     * @param capacity Number of elements to reserve for markers
+     */
+    void setMarkersCapacity(size_t capacity);
+    
+    /**
+     * @brief Set capacity for all rendering cache arrays in all graphs
+     * 
+     * Reserves capacity for scatter points, batched line paths, and cached visible data
+     * vectors in all graphs to reduce reallocations during rendering.
+     * 
+     * @param scatterCapacity Capacity for scatter points
+     * @param linePathsCapacity Capacity for batched line paths
+     * @param cachedDataCapacity Capacity for cached visible data
+     */
+    void setRenderingCachesCapacity(size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity);
+    
+    /**
+     * @brief Set capacity for all arrays in the system (data sources and graphs)
+     * 
+     * Comprehensive method that sets capacity for all arrays used to store graph data.
+     * This is the recommended method to use for initial setup.
+     * 
+     * @param dataSeriesCapacity Capacity for data series vectors (Y data, timestamps)
+     * @param symbolsCapacity Capacity for symbol vectors (RTW, BTW)
+     * @param markersCapacity Capacity for marker vectors (BTW markers, RTW R markers)
+     * @param scatterCapacity Capacity for scatter points in graphs
+     * @param linePathsCapacity Capacity for batched line paths in graphs
+     * @param cachedDataCapacity Capacity for cached visible data in graphs
+     */
+    void setAllArraysCapacity(size_t dataSeriesCapacity, size_t symbolsCapacity, size_t markersCapacity,
+                              size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity);
+
 protected:
     void resizeEvent(QResizeEvent *event) override;
 

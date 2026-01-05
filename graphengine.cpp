@@ -211,12 +211,12 @@ bool GraphEngine::findClosestDataPoint(const QString &seriesLabel, const QDateTi
     return m_data.findClosestDataPoint(seriesLabel, targetTime, toleranceMs, outValue, outIndex);
 }
 
-const std::vector<qreal>& GraphEngine::getYDataSeries(const QString &seriesLabel) const
+std::vector<qreal> GraphEngine::getYDataSeries(const QString &seriesLabel) const
 {
     return m_data.getYDataSeries(seriesLabel);
 }
 
-const std::vector<QDateTime>& GraphEngine::getTimestampsSeries(const QString &seriesLabel) const
+std::vector<QDateTime> GraphEngine::getTimestampsSeries(const QString &seriesLabel) const
 {
     return m_data.getTimestampsSeries(seriesLabel);
 }

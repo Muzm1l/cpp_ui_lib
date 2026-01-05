@@ -1,6 +1,7 @@
 #ifndef WATERFALLDATA_H
 #define WATERFALLDATA_H
 
+#include "circularbuffer.h"
 #include <vector>
 #include <utility>
 #include <map>
@@ -95,9 +96,10 @@ public:
     bool findClosestDataPoint(const QString& seriesLabel, const QDateTime& targetTime, qint64 toleranceMs, qreal& outValue, size_t& outIndex) const;
 
     // Direct access to data series vectors
-    const std::vector<qreal>& getYDataSeries(const QString& seriesLabel) const;
-    const std::vector<QDateTime>& getTimestampsSeries(const QString& seriesLabel) const;
-    const std::vector<qint64>& getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
+    // Note: Returns vectors converted from circular buffers (chronological order, oldest first)
+    std::vector<qreal> getYDataSeries(const QString& seriesLabel) const;
+    std::vector<QDateTime> getTimestampsSeries(const QString& seriesLabel) const;
+    std::vector<qint64> getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
 
     // Data series utility methods
     size_t getDataSeriesSize(const QString& seriesLabel) const;
@@ -163,24 +165,78 @@ public:
     std::vector<RTWRMarkerData> getRTWRMarkers() const;
     size_t getRTWRMarkersCount() const;
 
+    // Capacity management methods - set circular buffer capacity to limit memory growth
+    /**
+     * @brief Set circular buffer capacity for data series vectors
+     * @param seriesLabel The series label to set capacity for
+     * @param capacity Maximum number of elements (0 = unlimited, not recommended)
+     */
+    void setDataSeriesCapacity(const QString& seriesLabel, size_t capacity);
+    
+    /**
+     * @brief Set circular buffer capacity for all data series vectors
+     * @param capacity Maximum number of elements for each series (0 = unlimited)
+     */
+    void setAllDataSeriesCapacity(size_t capacity);
+    
+    /**
+     * @brief Set circular buffer capacity for RTW symbols vector
+     * @param capacity Maximum number of elements (0 = unlimited)
+     */
+    void setRTWSymbolsCapacity(size_t capacity);
+    
+    /**
+     * @brief Set circular buffer capacity for BTW symbols vector
+     * @param capacity Maximum number of elements (0 = unlimited)
+     */
+    void setBTWSymbolsCapacity(size_t capacity);
+    
+    /**
+     * @brief Set circular buffer capacity for BTW markers vector
+     * @param capacity Maximum number of elements (0 = unlimited)
+     */
+    void setBTWMarkersCapacity(size_t capacity);
+    
+    /**
+     * @brief Set circular buffer capacity for RTW R markers vector
+     * @param capacity Maximum number of elements (0 = unlimited)
+     */
+    void setRTWRMarkersCapacity(size_t capacity);
+    
+    /**
+     * @brief Set circular buffer capacity for all symbol and marker vectors
+     * @param symbolsCapacity Maximum capacity for RTW and BTW symbols
+     * @param markersCapacity Maximum capacity for BTW and RTW R markers
+     */
+    void setAllSymbolsAndMarkersCapacity(size_t symbolsCapacity, size_t markersCapacity);
+    
+    // Legacy reserve methods (now call setCapacity for circular buffers)
+    void reserveDataSeriesCapacity(const QString& seriesLabel, size_t capacity) { setDataSeriesCapacity(seriesLabel, capacity); }
+    void reserveAllDataSeriesCapacity(size_t capacity) { setAllDataSeriesCapacity(capacity); }
+    void reserveRTWSymbolsCapacity(size_t capacity) { setRTWSymbolsCapacity(capacity); }
+    void reserveBTWSymbolsCapacity(size_t capacity) { setBTWSymbolsCapacity(capacity); }
+    void reserveBTWMarkersCapacity(size_t capacity) { setBTWMarkersCapacity(capacity); }
+    void reserveRTWRMarkersCapacity(size_t capacity) { setRTWRMarkersCapacity(capacity); }
+    void reserveAllSymbolsAndMarkersCapacity(size_t symbolsCapacity, size_t markersCapacity) { setAllSymbolsAndMarkersCapacity(symbolsCapacity, markersCapacity); }
+
 private:
 
-    // Multiple data series storage
-    std::map<QString, std::vector<qreal>> dataSeriesYData;
-    std::map<QString, std::vector<QDateTime>> dataSeriesTimestamps;
-    std::map<QString, std::vector<qint64>> dataSeriesTimestampsEpoch; // Parallel storage for epoch milliseconds (performance optimization)
+    // Multiple data series storage - using circular buffers to prevent unbounded growth
+    std::map<QString, CircularBuffer<qreal>> dataSeriesYData;
+    std::map<QString, CircularBuffer<QDateTime>> dataSeriesTimestamps;
+    std::map<QString, CircularBuffer<qint64>> dataSeriesTimestampsEpoch; // Parallel storage for epoch milliseconds (performance optimization)
 
-    // RTW Symbol storage (persists with track data)
-    std::vector<RTWSymbolData> rtwSymbols;
+    // RTW Symbol storage (persists with track data) - using circular buffer
+    CircularBuffer<RTWSymbolData> rtwSymbols;
     
-    // BTW Symbol storage (persists with track data)
-    std::vector<BTWSymbolData> btwSymbols;
+    // BTW Symbol storage (persists with track data) - using circular buffer
+    CircularBuffer<BTWSymbolData> btwSymbols;
 
-    // BTW Marker storage (manually placed markers)
-    std::vector<BTWMarkerData> btwMarkers;
+    // BTW Marker storage (manually placed markers) - using circular buffer
+    CircularBuffer<BTWMarkerData> btwMarkers;
 
-    // RTW R Marker storage (manually placed markers)
-    std::vector<RTWRMarkerData> rtwRMarkers;
+    // RTW R Marker storage (manually placed markers) - using circular buffer
+    CircularBuffer<RTWRMarkerData> rtwRMarkers;
 
     // Data title
     QString dataTitle;

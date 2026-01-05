@@ -1495,13 +1495,17 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
     size_t lastIdx = std::distance(timestampsEpoch.begin(), endIt);
     
     // Build filtered visible data - NO QDateTime CONVERSION IN LOOP!
-    std::vector<std::pair<qreal, qint64>> &cache = m_cachedVisibleData[seriesLabel];
+    CircularBuffer<std::pair<qreal, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     cache.clear();
-    cache.reserve(lastIdx - firstIdx);
+    // Reserve capacity if not already set (circular buffer will handle capacity limits)
+    if (cache.capacity() == 0)
+    {
+        cache.reserve(lastIdx - firstIdx);
+    }
     
     for (size_t i = firstIdx; i < lastIdx && i < yData.size(); ++i)
     {
-        cache.emplace_back(yData[i], timestampsEpoch[i]); // Store epoch ms, not QDateTime
+        cache.push_back(std::make_pair(yData[i], timestampsEpoch[i])); // Store epoch ms, not QDateTime
     }
     
     // Update tracking
@@ -1568,14 +1572,14 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     qint64 timeMaxEpoch = timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0;
     
     // Process only new data points - NO QDateTime CONVERSION IN LOOP!
-    std::vector<std::pair<qreal, qint64>> &cache = m_cachedVisibleData[seriesLabel];
+    CircularBuffer<std::pair<qreal, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     
     for (size_t i = lastProcessed; i < yData.size(); ++i)
     {
         qint64 tsEpoch = timestampsEpoch[i];
         if (tsEpoch >= timeMinEpoch && tsEpoch <= timeMaxEpoch)
         {
-            cache.emplace_back(yData[i], tsEpoch); // Store epoch ms, not QDateTime
+            cache.push_back(std::make_pair(yData[i], tsEpoch)); // Store epoch ms, not QDateTime
         }
     }
     
@@ -1646,6 +1650,50 @@ void WaterfallGraph::cleanupAllScatterplotItems()
 }
 
 /**
+ * @brief Cleanup ellipse and path items for a specific series.
+ * 
+ * This helper function removes and deletes all graphics items (ellipse and path)
+ * for a given series. Used when data becomes empty, series becomes invisible,
+ * or during cleanup operations.
+ * 
+ * @param seriesLabel The label of the series to cleanup
+ */
+void WaterfallGraph::cleanupSeriesItems(const QString &seriesLabel)
+{
+    // Cleanup ellipse items
+    auto pointIt = m_seriesPointItems.find(seriesLabel);
+    if (pointIt != m_seriesPointItems.end())
+    {
+        for (QGraphicsEllipseItem *item : pointIt->second)
+        {
+            if (item)
+            {
+                // Check if item belongs to this scene before removing
+                if (item->scene() == graphicsScene)
+                {
+                    graphicsScene->removeItem(item);
+                }
+                delete item;
+            }
+        }
+        pointIt->second.clear();
+    }
+    
+    // Cleanup path items
+    auto pathIt = m_seriesPathItems.find(seriesLabel);
+    if (pathIt != m_seriesPathItems.end() && pathIt->second)
+    {
+        // Check if item belongs to this scene before removing
+        if (pathIt->second->scene() == graphicsScene)
+        {
+            graphicsScene->removeItem(pathIt->second);
+        }
+        delete pathIt->second;
+        m_seriesPathItems.erase(pathIt);
+    }
+}
+
+/**
  * @brief Update scatterplot item positions when time range changes.
  * 
  * Updates positions of existing items without creating/destroying them.
@@ -1661,9 +1709,13 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
     // CRITICAL FIX: Update m_scatterPoints for paintEvent() rendering
     // This is the primary rendering path now (graphicsView is hidden)
     // Legacy m_seriesScatterplotItems update is kept for backward compatibility
-    QVector<QPointF> &points = m_scatterPoints[seriesLabel];
+    CircularBuffer<QPointF> &points = m_scatterPoints[seriesLabel];
     points.clear();
-    points.reserve(visibleData.size());
+    // Reserve capacity if not already set (circular buffer will handle capacity limits)
+    if (points.capacity() == 0)
+    {
+        points.reserve(visibleData.size());
+    }
     
     for (const auto &dataPoint : visibleData)
     {
@@ -1678,7 +1730,7 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
             continue; // Skip invalid screen coordinates
         }
         
-        points.append(screenPoint);
+        points.push_back(screenPoint);
     }
     
     // Trigger repaint (paintEvent will draw the batched points)
@@ -1746,7 +1798,8 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
         return;
     }
     
-    const std::vector<std::pair<qreal, qint64>> &cachedData = cacheIt->second; // epoch ms
+    // Convert circular buffer to vector for iteration
+    std::vector<std::pair<qreal, qint64>> cachedData = cacheIt->second.toVector(); // epoch ms
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
     // Convert newTimeMin to epoch ONCE (not per iteration!)
@@ -1831,10 +1884,14 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
         return;
     }
     
-    // Build batched point vector
-    QVector<QPointF> &points = m_scatterPoints[seriesLabel];
+    // Build batched point vector using circular buffer
+    CircularBuffer<QPointF> &points = m_scatterPoints[seriesLabel];
     points.clear();
-    points.reserve(visibleData.size());
+    // Reserve capacity if not already set (circular buffer will handle capacity limits)
+    if (points.capacity() == 0)
+    {
+        points.reserve(visibleData.size());
+    }
     
     for (const auto &dataPoint : visibleData)
     {
@@ -1851,7 +1908,7 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
             continue; // Skip invalid screen coordinates
         }
         
-        points.append(screenPoint);
+        points.push_back(screenPoint);
     }
     
     // Store color for this series (used in paintEvent)
@@ -1887,10 +1944,14 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
         return;
     }
     
-    // Build batched point vector (same as full update - vector rebuild is fast)
-    QVector<QPointF> &points = m_scatterPoints[seriesLabel];
+    // Build batched point vector using circular buffer (same as full update - vector rebuild is fast)
+    CircularBuffer<QPointF> &points = m_scatterPoints[seriesLabel];
     points.clear();
-    points.reserve(newVisibleData.size());
+    // Reserve capacity if not already set (circular buffer will handle capacity limits)
+    if (points.capacity() == 0)
+    {
+        points.reserve(newVisibleData.size());
+    }
     
     for (const auto &dataPoint : newVisibleData)
     {
@@ -1906,7 +1967,7 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
             continue;
         }
         
-        points.append(screenPoint);
+        points.push_back(screenPoint);
     }
     
     // Store color for this series (used in paintEvent)
@@ -2551,10 +2612,19 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
     for (auto it = m_scatterPoints.begin(); it != m_scatterPoints.end(); ++it)
     {
         const QString &seriesLabel = it.key();
-        const QVector<QPointF> &points = it.value();
+        const CircularBuffer<QPointF> &pointsBuffer = it.value();
         
-        if (points.isEmpty())
+        if (pointsBuffer.empty())
             continue;
+        
+        // Convert circular buffer to QVector for drawing (chronological order)
+        std::vector<QPointF> pointsVec = pointsBuffer.toVector();
+        QVector<QPointF> points;
+        points.reserve(pointsVec.size());
+        for (const QPointF& pt : pointsVec)
+        {
+            points.append(pt);
+        }
         
         // Get color for this series
         QColor pointColor = m_scatterColors.value(seriesLabel, Qt::white);
@@ -2586,10 +2656,13 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
     for (auto it = m_batchedLinePaths.begin(); it != m_batchedLinePaths.end(); ++it)
     {
         const QString &seriesLabel = it.key();
-        const QVector<QPainterPath> &batchedPaths = it.value();
+        const CircularBuffer<QPainterPath> &batchedPathsBuffer = it.value();
         
-        if (batchedPaths.isEmpty())
+        if (batchedPathsBuffer.empty())
             continue;
+        
+        // Convert circular buffer to vector for iteration (chronological order)
+        std::vector<QPainterPath> batchedPaths = batchedPathsBuffer.toVector();
         
         // Get color for this series
         QColor lineColor = m_dataLineColors.value(seriesLabel, Qt::yellow);
@@ -2995,7 +3068,9 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         }
     }
 
-    const std::vector<std::pair<qreal, qint64>> &visibleData = m_cachedVisibleData[seriesLabel]; // epoch ms
+    // Get visible data from circular buffer (convert to vector for compatibility)
+    const CircularBuffer<std::pair<qreal, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms
+    std::vector<std::pair<qreal, qint64>> visibleData = visibleDataBuffer.toVector();
 
     if (visibleData.empty())
     {
@@ -3330,7 +3405,14 @@ void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
         return;
     }
     
-    QVector<QPainterPath> batchedPaths;
+    CircularBuffer<QPainterPath> &batchedPaths = m_batchedLinePaths[seriesLabel];
+    batchedPaths.clear();
+    // Reserve capacity if not already set (circular buffer will handle capacity limits)
+    if (batchedPaths.capacity() == 0)
+    {
+        batchedPaths.reserve((visibleData.size() / lodStep) / BATCH_SIZE + 1);
+    }
+    
     QPainterPath currentBatch;
     size_t pointsInCurrentBatch = 0;
     
@@ -3338,7 +3420,7 @@ void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
     QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
     if (firstPoint.isNull() || !qIsFinite(firstPoint.x()) || !qIsFinite(firstPoint.y()))
     {
-        m_batchedLinePaths.remove(seriesLabel);
+        batchedPaths.clear();
         return;
     }
     currentBatch.moveTo(firstPoint);
@@ -3359,7 +3441,7 @@ void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
         // When batch reaches BATCH_SIZE, start a new batch
         if (pointsInCurrentBatch >= BATCH_SIZE)
         {
-            batchedPaths.append(currentBatch);
+            batchedPaths.push_back(currentBatch);
             currentBatch = QPainterPath();
             // Start new batch from current point (connect batches visually)
             currentBatch.moveTo(point);
@@ -3370,11 +3452,8 @@ void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
     // Add the last batch if it has any points
     if (pointsInCurrentBatch > 0)
     {
-        batchedPaths.append(currentBatch);
+        batchedPaths.push_back(currentBatch);
     }
-    
-    // Store batched paths
-    m_batchedLinePaths[seriesLabel] = batchedPaths;
     
     DEBUG_OUT() << "Built" << batchedPaths.size() << "batched paths for series" << seriesLabel
                 << "with" << visibleData.size() << "visible points (LOD step:" << lodStep << ")";
@@ -3938,7 +4017,9 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         }
     }
     
-    const std::vector<std::pair<qreal, qint64>> &visibleData = m_cachedVisibleData[seriesLabel]; // epoch ms
+    // Get visible data from circular buffer (convert to vector for compatibility)
+    const CircularBuffer<std::pair<qreal, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms
+    std::vector<std::pair<qreal, qint64>> visibleData = visibleDataBuffer.toVector();
 
     if (visibleData.empty())
     {
@@ -4111,6 +4192,9 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
 
     if (yData.empty() || timestamps.empty())
     {
+        // CRITICAL FIX: Clean up existing ellipse items when data becomes empty
+        // This prevents memory leaks when data is cleared (addresses 85M QGraphicsEllipseItem leak)
+        cleanupSeriesItems(seriesLabel);
         return;
     }
 
@@ -4131,7 +4215,9 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         }
     }
     
-    const std::vector<std::pair<qreal, qint64>> &visibleData = m_cachedVisibleData[seriesLabel]; // epoch ms
+    // Get visible data from circular buffer (convert to vector for compatibility)
+    const CircularBuffer<std::pair<qreal, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms
+    std::vector<std::pair<qreal, qint64>> visibleData = visibleDataBuffer.toVector();
 
     if (visibleData.empty())
     {
@@ -4260,6 +4346,13 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
             }
         }
         pointItems.clear();
+        
+        // CRITICAL FIX: Handle empty data case - don't create items if no data
+        if (newPointCount == 0)
+        {
+            return; // No items to create
+        }
+        
         pointItems.reserve(newPointCount);
         
         QPen pointPen(seriesColor, 0);
@@ -4273,6 +4366,26 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     }
     else if (m_renderState == RenderState::INCREMENTAL_UPDATE)
     {
+        // CRITICAL FIX: Handle complete data clearing (newPointCount == 0)
+        // This prevents memory leaks when all data is cleared during incremental update
+        if (newPointCount == 0)
+        {
+            // Remove all existing items
+            for (QGraphicsEllipseItem *item : pointItems)
+            {
+                if (item)
+                {
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointItems.clear();
+            return; // No items to create
+        }
+        
         // Update positions for existing items, add new ones, remove excess
         QPen pointPen(seriesColor, 0);
         
@@ -4319,6 +4432,26 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     else
     {
         // CLEAN or RANGE_UPDATE_ONLY: just update positions
+        // CRITICAL FIX: Handle empty data case - remove all items if data is cleared
+        if (newPointCount == 0)
+        {
+            // Remove all existing items
+            for (QGraphicsEllipseItem *item : pointItems)
+            {
+                if (item)
+                {
+                    if (item->scene() == graphicsScene)
+                    {
+                        graphicsScene->removeItem(item);
+                    }
+                    delete item;
+                }
+            }
+            pointItems.clear();
+            return;
+        }
+        
+        // Update positions for existing items
         for (size_t i = 0; i < pointItems.size() && i < newPointCount; ++i)
         {
             if (pointItems[i])
@@ -4332,9 +4465,13 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     // CRITICAL FIX: Also update m_scatterPoints for paintEvent() rendering
     // drawDataSeries() creates QGraphicsEllipseItem objects (legacy), but paintEvent() uses m_scatterPoints
     // We need to update both to ensure paintEvent() rendering works when drawDataSeries() is called
-    QVector<QPointF> &scatterPoints = m_scatterPoints[seriesLabel];
+    CircularBuffer<QPointF> &scatterPoints = m_scatterPoints[seriesLabel];
     scatterPoints.clear();
-    scatterPoints.reserve(visibleData.size());
+    // Reserve capacity if not already set (circular buffer will handle capacity limits)
+    if (scatterPoints.capacity() == 0)
+    {
+        scatterPoints.reserve(visibleData.size());
+    }
     
     for (const auto &dataPoint : visibleData)
     {
@@ -4345,7 +4482,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
             continue; // Skip invalid screen coordinates
         
-        scatterPoints.append(screenPoint);
+        scatterPoints.push_back(screenPoint);
     }
     
     // Store color for paintEvent rendering
@@ -5538,5 +5675,53 @@ void WaterfallGraph::notifyCrosshairPositionChanged(qreal xPosition)
     {
         crosshairPositionChangedCallback(xPosition);
     }
+}
+
+// Capacity management methods implementation
+
+void WaterfallGraph::reserveScatterPointsCapacity(const QString &seriesLabel, size_t capacity)
+{
+    CircularBuffer<QPointF> &points = m_scatterPoints[seriesLabel];
+    points.setCapacity(capacity);
+}
+
+void WaterfallGraph::reserveAllScatterPointsCapacity(size_t capacity)
+{
+    for (auto it = m_scatterPoints.begin(); it != m_scatterPoints.end(); ++it)
+    {
+        it.value().setCapacity(capacity);
+    }
+}
+
+void WaterfallGraph::reserveBatchedLinePathsCapacity(const QString &seriesLabel, size_t capacity)
+{
+    CircularBuffer<QPainterPath> &paths = m_batchedLinePaths[seriesLabel];
+    paths.setCapacity(capacity);
+}
+
+void WaterfallGraph::reserveCachedVisibleDataCapacity(const QString &seriesLabel, size_t capacity)
+{
+    CircularBuffer<std::pair<qreal, qint64>> &cachedData = m_cachedVisibleData[seriesLabel];
+    cachedData.setCapacity(capacity);
+}
+
+void WaterfallGraph::reserveAllCachedVisibleDataCapacity(size_t capacity)
+{
+    for (auto& pair : m_cachedVisibleData)
+    {
+        pair.second.setCapacity(capacity);
+    }
+}
+
+void WaterfallGraph::reserveAllRenderingCachesCapacity(size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity)
+{
+    reserveAllScatterPointsCapacity(scatterCapacity);
+    
+    for (auto it = m_batchedLinePaths.begin(); it != m_batchedLinePaths.end(); ++it)
+    {
+        it.value().setCapacity(linePathsCapacity);
+    }
+    
+    reserveAllCachedVisibleDataCapacity(cachedDataCapacity);
 }
 

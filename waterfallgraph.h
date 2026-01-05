@@ -5,6 +5,7 @@
 #include "timelineutils.h"
 #include "waterfalldata.h"
 #include "btwsymboldrawing.h"
+#include "circularbuffer.h"
 #include <QColor>
 #include <QCoreApplication>
 #include <QFont>
@@ -230,6 +231,7 @@ protected:
                                         qreal pointSize);
     void cleanupScatterplotItems(const QString &seriesLabel);
     void cleanupAllScatterplotItems();
+    void cleanupSeriesItems(const QString &seriesLabel); // Cleanup ellipse and path items for a series
 
     // Data range tracking
     qreal yMin, yMax;
@@ -281,10 +283,10 @@ protected:
     QPixmap m_waterfallBuffer;  // Scroll buffer for waterfall rendering
     int m_waterfallBufferHeight;  // Current buffer height (matches widget height)
     QDateTime m_lastWaterfallRowTime;  // Timestamp of last row drawn (for incremental updates)
-    QMap<QString, QVector<QPointF>> m_scatterPoints;  // Batched scatter points per series
+    QMap<QString, CircularBuffer<QPointF>> m_scatterPoints;  // Batched scatter points per series (circular buffer)
     QMap<QString, QColor> m_scatterColors;  // Colors per series for scatter points
     QMap<QString, QPainterPath> m_dataLinePaths;  // Store paths for data lines (ADOPTED, etc.) - single path for small datasets
-    QMap<QString, QVector<QPainterPath>> m_batchedLinePaths;  // Batched paths for large datasets (>1000 points)
+    QMap<QString, CircularBuffer<QPainterPath>> m_batchedLinePaths;  // Batched paths for large datasets (>1000 points) (circular buffer)
     QMap<QString, QColor> m_dataLineColors;  // Colors per series for data lines
     bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
     bool m_useLineDrawing;  // Flag to use line drawing instead of scatterplot for all series
@@ -297,7 +299,7 @@ protected:
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
     // Avoids O(n) filtering on every draw by caching already-filtered data
     // Uses epoch milliseconds to avoid QDateTime timezone conversion in hot path
-    std::map<QString, std::vector<std::pair<qreal, qint64>>> m_cachedVisibleData; // epoch ms instead of QDateTime
+    std::map<QString, CircularBuffer<std::pair<qreal, qint64>>> m_cachedVisibleData; // epoch ms instead of QDateTime (circular buffer)
     std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
@@ -479,6 +481,48 @@ public:
     void setSeriesVisible(const QString &seriesLabel, bool visible);
     bool isSeriesVisible(const QString &seriesLabel) const;
     std::vector<QString> getVisibleSeries() const;
+
+    // Capacity management methods - reserve space for rendering caches to reduce reallocations
+    /**
+     * @brief Reserve capacity for scatter points vector for a specific series
+     * @param seriesLabel The series label to reserve capacity for
+     * @param capacity Number of elements to reserve
+     */
+    void reserveScatterPointsCapacity(const QString &seriesLabel, size_t capacity);
+    
+    /**
+     * @brief Reserve capacity for all scatter points vectors
+     * @param capacity Number of elements to reserve for each series
+     */
+    void reserveAllScatterPointsCapacity(size_t capacity);
+    
+    /**
+     * @brief Reserve capacity for batched line paths vector for a specific series
+     * @param seriesLabel The series label to reserve capacity for
+     * @param capacity Number of elements to reserve
+     */
+    void reserveBatchedLinePathsCapacity(const QString &seriesLabel, size_t capacity);
+    
+    /**
+     * @brief Reserve capacity for cached visible data vector for a specific series
+     * @param seriesLabel The series label to reserve capacity for
+     * @param capacity Number of elements to reserve
+     */
+    void reserveCachedVisibleDataCapacity(const QString &seriesLabel, size_t capacity);
+    
+    /**
+     * @brief Reserve capacity for all cached visible data vectors
+     * @param capacity Number of elements to reserve for each series
+     */
+    void reserveAllCachedVisibleDataCapacity(size_t capacity);
+    
+    /**
+     * @brief Reserve capacity for all rendering caches (scatter points, line paths, cached data)
+     * @param scatterCapacity Capacity for scatter points
+     * @param linePathsCapacity Capacity for batched line paths
+     * @param cachedDataCapacity Capacity for cached visible data
+     */
+    void reserveAllRenderingCachesCapacity(size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity);
 
 signals:
     void SelectionCreated(const TimeSelectionSpan &selection);
