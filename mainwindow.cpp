@@ -842,10 +842,10 @@ void MainWindow::setupTestWaterfallGraph()
     {
         QDateTime timestamp = baseTime.addSecs(-i * 10); // 10 seconds apart
         qreal value = 0.3 + 0.4 * (i / 20.0) + 0.1 * std::sin(i * 0.5); // Varying values
-        testWaterfallGraph->addDataPoint("TEST-1", value, timestamp);
+        testWaterfallGraph->addDataPoint("TEST-1", static_cast<float>(value), timestamp);
         
         qreal adoptedValue = 0.5 + 0.2 * std::cos(i * 0.3);
-        testWaterfallGraph->addDataPoint("ADOPTED", adoptedValue, timestamp);
+        testWaterfallGraph->addDataPoint("ADOPTED", static_cast<float>(adoptedValue), timestamp);
     }
     
     DEBUG_OUT() << "Test WaterfallGraph created in controls tab with" 

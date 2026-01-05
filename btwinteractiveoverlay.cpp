@@ -36,7 +36,7 @@ BTWInteractiveOverlay::~BTWInteractiveOverlay()
 {
 }
 
-InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF &position, const QDateTime &timestamp, qreal value, const QString &seriesLabel)
+InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF &position, const QDateTime &timestamp, float value, const QString &seriesLabel)
 {
     Q_UNUSED(value); // Not used yet but may be used for bearing rate calculation in future
     Q_UNUSED(seriesLabel);

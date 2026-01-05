@@ -227,8 +227,11 @@ void Simulator::generateBulkData(WaterfallData *data, SimulatorConfig config, in
 
         DEBUG_OUT() << "Simulator: Adding bulk data to series:" << seriesLabel << "with" << dataSeries.size() << "points";
 
+        // Convert qreal (double) to float for API
+        std::vector<float> dataSeriesFloat(dataSeries.begin(), dataSeries.end());
+
         // Add the data to this series
-        data->addDataPointsToSeries(seriesLabel, dataSeries, timestamps);
+        data->addDataPointsToSeries(seriesLabel, dataSeriesFloat, timestamps);
 
         DEBUG_OUT() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end())
                  << "to" << *std::max_element(dataSeries.begin(), dataSeries.end())

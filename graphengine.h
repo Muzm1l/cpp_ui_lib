@@ -36,8 +36,8 @@ public:
     GraphType getGraphType() const;
 
     // Data modification methods (delegate to WaterfallData)
-    void addDataPoint(const QString &seriesLabel, qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    void addDataPoint(const QString &seriesLabel, float yValue, const QDateTime &timestamp);
+    void addDataPoints(const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps);
     void setDataSeries(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void clearDataSeries(const QString &seriesLabel);
     void clearAllDataSeries();

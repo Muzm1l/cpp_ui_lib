@@ -198,10 +198,10 @@ void SCWSimulator::addDataPoints()
     std::vector<QDateTime> timestamps = {currentTime};
     
     // Add data points for all RULER series (windows 1-4)
-    std::vector<qreal> ruler1Data = {m_currentRuler1Value};
-    std::vector<qreal> ruler2Data = {m_currentRuler2Value};
-    std::vector<qreal> ruler3Data = {m_currentRuler3Value};
-    std::vector<qreal> ruler4Data = {m_currentRuler4Value};
+    std::vector<float> ruler1Data = {static_cast<float>(m_currentRuler1Value)};
+    std::vector<float> ruler2Data = {static_cast<float>(m_currentRuler2Value)};
+    std::vector<float> ruler3Data = {static_cast<float>(m_currentRuler3Value)};
+    std::vector<float> ruler4Data = {static_cast<float>(m_currentRuler4Value)};
     
     m_scwWindow->addDataPoints(SCW_SERIES_R::RULER_1, ruler1Data, timestamps);
     m_scwWindow->addDataPoints(SCW_SERIES_R::RULER_2, ruler2Data, timestamps);
@@ -209,11 +209,11 @@ void SCWSimulator::addDataPoints()
     m_scwWindow->addDataPoints(SCW_SERIES_R::RULER_4, ruler4Data, timestamps);
 
     // Add data points for all SCW_SERIES_B (window 5 cycles through these)
-    std::vector<qreal> bratData = {m_currentBRATValue};
-    std::vector<qreal> botData = {m_currentBOTValue};
-    std::vector<qreal> bftData = {m_currentBFTValue};
-    std::vector<qreal> boptData = {m_currentBOPTValue};
-    std::vector<qreal> botcData = {m_currentBOTCValue};
+    std::vector<float> bratData = {static_cast<float>(m_currentBRATValue)};
+    std::vector<float> botData = {static_cast<float>(m_currentBOTValue)};
+    std::vector<float> bftData = {static_cast<float>(m_currentBFTValue)};
+    std::vector<float> boptData = {static_cast<float>(m_currentBOPTValue)};
+    std::vector<float> botcData = {static_cast<float>(m_currentBOTCValue)};
     
     m_scwWindow->addDataPoints(SCW_SERIES_B::BRAT, bratData, timestamps);
     m_scwWindow->addDataPoints(SCW_SERIES_B::BOT, botData, timestamps);
@@ -222,18 +222,18 @@ void SCWSimulator::addDataPoints()
     m_scwWindow->addDataPoints(SCW_SERIES_B::BOTC, botcData, timestamps);
 
     // Add data points for all SCW_SERIES_A (window 6 cycles through these)
-    std::vector<qreal> atmaData = {m_currentATMAValue};
-    std::vector<qreal> atmafData = {m_currentATMAFValue};
+    std::vector<float> atmaData = {static_cast<float>(m_currentATMAValue)};
+    std::vector<float> atmafData = {static_cast<float>(m_currentATMAFValue)};
     
     m_scwWindow->addDataPoints(SCW_SERIES_A::ATMA, atmaData, timestamps);
     m_scwWindow->addDataPoints(SCW_SERIES_A::ATMAF, atmafData, timestamps);
 
     // Add data points for all SCW_SERIES_E (window 7 cycles through these)
-    std::vector<qreal> ext1Data = {m_currentEXTERNAL1Value};
-    std::vector<qreal> ext2Data = {m_currentEXTERNAL2Value};
-    std::vector<qreal> ext3Data = {m_currentEXTERNAL3Value};
-    std::vector<qreal> ext4Data = {m_currentEXTERNAL4Value};
-    std::vector<qreal> ext5Data = {m_currentEXTERNAL5Value};
+    std::vector<float> ext1Data = {static_cast<float>(m_currentEXTERNAL1Value)};
+    std::vector<float> ext2Data = {static_cast<float>(m_currentEXTERNAL2Value)};
+    std::vector<float> ext3Data = {static_cast<float>(m_currentEXTERNAL3Value)};
+    std::vector<float> ext4Data = {static_cast<float>(m_currentEXTERNAL4Value)};
+    std::vector<float> ext5Data = {static_cast<float>(m_currentEXTERNAL5Value)};
     
     m_scwWindow->addDataPoints(SCW_SERIES_E::EXTERNAL1, ext1Data, timestamps);
     m_scwWindow->addDataPoints(SCW_SERIES_E::EXTERNAL2, ext2Data, timestamps);

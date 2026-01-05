@@ -323,7 +323,7 @@ void WaterfallData::validateDataSeriesConsistency(const QString& seriesLabel) co
 
 // Multiple data series methods implementation
 
-void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     // Validate that both vectors have the same size
     if (yData.size() != timestamps.size()) {
@@ -332,9 +332,12 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
         return;
     }
 
+    // Convert float to double (qreal) for internal storage
+    std::vector<qreal> yDataDouble(yData.begin(), yData.end());
+
     // Store the data series using circular buffers (preserve existing capacity)
     size_t existingCapacity = dataSeriesYData[seriesLabel].capacity();
-    dataSeriesYData[seriesLabel].assign(yData);
+    dataSeriesYData[seriesLabel].assign(yDataDouble);
     dataSeriesTimestamps[seriesLabel].assign(timestamps);
     
     // Restore capacity if it was set
@@ -358,10 +361,13 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
     validateDataSeriesConsistency(seriesLabel);
 }
 
-void WaterfallData::addDataPointToSeries(const QString& seriesLabel, qreal yValue, const QDateTime& timestamp)
+void WaterfallData::addDataPointToSeries(const QString& seriesLabel, float yValue, const QDateTime& timestamp)
 {
+    // Convert float to double (qreal) for internal storage
+    qreal yValueDouble = static_cast<qreal>(yValue);
+    
     // Circular buffers automatically handle capacity limits
-    dataSeriesYData[seriesLabel].push_back(yValue);
+    dataSeriesYData[seriesLabel].push_back(yValueDouble);
     dataSeriesTimestamps[seriesLabel].push_back(timestamp);
     // Store epoch milliseconds in parallel (convert once, not in hot path)
     dataSeriesTimestampsEpoch[seriesLabel].push_back(timestamp.toMSecsSinceEpoch());
@@ -369,7 +375,7 @@ void WaterfallData::addDataPointToSeries(const QString& seriesLabel, qreal yValu
     validateDataSeriesConsistency(seriesLabel);
 }
 
-void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps)
+void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std::vector<float>& yValues, const std::vector<QDateTime>& timestamps)
 {
     // Validate that both vectors have the same size
     if (yValues.size() != timestamps.size()) {
@@ -378,8 +384,11 @@ void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std:
         return;
     }
 
+    // Convert float to double (qreal) for internal storage
+    std::vector<qreal> yValuesDouble(yValues.begin(), yValues.end());
+
     // Append the data to existing series (circular buffers handle capacity automatically)
-    dataSeriesYData[seriesLabel].push_back(yValues);
+    dataSeriesYData[seriesLabel].push_back(yValuesDouble);
     dataSeriesTimestamps[seriesLabel].push_back(timestamps);
     
     // Store epoch milliseconds in parallel (convert once, not in hot path)

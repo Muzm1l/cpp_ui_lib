@@ -771,7 +771,7 @@ void GraphLayout::setCurrentDataOption(const GraphType &graphType)
 
 // Data point methods for specific data sources
 
-void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, qreal yValue, const QDateTime &timestamp)
+void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, float yValue, const QDateTime &timestamp)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_engines.find(graphType);
@@ -795,7 +795,7 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QSt
     }
 }
 
-void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
+void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_engines.find(graphType);

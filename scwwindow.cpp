@@ -55,7 +55,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal
     DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
-void SCWWindow::addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void SCWWindow::addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     WaterfallData* dataSource = getDataSourceAdopted(series);
     if (!dataSource)
@@ -108,7 +108,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yDa
     DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
-void SCWWindow::addDataPoints(SCW_SERIES_R series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void SCWWindow::addDataPoints(SCW_SERIES_R series, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     WaterfallData* dataSource = getDataSourceR(series);
     if (!dataSource)
@@ -823,7 +823,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yDa
     DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
-void SCWWindow::addDataPoints(SCW_SERIES_B series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void SCWWindow::addDataPoints(SCW_SERIES_B series, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     WaterfallData* dataSource = getDataSourceB(series);
     if (!dataSource)
@@ -890,7 +890,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yDa
     DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
-void SCWWindow::addDataPoints(SCW_SERIES_A series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void SCWWindow::addDataPoints(SCW_SERIES_A series, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     WaterfallData* dataSource = getDataSourceA(series);
     if (!dataSource)
@@ -955,7 +955,7 @@ void SCWWindow::setDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yDa
     DEBUG_OUT() << "setDataPoints called for series:" << seriesLabel << "with" << yData.size() << "points";
 }
 
-void SCWWindow::addDataPoints(SCW_SERIES_E series, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void SCWWindow::addDataPoints(SCW_SERIES_E series, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     WaterfallData* dataSource = getDataSourceE(series);
     if (!dataSource)

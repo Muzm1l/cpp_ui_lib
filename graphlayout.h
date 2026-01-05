@@ -63,8 +63,8 @@ public:
     void setCurrentDataOption(const GraphType &graphType);
 
     // Data point methods for specific data sources
-    void addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, qreal yValue, const QDateTime &timestamp);
-    void addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    void addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, float yValue, const QDateTime &timestamp);
+    void addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps);
     void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data);
     void clearDataSource(const GraphType &graphType, const QString &seriesLabel);

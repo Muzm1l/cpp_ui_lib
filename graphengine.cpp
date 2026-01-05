@@ -35,14 +35,14 @@ GraphType GraphEngine::getGraphType() const
 }
 
 // Data modification methods
-void GraphEngine::addDataPoint(const QString &seriesLabel, qreal yValue, const QDateTime &timestamp)
+void GraphEngine::addDataPoint(const QString &seriesLabel, float yValue, const QDateTime &timestamp)
 {
     m_data.addDataPointToSeries(seriesLabel, yValue, timestamp);
     emit dataAppended(seriesLabel);
     emit dataRangeChanged();
 }
 
-void GraphEngine::addDataPoints(const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
+void GraphEngine::addDataPoints(const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps)
 {
     m_data.addDataPointsToSeries(seriesLabel, yValues, timestamps);
     emit dataAppended(seriesLabel);

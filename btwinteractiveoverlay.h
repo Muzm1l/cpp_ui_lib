@@ -65,7 +65,7 @@ public:
      * @param seriesLabel Label for the series
      * @return Pointer to the created marker
      */
-    InteractiveGraphicsItem* addDataPointMarker(const QPointF &position, const QDateTime &timestamp, qreal value, const QString &seriesLabel);
+    InteractiveGraphicsItem* addDataPointMarker(const QPointF &position, const QDateTime &timestamp, float value, const QString &seriesLabel);
 
     /**
      * @brief Add a reference line marker

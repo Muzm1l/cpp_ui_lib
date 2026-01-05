@@ -585,7 +585,7 @@ void WaterfallGraph::clearData()
  * @param yValue
  * @param timestamp
  */
-void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, const QDateTime &timestamp)
+void WaterfallGraph::addDataPoint(const QString &seriesLabel, float yValue, const QDateTime &timestamp)
 {
     if (!dataSource)
     {
@@ -616,7 +616,7 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, qreal yValue, cons
  * @param yValues
  * @param timestamps
  */
-void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps)
+void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps)
 {
     if (!dataSource)
     {

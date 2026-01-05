@@ -81,9 +81,9 @@ public:
     QString getDataTitle() const { return dataTitle; }
 
     // Multiple data series methods
-    void addDataSeries(const QString& seriesLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps);
-    void addDataPointToSeries(const QString& seriesLabel, qreal yValue, const QDateTime& timestamp);
-    void addDataPointsToSeries(const QString& seriesLabel, const std::vector<qreal>& yValues, const std::vector<QDateTime>& timestamps);
+    void addDataSeries(const QString& seriesLabel, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps);
+    void addDataPointToSeries(const QString& seriesLabel, float yValue, const QDateTime& timestamp);
+    void addDataPointsToSeries(const QString& seriesLabel, const std::vector<float>& yValues, const std::vector<QDateTime>& timestamps);
     void clearDataSeries(const QString& seriesLabel);
     void clearAllDataSeries();
 

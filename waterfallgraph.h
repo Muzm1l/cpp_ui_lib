@@ -82,8 +82,8 @@ public:
     void clearData();
 
     // Incremental data addition methods (delegates to data source)
-    void addDataPoint(const QString &seriesLabel, qreal yValue, const QDateTime &timestamp);
-    void addDataPoints(const QString &seriesLabel, const std::vector<qreal> &yValues, const std::vector<QDateTime> &timestamps);
+    void addDataPoint(const QString &seriesLabel, float yValue, const QDateTime &timestamp);
+    void addDataPoints(const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps);
 
     // Data access methods (delegates to data source)
     WaterfallData getData(const QString &seriesLabel) const;
