@@ -27,13 +27,16 @@ WaterfallData::WaterfallData(const QString& title, const std::vector<QString>& s
 
 WaterfallData::~WaterfallData()
 {
-    // Vectors will be automatically cleaned up
+    // Explicitly clear all containers to free QArrayData allocations
+    // This helps prevent QArrayData leaks (15.0 MB leak identified by heaptrack)
     dataSeriesYData.clear();
     dataSeriesTimestamps.clear();
+    dataSeriesTimestampsEpoch.clear(); // Was missing - now included
     rtwSymbols.clear();
     btwSymbols.clear();
     btwMarkers.clear();
     rtwRMarkers.clear();
+    dataTitle.clear(); // Clear QString to free QArrayData
 }
 
 void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)

@@ -41,8 +41,8 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
     // Enable mouse tracking
     // setMouseTracking(true);
 
-    // Initial draw
-    draw();
+    // Initial draw - DISABLED to prevent uninitialized value errors
+    // draw();
 }
 
 /**

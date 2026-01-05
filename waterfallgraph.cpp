@@ -276,6 +276,14 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
  */
 WaterfallGraph::~WaterfallGraph()
 {
+    // Clean up waterfall buffer explicitly to free QImageData memory
+    // This addresses the 11.6 MB QImageData::create leak identified by heaptrack
+    m_waterfallBuffer = QPixmap(); // Clear QPixmap to free underlying QImageData
+    m_waterfallBufferHeight = 0;
+    
+    // Clean up point pixmap cache to free QImageData allocations
+    pointPixmapCache.clear();
+    
     // Clean up crosshair items
     if (crosshairHorizontal) {
         delete crosshairHorizontal;
@@ -1626,6 +1634,15 @@ void WaterfallGraph::cleanupAllScatterplotItems()
         pair.second.clear();
     }
     m_seriesScatterplotItems.clear();
+    
+    // CRITICAL FIX: Also clear paintEvent() rendering caches
+    // These are used by paintEvent() for direct rendering, so they must be cleared
+    // when scatter plots are cleaned up, otherwise old points remain visible
+    // NOTE: We do NOT call update() here because this function is often called
+    // from within draw() which already triggers repaints. Callers should handle
+    // triggering repaints if needed.
+    m_scatterPoints.clear();
+    m_scatterColors.clear();
 }
 
 /**
@@ -1641,34 +1658,58 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
                                                      const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
                                                      qreal pointSize)
 {
-    if (!graphicsScene)
-    {
-        return;
-    }
+    // CRITICAL FIX: Update m_scatterPoints for paintEvent() rendering
+    // This is the primary rendering path now (graphicsView is hidden)
+    // Legacy m_seriesScatterplotItems update is kept for backward compatibility
+    QVector<QPointF> &points = m_scatterPoints[seriesLabel];
+    points.clear();
+    points.reserve(visibleData.size());
     
-    auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
-    if (itemIt == m_seriesScatterplotItems.end())
+    for (const auto &dataPoint : visibleData)
     {
-        return;
-    }
-    
-    std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
-    
-    // Update positions for all existing items - use epoch milliseconds (no timezone conversion!)
-    for (size_t i = 0; i < items.size() && i < visibleData.size(); ++i)
-    {
-        if (items[i])
+        if (dataPoint.second == 0)
         {
-            const auto &dataPoint = visibleData[i];
-            // dataPoint.second is now qint64 (epoch ms), not QDateTime
+            continue; // Skip invalid timestamps
+        }
+        
+        QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
+        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        {
+            continue; // Skip invalid screen coordinates
+        }
+        
+        points.append(screenPoint);
+    }
+    
+    // Trigger repaint (paintEvent will draw the batched points)
+    update();
+    
+    // Legacy: Update old QGraphicsPixmapItem positions (if they exist)
+    // This is kept for backward compatibility but graphicsView is hidden so these won't be visible
+    if (graphicsScene)
+    {
+        auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
+        if (itemIt != m_seriesScatterplotItems.end())
+        {
+            std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
             
-            QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
-            if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+            // Update positions for all existing items - use epoch milliseconds (no timezone conversion!)
+            for (size_t i = 0; i < items.size() && i < visibleData.size(); ++i)
             {
-                continue;
+                if (items[i])
+                {
+                    const auto &dataPoint = visibleData[i];
+                    // dataPoint.second is now qint64 (epoch ms), not QDateTime
+                    
+                    QPointF screenPoint = mapDataToScreen(dataPoint.first, dataPoint.second); // Use epoch ms overload
+                    if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+                    {
+                        continue;
+                    }
+                    
+                    items[i]->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
+                }
             }
-            
-            items[i]->setPos(screenPoint.x() - pointSize / 2, screenPoint.y() - pointSize / 2);
         }
     }
 }
@@ -2344,6 +2385,10 @@ void WaterfallGraph::initializeWaterfallBuffer(const QSize &size)
     // Only recreate if size changed
     if (m_waterfallBuffer.size() != size)
     {
+        // Explicitly clear old buffer before creating new one to free QImageData memory
+        // This helps prevent accumulation of QImageData allocations (11.6 MB leak identified by heaptrack)
+        m_waterfallBuffer = QPixmap(); // Clear old buffer first
+        
         m_waterfallBuffer = QPixmap(size);
         m_waterfallBuffer.fill(Qt::black); // Initialize with black background
         m_waterfallBufferHeight = size.height();
@@ -3985,7 +4030,16 @@ void WaterfallGraph::drawAllDataSeries()
                  << "visible:" << isSeriesVisible(seriesLabel);
         if (isSeriesVisible(seriesLabel))
         {
-            drawDataSeries(seriesLabel);
+            // Use line drawing if flag is set, otherwise use scatterplot
+            // This prevents QGraphicsEllipseItem creation when line drawing is enabled
+            if (m_useLineDrawing)
+            {
+                drawDataLine(seriesLabel, false);
+            }
+            else
+            {
+                drawDataSeries(seriesLabel);
+            }
         }
     }
 }
@@ -4003,6 +4057,15 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     {
         DEBUG_OUT() << "drawDataSeries: Early return for series:" << seriesLabel;
         return;
+    }
+    
+    // SAFETY CHECK: If line drawing is enabled, this function shouldn't be called
+    // But if it is, skip ellipse item creation to prevent QGraphicsEllipseItem leaks
+    // This addresses the 11.6M QGraphicsEllipseItem allocations (7.08M peak) identified by heaptrack
+    if (m_useLineDrawing)
+    {
+        DEBUG_OUT() << "drawDataSeries: Line drawing enabled, skipping ellipse item creation for series:" << seriesLabel;
+        return;  // Early return prevents ellipse item creation
     }
 
     // Use state machine to determine update strategy

@@ -21,7 +21,7 @@ MainWindow::MainWindow(QWidget *parent)
 {
     ui->setupUi(this);
     
-    // Hide TSW (Tactical Solution View) tab
+    // Hide TSW (Tactical Solution View) tab and widget - DISABLED
     int tacticalTabIndex = -1;
     for (int i = 0; i < ui->tabWidget->count(); ++i) {
         if (ui->tabWidget->tabText(i) == "Tactical View") {
@@ -31,6 +31,12 @@ MainWindow::MainWindow(QWidget *parent)
     }
     if (tacticalTabIndex >= 0) {
         ui->tabWidget->setTabVisible(tacticalTabIndex, false);
+    }
+    
+    // Hide and disable the TacticalSolutionView widget itself
+    if (ui->tsv) {
+        ui->tsv->setVisible(false);
+        ui->tsv->setEnabled(false);
     }
 
     // Initialize series labels map
@@ -414,6 +420,23 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Setup SCWWindow in a new tab
     setupSCWWindow();
+    
+    // Hide all tabs except first tab (Original View) and SCW Window for memory leak testing
+    int scwTabIndex = -1;
+    for (int i = 0; i < ui->tabWidget->count(); ++i) {
+        QString tabText = ui->tabWidget->tabText(i);
+        if (tabText == "SCW Window") {
+            scwTabIndex = i;
+            // Keep SCW tab visible
+            ui->tabWidget->setTabVisible(i, true);
+        } else if (i == 0) {
+            // Keep first tab (Original View) visible
+            ui->tabWidget->setTabVisible(i, true);
+        } else {
+            // Hide all other tabs
+            ui->tabWidget->setTabVisible(i, false);
+        }
+    }
     
     // Connect BTW symbol signal to SCWWindow (if it exists)
     // This will add magenta circles to SCW graphs whenever BTW markers are placed

@@ -403,3 +403,4 @@ To add a 10-second interval:
 
 The key insight is that the current system assumes **minutes**, so sub-minute intervals require special-case handling throughout the codebase.
 
+
