@@ -86,7 +86,7 @@ public:
     void setDataPoints(SCW_SERIES_E series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_E series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     
-    // Clear all graphs - clears all data from all data sources
+    // Clear all graphs - clears all data and symbols (including magenta circles) from all data sources
     void clearAllGraphs();
     
     // Get timeline view for external synchronization

@@ -1287,7 +1287,7 @@ void SCWWindow::onTimerTick()
 
 void SCWWindow::clearAllGraphs()
 {
-    DEBUG_OUT() << "SCWWindow: clearAllGraphs() - clearing all data from all graphs";
+    DEBUG_OUT() << "SCWWindow: clearAllGraphs() - clearing all data and symbols from all graphs";
     
     // Clear all data sources
     for (auto it = m_dataSourcesAdopted.begin(); it != m_dataSourcesAdopted.end(); ++it)
@@ -1295,6 +1295,7 @@ void SCWWindow::clearAllGraphs()
         if (it.value())
         {
             it.value()->clearAllDataSeries();
+            it.value()->clearBTWSymbols();  // Clear magenta circles (BTW symbols)
         }
     }
     
@@ -1303,6 +1304,7 @@ void SCWWindow::clearAllGraphs()
         if (it.value())
         {
             it.value()->clearAllDataSeries();
+            it.value()->clearBTWSymbols();  // Clear magenta circles (BTW symbols)
         }
     }
     
@@ -1311,6 +1313,7 @@ void SCWWindow::clearAllGraphs()
         if (it.value())
         {
             it.value()->clearAllDataSeries();
+            it.value()->clearBTWSymbols();  // Clear magenta circles (BTW symbols)
         }
     }
     
@@ -1319,6 +1322,7 @@ void SCWWindow::clearAllGraphs()
         if (it.value())
         {
             it.value()->clearAllDataSeries();
+            it.value()->clearBTWSymbols();  // Clear magenta circles (BTW symbols)
         }
     }
     
@@ -1327,6 +1331,7 @@ void SCWWindow::clearAllGraphs()
         if (it.value())
         {
             it.value()->clearAllDataSeries();
+            it.value()->clearBTWSymbols();  // Clear magenta circles (BTW symbols)
         }
     }
     
@@ -1339,7 +1344,7 @@ void SCWWindow::clearAllGraphs()
         }
     }
     
-    DEBUG_OUT() << "SCWWindow: clearAllGraphs() completed - all data cleared from all 16 data sources";
+    DEBUG_OUT() << "SCWWindow: clearAllGraphs() completed - all data and symbols cleared from all 16 data sources";
 }
 
 void SCWWindow::addBTWSymbolToAllGraphs(const QDateTime &timestamp)
