@@ -75,15 +75,15 @@ public:
     ~SCWWindow();
 
     // Data management APIs
-    void setDataPoints(SCW_SERIES_ADOPTED series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataPoints(SCW_SERIES_ADOPTED series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_ADOPTED series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
-    void setDataPoints(SCW_SERIES_R series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataPoints(SCW_SERIES_R series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_R series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
-    void setDataPoints(SCW_SERIES_B series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataPoints(SCW_SERIES_B series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_B series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
-    void setDataPoints(SCW_SERIES_A series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataPoints(SCW_SERIES_A series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_A series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
-    void setDataPoints(SCW_SERIES_E series, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataPoints(SCW_SERIES_E series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void addDataPoints(SCW_SERIES_E series, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     
     // Clear all graphs - clears all data and symbols (including magenta circles) from all data sources

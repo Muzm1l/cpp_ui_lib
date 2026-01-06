@@ -77,7 +77,7 @@ public:
     bool getUseLineDrawing() const;
 
     // Data handling (delegates to data source)
-    void setData(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setData(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void setData(const WaterfallData &data);
     void clearData();
 

@@ -520,7 +520,7 @@ void WaterfallGraph::resetViewState()
  * @param yData
  * @param timestamps
  */
-void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
+void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps)
 {
     if (!dataSource)
     {

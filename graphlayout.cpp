@@ -819,7 +819,7 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QS
     }
 }
 
-void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
+void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps)
 {
     QString dataSourceLabel = graphTypeToString(graphType);
     auto it = m_engines.find(graphType);
@@ -851,11 +851,12 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     {
         // Get the specific series data from the WaterfallData object
         auto seriesData = data.getAllDataSeries(seriesLabel);
-        std::vector<qreal> yData;
+        std::vector<float> yData;
         std::vector<QDateTime> timestamps;
         
         for (const auto& pair : seriesData) {
-            yData.push_back(pair.first);
+            // Convert qreal to float for storage
+            yData.push_back(static_cast<float>(pair.first));
             timestamps.push_back(pair.second);
         }
         
@@ -958,7 +959,7 @@ void GraphLayout::addSeriesToDataSource(const GraphType &graphType, const QStrin
     if (it != m_engines.end())
     {
         // Create empty vectors for the new series
-        std::vector<qreal> emptyYData;
+        std::vector<float> emptyYData;
         std::vector<QDateTime> emptyTimestamps;
         it->second->setDataSeries(seriesLabel, emptyYData, emptyTimestamps);
         DEBUG_OUT() << "Added series" << seriesLabel << "to engine" << graphTypeToString(graphType);
@@ -2171,7 +2172,7 @@ void GraphLayout::clearAllGraphs()
 
 // Marker and symbol management methods implementation
 
-void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
+void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2186,7 +2187,7 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
-bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2206,7 +2207,7 @@ bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &sym
     }
 }
 
-void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range)
+void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2221,7 +2222,7 @@ void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
-void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal delta)
+void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float delta)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2239,7 +2240,7 @@ void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &time
     }
 }
 
-void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range)
+void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2254,7 +2255,7 @@ void GraphLayout::addRTWRMarker(const GraphType &graphType, const QDateTime &tim
     }
 }
 
-bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2274,7 +2275,7 @@ bool GraphLayout::removeBTWMarker(const GraphType &graphType, const QDateTime &t
     }
 }
 
-bool GraphLayout::removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool GraphLayout::removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     auto it = m_engines.find(graphType);
     if (it != m_engines.end() && it->second)
@@ -2354,7 +2355,7 @@ void GraphLayout::clearRTWRMarkers(const GraphType &graphType)
     }
 }
 
-bool GraphLayout::addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate)
+bool GraphLayout::addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate)
 {
     // Find the first BTW graph container
     for (auto *container : m_graphContainers) {
@@ -2768,6 +2769,36 @@ void GraphLayout::redrawAllGraphs()
     DEBUG_OUT() << "GraphLayout: Redrew all graphs";
 }
 
+void GraphLayout::markTrackChanged()
+{
+    DEBUG_OUT() << "GraphLayout: Marking track change for all graphs in all containers";
+    
+    // Get all graph types
+    std::vector<GraphType> allGraphTypes = getAllGraphTypes();
+    
+    // Iterate through all containers
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+        {
+            continue;
+        }
+        
+        // Iterate through all graph types and mark track change on each graph
+        for (GraphType graphType : allGraphTypes)
+        {
+            WaterfallGraph *graph = container->getWaterfallGraph(graphType);
+            if (graph)
+            {
+                graph->markTrackChanged();
+                DEBUG_OUT() << "GraphLayout: Marked track change for graph type" << static_cast<int>(graphType) << "in container";
+            }
+        }
+    }
+    
+    DEBUG_OUT() << "GraphLayout: Track change marked for all graphs";
+}
+
 // Capacity management API implementation
 
 void GraphLayout::setDataSeriesCapacity(size_t capacity)
@@ -2878,7 +2909,7 @@ void GraphLayout::setAllArraysCapacity(size_t dataSeriesCapacity, size_t symbols
     DEBUG_OUT() << "GraphLayout: Set all arrays capacity completed";
 }
 
-void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal /* unusedRange */)
+void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* unusedRange */)
 {
     DEBUG_OUT() << "GraphLayout: Adding BTW symbol (magenta circle) to all graphs at timestamp" << timestamp.toString();
     

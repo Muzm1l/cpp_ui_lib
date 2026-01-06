@@ -38,28 +38,28 @@ public:
     // Data modification methods (delegate to WaterfallData)
     void addDataPoint(const QString &seriesLabel, float yValue, const QDateTime &timestamp);
     void addDataPoints(const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps);
-    void setDataSeries(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataSeries(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void clearDataSeries(const QString &seriesLabel);
     void clearAllDataSeries();
     
     // Symbol management (delegate to WaterfallData)
-    void addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
-    void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
+    void addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range);
+    void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range);
     void clearRTWSymbols();
     void clearBTWSymbols();
-    bool removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    bool removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     std::vector<RTWSymbolData> getRTWSymbols() const;
     std::vector<BTWSymbolData> getBTWSymbols() const;
     size_t getRTWSymbolsCount() const;
     size_t getBTWSymbolsCount() const;
     
     // Marker management (delegate to WaterfallData)
-    void addBTWMarker(const QDateTime &timestamp, qreal range, qreal delta);
-    void addRTWRMarker(const QDateTime &timestamp, qreal range);
+    void addBTWMarker(const QDateTime &timestamp, float range, float delta);
+    void addRTWRMarker(const QDateTime &timestamp, float range);
     void clearBTWMarkers();
     void clearRTWRMarkers();
-    bool removeBTWMarker(const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
-    bool removeRTWRMarker(const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    bool removeBTWMarker(const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
+    bool removeRTWRMarker(const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     std::vector<BTWMarkerData> getBTWMarkers() const;
     std::vector<RTWRMarkerData> getRTWRMarkers() const;
     

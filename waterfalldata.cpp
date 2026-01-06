@@ -8,7 +8,7 @@ WaterfallData::WaterfallData(const QString& title)
 {
     dataTitle = title;
     // Initialize empty circular buffers (unlimited capacity by default)
-    dataSeriesYData[dataTitle] = CircularBuffer<qreal>(0);
+    dataSeriesYData[dataTitle] = CircularBuffer<float>(0);
     dataSeriesTimestamps[dataTitle] = CircularBuffer<QDateTime>(0);
     dataSeriesTimestampsEpoch[dataTitle] = CircularBuffer<qint64>(0);
 }
@@ -20,7 +20,7 @@ WaterfallData::WaterfallData(const QString& title, const std::vector<QString>& s
     // Initialize empty circular buffers for each provided label (unlimited capacity by default)
     for (const QString& seriesLabel : seriesLabels)
     {
-        dataSeriesYData[seriesLabel] = CircularBuffer<qreal>(0);
+        dataSeriesYData[seriesLabel] = CircularBuffer<float>(0);
         dataSeriesTimestamps[seriesLabel] = CircularBuffer<QDateTime>(0);
         dataSeriesTimestampsEpoch[seriesLabel] = CircularBuffer<qint64>(0);
     }
@@ -40,7 +40,7 @@ WaterfallData::~WaterfallData()
     dataTitle.clear(); // Clear QString to free QArrayData
 }
 
-void WaterfallData::setData(const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void WaterfallData::setData(const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     // Validate that both vectors have the same size
     if (yData.size() != timestamps.size()) {
@@ -102,12 +102,12 @@ std::pair<qreal, qreal> WaterfallData::getYRange() const
     {
         if (pair.second.empty()) continue;
         
-        // Iterate through circular buffer using indexing
-        qreal seriesMin = pair.second[0];
-        qreal seriesMax = pair.second[0];
+        // Iterate through circular buffer using indexing, convert float to qreal for calculations
+        qreal seriesMin = static_cast<qreal>(pair.second[0]);
+        qreal seriesMax = static_cast<qreal>(pair.second[0]);
         for (size_t i = 1; i < pair.second.size(); ++i)
         {
-            qreal val = pair.second[i];
+            qreal val = static_cast<qreal>(pair.second[i]);
             if (val < seriesMin) seriesMin = val;
             if (val > seriesMax) seriesMax = val;
         }
@@ -162,11 +162,12 @@ qreal WaterfallData::getMinY() const
     for (const auto& pair : dataSeriesYData) {
         if (pair.second.empty()) continue;
         
-        // Find min using indexing
-        qreal seriesMin = pair.second[0];
+        // Find min using indexing, convert float to qreal for calculations
+        qreal seriesMin = static_cast<qreal>(pair.second[0]);
         for (size_t i = 1; i < pair.second.size(); ++i) {
-            if (pair.second[i] < seriesMin) {
-                seriesMin = pair.second[i];
+            qreal val = static_cast<qreal>(pair.second[i]);
+            if (val < seriesMin) {
+                seriesMin = val;
             }
         }
         
@@ -190,11 +191,12 @@ qreal WaterfallData::getMaxY() const
     for (const auto& pair : dataSeriesYData) {
         if (pair.second.empty()) continue;
         
-        // Find max using indexing
-        qreal seriesMax = pair.second[0];
+        // Find max using indexing, convert float to qreal for calculations
+        qreal seriesMax = static_cast<qreal>(pair.second[0]);
         for (size_t i = 1; i < pair.second.size(); ++i) {
-            if (pair.second[i] > seriesMax) {
-                seriesMax = pair.second[i];
+            qreal val = static_cast<qreal>(pair.second[i]);
+            if (val > seriesMax) {
+                seriesMax = val;
             }
         }
         
@@ -332,12 +334,9 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
         return;
     }
 
-    // Convert float to double (qreal) for internal storage
-    std::vector<qreal> yDataDouble(yData.begin(), yData.end());
-
-    // Store the data series using circular buffers (preserve existing capacity)
+    // Store directly as float (no conversion needed)
     size_t existingCapacity = dataSeriesYData[seriesLabel].capacity();
-    dataSeriesYData[seriesLabel].assign(yDataDouble);
+    dataSeriesYData[seriesLabel].assign(yData);
     dataSeriesTimestamps[seriesLabel].assign(timestamps);
     
     // Restore capacity if it was set
@@ -363,11 +362,8 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
 
 void WaterfallData::addDataPointToSeries(const QString& seriesLabel, float yValue, const QDateTime& timestamp)
 {
-    // Convert float to double (qreal) for internal storage
-    qreal yValueDouble = static_cast<qreal>(yValue);
-    
-    // Circular buffers automatically handle capacity limits
-    dataSeriesYData[seriesLabel].push_back(yValueDouble);
+    // Store directly as float (no conversion needed)
+    dataSeriesYData[seriesLabel].push_back(yValue);
     dataSeriesTimestamps[seriesLabel].push_back(timestamp);
     // Store epoch milliseconds in parallel (convert once, not in hot path)
     dataSeriesTimestampsEpoch[seriesLabel].push_back(timestamp.toMSecsSinceEpoch());
@@ -384,11 +380,8 @@ void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std:
         return;
     }
 
-    // Convert float to double (qreal) for internal storage
-    std::vector<qreal> yValuesDouble(yValues.begin(), yValues.end());
-
-    // Append the data to existing series (circular buffers handle capacity automatically)
-    dataSeriesYData[seriesLabel].push_back(yValuesDouble);
+    // Store directly as float (no conversion needed)
+    dataSeriesYData[seriesLabel].push_back(yValues);
     dataSeriesTimestamps[seriesLabel].push_back(timestamps);
     
     // Store epoch milliseconds in parallel (convert once, not in hot path)
@@ -424,7 +417,8 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeries(const QStr
         result.reserve(yIt->second.size());
 
         for (size_t i = 0; i < yIt->second.size(); ++i) {
-            result.emplace_back(yIt->second[i], tIt->second[i]);
+            // Convert float to qreal when returning
+            result.emplace_back(static_cast<qreal>(yIt->second[i]), tIt->second[i]);
         }
     }
 
@@ -440,8 +434,10 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeriesWithinYExte
 
     if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
         for (size_t i = 0; i < yIt->second.size(); ++i) {
-            if (yIt->second[i] >= yMin && yIt->second[i] <= yMax) {
-                result.emplace_back(yIt->second[i], tIt->second[i]);
+            float val = yIt->second[i];
+            if (val >= static_cast<float>(yMin) && val <= static_cast<float>(yMax)) {
+                // Convert float to qreal when returning
+                result.emplace_back(static_cast<qreal>(val), tIt->second[i]);
             }
         }
     }
@@ -459,7 +455,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeriesWithinTimeR
     if (yIt != dataSeriesYData.end() && tIt != dataSeriesTimestamps.end()) {
         // Convert circular buffers to vectors for binary search
         std::vector<QDateTime> timestamps = tIt->second.toVector();
-        std::vector<qreal> yData = yIt->second.toVector();
+        std::vector<float> yData = yIt->second.toVector();
         
         if (timestamps.empty() || timestamps.size() != yData.size()) {
             return result;
@@ -479,7 +475,8 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeriesWithinTimeR
         if (startIdx < endIdx) {
             result.reserve(endIdx - startIdx);
             for (size_t i = startIdx; i < endIdx; ++i) {
-                result.emplace_back(yData[i], timestamps[i]);
+                // Convert float to qreal when returning
+                result.emplace_back(static_cast<qreal>(yData[i]), timestamps[i]);
             }
         }
     }
@@ -498,7 +495,7 @@ bool WaterfallData::findClosestDataPoint(const QString& seriesLabel, const QDate
     
     // Convert circular buffers to vectors for binary search
     std::vector<QDateTime> timestamps = tIt->second.toVector();
-    std::vector<qreal> yData = yIt->second.toVector();
+    std::vector<float> yData = yIt->second.toVector();
     
     if (timestamps.empty() || timestamps.size() != yData.size()) {
         return false;
@@ -532,7 +529,8 @@ bool WaterfallData::findClosestDataPoint(const QString& seriesLabel, const QDate
     }
     
     if (bestIdx < timestamps.size() && bestDiff <= toleranceMs) {
-        outValue = yData[bestIdx];
+        // Convert float to qreal when returning
+        outValue = static_cast<qreal>(yData[bestIdx]);
         outIndex = bestIdx;
         return true;
     }
@@ -545,7 +543,14 @@ std::vector<qreal> WaterfallData::getYDataSeries(const QString& seriesLabel) con
     auto it = dataSeriesYData.find(seriesLabel);
     if (it != dataSeriesYData.end())
     {
-        return it->second.toVector();
+        // Convert float to qreal when returning
+        std::vector<float> floatData = it->second.toVector();
+        std::vector<qreal> result;
+        result.reserve(floatData.size());
+        for (float val : floatData) {
+            result.push_back(static_cast<qreal>(val));
+        }
+        return result;
     }
     return std::vector<qreal>();
 }
@@ -576,11 +581,12 @@ void WaterfallData::populateYDataSeries(const QString& seriesLabel, std::vector<
     auto it = dataSeriesYData.find(seriesLabel);
     if (it != dataSeriesYData.end())
     {
-        const CircularBuffer<qreal>& buffer = it->second;
+        const CircularBuffer<float>& buffer = it->second;
         output.reserve(buffer.size());
         for (size_t i = 0; i < buffer.size(); ++i)
         {
-            output.push_back(buffer[i]);
+            // Convert float to qreal when populating
+            output.push_back(static_cast<qreal>(buffer[i]));
         }
     }
 }
@@ -651,12 +657,13 @@ std::pair<qreal, qreal> WaterfallData::getYRangeSeries(const QString& seriesLabe
         return std::make_pair(0.0, 0.0);
     }
 
-    // Find min/max using indexing
-    qreal minY = it->second[0];
-    qreal maxY = it->second[0];
+    // Find min/max using indexing, convert float to qreal for calculations
+    qreal minY = static_cast<qreal>(it->second[0]);
+    qreal maxY = static_cast<qreal>(it->second[0]);
     for (size_t i = 1; i < it->second.size(); ++i) {
-        if (it->second[i] < minY) minY = it->second[i];
-        if (it->second[i] > maxY) maxY = it->second[i];
+        qreal val = static_cast<qreal>(it->second[i]);
+        if (val < minY) minY = val;
+        if (val > maxY) maxY = val;
     }
     return std::make_pair(minY, maxY);
 }
@@ -687,12 +694,13 @@ std::pair<qreal, qreal> WaterfallData::getCombinedYRange() const
     // Check all data series
     for (const auto& pair : dataSeriesYData) {
         if (!pair.second.empty()) {
-            // Find min/max using indexing
-            qreal seriesMin = pair.second[0];
-            qreal seriesMax = pair.second[0];
+            // Find min/max using indexing, convert float to qreal for calculations
+            qreal seriesMin = static_cast<qreal>(pair.second[0]);
+            qreal seriesMax = static_cast<qreal>(pair.second[0]);
             for (size_t i = 1; i < pair.second.size(); ++i) {
-                if (pair.second[i] < seriesMin) seriesMin = pair.second[i];
-                if (pair.second[i] > seriesMax) seriesMax = pair.second[i];
+                qreal val = static_cast<qreal>(pair.second[i]);
+                if (val < seriesMin) seriesMin = val;
+                if (val > seriesMax) seriesMax = val;
             }
             
             globalMin = std::min(globalMin, seriesMin);
@@ -782,7 +790,7 @@ bool WaterfallData::isValidSelectionTime(const QDateTime& time) const
 
 // Series-specific versions of legacy methods implementation
 
-void WaterfallData::setDataSeries(const QString& seriesLabel, const std::vector<qreal>& yData, const std::vector<QDateTime>& timestamps)
+void WaterfallData::setDataSeries(const QString& seriesLabel, const std::vector<float>& yData, const std::vector<QDateTime>& timestamps)
 {
     // Validate that both vectors have the same size
     if (yData.size() != timestamps.size()) {
@@ -828,7 +836,8 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getAllDataSeries(const Q
         result.reserve(yIt->second.size());
         
         for (size_t i = 0; i < yIt->second.size(); ++i) {
-            result.emplace_back(yIt->second[i], tIt->second[i]);
+            // Convert float to qreal when returning
+            result.emplace_back(static_cast<qreal>(yIt->second[i]), tIt->second[i]);
         }
     }
     
@@ -842,10 +851,11 @@ qreal WaterfallData::getMinYSeries(const QString& seriesLabel) const
         return 0.0;
     }
 
-    // Find min using indexing
-    qreal minY = it->second[0];
+    // Find min using indexing, convert float to qreal for calculations
+    qreal minY = static_cast<qreal>(it->second[0]);
     for (size_t i = 1; i < it->second.size(); ++i) {
-        if (it->second[i] < minY) minY = it->second[i];
+        qreal val = static_cast<qreal>(it->second[i]);
+        if (val < minY) minY = val;
     }
     return minY;
 }
@@ -857,10 +867,11 @@ qreal WaterfallData::getMaxYSeries(const QString& seriesLabel) const
         return 0.0;
     }
 
-    // Find max using indexing
-    qreal maxY = it->second[0];
+    // Find max using indexing, convert float to qreal for calculations
+    qreal maxY = static_cast<qreal>(it->second[0]);
     for (size_t i = 1; i < it->second.size(); ++i) {
-        if (it->second[i] > maxY) maxY = it->second[i];
+        qreal val = static_cast<qreal>(it->second[i]);
+        if (val > maxY) maxY = val;
     }
     return maxY;
 }
@@ -946,7 +957,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::getBinnedDataSeries(cons
     }
     
     // Convert circular buffers to vectors for iteration
-    std::vector<qreal> yData = yIt->second.toVector();
+    std::vector<float> yData = yIt->second.toVector();
     std::vector<QDateTime> timestamps = tIt->second.toVector();
     
     if (timestamps.empty()) {
@@ -1052,7 +1063,7 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallData::binDataByTime(
 
 // RTW Symbol management methods implementation
 
-void WaterfallData::addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+void WaterfallData::addRTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range)
 {
     RTWSymbolData symbolData;
     symbolData.symbolName = symbolName;
@@ -1070,7 +1081,7 @@ void WaterfallData::clearRTWSymbols()
     DEBUG_OUT() << "WaterfallData: Cleared all RTW symbols";
 }
 
-bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     // Use erase_if with predicate to remove matching symbol
     bool found = false;
@@ -1078,9 +1089,9 @@ bool WaterfallData::removeRTWSymbol(const QString& symbolName, const QDateTime& 
         if (symbol.symbolName != symbolName) return false;
         
         qint64 timeDiff = qAbs(symbol.timestamp.msecsTo(timestamp));
-        qreal rangeDiff = qAbs(symbol.range - range);
+        float rangeDiff = qAbs(symbol.range - range);
         
-        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        if (timeDiff <= static_cast<qint64>(toleranceMs) && rangeDiff <= rangeTolerance)
         {
             found = true;
             return true; // Erase this element
@@ -1109,7 +1120,7 @@ size_t WaterfallData::getRTWSymbolsCount() const
 }
 
 // BTW Symbol management methods
-void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, qreal range)
+void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range)
 {
     BTWSymbolData symbolData;
     symbolData.symbolName = symbolName;
@@ -1173,7 +1184,7 @@ size_t WaterfallData::getBTWSymbolsCount() const
 
 // BTW Marker management methods implementation
 
-void WaterfallData::addBTWMarker(const QDateTime& timestamp, qreal range, qreal delta)
+void WaterfallData::addBTWMarker(const QDateTime& timestamp, float range, float delta)
 {
     BTWMarkerData markerData;
     markerData.timestamp = timestamp;
@@ -1191,15 +1202,15 @@ void WaterfallData::clearBTWMarkers()
     DEBUG_OUT() << "WaterfallData: Cleared all BTW markers";
 }
 
-bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool WaterfallData::removeBTWMarker(const QDateTime& timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     // Use erase_if with predicate to remove matching marker
     bool found = false;
     btwMarkers.erase_if([&](const BTWMarkerData& marker) {
         qint64 timeDiff = qAbs(marker.timestamp.msecsTo(timestamp));
-        qreal rangeDiff = qAbs(marker.range - range);
+        float rangeDiff = qAbs(marker.range - range);
         
-        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        if (timeDiff <= static_cast<qint64>(toleranceMs) && rangeDiff <= rangeTolerance)
         {
             found = true;
             return true; // Erase this element
@@ -1263,7 +1274,7 @@ size_t WaterfallData::getBTWMarkersCount() const
 
 // RTW R Marker management methods implementation
 
-void WaterfallData::addRTWRMarker(const QDateTime& timestamp, qreal range)
+void WaterfallData::addRTWRMarker(const QDateTime& timestamp, float range)
 {
     RTWRMarkerData markerData;
     markerData.timestamp = timestamp;
@@ -1280,15 +1291,15 @@ void WaterfallData::clearRTWRMarkers()
     DEBUG_OUT() << "WaterfallData: Cleared all RTW R markers";
 }
 
-bool WaterfallData::removeRTWRMarker(const QDateTime& timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool WaterfallData::removeRTWRMarker(const QDateTime& timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     // Use erase_if with predicate to remove matching marker
     bool found = false;
     rtwRMarkers.erase_if([&](const RTWRMarkerData& marker) {
         qint64 timeDiff = qAbs(marker.timestamp.msecsTo(timestamp));
-        qreal rangeDiff = qAbs(marker.range - range);
+        float rangeDiff = qAbs(marker.range - range);
         
-        if (timeDiff <= toleranceMs && rangeDiff <= rangeTolerance)
+        if (timeDiff <= static_cast<qint64>(toleranceMs) && rangeDiff <= rangeTolerance)
         {
             found = true;
             return true; // Erase this element

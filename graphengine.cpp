@@ -49,7 +49,7 @@ void GraphEngine::addDataPoints(const QString &seriesLabel, const std::vector<fl
     emit dataRangeChanged();
 }
 
-void GraphEngine::setDataSeries(const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps)
+void GraphEngine::setDataSeries(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps)
 {
     m_data.setDataSeries(seriesLabel, yData, timestamps);
     emit dataAppended(seriesLabel);
@@ -69,13 +69,13 @@ void GraphEngine::clearAllDataSeries()
 }
 
 // Symbol management
-void GraphEngine::addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
+void GraphEngine::addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range)
 {
     m_data.addRTWSymbol(symbolName, timestamp, range);
     emit symbolsChanged();
 }
 
-void GraphEngine::addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
+void GraphEngine::addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range)
 {
     m_data.addBTWSymbol(symbolName, timestamp, range);
     emit symbolsChanged();
@@ -93,7 +93,7 @@ void GraphEngine::clearBTWSymbols()
     emit symbolsChanged();
 }
 
-bool GraphEngine::removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool GraphEngine::removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     bool removed = m_data.removeRTWSymbol(symbolName, timestamp, range, toleranceMs, rangeTolerance);
     if (removed) {
@@ -123,13 +123,13 @@ size_t GraphEngine::getBTWSymbolsCount() const
 }
 
 // Marker management
-void GraphEngine::addBTWMarker(const QDateTime &timestamp, qreal range, qreal delta)
+void GraphEngine::addBTWMarker(const QDateTime &timestamp, float range, float delta)
 {
     m_data.addBTWMarker(timestamp, range, delta);
     emit markersChanged();
 }
 
-void GraphEngine::addRTWRMarker(const QDateTime &timestamp, qreal range)
+void GraphEngine::addRTWRMarker(const QDateTime &timestamp, float range)
 {
     m_data.addRTWRMarker(timestamp, range);
     emit markersChanged();
@@ -147,7 +147,7 @@ void GraphEngine::clearRTWRMarkers()
     emit markersChanged();
 }
 
-bool GraphEngine::removeBTWMarker(const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool GraphEngine::removeBTWMarker(const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     bool removed = m_data.removeBTWMarker(timestamp, range, toleranceMs, rangeTolerance);
     if (removed) {
@@ -156,7 +156,7 @@ bool GraphEngine::removeBTWMarker(const QDateTime &timestamp, qreal range, qreal
     return removed;
 }
 
-bool GraphEngine::removeRTWRMarker(const QDateTime &timestamp, qreal range, qreal toleranceMs, qreal rangeTolerance)
+bool GraphEngine::removeRTWRMarker(const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     bool removed = m_data.removeRTWRMarker(timestamp, range, toleranceMs, rangeTolerance);
     if (removed) {

@@ -65,7 +65,7 @@ public:
     // Data point methods for specific data sources
     void addDataPointToDataSource(const GraphType &graphType, const QString &seriesLabel, float yValue, const QDateTime &timestamp);
     void addDataPointsToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<float> &yValues, const std::vector<QDateTime> &timestamps);
-    void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<qreal> &yData, const std::vector<QDateTime> &timestamps);
+    void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data);
     void clearDataSource(const GraphType &graphType, const QString &seriesLabel);
 
@@ -159,15 +159,15 @@ public:
     void clearAllGraphs();
 
     // Marker and symbol management methods - operate on specific graph type
-    void addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range);
-    void addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range);
-    void addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal delta);
-    void addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range);
+    void addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
+    void addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
+    void addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float delta);
+    void addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range);
     
     // Remove individual markers and symbols
-    bool removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
-    bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
-    bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, qreal range, qreal toleranceMs = 1000, qreal rangeTolerance = 0.1);
+    bool removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
+    bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
+    bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     
     // Clear markers and symbols for specific graph type
     void clearRTWSymbols(const GraphType &graphType);
@@ -185,7 +185,7 @@ public:
      * @param bearingRate Optional bearing rate (defaults to 0.0)
      * @return true if marker was created successfully
      */
-    bool addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate = 0.0);
+    bool addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate = 0.0f);
     
     // ========== BTW Horizontal Line Management ==========
     
@@ -273,6 +273,23 @@ public:
     
     // Redraw all graphs
     void redrawAllGraphs();
+    
+    // Fast track switching API - marks track change for visible-window-first rendering
+    /**
+     * @brief Mark that a track change has occurred for all graphs.
+     * 
+     * This method enables fast track switching by:
+     * - Clearing all caches in all graphs to prevent stale data
+     * - Triggering visible-window-first rendering (only builds geometry for current visible window)
+     * - Ensuring immediate visual feedback without blocking on full historical rebuild
+     * 
+     * The track change mode is automatically reset after rendering completes,
+     * and normal operation resumes.
+     * 
+     * Call this when switching between tracks in a multi-track system (e.g., 64-track system).
+     * This will mark all graphs in all containers for fast track switching.
+     */
+    void markTrackChanged();
 
     // Capacity management API - set sizes for all arrays used to store graph data
     /**
@@ -383,7 +400,7 @@ private:
     void onContainerTimeScopeChanged(const TimeSelectionSpan &selection);
     
     // Helper to add BTW symbol (magenta circle) to all graphs at a timestamp
-    void addBTWSymbolToAllGraphs(const QDateTime &timestamp, qreal range);
+    void addBTWSymbolToAllGraphs(const QDateTime &timestamp, float range);
     
     // Batch method to add magenta circles for all existing BTW markers (more efficient)
     void addBTWSymbolsForExistingBTWMarkers();
