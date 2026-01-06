@@ -90,13 +90,18 @@ SliderState::SliderState()
     m_timeWindow = TimeSelectionSpan(fifteenMinutesAgo, now);
 }
 
-void SliderState::setYPosition(int y, int widgetHeight, const QTime& interval)
+void SliderState::setYPosition(int y, int widgetHeight, const QTime& interval, bool preserveTimeWindow)
 {
     int sliderHeight = SliderGeometry::calculateSliderHeight(interval, widgetHeight);
     QPair<int, int> bounds = SliderGeometry::getSliderBounds(widgetHeight, sliderHeight);
     m_yPosition = qBound(bounds.first, y, bounds.second);
-    // Not dragging, so use normal 12-hour range
-    syncTimeWindowFromPosition(widgetHeight, interval, QDateTime(), false);
+    // Only sync time window if not preserving it (for frozen mode)
+    // When preserveTimeWindow is true, the time window should be set explicitly via setTimeWindow()
+    if (!preserveTimeWindow)
+    {
+        // Not dragging, so use normal 12-hour range
+        syncTimeWindowFromPosition(widgetHeight, interval, QDateTime(), false);
+    }
 }
 
 int SliderState::getYPosition() const
@@ -1258,10 +1263,17 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
             // Slider is not at top, switch to frozen mode
             m_timelineViewMode = TimelineViewMode::FROZEN_MODE;
             
+            // CRITICAL FIX: Preserve the time window that was set during drag
+            // Don't recalculate it - endDrag() already set it correctly using the application start time range
+            // The time window is already correct from endDrag(), so we just need to ensure it's preserved
+            // No need to call setYPosition or setTimeWindow here - they would recalculate incorrectly
+            
             // Emit signal to notify parent TimelineView
             emit timelineViewModeChanged(TimelineViewMode::FROZEN_MODE);
             
-            DEBUG_OUT() << "Slider not at top - switched to FROZEN_MODE at Y:" << sliderY;
+            DEBUG_OUT() << "Slider not at top - switched to FROZEN_MODE at Y:" << sliderY
+                     << "Time window:" << m_sliderState.getTimeWindow().startTime.toString("HH:mm:ss")
+                     << "to" << m_sliderState.getTimeWindow().endTime.toString("HH:mm:ss");
         }
         
         // Keep legacy member in sync
@@ -1980,6 +1992,12 @@ void TimelineView::onTimelineViewModeChanged(TimelineViewMode mode)
     // Update our mode to match the visualizer widget
     m_timelineViewMode = mode;
     
+    // CRITICAL FIX: Update sync state immediately so other containers see the change
+    // This prevents the sync state from being out of sync and causing mode resets
+    if (m_syncState)
+    {
+        m_syncState->isGraphContainerInFollowMode = (mode == TimelineViewMode::FOLLOW_MODE);
+    }
 
     // This is the standard location where the mode transition logic is handled
     handleModeTransitionLogic(mode);

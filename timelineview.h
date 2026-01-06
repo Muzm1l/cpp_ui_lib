@@ -83,7 +83,7 @@ public:
     SliderState();
     
     // Position management
-    void setYPosition(int y, int widgetHeight, const QTime& interval);
+    void setYPosition(int y, int widgetHeight, const QTime& interval, bool preserveTimeWindow = false);
     int getYPosition() const;
     
     // Time window management
