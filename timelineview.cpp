@@ -255,7 +255,7 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight)
 // ============================================================================
 
 TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
-    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_sliderIndicator(nullptr), m_syncState(syncState), m_sliderVisible(sliderVisible), m_chevronVisible(chevronVisible), m_manoeuvreOverlay(nullptr)
+    : QWidget(parent), m_currentTime(QTime::currentTime()), m_numberOfDivisions(15), m_lastCurrentTime(QTime::currentTime()), m_pixelSpeed(0.0), m_accumulatedOffset(0.0), m_sliderIndicator(nullptr), m_syncState(syncState), m_sliderVisible(sliderVisible), m_chevronVisible(chevronVisible), m_manoeuvreOverlay(nullptr), m_showCrosshairTimestamp(false)
 {
     setFixedWidth(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
