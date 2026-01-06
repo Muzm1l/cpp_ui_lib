@@ -169,21 +169,17 @@ void GraphContainer::onTimerTick()
 
     if (m_timelineView)
     {
-        // Update mode from sync state if available and mode has changed
+        // CRITICAL FIX: Do NOT update mode from sync state in timer tick
+        // Mode changes should only happen from user interaction (slider drag/release)
+        // or explicit signals, not from polling sync state on every timer tick.
+        // Polling causes frozen mode to be overridden when another container is in follow mode.
+        // The sync state is shared, so if one container is in follow mode, it sets the
+        // sync state to true, which then forces all other containers to follow mode on next tick.
+        
+        // Update crosshair timestamp from shared sync state
+        // This ensures crosshair appears in timeline view even when cursor changes in another container
         if (m_syncState)
         {
-            TimelineViewMode newMode = m_syncState->isGraphContainerInFollowMode 
-                ? TimelineViewMode::FOLLOW_MODE 
-                : TimelineViewMode::FROZEN_MODE;
-            
-            // Only update mode if it has actually changed to avoid resetting slider unnecessarily
-            if (m_timelineView->getTimelineViewMode() != newMode)
-            {
-                m_timelineView->setTimelineViewMode(newMode);
-            }
-            
-            // Update crosshair timestamp from shared sync state
-            // This ensures crosshair appears in timeline view even when cursor changes in another container
             if (m_syncState->hasCursorTime && m_syncState->cursorTime.isValid())
             {
                 m_timelineView->updateCrosshairTimestampFromTime(m_syncState->cursorTime);
@@ -1376,19 +1372,9 @@ void GraphContainer::setCurrentTime(const QTime &time)
 
     if (m_timelineView)
     {
-        // Update mode from sync state if available and mode has changed
-        if (m_syncState)
-        {
-            TimelineViewMode newMode = m_syncState->isGraphContainerInFollowMode 
-                ? TimelineViewMode::FOLLOW_MODE 
-                : TimelineViewMode::FROZEN_MODE;
-            
-            // Only update mode if it has actually changed to avoid resetting slider unnecessarily
-            if (m_timelineView->getTimelineViewMode() != newMode)
-            {
-                m_timelineView->setTimelineViewMode(newMode);
-            }
-        }
+        // CRITICAL FIX: Do NOT update mode from sync state here either
+        // Mode changes should only happen from user interaction (slider drag/release)
+        // or explicit signals, not from polling sync state.
         
         // TimelineView will decide whether to update slider based on its current mode
         m_timelineView->setCurrentTime(time);
