@@ -285,3 +285,4 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent,
 **Unique Error Locations:** 3 locations in timelineview.cpp  
 **Root Cause:** 1 uninitialized member variable
 
+

@@ -570,6 +570,51 @@ std::vector<qint64> WaterfallData::getTimestampsEpochSeries(const QString& serie
     return std::vector<qint64>();
 }
 
+void WaterfallData::populateYDataSeries(const QString& seriesLabel, std::vector<qreal>& output) const
+{
+    output.clear();
+    auto it = dataSeriesYData.find(seriesLabel);
+    if (it != dataSeriesYData.end())
+    {
+        const CircularBuffer<qreal>& buffer = it->second;
+        output.reserve(buffer.size());
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+            output.push_back(buffer[i]);
+        }
+    }
+}
+
+void WaterfallData::populateTimestampsSeries(const QString& seriesLabel, std::vector<QDateTime>& output) const
+{
+    output.clear();
+    auto it = dataSeriesTimestamps.find(seriesLabel);
+    if (it != dataSeriesTimestamps.end())
+    {
+        const CircularBuffer<QDateTime>& buffer = it->second;
+        output.reserve(buffer.size());
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+            output.push_back(buffer[i]);
+        }
+    }
+}
+
+void WaterfallData::populateTimestampsEpochSeries(const QString& seriesLabel, std::vector<qint64>& output) const
+{
+    output.clear();
+    auto it = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (it != dataSeriesTimestampsEpoch.end())
+    {
+        const CircularBuffer<qint64>& buffer = it->second;
+        output.reserve(buffer.size());
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+            output.push_back(buffer[i]);
+        }
+    }
+}
+
 size_t WaterfallData::getDataSeriesSize(const QString& seriesLabel) const
 {
     auto it = dataSeriesYData.find(seriesLabel);

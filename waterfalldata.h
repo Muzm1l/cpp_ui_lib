@@ -99,6 +99,12 @@ public:
     // Note: Returns vectors converted from circular buffers (chronological order, oldest first)
     std::vector<qreal> getYDataSeries(const QString& seriesLabel) const;
     std::vector<QDateTime> getTimestampsSeries(const QString& seriesLabel) const;
+    
+    // Reusable vector population methods (avoids toVector() allocations)
+    // These methods populate a reusable vector passed by reference, avoiding temporary allocations
+    void populateYDataSeries(const QString& seriesLabel, std::vector<qreal>& output) const;
+    void populateTimestampsSeries(const QString& seriesLabel, std::vector<QDateTime>& output) const;
+    void populateTimestampsEpochSeries(const QString& seriesLabel, std::vector<qint64>& output) const;
     std::vector<qint64> getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
 
     // Data series utility methods

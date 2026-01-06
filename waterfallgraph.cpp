@@ -284,6 +284,17 @@ WaterfallGraph::~WaterfallGraph()
     // Clean up point pixmap cache to free QImageData allocations
     pointPixmapCache.clear();
     
+    // Clear reusable vectors to free memory (explicit cleanup)
+    m_reusableYData.clear();
+    m_reusableTimestamps.clear();
+    m_reusableTimestampsEpoch.clear();
+    m_reusableVisibleData.clear();
+    m_reusablePointFVector.clear();
+    m_reusablePainterPathVector.clear();
+    m_reusableSeriesLabels.clear();
+    m_reusableVisibleSymbols.clear();
+    m_reusableBatchedPaths.clear();
+    
     // Clean up crosshair items
     if (crosshairHorizontal) {
         delete crosshairHorizontal;
@@ -1406,7 +1417,9 @@ bool WaterfallGraph::isVisibleDataCacheValid(const QString &seriesLabel) const
     {
         return false;
     }
-    const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
+    // Use reusable vector to avoid toVector() allocation
+    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
+    const std::vector<qreal> &yData = m_reusableYData;
     if (sizeIt->second != yData.size())
     {
         return false;
@@ -1471,8 +1484,11 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
         return;
     }
     
-    const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<qint64> &timestampsEpoch = dataSource->getTimestampsEpochSeries(seriesLabel); // Use epoch milliseconds
+    // Use reusable vectors to avoid toVector() allocations
+    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
+    dataSource->populateTimestampsEpochSeries(seriesLabel, m_reusableTimestampsEpoch);
+    const std::vector<qreal> &yData = m_reusableYData;
+    const std::vector<qint64> &timestampsEpoch = m_reusableTimestampsEpoch; // Use epoch milliseconds
     
     if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
     {
@@ -1538,8 +1554,11 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
         return;
     }
     
-    const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<qint64> &timestampsEpoch = dataSource->getTimestampsEpochSeries(seriesLabel); // Use epoch milliseconds
+    // Use reusable vectors to avoid toVector() allocations
+    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
+    dataSource->populateTimestampsEpochSeries(seriesLabel, m_reusableTimestampsEpoch);
+    const std::vector<qreal> &yData = m_reusableYData;
+    const std::vector<qint64> &timestampsEpoch = m_reusableTimestampsEpoch; // Use epoch milliseconds
     
     if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
     {
@@ -1798,8 +1817,14 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
         return;
     }
     
-    // Convert circular buffer to vector for iteration
-    std::vector<std::pair<qreal, qint64>> cachedData = cacheIt->second.toVector(); // epoch ms
+    // Convert circular buffer to reusable vector for iteration (avoid repeated allocations)
+    m_reusableVisibleData.clear();
+    m_reusableVisibleData.reserve(cacheIt->second.size());
+    for (size_t i = 0; i < cacheIt->second.size(); ++i)
+    {
+        m_reusableVisibleData.push_back(cacheIt->second[i]);
+    }
+    const std::vector<std::pair<qreal, qint64>> &cachedData = m_reusableVisibleData; // epoch ms
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
     // Convert newTimeMin to epoch ONCE (not per iteration!)
@@ -2617,11 +2642,16 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
         if (pointsBuffer.empty())
             continue;
         
-        // Convert circular buffer to QVector for drawing (chronological order)
-        std::vector<QPointF> pointsVec = pointsBuffer.toVector();
+        // Convert circular buffer to reusable vector then QVector for drawing (chronological order, avoid repeated allocations)
+        m_reusablePointFVector.clear();
+        m_reusablePointFVector.reserve(pointsBuffer.size());
+        for (size_t i = 0; i < pointsBuffer.size(); ++i)
+        {
+            m_reusablePointFVector.push_back(pointsBuffer[i]);
+        }
         QVector<QPointF> points;
-        points.reserve(pointsVec.size());
-        for (const QPointF& pt : pointsVec)
+        points.reserve(m_reusablePointFVector.size());
+        for (const QPointF& pt : m_reusablePointFVector)
         {
             points.append(pt);
         }
@@ -2661,8 +2691,14 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
         if (batchedPathsBuffer.empty())
             continue;
         
-        // Convert circular buffer to vector for iteration (chronological order)
-        std::vector<QPainterPath> batchedPaths = batchedPathsBuffer.toVector();
+        // Convert circular buffer to reusable vector for iteration (chronological order, avoid repeated allocations)
+        m_reusablePainterPathVector.clear();
+        m_reusablePainterPathVector.reserve(batchedPathsBuffer.size());
+        for (size_t i = 0; i < batchedPathsBuffer.size(); ++i)
+        {
+            m_reusablePainterPathVector.push_back(batchedPathsBuffer[i]);
+        }
+        const std::vector<QPainterPath> &batchedPaths = m_reusablePainterPathVector;
         
         // Get color for this series
         QColor lineColor = m_dataLineColors.value(seriesLabel, Qt::yellow);
@@ -2999,8 +3035,11 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         return;
     }
 
-    const auto &yData = dataSource->getYDataSeries(seriesLabel);
-    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    // Use reusable vectors to avoid toVector() allocations
+    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
+    dataSource->populateTimestampsSeries(seriesLabel, m_reusableTimestamps);
+    const auto &yData = m_reusableYData;
+    const auto &timestamps = m_reusableTimestamps;
 
     if (yData.empty() || timestamps.empty())
     {
@@ -3068,9 +3107,15 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         }
     }
 
-    // Get visible data from circular buffer (convert to vector for compatibility)
+    // Get visible data from circular buffer (convert to reusable vector for compatibility, avoid repeated allocations)
     const CircularBuffer<std::pair<qreal, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms
-    std::vector<std::pair<qreal, qint64>> visibleData = visibleDataBuffer.toVector();
+    m_reusableVisibleData.clear();
+    m_reusableVisibleData.reserve(visibleDataBuffer.size());
+    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
+    {
+        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
+    }
+    const std::vector<std::pair<qreal, qint64>> &visibleData = m_reusableVisibleData; // epoch ms
 
     if (visibleData.empty())
     {
@@ -3397,7 +3442,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
 void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
                                             const std::vector<std::pair<qreal, qint64>> &visibleData,
                                             size_t lodStep,
-                                            const QColor &seriesColor)
+                                            const QColor &/*seriesColor*/)
 {
     if (visibleData.empty())
     {
@@ -3985,8 +4030,11 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         return;
 
     // Get the default data series
-    const std::vector<qreal> &yData = dataSource->getYDataSeries(seriesLabel);
-    const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    // Use reusable vectors to avoid toVector() allocations
+    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
+    dataSource->populateTimestampsSeries(seriesLabel, m_reusableTimestamps);
+    const std::vector<qreal> &yData = m_reusableYData;
+    const std::vector<QDateTime> &timestamps = m_reusableTimestamps;
 
     if (yData.empty() || timestamps.empty())
     {
@@ -4017,9 +4065,15 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         }
     }
     
-    // Get visible data from circular buffer (convert to vector for compatibility)
+    // Get visible data from circular buffer (convert to reusable vector for compatibility, avoid repeated allocations)
     const CircularBuffer<std::pair<qreal, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms
-    std::vector<std::pair<qreal, qint64>> visibleData = visibleDataBuffer.toVector();
+    m_reusableVisibleData.clear();
+    m_reusableVisibleData.reserve(visibleDataBuffer.size());
+    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
+    {
+        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
+    }
+    const std::vector<std::pair<qreal, qint64>> &visibleData = m_reusableVisibleData; // epoch ms
 
     if (visibleData.empty())
     {
@@ -4073,12 +4127,12 @@ void WaterfallGraph::drawAllDataSeries()
         return;
     }
 
-    // Get all available data series labels
-    std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
-    DEBUG_OUT() << "drawAllDataSeries: Found" << seriesLabels.size() << "series labels";
+    // Get all available data series labels - reuse member vector
+    m_reusableSeriesLabels = dataSource->getDataSeriesLabels();
+    DEBUG_OUT() << "drawAllDataSeries: Found" << m_reusableSeriesLabels.size() << "series labels";
 
     // If no multi-series data, fall back to legacy single series
-    if (seriesLabels.empty())
+    if (m_reusableSeriesLabels.empty())
     {
         DEBUG_OUT() << "drawAllDataSeries: No series found, falling back to legacy single series";
         // Throw an exception
@@ -4105,7 +4159,7 @@ void WaterfallGraph::drawAllDataSeries()
     }
 
     // Draw each visible series
-    for (const QString &seriesLabel : seriesLabels)
+    for (const QString &seriesLabel : m_reusableSeriesLabels)
     {
         DEBUG_OUT() << "drawAllDataSeries: Processing series:" << seriesLabel
                  << "visible:" << isSeriesVisible(seriesLabel);
@@ -4187,8 +4241,11 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     // For INCREMENTAL_UPDATE, we'll update positions and add/remove items as needed below
     // For CLEAN/RANGE_UPDATE_ONLY, we'll just update positions
 
-    const auto &yData = dataSource->getYDataSeries(seriesLabel);
-    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    // Use reusable vectors to avoid toVector() allocations
+    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
+    dataSource->populateTimestampsSeries(seriesLabel, m_reusableTimestamps);
+    const auto &yData = m_reusableYData;
+    const auto &timestamps = m_reusableTimestamps;
 
     if (yData.empty() || timestamps.empty())
     {
@@ -4215,9 +4272,15 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         }
     }
     
-    // Get visible data from circular buffer (convert to vector for compatibility)
+    // Get visible data from circular buffer (convert to reusable vector for compatibility, avoid repeated allocations)
     const CircularBuffer<std::pair<qreal, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms
-    std::vector<std::pair<qreal, qint64>> visibleData = visibleDataBuffer.toVector();
+    m_reusableVisibleData.clear();
+    m_reusableVisibleData.reserve(visibleDataBuffer.size());
+    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
+    {
+        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
+    }
+    const std::vector<std::pair<qreal, qint64>> &visibleData = m_reusableVisibleData; // epoch ms
 
     if (visibleData.empty())
     {

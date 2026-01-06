@@ -375,6 +375,20 @@ protected:
     // Level of Detail (LOD) helper for high intervals (Issue #3)
     size_t calculateLODStep(size_t dataSize) const;
     
+    // Reusable vectors/arrays to avoid repeated allocations
+    // Note: These are mutable so they can be modified in const member functions (for caching/optimization)
+    mutable std::vector<QString> m_reusableSeriesLabels;  // Reusable vector for series labels
+    QList<QGraphicsItem*> m_reusableItemList;  // Reusable list for graphics items
+    QList<QGraphicsItem*> m_reusableItemsToRemove;  // Reusable list for items to remove
+    std::vector<BTWSymbolData> m_reusableVisibleSymbols;  // Reusable vector for visible BTW symbols
+    QVector<QPainterPath> m_reusableBatchedPaths;  // Reusable vector for batched paths (temporary work vector)
+    std::vector<std::pair<qreal, qint64>> m_reusableVisibleData;  // Reusable vector for visible data pairs (epoch ms)
+    std::vector<QPointF> m_reusablePointFVector;  // Reusable vector for QPointF conversions
+    std::vector<QPainterPath> m_reusablePainterPathVector;  // Reusable vector for QPainterPath conversions
+    mutable std::vector<qreal> m_reusableYData;  // Reusable vector for Y data series (avoids toVector() allocations)
+    mutable std::vector<QDateTime> m_reusableTimestamps;  // Reusable vector for QDateTime timestamps (avoids toVector() allocations)
+    mutable std::vector<qint64> m_reusableTimestampsEpoch;  // Reusable vector for epoch timestamps (avoids toVector() allocations)
+    
     // Crosshair update caches (Issue #2)
     QRectF m_cachedCursorSceneRect;        // Cached cursor scene rectangle
     QRectF m_cachedOverlaySceneRect;       // Cached overlay scene rectangle

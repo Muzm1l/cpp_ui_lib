@@ -308,3 +308,4 @@ GraphLayout *layout = new GraphLayout(parent, layoutType, timer, seriesLabelsMap
 // Manually connect the timer
 connect(timer, &QTimer::timeout, layout, &GraphLayout::onTimerTick);
 timer->start();
+
