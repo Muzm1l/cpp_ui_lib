@@ -156,7 +156,19 @@ void BTWGraph::draw()
     {
         // Data source is empty - cleanup all scatterplot items to ensure they're removed
         cleanupAllScatterplotItems();
-        DEBUG_OUT() << "BTWGraph: Data source is empty, cleaned up all scatterplot items";
+        
+        // CRITICAL FIX: Clear data line paths (ADOPTED series line)
+        // These paths are rendered in paintEvent() and may contain gaps from when
+        // BTW symbols were present. When data is cleared, these old paths must be
+        // cleared too, otherwise the line with gaps remains visible.
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        
+        // Trigger repaint to clear the line from screen
+        update();
+        
+        DEBUG_OUT() << "BTWGraph: Data source is empty, cleaned up all scatterplot items and data line paths";
     }
     
     // These items need to be redrawn when time range changes or data updates
