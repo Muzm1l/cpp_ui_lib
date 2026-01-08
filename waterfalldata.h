@@ -5,6 +5,7 @@
 #include <vector>
 #include <utility>
 #include <map>
+#include <cstdint>
 #include <QDateTime>
 #include <QTime>
 #include <QDebug>
@@ -131,6 +132,9 @@ public:
     // Combined range methods for all series
     std::pair<qreal, qreal> getCombinedYRange() const;
     std::pair<QDateTime, QDateTime> getCombinedTimeRange() const;
+    
+    // Phase 1: Get data version for cache invalidation
+    uint64_t getDataVersion() const { return m_dataVersion; }
 
     // Data binning methods for sampling
     std::vector<std::pair<qreal, QDateTime>> getBinnedDataSeries(const QString& seriesLabel, const QTime& binDuration) const;
@@ -247,10 +251,21 @@ private:
     // Data title
     QString dataTitle;
 
+    // Phase 1 Performance Optimization: Range calculation caching
+    mutable std::pair<float, float> m_cachedCombinedYRange;  // Cached combined Y range (min, max)
+    mutable bool m_cachedCombinedYRangeValid;                 // Cache validity flag
+    std::map<QString, std::pair<float, float>> m_seriesMinMax; // Per-series min/max tracking
+    uint64_t m_dataVersion;                                    // Version counter for cache invalidation
+
     // Helper methods
     bool isValidIndex(size_t index) const;
     void validateDataConsistency() const;
     void validateDataSeriesConsistency(const QString& seriesLabel) const;
+    
+    // Phase 1 Performance Optimization: Helper methods for range caching
+    void invalidateRangeCache();
+    void updateSeriesMinMax(const QString& seriesLabel);
+    void recomputeCombinedYRange() const;
 };
 
 #endif // WATERFALLDATA_H

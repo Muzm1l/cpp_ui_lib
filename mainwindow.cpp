@@ -428,13 +428,13 @@ MainWindow::MainWindow(QWidget *parent)
         if (tabText == "SCW Window") {
             scwTabIndex = i;
             // Keep SCW tab visible
-            ui->tabWidget->setTabVisible(i, true);
+            // ui->tabWidget->setTabVisible(i, true);
         } else if (i == 0) {
             // Keep first tab (Original View) visible
-            ui->tabWidget->setTabVisible(i, true);
+            // ui->tabWidget->setTabVisible(i, true);
         } else {
             // Hide all other tabs
-            ui->tabWidget->setTabVisible(i, false);
+            // ui->tabWidget->setTabVisible(i, false);
         }
     }
     

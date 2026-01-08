@@ -1361,6 +1361,10 @@ void WaterfallGraph::invalidateVisibleDataCache(const QString &seriesLabel)
     m_lastProcessedIndex.erase(seriesLabel);
     m_cachedDataSize.erase(seriesLabel);
     m_cachedTimeRange.erase(seriesLabel);
+    
+    // Phase 1: Clear version-based cache for this series
+    m_cachedDataVersion.erase(seriesLabel);
+    m_cacheValidResult.erase(seriesLabel);
 }
 
 /**
@@ -1374,6 +1378,10 @@ void WaterfallGraph::invalidateAllVisibleDataCache()
     m_lastProcessedIndex.clear();
     m_cachedDataSize.clear();
     m_cachedTimeRange.clear();
+    
+    // Phase 1: Clear version-based cache
+    m_cachedDataVersion.clear();
+    m_cacheValidResult.clear();
 }
 
 /**
@@ -1389,43 +1397,80 @@ void WaterfallGraph::invalidateAllVisibleDataCache()
  */
 bool WaterfallGraph::isVisibleDataCacheValid(const QString &seriesLabel) const
 {
+    // Phase 1: Check cached validation result first (if available)
+    auto validResultIt = m_cacheValidResult.find(seriesLabel);
+    if (validResultIt != m_cacheValidResult.end()) {
+        // Check if data version changed
+        if (dataSource) {
+            uint64_t currentVersion = dataSource->getDataVersion();
+            auto versionIt = m_cachedDataVersion.find(seriesLabel);
+            if (versionIt != m_cachedDataVersion.end() && versionIt->second == currentVersion) {
+                // Version matches - use cached result
+                return validResultIt->second;
+            }
+        }
+    }
+    
+    // Cache miss or version mismatch - perform validation
+    bool isValid = false;
+    
     // Check if cache exists
     auto cacheIt = m_cachedVisibleData.find(seriesLabel);
     if (cacheIt == m_cachedVisibleData.end())
     {
-        return false;
+        isValid = false;
+    }
+    else
+    {
+        // Check if time range matches
+        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
+        if (rangeIt == m_cachedTimeRange.end())
+        {
+            isValid = false;
+        }
+        else if (rangeIt->second.first != timeMin || rangeIt->second.second != timeMax)
+        {
+            isValid = false;
+        }
+        else
+        {
+            // Check if data size matches (no new data added) - use cached size
+            if (!dataSource)
+            {
+                isValid = false;
+            }
+            else
+            {
+                auto sizeIt = m_cachedDataSize.find(seriesLabel);
+                if (sizeIt == m_cachedDataSize.end())
+                {
+                    isValid = false;
+                }
+                else
+                {
+                    // Phase 1: Use getDataSeriesSize() instead of populateYDataSeries (much faster)
+                    size_t currentSize = dataSource->getDataSeriesSize(seriesLabel);
+                    if (sizeIt->second != currentSize)
+                    {
+                        isValid = false;
+                    }
+                    else
+                    {
+                        // All checks passed
+                        isValid = true;
+                    }
+                }
+            }
+        }
     }
     
-    // Check if time range matches
-    auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-    if (rangeIt == m_cachedTimeRange.end())
-    {
-        return false;
-    }
-    if (rangeIt->second.first != timeMin || rangeIt->second.second != timeMax)
-    {
-        return false;
+    // Phase 1: Cache the validation result and data version
+    if (dataSource) {
+        m_cachedDataVersion[seriesLabel] = dataSource->getDataVersion();
+        m_cacheValidResult[seriesLabel] = isValid;
     }
     
-    // Check if data size matches (no new data added)
-    if (!dataSource)
-    {
-        return false;
-    }
-    auto sizeIt = m_cachedDataSize.find(seriesLabel);
-    if (sizeIt == m_cachedDataSize.end())
-    {
-        return false;
-    }
-    // Use reusable vector to avoid toVector() allocation
-    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
-    const std::vector<qreal> &yData = m_reusableYData;
-    if (sizeIt->second != yData.size())
-    {
-        return false;
-    }
-    
-    return true;
+    return isValid;
 }
 
 /**

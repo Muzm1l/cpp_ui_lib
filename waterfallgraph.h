@@ -6,6 +6,7 @@
 #include "waterfalldata.h"
 #include "btwsymboldrawing.h"
 #include "circularbuffer.h"
+#include <cstdint>
 #include <QColor>
 #include <QCoreApplication>
 #include <QFont>
@@ -303,6 +304,10 @@ protected:
     std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
+    
+    // Phase 1: Version-based cache validation (mutable for const method caching)
+    mutable std::map<QString, uint64_t> m_cachedDataVersion;  // Track data version per series
+    mutable std::map<QString, bool> m_cacheValidResult;      // Cache validation result per series
 
     // Coordinate mapping caches (Issue #1: Performance optimization)
     mutable qint64 m_cachedTimeIntervalMs;  // Cached time interval in milliseconds

@@ -11,6 +11,11 @@ WaterfallData::WaterfallData(const QString& title)
     dataSeriesYData[dataTitle] = CircularBuffer<float>(0);
     dataSeriesTimestamps[dataTitle] = CircularBuffer<QDateTime>(0);
     dataSeriesTimestampsEpoch[dataTitle] = CircularBuffer<qint64>(0);
+    
+    // Phase 1: Initialize range cache
+    m_cachedCombinedYRange = std::make_pair(0.0f, 0.0f);
+    m_cachedCombinedYRangeValid = false;
+    m_dataVersion = 1;
 }
 
 WaterfallData::WaterfallData(const QString& title, const std::vector<QString>& seriesLabels)
@@ -24,6 +29,11 @@ WaterfallData::WaterfallData(const QString& title, const std::vector<QString>& s
         dataSeriesTimestamps[seriesLabel] = CircularBuffer<QDateTime>(0);
         dataSeriesTimestampsEpoch[seriesLabel] = CircularBuffer<qint64>(0);
     }
+    
+    // Phase 1: Initialize range cache
+    m_cachedCombinedYRange = std::make_pair(0.0f, 0.0f);
+    m_cachedCombinedYRangeValid = false;
+    m_dataVersion = 1;
 }
 
 WaterfallData::~WaterfallData()
@@ -72,6 +82,10 @@ void WaterfallData::setData(const std::vector<float>& yData, const std::vector<Q
     }
 
     validateDataConsistency();
+    
+    // Phase 1: Invalidate range cache and update series min/max
+    invalidateRangeCache();
+    updateSeriesMinMax(dataTitle);
 }
 
 void WaterfallData::clearData()
@@ -79,6 +93,10 @@ void WaterfallData::clearData()
     dataSeriesYData[dataTitle].clear();
     dataSeriesTimestamps[dataTitle].clear();
     dataSeriesTimestampsEpoch[dataTitle].clear();
+    
+    // Phase 1: Remove series min/max and invalidate cache
+    m_seriesMinMax.erase(dataTitle);
+    invalidateRangeCache();
 }
 
 
@@ -358,6 +376,10 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
     }
 
     validateDataSeriesConsistency(seriesLabel);
+    
+    // Phase 1: Invalidate range cache and update series min/max
+    invalidateRangeCache();
+    updateSeriesMinMax(seriesLabel);
 }
 
 void WaterfallData::addDataPointToSeries(const QString& seriesLabel, float yValue, const QDateTime& timestamp)
@@ -369,6 +391,24 @@ void WaterfallData::addDataPointToSeries(const QString& seriesLabel, float yValu
     dataSeriesTimestampsEpoch[seriesLabel].push_back(timestamp.toMSecsSinceEpoch());
 
     validateDataSeriesConsistency(seriesLabel);
+    
+    // Phase 1: Incrementally update min/max for this series
+    auto minMaxIt = m_seriesMinMax.find(seriesLabel);
+    if (minMaxIt != m_seriesMinMax.end()) {
+        // Update existing min/max
+        if (yValue < minMaxIt->second.first) {
+            minMaxIt->second.first = yValue;
+            invalidateRangeCache();
+        }
+        if (yValue > minMaxIt->second.second) {
+            minMaxIt->second.second = yValue;
+            invalidateRangeCache();
+        }
+    } else {
+        // First point in series - initialize min/max
+        updateSeriesMinMax(seriesLabel);
+        invalidateRangeCache();
+    }
 }
 
 void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std::vector<float>& yValues, const std::vector<QDateTime>& timestamps)
@@ -390,6 +430,10 @@ void WaterfallData::addDataPointsToSeries(const QString& seriesLabel, const std:
     }
 
     validateDataSeriesConsistency(seriesLabel);
+    
+    // Phase 1: Update series min/max (recompute for accuracy)
+    updateSeriesMinMax(seriesLabel);
+    invalidateRangeCache();
 }
 
 void WaterfallData::clearDataSeries(const QString& seriesLabel)
@@ -397,6 +441,10 @@ void WaterfallData::clearDataSeries(const QString& seriesLabel)
     dataSeriesYData.erase(seriesLabel);
     dataSeriesTimestamps.erase(seriesLabel);
     dataSeriesTimestampsEpoch.erase(seriesLabel);
+    
+    // Phase 1: Remove series min/max and invalidate cache
+    m_seriesMinMax.erase(seriesLabel);
+    invalidateRangeCache();
 }
 
 void WaterfallData::clearAllDataSeries()
@@ -404,6 +452,10 @@ void WaterfallData::clearAllDataSeries()
     dataSeriesYData.clear();
     dataSeriesTimestamps.clear();
     dataSeriesTimestampsEpoch.clear();
+    
+    // Phase 1: Clear all min/max tracking and invalidate cache
+    m_seriesMinMax.clear();
+    invalidateRangeCache();
 }
 
 std::vector<std::pair<qreal, QDateTime>> WaterfallData::getDataSeries(const QString& seriesLabel) const
@@ -687,33 +739,17 @@ std::pair<QDateTime, QDateTime> WaterfallData::getTimeRangeSeries(const QString&
 
 std::pair<qreal, qreal> WaterfallData::getCombinedYRange() const
 {
-    qreal globalMin = std::numeric_limits<qreal>::max();
-    qreal globalMax = std::numeric_limits<qreal>::lowest();
-    bool hasData = false;
-
-    // Check all data series
-    for (const auto& pair : dataSeriesYData) {
-        if (!pair.second.empty()) {
-            // Find min/max using indexing, convert float to qreal for calculations
-            qreal seriesMin = static_cast<qreal>(pair.second[0]);
-            qreal seriesMax = static_cast<qreal>(pair.second[0]);
-            for (size_t i = 1; i < pair.second.size(); ++i) {
-                qreal val = static_cast<qreal>(pair.second[i]);
-                if (val < seriesMin) seriesMin = val;
-                if (val > seriesMax) seriesMax = val;
-            }
-            
-            globalMin = std::min(globalMin, seriesMin);
-            globalMax = std::max(globalMax, seriesMax);
-            hasData = true;
-        }
+    // Phase 1: Return cached value if valid
+    if (m_cachedCombinedYRangeValid) {
+        return std::make_pair(static_cast<qreal>(m_cachedCombinedYRange.first),
+                              static_cast<qreal>(m_cachedCombinedYRange.second));
     }
-
-    if (!hasData) {
-        return std::make_pair(0.0, 0.0);
-    }
-
-    return std::make_pair(globalMin, globalMax);
+    
+    // Cache miss - recompute and cache
+    recomputeCombinedYRange();
+    
+    return std::make_pair(static_cast<qreal>(m_cachedCombinedYRange.first),
+                          static_cast<qreal>(m_cachedCombinedYRange.second));
 }
 
 std::pair<QDateTime, QDateTime> WaterfallData::getCombinedTimeRange() const
@@ -823,6 +859,10 @@ void WaterfallData::setDataSeries(const QString& seriesLabel, const std::vector<
     }
 
     validateDataSeriesConsistency(seriesLabel);
+    
+    // Phase 1: Invalidate range cache and update series min/max
+    invalidateRangeCache();
+    updateSeriesMinMax(seriesLabel);
 }
 
 std::vector<std::pair<qreal, QDateTime>> WaterfallData::getAllDataSeries(const QString& seriesLabel) const
@@ -1386,4 +1426,74 @@ void WaterfallData::setAllSymbolsAndMarkersCapacity(size_t symbolsCapacity, size
     setBTWSymbolsCapacity(symbolsCapacity);
     setBTWMarkersCapacity(markersCapacity);
     setRTWRMarkersCapacity(markersCapacity);
+}
+
+// Phase 1 Performance Optimization: Range cache helper methods
+
+void WaterfallData::invalidateRangeCache()
+{
+    m_cachedCombinedYRangeValid = false;
+    m_dataVersion++;  // Increment version for cache invalidation
+}
+
+void WaterfallData::updateSeriesMinMax(const QString& seriesLabel)
+{
+    auto it = dataSeriesYData.find(seriesLabel);
+    if (it == dataSeriesYData.end() || it->second.empty()) {
+        m_seriesMinMax.erase(seriesLabel);
+        return;
+    }
+    
+    const CircularBuffer<float>& buffer = it->second;
+    float seriesMin = buffer[0];
+    float seriesMax = buffer[0];
+    
+    for (size_t i = 1; i < buffer.size(); ++i) {
+        float val = buffer[i];
+        if (val < seriesMin) seriesMin = val;
+        if (val > seriesMax) seriesMax = val;
+    }
+    
+    m_seriesMinMax[seriesLabel] = std::make_pair(seriesMin, seriesMax);
+}
+
+void WaterfallData::recomputeCombinedYRange() const
+{
+    float globalMin = std::numeric_limits<float>::max();
+    float globalMax = std::numeric_limits<float>::lowest();
+    bool hasData = false;
+
+    // Use cached per-series min/max if available, otherwise compute on-the-fly
+    for (const auto& pair : dataSeriesYData) {
+        if (!pair.second.empty()) {
+            float seriesMin, seriesMax;
+            
+            // Check if we have cached min/max for this series
+            auto minMaxIt = m_seriesMinMax.find(pair.first);
+            if (minMaxIt != m_seriesMinMax.end()) {
+                seriesMin = minMaxIt->second.first;
+                seriesMax = minMaxIt->second.second;
+            } else {
+                // Compute min/max for this series
+                seriesMin = pair.second[0];
+                seriesMax = pair.second[0];
+                for (size_t i = 1; i < pair.second.size(); ++i) {
+                    float val = pair.second[i];
+                    if (val < seriesMin) seriesMin = val;
+                    if (val > seriesMax) seriesMax = val;
+                }
+            }
+            
+            globalMin = std::min(globalMin, seriesMin);
+            globalMax = std::max(globalMax, seriesMax);
+            hasData = true;
+        }
+    }
+
+    if (!hasData) {
+        m_cachedCombinedYRange = std::make_pair(0.0f, 0.0f);
+    } else {
+        m_cachedCombinedYRange = std::make_pair(globalMin, globalMax);
+    }
+    m_cachedCombinedYRangeValid = true;
 }
