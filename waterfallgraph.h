@@ -206,7 +206,7 @@ protected:
     // Data plotting methods
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     void buildBatchedLinePaths(const QString &seriesLabel,
-                               const std::vector<std::pair<qreal, qint64>> &visibleData,
+                               const std::vector<std::pair<float, qint64>> &visibleData, // Use float to eliminate conversions
                                size_t lodStep,
                                const QColor &seriesColor);
     virtual void drawAllDataSeries();
@@ -248,15 +248,15 @@ protected:
     // Incremental graphics item management (State Machine Based)
     // Use epoch milliseconds to avoid QDateTime timezone conversion in hot path
     void updateScatterplotItemsIncremental(const QString &seriesLabel, 
-                                           const std::vector<std::pair<qreal, qint64>> &newVisibleData, // epoch ms
+                                           const std::vector<std::pair<float, qint64>> &newVisibleData, // epoch ms, float Y values
                                            const QColor &pointColor, qreal pointSize);
     void updateScatterplotItemsFull(const QString &seriesLabel,
-                                    const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
+                                    const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
                                     const QColor &pointColor, qreal pointSize);
     void removeScatterplotItemsOutsideRange(const QString &seriesLabel, 
                                             const QDateTime &oldTimeMin, const QDateTime &newTimeMin);
     void updateScatterplotItemPositions(const QString &seriesLabel,
-                                        const std::vector<std::pair<qreal, qint64>> &visibleData, // epoch ms
+                                        const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
                                         qreal pointSize);
     void cleanupScatterplotItems(const QString &seriesLabel);
     void cleanupAllScatterplotItems();
@@ -328,7 +328,8 @@ protected:
     // Visible data cache for incremental filtering (Plan 2: Incremental Rendering)
     // Avoids O(n) filtering on every draw by caching already-filtered data
     // Uses epoch milliseconds to avoid QDateTime timezone conversion in hot path
-    std::map<QString, CircularBuffer<std::pair<qreal, qint64>>> m_cachedVisibleData; // epoch ms instead of QDateTime (circular buffer)
+    // Uses float instead of qreal to eliminate float-to-double conversion overhead
+    std::map<QString, CircularBuffer<std::pair<float, qint64>>> m_cachedVisibleData; // epoch ms, float Y values (circular buffer)
     std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
@@ -415,10 +416,11 @@ protected:
     QList<QGraphicsItem*> m_reusableItemsToRemove;  // Reusable list for items to remove
     std::vector<BTWSymbolData> m_reusableVisibleSymbols;  // Reusable vector for visible BTW symbols
     QVector<QPainterPath> m_reusableBatchedPaths;  // Reusable vector for batched paths (temporary work vector)
-    std::vector<std::pair<qreal, qint64>> m_reusableVisibleData;  // Reusable vector for visible data pairs (epoch ms)
+    std::vector<std::pair<float, qint64>> m_reusableVisibleData;  // Reusable vector for visible data pairs (epoch ms, float Y values)
     std::vector<QPointF> m_reusablePointFVector;  // Reusable vector for QPointF conversions
     std::vector<QPainterPath> m_reusablePainterPathVector;  // Reusable vector for QPainterPath conversions
     mutable std::vector<qreal> m_reusableYData;  // Reusable vector for Y data series (avoids toVector() allocations)
+    mutable std::vector<float> m_reusableYDataFloat;  // Reusable vector for Y data series (float, no conversion overhead)
     mutable std::vector<QDateTime> m_reusableTimestamps;  // Reusable vector for QDateTime timestamps (avoids toVector() allocations)
     mutable std::vector<qint64> m_reusableTimestampsEpoch;  // Reusable vector for epoch timestamps (avoids toVector() allocations)
     

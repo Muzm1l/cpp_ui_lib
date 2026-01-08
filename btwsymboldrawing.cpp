@@ -40,6 +40,7 @@ const QPixmap& BTWSymbolDrawing::get(SymbolType type) const
 void BTWSymbolDrawing::generateAll()
 {
     cache[SymbolType::MagentaCircle] = makeMagentaCircle();
+    cache[SymbolType::MagentaCircleSynced] = makeMagentaCircleSynced();
 }
 
 /* ----------------- Helpers ----------------- */
@@ -79,6 +80,31 @@ QPixmap BTWSymbolDrawing::makeMagentaCircle()
     
     // Keep it smaller than RTW symbols, but large enough to see the hole
     qreal circleSize = 10.0; // Slightly larger than 8px so the ring is visible
+    qreal offset = (size - circleSize) / 2.0;
+    p.drawEllipse(QRectF(offset, offset, circleSize, circleSize));
+
+    return pix;
+}
+
+// Filled magenta circle for synced BTW symbols
+QPixmap BTWSymbolDrawing::makeMagentaCircleSynced()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    // Draw a small filled magenta circle (synced state)
+    QColor magentaColor(255, 0, 255); // Magenta color
+
+    // Use a cosmetic pen so the outline stays 1–2 px regardless of zoom
+    QPen pen(magentaColor);
+    pen.setWidthF(1.5);      // Thin outline
+    pen.setCosmetic(true);   // Width in screen pixels, not scene units
+    p.setPen(pen);
+    p.setBrush(QBrush(magentaColor)); // Filled circle for synced state
+    
+    // Keep it smaller than RTW symbols, but large enough to see
+    qreal circleSize = 10.0; // Same size as hollow version
     qreal offset = (size - circleSize) / 2.0;
     p.drawEllipse(QRectF(offset, offset, circleSize, circleSize));
 

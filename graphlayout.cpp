@@ -3038,7 +3038,7 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* u
         
         // Add magenta circle symbol to this graph's data source
         // Use the range value from the data point at this timestamp (not the BTW marker's range)
-        dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange);
+        dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange, true); // isSynced=true for symbols added via addBTWSymbolToAllGraphs
         DEBUG_OUT() << "GraphLayout: Added BTW symbol to graph type" << static_cast<int>(graphType) << "at timestamp" << timestamp.toString() << "with range" << dataPointRange << "(from data point)";
         
         // Verify the symbol was added

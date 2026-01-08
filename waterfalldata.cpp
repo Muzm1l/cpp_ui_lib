@@ -643,6 +643,22 @@ void WaterfallData::populateYDataSeries(const QString& seriesLabel, std::vector<
     }
 }
 
+void WaterfallData::populateYDataSeriesFloat(const QString& seriesLabel, std::vector<float>& output) const
+{
+    output.clear();
+    auto it = dataSeriesYData.find(seriesLabel);
+    if (it != dataSeriesYData.end())
+    {
+        const CircularBuffer<float>& buffer = it->second;
+        output.reserve(buffer.size());
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+            // NO CONVERSION - direct float copy (optimization to eliminate float-to-double overhead)
+            output.push_back(buffer[i]);
+        }
+    }
+}
+
 void WaterfallData::populateTimestampsSeries(const QString& seriesLabel, std::vector<QDateTime>& output) const
 {
     output.clear();
@@ -1160,16 +1176,17 @@ size_t WaterfallData::getRTWSymbolsCount() const
 }
 
 // BTW Symbol management methods
-void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range)
+void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, bool isSynced)
 {
     BTWSymbolData symbolData;
     symbolData.symbolName = symbolName;
     symbolData.timestamp = timestamp;
     symbolData.range = range;
+    symbolData.isSynced = isSynced;
     
     btwSymbols.push_back(symbolData);
     
-    DEBUG_OUT() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    DEBUG_OUT() << "WaterfallData: Added BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range << "isSynced:" << isSynced;
 }
 
 void WaterfallData::clearBTWSymbols()

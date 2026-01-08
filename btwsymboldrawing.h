@@ -9,7 +9,8 @@ class BTWSymbolDrawing
 {
 public:
     enum class SymbolType {
-        MagentaCircle  // Small magenta circle for BTW automatic marker synchronization
+        MagentaCircle,     // Small magenta circle for BTW automatic marker synchronization (hollow)
+        MagentaCircleSynced  // Filled magenta circle for synced BTW symbols
     };
 
     BTWSymbolDrawing(int baseSize = 40);  // size in pixels
@@ -26,6 +27,7 @@ private:
 
     // functions to generate each symbol
     QPixmap makeMagentaCircle();
+    QPixmap makeMagentaCircleSynced();
 
     // helpers
     QPixmap blank();

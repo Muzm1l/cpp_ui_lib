@@ -25,6 +25,7 @@ struct BTWSymbolData
     QString symbolName;
     QDateTime timestamp;
     float range;
+    bool isSynced;  // Sync state: true if symbol is synchronized across graphs
 };
 
 // Forward declaration for BTW markers
@@ -104,6 +105,7 @@ public:
     // Reusable vector population methods (avoids toVector() allocations)
     // These methods populate a reusable vector passed by reference, avoiding temporary allocations
     void populateYDataSeries(const QString& seriesLabel, std::vector<qreal>& output) const;
+    void populateYDataSeriesFloat(const QString& seriesLabel, std::vector<float>& output) const; // Float version - no conversion overhead
     void populateTimestampsSeries(const QString& seriesLabel, std::vector<QDateTime>& output) const;
     void populateTimestampsEpochSeries(const QString& seriesLabel, std::vector<qint64>& output) const;
     std::vector<qint64> getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
@@ -154,7 +156,7 @@ public:
     size_t getRTWSymbolsCount() const;
 
     // BTW Symbol management methods (stored with track data)
-    void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range);
+    void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, bool isSynced = false);
     void clearBTWSymbols();
     std::vector<BTWSymbolData> getBTWSymbols() const;
     std::vector<BTWSymbolData> getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;

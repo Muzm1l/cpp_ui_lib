@@ -382,11 +382,16 @@ void RTWGraph::drawCustomRMarkers()
         return;
     }
 
-    // Draw yellow "R" markers for each visible marker
-    int markersDrawn = 0;
-    DEBUG_OUT() << "RTW: Drawing" << visibleMarkers.size() << "manually placed R markers";
+    // Apply LOD (Level of Detail) for R markers when there are many markers
+    // Similar to data line LOD - skip some markers when zoomed out or when there are too many
+    size_t lodStep = calculateLODStep(visibleMarkers.size());
     
-    for (const auto& markerData : visibleMarkers) {
+    // Draw yellow "R" markers for each visible marker (with LOD)
+    int markersDrawn = 0;
+    DEBUG_OUT() << "RTW: Drawing" << visibleMarkers.size() << "manually placed R markers (LOD step:" << lodStep << ")";
+    
+    for (size_t i = 0; i < visibleMarkers.size(); i += lodStep) {
+        const auto& markerData = visibleMarkers[i];
         QDateTime timestamp = markerData.timestamp;
         qreal range = markerData.range;
         

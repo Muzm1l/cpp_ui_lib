@@ -438,8 +438,13 @@ void BTWGraph::drawCustomCircleMarkers()
         return;
     }
 
-    // Draw circle markers for each visible marker
-    for (const auto& markerData : visibleMarkers) {
+    // Apply LOD (Level of Detail) for BTW blue markers when there are many markers
+    // Similar to data line LOD - skip some markers when zoomed out or when there are too many
+    size_t lodStep = calculateLODStep(visibleMarkers.size());
+    
+    // Draw circle markers for each visible marker (with LOD)
+    for (size_t i = 0; i < visibleMarkers.size(); i += lodStep) {
+        const auto& markerData = visibleMarkers[i];
         QDateTime timestamp = markerData.timestamp;
         qreal range = markerData.range;
         qreal deltaValue = markerData.delta;
