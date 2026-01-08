@@ -540,6 +540,45 @@ void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<float
     draw();
 }
 
+void WaterfallGraph::setDataInteractive(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps)
+{
+    if (!dataSource)
+    {
+        DEBUG_OUT() << "Error: No data source set";
+        return;
+    }
+
+    // Store the data using the data source
+    dataSource->setDataSeries(seriesLabel, yData, timestamps);
+
+    DEBUG_OUT() << "Interactive data set successfully. Size:" << dataSource->getDataSeriesSize(seriesLabel);
+
+    // Trigger incremental redraw
+    triggerIncrementalRedraw(seriesLabel);
+}
+
+void WaterfallGraph::triggerIncrementalRedraw(const QString &seriesLabel)
+{
+    if (!dataSource)
+    {
+        DEBUG_OUT() << "Error: No data source set";
+        return;
+    }
+
+    // For interactive updates, skip range recalculation (keep dataRangesValid as is)
+    // Mark only this series as dirty (not all series)
+    markSeriesDirty(seriesLabel);
+    
+    // Use incremental update state - this skips expensive operations:
+    // - No range recalculation
+    // - No cache clearing
+    // - No full scene clear
+    setRenderState(RenderState::INCREMENTAL_UPDATE);
+    
+    // Trigger optimized redraw (only updates the dirty series)
+    draw();
+}
+
 /**
  * @brief Set the data for the graph using WaterfallData object.
  *

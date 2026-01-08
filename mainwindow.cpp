@@ -12,6 +12,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <cmath>
 #include <algorithm>
 
@@ -193,12 +194,33 @@ MainWindow::MainWindow(QWidget *parent)
     // Add button to layout
     controlsLayout->addWidget(redrawGraphsButton);
     
-    // Connect button click to redrawAllGraphs API
+    // Connect button click to redrawAllGraphs API with timing measurement
     connect(redrawGraphsButton, &QPushButton::clicked, this, [this]() {
         if (graphgrid) {
             DEBUG_OUT() << "MainWindow: Redraw All Graphs button clicked - calling redrawAllGraphs()";
+            
+            // Measure time taken for redraw
+            QElapsedTimer timer;
+            timer.start();
             graphgrid->redrawAllGraphs();
-            DEBUG_OUT() << "MainWindow: redrawAllGraphs() completed";
+            qint64 elapsedMs = timer.elapsed();
+            
+            // Update button text to display the time taken
+            double elapsedSeconds = elapsedMs / 1000.0;
+            QString timeText;
+            if (elapsedMs < 1000) {
+                timeText = QString("Redraw All Graphs (%1 ms)").arg(elapsedMs);
+            } else {
+                timeText = QString("Redraw All Graphs (%1 s)").arg(elapsedSeconds, 0, 'f', 3);
+            }
+            redrawGraphsButton->setText(timeText);
+            
+            DEBUG_OUT() << "MainWindow: redrawAllGraphs() completed in" << elapsedMs << "ms";
+            
+            // Reset button text to original after 5 seconds
+            QTimer::singleShot(5000, this, [this]() {
+                redrawGraphsButton->setText("Redraw All Graphs");
+            });
         } else {
             DEBUG_OUT() << "MainWindow: Cannot redraw graphs - graphgrid is null";
         }

@@ -1647,6 +1647,25 @@ void GraphContainer::onDataChanged(GraphType graphType)
     }
 }
 
+void GraphContainer::onDataChangedInteractive(GraphType graphType, const QString &seriesLabel)
+{
+    // Only process if this container has this data option
+    if (!hasDataOption(graphType))
+    {
+        return;
+    }
+
+    // If this is the currently displayed graph, do fast incremental update
+    if (getCurrentDataOption() == graphType && m_currentWaterfallGraph)
+    {
+        // Data has already been updated in the engine by setDataToDataSourceInteractive
+        // Just trigger incremental redraw for this series
+        m_currentWaterfallGraph->triggerIncrementalRedraw(seriesLabel);
+        
+        DEBUG_OUT() << "GraphContainer: Interactive drag update for series" << seriesLabel;
+    }
+}
+
 void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
 {
     if (!m_currentWaterfallGraph)

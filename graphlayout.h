@@ -68,6 +68,14 @@ public:
     void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
     void setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data);
     void clearDataSource(const GraphType &graphType, const QString &seriesLabel);
+    
+    // Interactive drag API for real-time updates during ruler dragging
+    // Use this API when drag is active for fast incremental updates (no range recalculation)
+    void setDataToDataSourceInteractive(const GraphType &graphType, const QString &seriesLabel, 
+                                        const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
+    
+    // Call this when drag ends to trigger full redraw with range recalculation
+    void endInteractiveDrag(const GraphType &graphType);
 
     // Data source management
     WaterfallData *getDataSource(const GraphType &graphType);

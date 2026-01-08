@@ -193,6 +193,9 @@ public slots:
     void onShadedRegionsSyncCleared();
     // Unified data change notification handler
     void onDataChanged(GraphType graphType);
+    
+    // Fast incremental update for interactive drag (no range recalculation, no full redraw)
+    void onDataChangedInteractive(GraphType graphType, const QString &seriesLabel);
 
 private:
     void updateTotalContainerSize();

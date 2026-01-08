@@ -843,6 +843,47 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     }
 }
 
+void GraphLayout::setDataToDataSourceInteractive(const GraphType &graphType, const QString &seriesLabel, 
+                                                const std::vector<float> &yData, const std::vector<QDateTime> &timestamps)
+{
+    QString dataSourceLabel = graphTypeToString(graphType);
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end())
+    {
+        // Update data in engine
+        it->second->setDataSeries(seriesLabel, yData, timestamps);
+        DEBUG_OUT() << "Interactive drag update for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
+
+        // Notify containers with fast incremental update (no full redraw, no range recalculation)
+        for (auto *container : m_graphContainers)
+        {
+            if (container)
+            {
+                container->onDataChangedInteractive(graphType, seriesLabel);
+            }
+        }
+    }
+    else
+    {
+        DEBUG_OUT() << "Engine not found:" << dataSourceLabel;
+    }
+}
+
+void GraphLayout::endInteractiveDrag(const GraphType &graphType)
+{
+    DEBUG_OUT() << "Interactive drag ended for" << graphTypeToString(graphType) << "- triggering full redraw";
+    
+    // Trigger full update with range recalculation for all containers
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            // Use normal onDataChanged which does full update with range recalculation
+            container->onDataChanged(graphType);
+        }
+    }
+}
+
 void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString &seriesLabel, const WaterfallData &data)
 {
     QString dataSourceLabel = graphTypeToString(graphType);

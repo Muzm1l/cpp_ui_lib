@@ -111,6 +111,34 @@ public:
     void setApplicationStartTime(const QDateTime& time);
     QDateTime getApplicationStartTime() const;
 
+    // Interactive update API for real-time updates during drag operations
+    /**
+     * @brief Update data with fast incremental rendering (for interactive drag operations).
+     * 
+     * This method updates data and triggers fast incremental rendering without:
+     * - Range recalculation
+     * - Cache clearing
+     * - Full scene clear
+     * 
+     * Use this for high-frequency updates during drag operations.
+     * Call normal setData() or ensure full redraw after drag ends.
+     * 
+     * @param seriesLabel The series to update
+     * @param yData Y-axis values
+     * @param timestamps Corresponding timestamps
+     */
+    void setDataInteractive(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
+    
+    /**
+     * @brief Trigger incremental redraw for a series (data already updated in dataSource).
+     * 
+     * Use this when data has already been updated in the dataSource (e.g., via GraphEngine)
+     * and you just need to trigger an incremental redraw.
+     * 
+     * @param seriesLabel The series to redraw
+     */
+    void triggerIncrementalRedraw(const QString &seriesLabel);
+
     // Fast track switching API - marks track change for visible-window-first rendering
     /**
      * @brief Mark that a track change has occurred.
