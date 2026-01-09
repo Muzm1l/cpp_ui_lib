@@ -690,6 +690,29 @@ GraphType GraphLayout::getCurrentDataOption(const QString &containerLabel) const
     return GraphType::BDW;
 }
 
+void GraphLayout::setContainerGraphType(int containerIndex, const GraphType &graphType)
+{
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
+    {
+        m_graphContainers[containerIndex]->setCurrentDataOption(graphType);
+        DEBUG_OUT() << "GraphLayout: Set container" << containerIndex << "to graph type" << static_cast<int>(graphType);
+    }
+    else
+    {
+        DEBUG_OUT() << "GraphLayout: Invalid container index:" << containerIndex;
+    }
+}
+
+GraphType GraphLayout::getContainerGraphType(int containerIndex) const
+{
+    if (containerIndex >= 0 && containerIndex < static_cast<int>(m_graphContainers.size()))
+    {
+        return m_graphContainers[containerIndex]->getCurrentDataOption();
+    }
+    DEBUG_OUT() << "GraphLayout: Invalid container index:" << containerIndex;
+    return GraphType::BDW;
+}
+
 std::vector<GraphType> GraphLayout::getAvailableDataOptions(const QString &containerLabel) const
 {
     int containerIndex = getContainerIndex(containerLabel);

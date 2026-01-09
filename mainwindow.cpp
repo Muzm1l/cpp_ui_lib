@@ -57,6 +57,14 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
     
+    // Test setContainerGraphType API - set different graph types for each container in 2x2 layout
+    // Container indices: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right
+    graphgrid->setContainerGraphType(0, GraphType::BTW);  // Top-left: BTW
+    graphgrid->setContainerGraphType(1, GraphType::BDW);  // Top-right: BDW
+    graphgrid->setContainerGraphType(2, GraphType::RTW);  // Bottom-left: RTW
+    graphgrid->setContainerGraphType(3, GraphType::FTW);  // Bottom-right: FTW
+    DEBUG_OUT() << "MainWindow: Tested setContainerGraphType API - Container 0: BTW, Container 1: BDW, Container 2: RTW, Container 3: FTW";
+    
     // Create container widget for controls below the layout combo box
     QWidget* controlsWidget = new QWidget(ui->originalTab);
     controlsWidget->setObjectName("controlsWidget");
@@ -821,8 +829,22 @@ void MainWindow::configureLayoutSelection()
     ui->layoutSelectionComboBox->addItem("2 Windows Horizontal (no GPW)", static_cast<int>(LayoutType::NOGPW2WH));
     ui->layoutSelectionComboBox->addItem("Hidden", static_cast<int>(LayoutType::HIDDEN));
 
-    // Set default selection to 1 Window
-    ui->layoutSelectionComboBox->setCurrentIndex(5);
+    // Set combobox to match the current GraphLayout layout type
+    if (graphgrid)
+    {
+        LayoutType currentLayoutType = graphgrid->getLayoutType();
+        // Find the index that matches the current layout type
+        for (int i = 0; i < ui->layoutSelectionComboBox->count(); ++i)
+        {
+            LayoutType itemLayoutType = static_cast<LayoutType>(ui->layoutSelectionComboBox->itemData(i).toInt());
+            if (itemLayoutType == currentLayoutType)
+            {
+                ui->layoutSelectionComboBox->setCurrentIndex(i);
+                DEBUG_OUT() << "MainWindow: Set layout combobox to index" << i << "to match GraphLayout layout type" << static_cast<int>(currentLayoutType);
+                break;
+            }
+        }
+    }
 
     // Connect combobox to slot
     connect(ui->layoutSelectionComboBox, QOverload<int>::of(&QComboBox::currentIndexChanged),

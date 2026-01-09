@@ -599,7 +599,19 @@ void WaterfallGraph::setData(const WaterfallData &data)
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
 
-    // Redraw the graph with the new data
+    // If data is empty, clear the graph properly to remove existing graphics
+    if (dataSource->isEmpty())
+    {
+        // Invalidate all cached visible data to ensure old data doesn't remain on screen
+        invalidateAllVisibleDataCache();
+        
+        // Force full redraw to clear all graphics items
+        setRenderState(RenderState::FULL_REDRAW);
+        
+        DEBUG_OUT() << "Data is empty, clearing graph display";
+    }
+
+    // Redraw the graph with the new data (or cleared if empty)
     draw();
 }
 

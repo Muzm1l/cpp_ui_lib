@@ -56,6 +56,12 @@ public:
     WaterfallData *getDataOption(const QString &containerLabel, const GraphType &graphType);
     bool hasDataOption(const QString &containerLabel, const GraphType &graphType) const;
 
+    // Data options management - operate on specific container by index (0-3)
+    // Container indices for GPW4W (2x2) layout:
+    // 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right
+    void setContainerGraphType(int containerIndex, const GraphType &graphType);
+    GraphType getContainerGraphType(int containerIndex) const;
+
     // Data options management - operate on all visible containers
     void addDataOption(const GraphType &graphType, WaterfallData &dataSource);
     void removeDataOption(const GraphType &graphType);
