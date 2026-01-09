@@ -383,8 +383,8 @@ void RTWGraph::drawCustomRMarkers()
     }
 
     // Apply LOD (Level of Detail) for R markers when there are many markers
-    // Similar to data line LOD - skip some markers when zoomed out or when there are too many
-    size_t lodStep = calculateLODStep(visibleMarkers.size());
+    // Uses symbol-specific LOD which is less aggressive than data line LOD
+    size_t lodStep = calculateSymbolLODStep(visibleMarkers.size());
     
     // Draw yellow "R" markers for each visible marker (with LOD)
     int markersDrawn = 0;

@@ -1216,10 +1216,9 @@ void WaterfallGraph::drawBTWSymbols()
     // Use different pixmap based on sync state
     for (const auto& symbolData : visibleSymbols)
     {
-        // OPTIMIZATION: Use epoch milliseconds to avoid timezone conversion in mapDataToScreen
-        // Convert timestamp once here instead of inside mapDataToScreen (avoids /etc/localtime reads)
-        qint64 timestampEpoch = symbolData.timestamp.toMSecsSinceEpoch();
-        QPointF screenPos = mapDataToScreen(symbolData.range, timestampEpoch);
+        // OPTIMIZATION: Use cached epoch milliseconds (stored in BTWSymbolData struct)
+        // This avoids repeated toMSecsSinceEpoch() calls and timezone conversions
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
         
         // Check if point is within visible area
         if (!drawingArea.contains(screenPos))
@@ -1519,6 +1518,65 @@ bool WaterfallGraph::isVisibleDataCacheValid(const QString &seriesLabel) const
 }
 
 /**
+ * @brief Ensure visible data cache is valid, updating if needed.
+ * 
+ * This helper method eliminates code duplication across drawScatterplot, drawDataLine, and drawDataSeries.
+ * 
+ * @param seriesLabel The series to ensure cache validity for
+ */
+void WaterfallGraph::ensureVisibleDataCacheValid(const QString &seriesLabel)
+{
+    if (!isVisibleDataCacheValid(seriesLabel))
+    {
+        // Check if we can do incremental update (same time range, just new data)
+        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
+        if (rangeIt != m_cachedTimeRange.end() &&
+            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
+        {
+            updateVisibleDataCacheIncremental(seriesLabel);
+        }
+        else
+        {
+            updateVisibleDataCacheFull(seriesLabel);
+        }
+    }
+}
+
+/**
+ * @brief Get visible data vector from cache, handling copying if needed.
+ * 
+ * This helper method eliminates code duplication for copying from CircularBuffer to vector.
+ * 
+ * @param seriesLabel The series to get visible data for
+ * @return Reference to the visible data vector
+ */
+const std::vector<std::pair<float, qint64>>& WaterfallGraph::getVisibleDataVector(const QString &seriesLabel)
+{
+    const CircularBuffer<std::pair<float, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel];
+    m_reusableVisibleData.clear();
+    m_reusableVisibleData.reserve(visibleDataBuffer.size());
+    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
+    {
+        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
+    }
+    return m_reusableVisibleData;
+}
+
+/**
+ * @brief Validate screen point (not null and finite).
+ * 
+ * This helper method eliminates code duplication for screen point validation
+ * across multiple rendering functions.
+ * 
+ * @param point The screen point to validate
+ * @return true if point is valid (not null and both coordinates are finite)
+ */
+bool WaterfallGraph::isValidScreenPoint(const QPointF& point) const
+{
+    return !point.isNull() && qIsFinite(point.x()) && qIsFinite(point.y());
+}
+
+/**
  * @brief Find the first visible data index using binary search.
  * 
  * Uses std::lower_bound for O(log n) performance instead of O(n) linear search.
@@ -1590,9 +1648,10 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
         return;
     }
     
-    // Convert timeMin/timeMax to epoch ONCE (not per point!)
-    qint64 timeMinEpoch = timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0;
-    qint64 timeMaxEpoch = timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0;
+    // OPTIMIZATION: Use cached epoch values instead of converting every time
+    // These are updated in updateCoordinateMappingCaches() when time range changes
+    qint64 timeMinEpoch = m_cachedTimeMinEpoch;
+    qint64 timeMaxEpoch = m_cachedTimeMaxEpoch;
     
     // Use binary search on epoch milliseconds (much faster than QDateTime comparison)
     auto startIt = std::lower_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMinEpoch);
@@ -1636,14 +1695,9 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
         return;
     }
     
-    // Check if time range changed - requires full refilter
-    auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-    if (rangeIt == m_cachedTimeRange.end() ||
-        rangeIt->second.first != timeMin || rangeIt->second.second != timeMax)
-    {
-        updateVisibleDataCacheFull(seriesLabel);
-        return;
-    }
+    // OPTIMIZATION: Trust isVisibleDataCacheValid() - it already checked time range
+    // If we're here, the cache was valid (time range matched), so we can do incremental update
+    // No need to re-check the time range here (redundant check removed)
     
     // Use reusable vectors to avoid toVector() allocations
     // OPTIMIZATION: Use float version to eliminate float-to-double conversion overhead
@@ -1678,9 +1732,10 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
         return;
     }
     
-    // Convert timeMin/timeMax to epoch ONCE (not per point!)
-    qint64 timeMinEpoch = timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0;
-    qint64 timeMaxEpoch = timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0;
+    // OPTIMIZATION: Use cached epoch values instead of converting every time
+    // These are updated in updateCoordinateMappingCaches() when time range changes
+    qint64 timeMinEpoch = m_cachedTimeMinEpoch;
+    qint64 timeMaxEpoch = m_cachedTimeMaxEpoch;
     
     // Process only new data points - NO QDateTime CONVERSION, NO FLOAT-TO-DOUBLE CONVERSION!
     CircularBuffer<std::pair<float, qint64>> &cache = m_cachedVisibleData[seriesLabel];
@@ -1835,9 +1890,10 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
             continue; // Skip invalid timestamps
         }
         
+        // OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
         // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-        QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), QDateTime::fromMSecsSinceEpoch(dataPoint.second));
-        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), dataPoint.second);
+        if (!isValidScreenPoint(screenPoint))
         {
             continue; // Skip invalid screen coordinates
         }
@@ -1867,7 +1923,7 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
                     
                     // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
                     QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), dataPoint.second); // Use epoch ms overload
-                    if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+                    if (!isValidScreenPoint(screenPoint))
                     {
                         continue;
                     }
@@ -1912,13 +1968,8 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
     }
     
     // Convert circular buffer to reusable vector for iteration (avoid repeated allocations)
-    m_reusableVisibleData.clear();
-    m_reusableVisibleData.reserve(cacheIt->second.size());
-    for (size_t i = 0; i < cacheIt->second.size(); ++i)
-    {
-        m_reusableVisibleData.push_back(cacheIt->second[i]);
-    }
-    const std::vector<std::pair<float, qint64>> &cachedData = m_reusableVisibleData; // epoch ms, float Y values
+    // Use helper method to get visible data vector (eliminates duplication)
+    const std::vector<std::pair<float, qint64>> &cachedData = getVisibleDataVector(seriesLabel); // epoch ms, float Y values
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
     // Convert newTimeMin to epoch ONCE (not per iteration!)
@@ -2021,9 +2072,10 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
             continue; // Skip invalid timestamps
         }
         
+        // OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
         // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-        QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), QDateTime::fromMSecsSinceEpoch(dataPoint.second));
-        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), dataPoint.second);
+        if (!isValidScreenPoint(screenPoint))
         {
             continue; // Skip invalid screen coordinates
         }
@@ -2081,9 +2133,10 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
             continue; // Skip invalid timestamps
         }
         
+        // OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
         // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-        QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), QDateTime::fromMSecsSinceEpoch(dataPoint.second));
-        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), dataPoint.second);
+        if (!isValidScreenPoint(screenPoint))
         {
             continue;
         }
@@ -2923,12 +2976,18 @@ void WaterfallGraph::updateCoordinateMappingCaches() const
         m_cachedYRangeReciprocal = 0.0;
     }
     
-    // Cache timeMax epoch to avoid expensive msecsTo() calls
+    // Cache timeMax and timeMin epoch to avoid expensive msecsTo() calls
     // This prevents timezone operations (reading /etc/localtime) for every point
     if (timeMax.isValid()) {
         m_cachedTimeMaxEpoch = timeMax.toMSecsSinceEpoch();
     } else {
         m_cachedTimeMaxEpoch = 0;
+    }
+    
+    if (timeMin.isValid()) {
+        m_cachedTimeMinEpoch = timeMin.toMSecsSinceEpoch();
+    } else {
+        m_cachedTimeMinEpoch = 0;
     }
     
     m_cachesValid = (m_cachedTimeIntervalMs > 0 && m_cachedYRange > 0.0 && m_cachedTimeMaxEpoch != 0);
@@ -2978,6 +3037,46 @@ size_t WaterfallGraph::calculateLODStep(size_t dataSize) const
     const size_t maxPoints = 1000;
     if (dataSize > maxPoints * baseStep) {
         size_t densityStep = (dataSize + maxPoints - 1) / maxPoints; // Ceiling division
+        return std::max(baseStep, densityStep);
+    }
+    
+    return baseStep;
+}
+
+/**
+ * @brief Calculate Level of Detail step size for symbols (markers)
+ * Uses different, less aggressive LOD than data lines to preserve symbol visibility
+ * 
+ * @param symbolCount Number of symbols/markers
+ * @return Step size (1 = no skipping, 2 = every 2nd symbol, etc.)
+ */
+size_t WaterfallGraph::calculateSymbolLODStep(size_t symbolCount) const
+{
+    // Symbols are more important to see, so use less aggressive LOD
+    // Only apply LOD for intervals >= 2 hours (vs 1 hour for data lines)
+    if (static_cast<int>(timeInterval) < 120) { // Less than 120 minutes (2 hours)
+        return 1; // No skipping for 15min, 30min, 1 hour intervals
+    }
+    
+    // Calculate step size based on interval and symbol density
+    qint64 intervalMs = getTimeIntervalMs();
+    qreal intervalHours = intervalMs / (60.0 * 60.0 * 1000.0); // Convert to hours
+    
+    // Base step size for symbols - less aggressive than data lines
+    size_t baseStep = 1;
+    if (intervalHours >= 6.0) {
+        baseStep = 8;  // 6+ hours: skip every 8th symbol (vs 20 for data)
+    } else if (intervalHours >= 3.0) {
+        baseStep = 4;  // 3-6 hours: skip every 4th symbol (vs 10 for data)
+    } else {
+        baseStep = 2;  // 2-3 hours: skip every 2nd symbol (vs 6 for data)
+    }
+    
+    // Also consider symbol density - if we have too many symbols, increase step
+    // Target: max ~500 symbols per draw (vs 1000 for data points)
+    const size_t maxSymbols = 500;
+    if (symbolCount > maxSymbols * baseStep) {
+        size_t densityStep = (symbolCount + maxSymbols - 1) / maxSymbols; // Ceiling division
         return std::max(baseStep, densityStep);
     }
     
@@ -3131,15 +3230,16 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         return;
     }
 
-    // Use reusable vectors to avoid toVector() allocations
-    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
-    dataSource->populateTimestampsSeries(seriesLabel, m_reusableTimestamps);
-    const auto &yData = m_reusableYData;
-    const auto &timestamps = m_reusableTimestamps;
+    // OPTIMIZATION: Don't populate data here - we use cached visible data instead
+    // The cache is already populated with optimized float/epoch data in updateVisibleDataCacheFull/Incremental
+    // Removing these calls eliminates unnecessary populateYDataSeries/populateTimestampsSeries calls
+    // Ensure cache is valid and get visible data
+    ensureVisibleDataCacheValid(seriesLabel);
+    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
 
-    if (yData.empty() || timestamps.empty())
+    if (visibleData.empty())
     {
-        DEBUG_OUT() << "drawDataLine: no data available for series" << seriesLabel;
+        DEBUG_OUT() << "drawDataLine: no visible points within current time range for series" << seriesLabel;
         // Cleanup any existing items for this series
         // OPTIMIZATION: Clear stored paths for paintEvent rendering
         m_dataLinePaths.remove(seriesLabel);
@@ -3179,40 +3279,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         return;
     }
 
-    if (yData.size() != timestamps.size())
-    {
-        DEBUG_OUT() << "drawDataLine: data size mismatch for series" << seriesLabel
-                 << "- yData:" << yData.size() << "timestamps:" << timestamps.size();
-        return;
-    }
-
-    // Use cached visible data for O(k) incremental filtering instead of O(n) full filter
-    // Cache is automatically updated when time range or data changes
-    if (!isVisibleDataCacheValid(seriesLabel))
-    {
-        // Check if we can do incremental update (same time range, just new data)
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt != m_cachedTimeRange.end() &&
-            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
-        {
-            updateVisibleDataCacheIncremental(seriesLabel);
-        }
-        else
-        {
-            updateVisibleDataCacheFull(seriesLabel);
-        }
-    }
-
-    // Get visible data from circular buffer (convert to reusable vector for compatibility, avoid repeated allocations)
-    const CircularBuffer<std::pair<float, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms, float Y values
-    m_reusableVisibleData.clear();
-    m_reusableVisibleData.reserve(visibleDataBuffer.size());
-    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
-    {
-        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
-    }
-    const std::vector<std::pair<float, qint64>> &visibleData = m_reusableVisibleData; // epoch ms, float Y values
-
+    // visibleData is already populated above from cache - no need to repopulate
     if (visibleData.empty())
     {
         DEBUG_OUT() << "drawDataLine: no visible points within current time range for series" << seriesLabel;
@@ -3301,7 +3368,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         // Draw a single point if we only have one data point
         // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
         QPointF screenPoint = mapDataToScreen(static_cast<qreal>(visibleData[0].first), visibleData[0].second);
-        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        if (!isValidScreenPoint(screenPoint))
         {
             return;
         }
@@ -3351,8 +3418,9 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     // Create a path for the line
     QPainterPath path;
     // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-    QPointF firstPoint = mapDataToScreen(static_cast<qreal>(visibleData[0].first), QDateTime::fromMSecsSinceEpoch(visibleData[0].second));
-    if (firstPoint.isNull() || !qIsFinite(firstPoint.x()) || !qIsFinite(firstPoint.y()))
+    // OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
+    QPointF firstPoint = mapDataToScreen(static_cast<qreal>(visibleData[0].first), visibleData[0].second);
+    if (!isValidScreenPoint(firstPoint))
     {
         return;
     }
@@ -3379,9 +3447,10 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         // Build single path (existing behavior for small datasets)
         for (size_t i = 1; i < visibleData.size(); i += lodStep)
         {
+            // OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
             // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-            QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), QDateTime::fromMSecsSinceEpoch(visibleData[i].second));
-            if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+            QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), visibleData[i].second);
+            if (!isValidScreenPoint(point))
             {
                 continue; // Skip invalid points
             }
@@ -3445,7 +3514,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
             {
                 // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
                 QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), visibleData[i].second);
-                if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                if (!isValidScreenPoint(point))
                 {
                     continue; // Skip invalid points
                 }
@@ -3463,7 +3532,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
                 {
                     // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
                 QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), visibleData[i].second);
-                    if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                    if (!isValidScreenPoint(point))
                     {
                         continue;
                     }
@@ -3481,7 +3550,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
                 {
                     // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
                 QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), visibleData[i].second);
-                    if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                    if (!isValidScreenPoint(point))
                     {
                         continue;
                     }
@@ -3517,7 +3586,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
                 {
                     // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
                 QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), visibleData[i].second);
-                    if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+                    if (!isValidScreenPoint(point))
                     {
                         continue;
                     }
@@ -3527,7 +3596,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
         }
     }
 
-    DEBUG_OUT() << "Data line drawn for series" << seriesLabel << "with" << visibleData.size() << "visible points out of" << yData.size() << "total points";
+    DEBUG_OUT() << "Data line drawn for series" << seriesLabel << "with" << visibleData.size() << "visible points";
 }
 
 /**
@@ -3564,9 +3633,10 @@ void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
     QPainterPath currentBatch;
     size_t pointsInCurrentBatch = 0;
     
-    // Map first point - convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-    QPointF firstPoint = mapDataToScreen(static_cast<qreal>(visibleData[0].first), QDateTime::fromMSecsSinceEpoch(visibleData[0].second));
-    if (firstPoint.isNull() || !qIsFinite(firstPoint.x()) || !qIsFinite(firstPoint.y()))
+    // Map first point - OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
+    // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
+    QPointF firstPoint = mapDataToScreen(static_cast<qreal>(visibleData[0].first), visibleData[0].second);
+    if (!isValidScreenPoint(firstPoint))
     {
         batchedPaths.clear();
         return;
@@ -3577,9 +3647,10 @@ void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
     // Process remaining points with LOD
     for (size_t i = lodStep; i < visibleData.size(); i += lodStep)
     {
+        // OPTIMIZATION: Use epoch milliseconds overload directly - avoids QDateTime conversion overhead
         // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
-        QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), QDateTime::fromMSecsSinceEpoch(visibleData[i].second));
-        if (point.isNull() || !qIsFinite(point.x()) || !qIsFinite(point.y()))
+        QPointF point = mapDataToScreen(static_cast<qreal>(visibleData[i].first), visibleData[i].second);
+        if (!isValidScreenPoint(point))
         {
             continue; // Skip invalid points
         }
@@ -4133,51 +4204,12 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
     if (!dataSource)
         return;
 
-    // Get the default data series
-    // Use reusable vectors to avoid toVector() allocations
-    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
-    dataSource->populateTimestampsSeries(seriesLabel, m_reusableTimestamps);
-    const std::vector<qreal> &yData = m_reusableYData;
-    const std::vector<QDateTime> &timestamps = m_reusableTimestamps;
-
-    if (yData.empty() || timestamps.empty())
-    {
-        DEBUG_OUT() << "No data available for default scatterplot";
-        return;
-    }
-
-    if (yData.size() != timestamps.size())
-    {
-        DEBUG_OUT() << "Data size mismatch for default scatterplot";
-        return;
-    }
-
-    // Use cached visible data for O(k) incremental filtering instead of O(n) full filter
-    // Cache is automatically updated when time range or data changes
-    if (!isVisibleDataCacheValid(seriesLabel))
-    {
-        // Check if we can do incremental update (same time range, just new data)
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt != m_cachedTimeRange.end() &&
-            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
-        {
-            updateVisibleDataCacheIncremental(seriesLabel);
-        }
-        else
-        {
-            updateVisibleDataCacheFull(seriesLabel);
-        }
-    }
-    
-    // Get visible data from circular buffer (convert to reusable vector for compatibility, avoid repeated allocations)
-    const CircularBuffer<std::pair<float, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms, float Y values
-    m_reusableVisibleData.clear();
-    m_reusableVisibleData.reserve(visibleDataBuffer.size());
-    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
-    {
-        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
-    }
-    const std::vector<std::pair<float, qint64>> &visibleData = m_reusableVisibleData; // epoch ms, float Y values
+    // OPTIMIZATION: Don't populate data here - we use cached visible data instead
+    // The cache is already populated with optimized float/epoch data in updateVisibleDataCacheFull/Incremental
+    // Removing these calls eliminates 555K+ unnecessary populateYDataSeries/populateTimestampsSeries calls
+    // Ensure cache is valid and get visible data
+    ensureVisibleDataCacheValid(seriesLabel);
+    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
 
     if (visibleData.empty())
     {
@@ -4345,46 +4377,12 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     // For INCREMENTAL_UPDATE, we'll update positions and add/remove items as needed below
     // For CLEAN/RANGE_UPDATE_ONLY, we'll just update positions
 
-    // Use reusable vectors to avoid toVector() allocations
-    dataSource->populateYDataSeries(seriesLabel, m_reusableYData);
-    dataSource->populateTimestampsSeries(seriesLabel, m_reusableTimestamps);
-    const auto &yData = m_reusableYData;
-    const auto &timestamps = m_reusableTimestamps;
-
-    if (yData.empty() || timestamps.empty())
-    {
-        // CRITICAL FIX: Clean up existing ellipse items when data becomes empty
-        // This prevents memory leaks when data is cleared (addresses 85M QGraphicsEllipseItem leak)
-        cleanupSeriesItems(seriesLabel);
-        return;
-    }
-
-    // Use cached visible data for O(k) incremental filtering instead of O(n) full filter
-    // Cache is automatically updated when time range or data changes
-    if (!isVisibleDataCacheValid(seriesLabel))
-    {
-        // Check if we can do incremental update (same time range, just new data)
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt != m_cachedTimeRange.end() &&
-            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
-        {
-            updateVisibleDataCacheIncremental(seriesLabel);
-        }
-        else
-        {
-            updateVisibleDataCacheFull(seriesLabel);
-        }
-    }
-    
-    // Get visible data from circular buffer (convert to reusable vector for compatibility, avoid repeated allocations)
-    const CircularBuffer<std::pair<float, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel]; // epoch ms, float Y values
-    m_reusableVisibleData.clear();
-    m_reusableVisibleData.reserve(visibleDataBuffer.size());
-    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
-    {
-        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
-    }
-    const std::vector<std::pair<float, qint64>> &visibleData = m_reusableVisibleData; // epoch ms, float Y values
+    // OPTIMIZATION: Don't populate data here - we use cached visible data instead
+    // The cache is already populated with optimized float/epoch data in updateVisibleDataCacheFull/Incremental
+    // Removing these calls eliminates unnecessary populateYDataSeries/populateTimestampsSeries calls
+    // Ensure cache is valid and get visible data
+    ensureVisibleDataCacheValid(seriesLabel);
+    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
 
     if (visibleData.empty())
     {
@@ -4652,7 +4650,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         
         // Convert float to qreal only when calling mapDataToScreen (Qt API requires qreal)
         QPointF screenPoint = mapDataToScreen(static_cast<qreal>(dataPoint.first), dataPoint.second);
-        if (screenPoint.isNull() || !qIsFinite(screenPoint.x()) || !qIsFinite(screenPoint.y()))
+        if (!isValidScreenPoint(screenPoint))
             continue; // Skip invalid screen coordinates
         
         scatterPoints.push_back(screenPoint);

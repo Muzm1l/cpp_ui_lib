@@ -24,6 +24,7 @@ struct BTWSymbolData
 {
     QString symbolName;
     QDateTime timestamp;
+    qint64 timestampEpoch;  // Cached epoch milliseconds to avoid repeated toMSecsSinceEpoch() calls
     float range;
     bool isSynced;  // Sync state: true if symbol is synchronized across graphs
 };

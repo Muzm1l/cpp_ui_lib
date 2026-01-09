@@ -439,8 +439,8 @@ void BTWGraph::drawCustomCircleMarkers()
     }
 
     // Apply LOD (Level of Detail) for BTW blue markers when there are many markers
-    // Similar to data line LOD - skip some markers when zoomed out or when there are too many
-    size_t lodStep = calculateLODStep(visibleMarkers.size());
+    // Uses symbol-specific LOD which is less aggressive than data line LOD
+    size_t lodStep = calculateSymbolLODStep(visibleMarkers.size());
     
     // Draw circle markers for each visible marker (with LOD)
     for (size_t i = 0; i < visibleMarkers.size(); i += lodStep) {

@@ -344,6 +344,7 @@ protected:
     mutable qreal m_cachedYRangeReciprocal; // Cached 1.0 / (yMax - yMin)
     mutable qreal m_cachedTimeIntervalMsReciprocal; // Cached 1.0 / timeIntervalMs
     mutable qint64 m_cachedTimeMaxEpoch;     // Cached timeMax.toMSecsSinceEpoch() to avoid msecsTo() overhead
+    mutable qint64 m_cachedTimeMinEpoch;     // Cached timeMin.toMSecsSinceEpoch() to avoid repeated conversions
     mutable bool m_cachesValid;             // Flag to track cache validity
 
     // mapScreenToTime() result cache (Performance optimization)
@@ -408,6 +409,12 @@ protected:
     
     // Level of Detail (LOD) helper for high intervals (Issue #3)
     size_t calculateLODStep(size_t dataSize) const;
+    size_t calculateSymbolLODStep(size_t symbolCount) const;  // Different LOD for symbols (less aggressive)
+    
+    // Helper methods to reduce code duplication
+    void ensureVisibleDataCacheValid(const QString &seriesLabel);  // Ensures cache is valid, updates if needed
+    const std::vector<std::pair<float, qint64>>& getVisibleDataVector(const QString &seriesLabel);  // Gets visible data vector (handles copying from cache)
+    bool isValidScreenPoint(const QPointF& point) const;  // Validates screen point (not null and finite)
     
     // Reusable vectors/arrays to avoid repeated allocations
     // Note: These are mutable so they can be modified in const member functions (for caching/optimization)

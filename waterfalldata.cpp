@@ -1181,6 +1181,8 @@ void WaterfallData::addBTWSymbol(const QString& symbolName, const QDateTime& tim
     BTWSymbolData symbolData;
     symbolData.symbolName = symbolName;
     symbolData.timestamp = timestamp;
+    // OPTIMIZATION: Cache epoch milliseconds to avoid repeated toMSecsSinceEpoch() calls in hot paths
+    symbolData.timestampEpoch = timestamp.isValid() ? timestamp.toMSecsSinceEpoch() : 0;
     symbolData.range = range;
     symbolData.isSynced = isSynced;
     
