@@ -570,6 +570,10 @@ void WaterfallGraph::triggerIncrementalRedraw(const QString &seriesLabel)
     // Mark only this series as dirty (not all series)
     markSeriesDirty(seriesLabel);
     
+    // Clear range update flag to prevent range recalculation in interactive mode
+    // Interactive updates should skip expensive range calculations
+    m_rangeUpdateNeeded = false;
+    
     // Use incremental update state - this skips expensive operations:
     // - No range recalculation
     // - No cache clearing
@@ -999,9 +1003,13 @@ void WaterfallGraph::drawIncremental()
             break;
 
         case RenderState::INCREMENTAL_UPDATE:
-            // Update ranges if needed
+            // For interactive updates, skip range recalculation to maintain performance
+            // Interactive mode clears m_rangeUpdateNeeded in triggerIncrementalRedraw()
+            // Only recalculate ranges if m_rangeUpdateNeeded is true (normal incremental, not interactive)
             if (m_rangeUpdateNeeded || !dataRangesValid)
             {
+                // Only recalculate if explicitly needed (not in interactive mode)
+                // In interactive mode, m_rangeUpdateNeeded is false, so this is skipped
                 if (dataSource && !dataSource->isEmpty())
                 {
                     updateDataRanges();
@@ -4252,10 +4260,8 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         updateScatterplotItemPositions(seriesLabel, visibleData, pointSize);
     }
 
-    // CRITICAL FIX: Ensure update() is called to trigger paintEvent() for scatterplot rendering
-    // updateScatterplotItemsFull/Incremental already call update(), but ensure it's called here too
-    // in case the state machine path doesn't call those methods
-    update();
+    // NOTE: update() is already called by updateScatterplotItemsFull/Incremental/Positions
+    // No need to call it again here to avoid duplicate repaint requests
     
     DEBUG_OUT() << "Scatterplot drawn with" << visibleData.size() << "points (state:" 
              << static_cast<int>(m_renderState) << ")";

@@ -14,6 +14,7 @@
 #include <QWidget>
 #include <QColor>
 #include <QUuid>
+#include <QElapsedTimer>
 #include <map>
 #include <vector>
 #include "sharedsyncstate.h"
@@ -82,6 +83,9 @@ public:
     
     // Call this when drag ends to trigger full redraw with range recalculation
     void endInteractiveDrag(const GraphType &graphType);
+    
+    // Flush any pending interactive updates (call when drag ends)
+    void flushPendingInteractiveUpdates(const GraphType &graphType);
 
     // Data source management
     WaterfallData *getDataSource(const GraphType &graphType);
@@ -402,6 +406,11 @@ private:
 
     // Series colors map
     std::map<QString, QColor> m_seriesColorsMap;
+    
+    // Interactive update throttling
+    std::map<GraphType, QElapsedTimer> m_interactiveUpdateTimers;
+    std::map<GraphType, bool> m_pendingInteractiveUpdate;
+    static constexpr qint64 INTERACTIVE_UPDATE_THROTTLE_MS = 16; // ~60 FPS max
 
     void attachContainerDataSources();
     void initializeContainers();
