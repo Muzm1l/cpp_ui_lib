@@ -4,6 +4,7 @@
 #include "btwinteractiveoverlay.h"
 #include "debugutils.h"
 #include <QDebug>
+#include <QElapsedTimer>
 
 GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
     : QWidget{parent}, m_layoutType(layoutType), m_timer(timer)
@@ -890,17 +891,43 @@ void GraphLayout::setDataToDataSourceInteractive(const GraphType &graphType, con
     auto it = m_engines.find(graphType);
     if (it != m_engines.end())
     {
-        // Update data in engine
+        // Always update data in engine (data must be current)
         it->second->setDataSeries(seriesLabel, yData, timestamps);
-        DEBUG_OUT() << "Interactive drag update for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
-
-        // Notify containers with fast incremental update (no full redraw, no range recalculation)
-        for (auto *container : m_graphContainers)
+        
+        // Throttle UI updates: only update if enough time has passed since last update
+        // This prevents overwhelming the UI with too many repaints
+        auto &timer = m_interactiveUpdateTimers[graphType];
+        if (!timer.isValid())
         {
-            if (container)
+            timer.start();
+        }
+        
+        qint64 elapsedMs = timer.elapsed();
+        if (elapsedMs >= INTERACTIVE_UPDATE_THROTTLE_MS)
+        {
+            // Enough time has passed, process the update
+            timer.restart();
+            m_pendingInteractiveUpdate[graphType] = false;
+            
+            DEBUG_OUT() << "Interactive drag update for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
+
+            // Optimize: Only notify containers that actually display this graph type
+            // This avoids unnecessary function calls and checks
+            for (auto *container : m_graphContainers)
             {
-                container->onDataChangedInteractive(graphType, seriesLabel);
+                if (container && 
+                    container->hasDataOption(graphType) && 
+                    container->getCurrentDataOption() == graphType)
+                {
+                    container->onDataChangedInteractive(graphType, seriesLabel);
+                }
             }
+        }
+        else
+        {
+            // Too soon since last update, mark as pending
+            // The next call or a timer will process it
+            m_pendingInteractiveUpdate[graphType] = true;
         }
     }
     else
@@ -913,6 +940,12 @@ void GraphLayout::endInteractiveDrag(const GraphType &graphType)
 {
     DEBUG_OUT() << "Interactive drag ended for" << graphTypeToString(graphType) << "- triggering full redraw";
     
+    // Flush any pending interactive updates first
+    flushPendingInteractiveUpdates(graphType);
+    
+    // Reset throttling timer
+    m_interactiveUpdateTimers[graphType].invalidate();
+    
     // Trigger full update with range recalculation for all containers
     for (auto *container : m_graphContainers)
     {
@@ -921,6 +954,30 @@ void GraphLayout::endInteractiveDrag(const GraphType &graphType)
             // Use normal onDataChanged which does full update with range recalculation
             container->onDataChanged(graphType);
         }
+    }
+}
+
+void GraphLayout::flushPendingInteractiveUpdates(const GraphType &graphType)
+{
+    if (m_pendingInteractiveUpdate[graphType])
+    {
+        // Process any pending update
+        auto it = m_engines.find(graphType);
+        if (it != m_engines.end())
+        {
+            // Trigger update for all containers displaying this graph
+            for (auto *container : m_graphContainers)
+            {
+                if (container && 
+                    container->hasDataOption(graphType) && 
+                    container->getCurrentDataOption() == graphType)
+                {
+                    // Trigger a general update to ensure latest data is displayed
+                    container->onDataChanged(graphType);
+                }
+            }
+        }
+        m_pendingInteractiveUpdate[graphType] = false;
     }
 }
 
