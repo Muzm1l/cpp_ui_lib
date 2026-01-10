@@ -234,6 +234,55 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
+    // Create button to test setDataToDataSource with empty data for FTW and FDW
+    testEmptyDataButton = new QPushButton("Test Empty Data (FTW/FDW)", controlsWidget);
+    testEmptyDataButton->setObjectName("testEmptyDataButton");
+    testEmptyDataButton->setStyleSheet(
+        "QPushButton {"
+        "    background-color: #f57c00;"
+        "    border: 2px solid #e65100;"
+        "    color: white;"
+        "    font-size: 12px;"
+        "    font-weight: bold;"
+        "    padding: 6px 12px;"
+        "    border-radius: 4px;"
+        "    min-width: 120px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #ef6c00;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #e65100;"
+        "}");
+    
+    // Add button to layout
+    controlsLayout->addWidget(testEmptyDataButton);
+    
+    // Connect button click to test empty data behavior
+    connect(testEmptyDataButton, &QPushButton::clicked, this, [this]() {
+        if (graphgrid) {
+            DEBUG_OUT() << "MainWindow: Test Empty Data button clicked - calling setDataToDataSource with empty data for FTW and FDW";
+            
+            // Create empty data vectors
+            std::vector<float> emptyYData;
+            std::vector<QDateTime> emptyTimestamps;
+            
+            // Test FTW with empty data for all series
+            graphgrid->setDataToDataSource(GraphType::FTW, "FTW-1", emptyYData, emptyTimestamps);
+            graphgrid->setDataToDataSource(GraphType::FTW, "FTW-2", emptyYData, emptyTimestamps);
+            graphgrid->setDataToDataSource(GraphType::FTW, "ADOPTED", emptyYData, emptyTimestamps);
+            
+            // Test FDW with empty data for all series
+            graphgrid->setDataToDataSource(GraphType::FDW, "FDW-1", emptyYData, emptyTimestamps);
+            graphgrid->setDataToDataSource(GraphType::FDW, "FDW-2", emptyYData, emptyTimestamps);
+            graphgrid->setDataToDataSource(GraphType::FDW, "ADOPTED", emptyYData, emptyTimestamps);
+            
+            DEBUG_OUT() << "MainWindow: setDataToDataSource with empty data completed for FTW and FDW";
+        } else {
+            DEBUG_OUT() << "MainWindow: Cannot test empty data - graphgrid is null";
+        }
+    });
+
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
 

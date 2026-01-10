@@ -851,12 +851,29 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
         it->second->setDataSeries(seriesLabel, yData, timestamps);
         DEBUG_OUT() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
 
+        // If data is empty, ensure graphs are properly cleared
+        // Check if the input data is empty or if the engine's data is empty after setting
+        bool isEmpty = yData.empty() || timestamps.empty() || it->second->isEmpty();
+        if (isEmpty)
+        {
+            DEBUG_OUT() << "Data is empty for" << dataSourceLabel << "series" << seriesLabel << "- triggering full redraw to clear graphs";
+        }
+
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
         {
             if (container)
             {
-                container->onDataChanged(graphType);
+                // If data is empty, force a full redraw to ensure graphs are cleared
+                // This ensures existing graph graphics are removed when data becomes empty
+                if (isEmpty)
+                {
+                    container->redrawWaterfallGraph(graphType);
+                }
+                else
+                {
+                    container->onDataChanged(graphType);
+                }
             }
         }
     }
@@ -927,12 +944,29 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
         it->second->setDataSeries(seriesLabel, yData, timestamps);
         DEBUG_OUT() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "from WaterfallData object";
 
+        // If data is empty, ensure graphs are properly cleared
+        // Check if the input data is empty or if the engine's data is empty after setting
+        bool isEmpty = seriesData.empty() || yData.empty() || timestamps.empty() || it->second->isEmpty();
+        if (isEmpty)
+        {
+            DEBUG_OUT() << "Data is empty for" << dataSourceLabel << "series" << seriesLabel << "- triggering full redraw to clear graphs";
+        }
+
         // Notify all containers that have this data source to update their UI
         for (auto *container : m_graphContainers)
         {
             if (container)
             {
-                container->onDataChanged(graphType);
+                // If data is empty, force a full redraw to ensure graphs are cleared
+                // This ensures existing graph graphics are removed when data becomes empty
+                if (isEmpty)
+                {
+                    container->redrawWaterfallGraph(graphType);
+                }
+                else
+                {
+                    container->onDataChanged(graphType);
+                }
             }
         }
     }
