@@ -1087,6 +1087,18 @@ void WaterfallGraph::drawIncremental()
             m_dataLineColors.clear();
             m_scatterColors.clear();
 
+            // CRITICAL FIX: Invalidate coordinate mapping caches to prevent stale coordinate data
+            // This is especially important when data becomes empty, as updateDataRanges() returns
+            // early without invalidating these caches.
+            m_cachesValid = false;
+            m_mapDataToScreenCache.clear();
+            m_mapScreenToTimeCacheValid = false;
+
+            // CRITICAL FIX: Clear waterfall buffer to prevent stale buffer data from showing
+            // when data becomes empty or changes significantly.
+            m_waterfallBuffer = QPixmap();
+            m_waterfallBufferHeight = 0;
+
             // Update drawing area and grid
             setupDrawingArea();
             if (gridEnabled)
