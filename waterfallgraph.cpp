@@ -1096,6 +1096,18 @@ void WaterfallGraph::drawIncremental()
             m_dataLineColors.clear();
             m_scatterColors.clear();
 
+            // CRITICAL FIX: Invalidate coordinate mapping caches to prevent stale coordinate data
+            // This is especially important when data becomes empty, as updateDataRanges() returns
+            // early without invalidating these caches.
+            m_cachesValid = false;
+            m_mapDataToScreenCache.clear();
+            m_mapScreenToTimeCacheValid = false;
+
+            // CRITICAL FIX: Clear waterfall buffer to prevent stale buffer data from showing
+            // when data becomes empty or changes significantly.
+            m_waterfallBuffer = QPixmap();
+            m_waterfallBufferHeight = 0;
+
             // Update drawing area and grid
             setupDrawingArea();
             if (gridEnabled)
@@ -1129,6 +1141,15 @@ void WaterfallGraph::drawIncremental()
                         }
                     }
                 }
+            }
+            else if (dataSource && dataSource->isEmpty())
+            {
+                // CRITICAL FIX: When data is empty, ensure we trigger a repaint to clear the graph
+                // All caches and buffers have been cleared above, but we need to call update()
+                // to actually trigger paintEvent() which will render the cleared state
+                update();
+                
+                DEBUG_OUT() << "WaterfallGraph: Data source is empty, cleared all caches and triggered repaint";
             }
 
             // Draw BTW symbols (magenta circles) after drawing data series
