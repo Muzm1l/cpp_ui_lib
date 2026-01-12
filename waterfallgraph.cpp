@@ -1133,6 +1133,15 @@ void WaterfallGraph::drawIncremental()
                     }
                 }
             }
+            else if (dataSource && dataSource->isEmpty())
+            {
+                // CRITICAL FIX: When data is empty, ensure we trigger a repaint to clear the graph
+                // All caches and buffers have been cleared above, but we need to call update()
+                // to actually trigger paintEvent() which will render the cleared state
+                update();
+                
+                DEBUG_OUT() << "WaterfallGraph: Data source is empty, cleared all caches and triggered repaint";
+            }
 
             // Draw BTW symbols (magenta circles) after drawing data series
             drawBTWSymbols();
