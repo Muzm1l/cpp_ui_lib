@@ -1068,6 +1068,28 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
         return;
     }
     
+    // CRITICAL FIX: In FROZEN_MODE, ignore external sync calls
+    // The slider position and time window should remain frozen as set by the user
+    // This prevents signal-based sync from resetting frozen slider positions
+    // (e.g., when another timeline view or SCW timeline changes)
+    if (m_timelineViewMode == TimelineViewMode::FROZEN_MODE)
+    {
+        // In frozen mode, do NOT update slider position or time window from external sync
+        // The user has explicitly frozen the view, so we preserve it
+        // Only update manoeuvre overlay if needed (this doesn't affect slider position)
+        if (m_manoeuvreOverlay && window.startTime.isValid() && window.endTime.isValid())
+        {
+            // Use the current frozen time window, not the synced one
+            TimeSelectionSpan currentWindow = m_sliderState.getTimeWindow();
+            if (currentWindow.startTime.isValid() && currentWindow.endTime.isValid())
+            {
+                m_manoeuvreOverlay->setTimeRange(currentWindow.startTime, currentWindow.endTime);
+            }
+        }
+        // Do NOT call updateVisualization() - no changes needed in frozen mode
+        return;
+    }
+    
     // Calculate the interval from the window size to ensure we use the correct interval
     // This is important because TimeScopeChanged might arrive before TimeIntervalChanged
     qint64 windowDurationMs = window.startTime.msecsTo(window.endTime);
@@ -1353,7 +1375,28 @@ void TimelineVisualizerWidget::setTimelineViewMode(TimelineViewMode mode)
 
 void TimelineVisualizerWidget::setTimeWindowSilent(const TimeSelectionSpan& window)
 {
-    // Update slider state with new time window (this will sync the position)
+    // CRITICAL FIX: In FROZEN_MODE, ignore external sync calls
+    // The slider position and time window should remain frozen as set by the user
+    // This prevents GraphLayout sync from resetting frozen slider positions
+    if (m_timelineViewMode == TimelineViewMode::FROZEN_MODE)
+    {
+        // In frozen mode, do NOT update slider position or time window from external sync
+        // The user has explicitly frozen the view, so we preserve it
+        // Only update manoeuvre overlay if needed (this doesn't affect slider position)
+        if (m_manoeuvreOverlay && window.startTime.isValid() && window.endTime.isValid())
+        {
+            // Use the current frozen time window, not the synced one
+            TimeSelectionSpan currentWindow = m_sliderState.getTimeWindow();
+            if (currentWindow.startTime.isValid() && currentWindow.endTime.isValid())
+            {
+                m_manoeuvreOverlay->setTimeRange(currentWindow.startTime, currentWindow.endTime);
+            }
+        }
+        // Do NOT call updateVisualization() - no changes needed in frozen mode
+        return;
+    }
+    
+    // In FOLLOW_MODE, update slider state with new time window (this will sync the position)
     m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
     
     // Keep legacy member in sync
@@ -2036,15 +2079,19 @@ void TimelineView::setTimelineViewMode(TimelineViewMode mode)
         m_visualizerWidget->setTimelineViewMode(mode);
     }
 
-    // This is the standard location where the mode transition logic is handled
-    // Case 1 : FOLLOW_MODE -> FROZEN_MODE
+    // CRITICAL FIX: Update sync state immediately (same as onTimelineViewModeChanged)
+    // This prevents the sync state from being out of sync and causing mode resets
+    if (m_syncState)
+    {
+        m_syncState->isGraphContainerInFollowMode = (mode == TimelineViewMode::FOLLOW_MODE);
+    }
 
-    handleModeTransitionLogic(TimelineViewMode::FROZEN_MODE);
-
-    // Case 2 : FROZEN_MODE -> FOLLOW_MODE
-
+    // Handle mode transition logic (only once, with correct mode)
     handleModeTransitionLogic(mode);
     
+    // Emit signal for mode change (for consistency with onTimelineViewModeChanged)
+    bool isInFollowMode = (mode == TimelineViewMode::FOLLOW_MODE);
+    emit GraphContainerInFollowModeChanged(isInFollowMode);
 }
 
 // Navtime label calculation methods (delegate to visualizer widget)

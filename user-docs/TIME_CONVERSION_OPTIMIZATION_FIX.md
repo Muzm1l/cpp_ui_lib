@@ -139,3 +139,4 @@ This fix complements other time-related optimizations:
 The time conversion overhead in the callgrind report was caused by unnecessary `QDateTime::fromMSecsSinceEpoch()` calls before `mapDataToScreen()`. All these calls have been updated to use the optimized epoch milliseconds overload directly, eliminating 161+ million timezone conversions and significantly reducing time-related overhead.
 
 
+
