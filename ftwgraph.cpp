@@ -95,6 +95,20 @@ void FTWGraph::draw()
     }
     else if (dataSource && dataSource->isEmpty())
     {
+        // CRITICAL FIX: When data is empty, force full clear to ensure graphics scene is cleared
+        // This prevents old drawn elements from remaining visible when empty data is passed
+        if (!needsFullClear)
+        {
+            // Clear all item pointers since we're about to clear the scene
+            m_seriesScatterplotItems.clear();
+            m_seriesPathItems.clear();
+            m_seriesPointItems.clear();
+            
+            // Clear graphics scene to remove all drawn elements
+            graphicsScene->clear();
+            graphicsScene->update(); // Force immediate update to ensure clearing is visible
+        }
+        
         // Data source is empty - cleanup all scatterplot items to ensure they're removed
         cleanupAllScatterplotItems();
         
@@ -109,7 +123,7 @@ void FTWGraph::draw()
         // Trigger repaint to clear the line from screen
         update();
         
-        DEBUG_OUT() << "FTWGraph: Data source is empty, cleaned up all scatterplot items and data line paths";
+        DEBUG_OUT() << "FTWGraph: Data source is empty, forced full clear and cleaned up all scatterplot items and data line paths";
     }
     
     // Draw BTW symbols (magenta circles) if any exist in data source

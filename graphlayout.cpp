@@ -2325,6 +2325,34 @@ void GraphLayout::clearAllGraphs()
     DEBUG_OUT() << "GraphLayout: clearAllGraphs() completed";
 }
 
+void GraphLayout::clearGraph(const GraphType &graphType)
+{
+    DEBUG_OUT() << "GraphLayout: clearGraph() - forcing full clear and redraw for graph type:" << static_cast<int>(graphType);
+    
+    // Force full redraw on all containers that have this graph type
+    // This ensures graphs are properly cleared when empty data is passed
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+        {
+            // Get the specific graph type from the container
+            WaterfallGraph *graph = container->getWaterfallGraph(graphType);
+            if (graph)
+            {
+                // Force full redraw which will:
+                // - Set render state to FULL_REDRAW
+                // - Clear all graphics items
+                // - Clear all caches
+                // - Trigger complete redraw
+                graph->forceFullRedraw();
+                DEBUG_OUT() << "GraphLayout: Forced full redraw for graph type" << static_cast<int>(graphType) << "in container";
+            }
+        }
+    }
+    
+    DEBUG_OUT() << "GraphLayout: clearGraph() completed for graph type:" << static_cast<int>(graphType);
+}
+
 // Marker and symbol management methods implementation
 
 void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range)

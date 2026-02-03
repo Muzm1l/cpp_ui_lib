@@ -115,9 +115,35 @@ void FDWGraph::draw()
     }
     else if (dataSource && dataSource->isEmpty())
     {
+        // CRITICAL FIX: When data is empty, force full clear to ensure graphics scene is cleared
+        // This prevents old drawn elements from remaining visible when empty data is passed
+        if (!needsFullClear)
+        {
+            // Clear all item pointers since we're about to clear the scene
+            m_seriesScatterplotItems.clear();
+            m_seriesPathItems.clear();
+            m_seriesPointItems.clear();
+            
+            // Clear graphics scene to remove all drawn elements
+            graphicsScene->clear();
+            graphicsScene->update(); // Force immediate update to ensure clearing is visible
+        }
+        
         // Data source is empty - cleanup all scatterplot items to ensure they're removed
         cleanupAllScatterplotItems();
-        DEBUG_OUT() << "FDWGraph: Data source is empty, cleaned up all scatterplot items";
+        
+        // CRITICAL FIX: Clear data line paths (ADOPTED series line)
+        // These paths are rendered in paintEvent() and may contain gaps from when
+        // BTW symbols were present. When data is cleared, these old paths must be
+        // cleared too, otherwise the line with gaps remains visible.
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        
+        // Trigger repaint to clear the line from screen
+        update();
+        
+        DEBUG_OUT() << "FDWGraph: Data source is empty, forced full clear and cleaned up all scatterplot items and data line paths";
     }
     
     // Draw BTW symbols (magenta circles) if any exist in data source

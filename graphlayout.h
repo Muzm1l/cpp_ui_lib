@@ -175,6 +175,10 @@ public:
 
     // Clear all graphs - clears all data, markers, and symbols from all graphs
     void clearAllGraphs();
+    
+    // Clear a specific graph type - forces full clear and redraw (useful when empty data is passed)
+    // This ensures graphs are properly cleared when data becomes empty
+    void clearGraph(const GraphType &graphType);
 
     // Marker and symbol management methods - operate on specific graph type
     void addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
