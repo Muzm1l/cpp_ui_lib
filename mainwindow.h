@@ -92,6 +92,7 @@ private:
     QPushButton* clearAllGraphsButton; ///< Button to test clearAllGraphs API
     QPushButton* redrawGraphsButton; ///< Button to manually trigger redraw of all graphs
     QPushButton* testEmptyDataButton; ///< Button to test setDataToDataSource with empty data for FTW and FDW
+    QPushButton* clearFTWFDWButton; ///< Button to test clearGraph API for FTW and FDW
     
     // BTW horizontal line mode state
     BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode

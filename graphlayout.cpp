@@ -2327,7 +2327,17 @@ void GraphLayout::clearAllGraphs()
 
 void GraphLayout::clearGraph(const GraphType &graphType)
 {
-    DEBUG_OUT() << "GraphLayout: clearGraph() - forcing full clear and redraw for graph type:" << static_cast<int>(graphType);
+    DEBUG_OUT() << "GraphLayout: clearGraph() - clearing all data and forcing full redraw for graph type:" << static_cast<int>(graphType);
+    
+    // CRITICAL FIX: Clear all data series for this graph type first
+    // This ensures that when forceFullRedraw() is called, the data source is empty
+    // and the graph will actually be cleared instead of redrawing existing data
+    std::vector<QString> seriesLabels = getSeriesLabelsInDataSource(graphType);
+    for (const QString &seriesLabel : seriesLabels)
+    {
+        clearDataSource(graphType, seriesLabel);
+        DEBUG_OUT() << "GraphLayout: Cleared data series" << seriesLabel << "for graph type" << static_cast<int>(graphType);
+    }
     
     // Force full redraw on all containers that have this graph type
     // This ensures graphs are properly cleared when empty data is passed
@@ -2343,7 +2353,7 @@ void GraphLayout::clearGraph(const GraphType &graphType)
                 // - Set render state to FULL_REDRAW
                 // - Clear all graphics items
                 // - Clear all caches
-                // - Trigger complete redraw
+                // - Trigger complete redraw (but now with empty data source, so nothing will be drawn)
                 graph->forceFullRedraw();
                 DEBUG_OUT() << "GraphLayout: Forced full redraw for graph type" << static_cast<int>(graphType) << "in container";
             }

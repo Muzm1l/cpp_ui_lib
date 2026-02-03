@@ -283,6 +283,49 @@ MainWindow::MainWindow(QWidget *parent)
         }
     });
 
+    // Create button to test clearGraph API for FTW and FDW
+    clearFTWFDWButton = new QPushButton("Clear FTW & FDW", controlsWidget);
+    clearFTWFDWButton->setObjectName("clearFTWFDWButton");
+    clearFTWFDWButton->setStyleSheet(
+        "QPushButton {"
+        "    background-color: #7b1fa2;"
+        "    border: 2px solid #6a1b9a;"
+        "    color: white;"
+        "    font-size: 12px;"
+        "    font-weight: bold;"
+        "    padding: 6px 12px;"
+        "    border-radius: 4px;"
+        "    min-width: 120px;"
+        "}"
+        "QPushButton:hover {"
+        "    background-color: #6a1b9a;"
+        "}"
+        "QPushButton:pressed {"
+        "    background-color: #4a148c;"
+        "}");
+    
+    // Add button to layout
+    controlsLayout->addWidget(clearFTWFDWButton);
+    
+    // Connect button click to clearGraph API for FTW and FDW
+    connect(clearFTWFDWButton, &QPushButton::clicked, this, [this]() {
+        if (graphgrid) {
+            DEBUG_OUT() << "MainWindow: Clear FTW & FDW button clicked - calling clearGraph() for FTW and FDW";
+            
+            // Clear FTW graph
+            graphgrid->clearGraph(GraphType::FTW);
+            DEBUG_OUT() << "MainWindow: clearGraph(FTW) completed";
+            
+            // Clear FDW graph
+            graphgrid->clearGraph(GraphType::FDW);
+            DEBUG_OUT() << "MainWindow: clearGraph(FDW) completed";
+            
+            DEBUG_OUT() << "MainWindow: Both FTW and FDW graphs cleared";
+        } else {
+            DEBUG_OUT() << "MainWindow: Cannot clear graphs - graphgrid is null";
+        }
+    });
+
     // Create Simulator instance
     simulator = new Simulator(this, timeUpdateTimer, graphgrid);
 
