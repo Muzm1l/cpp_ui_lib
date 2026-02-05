@@ -1050,6 +1050,22 @@ ZoomPanel* BTWGraph::getZoomPanel() const
     return container->findChild<ZoomPanel*>();
 }
 
+void BTWGraph::getVisibleBearingRange(qreal &outMin, qreal &outMax) const
+{
+    ZoomPanel *panel = getZoomPanel();
+    if (panel) {
+        outMin = panel->getLeftLabelValue();
+        outMax = panel->getRightLabelValue();
+        if (outMax <= outMin || !qIsFinite(outMin) || !qIsFinite(outMax)) {
+            outMin = 0.0;
+            outMax = 360.0;
+        }
+    } else {
+        outMin = 0.0;
+        outMax = 360.0;
+    }
+}
+
 /**
  * @brief Add a shaded region to the graph
  * @param startX Starting X value (range value)

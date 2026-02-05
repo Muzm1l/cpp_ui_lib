@@ -596,8 +596,27 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
         m_previousPrefix[marker] = prefix;
     }
     
-    // Format the display value (normalized rotation, no decimal places)
-    QString displayValue = QString::number(normalizedRotation, 'f', 0);
+    // Local display value: scale global rotation (0-360) to this graph's visible bearing range,
+    // then add start zoom panel sticker so box shows same scale as stickers (e.g. 0-360 or 330-360).
+    qreal visibleMin = 0.0, visibleMax = 360.0;
+    if (m_btwGraph) {
+        m_btwGraph->getVisibleBearingRange(visibleMin, visibleMax);
+    }
+    qreal visibleSpan = visibleMax - visibleMin;
+    if (visibleSpan <= 0.0 || !qIsFinite(visibleSpan)) {
+        visibleSpan = 360.0;
+    }
+    qreal localDisplayValue = normalizedRotation * (visibleSpan / 360.0);
+    if (localDisplayValue < 0.0) {
+        localDisplayValue = 0.0;
+    } else if (localDisplayValue >= visibleSpan) {
+        localDisplayValue = visibleSpan - 0.01;  // Keep below span for display
+    }
+    // Box value = start sticker + normalized offset (so A shows 0-360, B shows 330-360)
+    int boxDisplayInt = static_cast<int>(qRound(visibleMin + localDisplayValue));
+    
+    // Format the display value (sticker-scale: visibleMin to visibleMax, no decimal places)
+    QString displayValue = QString::number(boxDisplayInt);
     QString bearingRateText = prefix + displayValue;
     
     // Get cached pixmap for this text (L0-L359, R0-R359, or 0)

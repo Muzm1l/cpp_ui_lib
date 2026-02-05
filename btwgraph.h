@@ -53,7 +53,17 @@ public:
 
     // Interactive overlay access
     BTWInteractiveOverlay* getInteractiveOverlay() const;
-    
+
+    /**
+     * @brief Get this graph's visible bearing (X) range from the zoom panel
+     *
+     * Used for local bearing-rate box display: the value shown in the manual marker
+     * box is scaled to this graph's visible range (e.g. 0-360 vs 330-360).
+     * @param outMin Receives the left (min) bearing value
+     * @param outMax Receives the right (max) bearing value
+     */
+    void getVisibleBearingRange(qreal &outMin, qreal &outMax) const;
+
     /**
      * @brief Get all timestamps from automatic markers
      * @return Vector of timestamps from all automatic markers that were created
