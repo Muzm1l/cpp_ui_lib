@@ -335,12 +335,25 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // Reset accumulated offset when interval changes
     m_accumulatedOffset = 0.0;
 
-    // Update slider state to match the new interval length
-    // Keep the end time at current time, adjust the start time backward
-    QDateTime now = QDateTime::currentDateTime();
+    // Update slider state to match the new interval length.
+    // In FROZEN_MODE: preserve the user's chosen END time, only adjust start for new interval.
+    // In FOLLOW_MODE: reset window to [now - interval, now] as before.
     int intervalSeconds = newLength.hour() * 3600 + newLength.minute() * 60 + newLength.second();
-    QDateTime startTime = now.addSecs(-intervalSeconds);
-    TimeSelectionSpan newWindow(startTime, now);
+    TimeSelectionSpan newWindow;
+    if (m_timelineViewMode == TimelineViewMode::FROZEN_MODE)
+    {
+        // Preserve the user's frozen window end time
+        TimeSelectionSpan currentWindow = m_sliderState.getTimeWindow();
+        QDateTime endTime = currentWindow.endTime.isValid() ? currentWindow.endTime : QDateTime::currentDateTime();
+        QDateTime startTime = endTime.addSecs(-intervalSeconds);
+        newWindow = TimeSelectionSpan(startTime, endTime);
+    }
+    else
+    {
+        QDateTime now = QDateTime::currentDateTime();
+        QDateTime startTime = now.addSecs(-intervalSeconds);
+        newWindow = TimeSelectionSpan(startTime, now);
+    }
     m_sliderState.setTimeWindow(newWindow, rect().height(), newLength);
     
     // Keep legacy member in sync

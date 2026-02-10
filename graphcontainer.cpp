@@ -196,7 +196,9 @@ void GraphContainer::onTimerTick()
 //--------syed----------------
     // Update graph only when there's new data to show (within 1 minute of current time)
     // Performance optimization: Only redraw when necessary, not on every timer tick
-    if (m_currentWaterfallGraph && m_timelineView)
+    // IMPORTANT: Only auto-scroll when in follow mode. When frozen, the user has
+    // selected a specific time range and we must not overwrite it.
+    if (m_isInFollowMode && m_currentWaterfallGraph && m_timelineView)
     {
         auto timeRange = m_currentWaterfallGraph->getTimeRange();
         if (timeRange.first.isValid() && timeRange.second.isValid())
@@ -1282,6 +1284,12 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
         return;
     }
 
+    // NOTE: This handler receives signals from the user's own timeline slider (drag + release).
+    // It must ALWAYS be processed regardless of follow/frozen mode.
+    // The frozen-mode guard lives in setTimeScope() (the external sync path from GraphLayout),
+    // NOT here. Blocking here would prevent the user's drag-release from reaching the graph,
+    // because mouseReleaseEvent transitions to FROZEN_MODE before emitting the final scope.
+
     // Update the waterfall graph's time range to match the visible scope
     // setTimeRange() no longer auto-draws - it sets INCREMENTAL_UPDATE state
     m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
@@ -1305,7 +1313,14 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
 
 void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
 {
-    // This method is called by GraphLayout hub to update time scope without triggering signals
+    // This method is called by GraphLayout hub to update time scope without triggering signals.
+    // When frozen, the user has selected a specific time range via the slider.
+    // External sync from other containers must NOT overwrite it.
+    if (!m_isInFollowMode)
+    {
+        return;
+    }
+
     // Skip processing if we're in the middle of updating the time interval
     if (m_updatingTimeInterval)
     {
