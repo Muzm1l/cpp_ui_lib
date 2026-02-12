@@ -221,6 +221,15 @@ void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& inte
                 windowStart = applicationStartTime;
             }
         }
+        // Sync slider Y position to the clamped window so the thumb cannot be dragged below system start
+        if (totalMinutes > 0)
+        {
+            double positionRatio = static_cast<double>(rangeStart.msecsTo(windowEnd)) / 60000.0 / totalMinutes;
+            positionRatio = qBound(0.0, positionRatio, 1.0);
+            int sliderHeight = SliderGeometry::calculateSliderHeight(interval, widgetHeight);
+            QPair<int, int> bounds = SliderGeometry::getSliderBounds(widgetHeight, sliderHeight);
+            m_yPosition = qBound(bounds.first, static_cast<int>((1.0 - positionRatio) * widgetHeight), bounds.second);
+        }
     }
     
     m_timeWindow = TimeSelectionSpan(windowStart, windowEnd);
@@ -1201,8 +1210,11 @@ void TimelineVisualizerWidget::mousePressEvent(QMouseEvent* event)
         if (sliderRect.contains(pos))
         {
             m_sliderState.startDrag(pos);
+            // When slider is dragged, enter frozen mode immediately so graph drawing stops updating
+            m_timelineViewMode = TimelineViewMode::FROZEN_MODE;
+            emit timelineViewModeChanged(TimelineViewMode::FROZEN_MODE);
             setCursor(Qt::ClosedHandCursor);
-            DEBUG_OUT() << "Slider drag started at Y:" << pos.y() << "Slider Y:" << m_sliderState.getYPosition();
+            DEBUG_OUT() << "Slider drag started at Y:" << pos.y() << "Slider Y:" << m_sliderState.getYPosition() << "- FROZEN_MODE";
             event->accept();
             return;
         }
