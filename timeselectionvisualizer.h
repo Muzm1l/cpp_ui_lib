@@ -109,6 +109,7 @@ public:
     void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
     void setTimeSelection(int index, const TimeSelectionSpan& span) { m_visualizerWidget->setTimeSelection(index, span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
+    void createFullSelection() { m_visualizerWidget->createFullSelection(); }
     bool hasTimeSelections() const { return m_visualizerWidget->hasTimeSelections(); }
     void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
     void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
@@ -120,6 +121,8 @@ signals:
     void timeSelectionsCleared();
     void timeSelectionMade(const TimeSelectionSpan& span);
     void timeSelectionModified(int index, const TimeSelectionSpan& newSpan);
+    /** Emitted when the user clicks the H button with no selections; container can create selection from real time to BTW line or fall back to full range */
+    void fullSelectionRequested();
 
 private slots:
     void onButtonClicked();

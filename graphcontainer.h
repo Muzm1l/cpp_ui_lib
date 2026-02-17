@@ -213,6 +213,7 @@ private:
     void setupTimer();
     void onTimerTick();
     void onClearTimeSelectionsButtonClicked();
+    void onHistoryFullSelectionRequested();
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);

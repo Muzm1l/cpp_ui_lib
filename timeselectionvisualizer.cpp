@@ -325,8 +325,8 @@ void TimeSelectionVisualizer::onButtonClicked()
         emit timeSelectionsCleared();
         // DEBUG_OUT() << "Time selections cleared and signal emitted!";
     } else {
-        // If there are no selections, create a full selection spanning the valid region
-        m_visualizerWidget->createFullSelection();
+        // No selections: request full selection; container may use BTW horizontal line (real time to line) or fall back to full range
+        emit fullSelectionRequested();
     }
 }
 

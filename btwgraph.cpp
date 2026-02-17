@@ -1449,6 +1449,20 @@ QDateTime BTWGraph::getHorizontalLineTimestamp(const QUuid &lineId) const
     return QDateTime(); // Return invalid QDateTime if not found
 }
 
+QDateTime BTWGraph::getFirstHorizontalLineTimestamp() const
+{
+    if (m_horizontalLines.isEmpty())
+        return QDateTime();
+    return m_horizontalLines.first().timestamp;
+}
+
+QDateTime BTWGraph::getLatestHorizontalLineTimestamp() const
+{
+    if (m_horizontalLines.isEmpty())
+        return QDateTime();
+    return m_horizontalLines.last().timestamp;
+}
+
 bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
 {
     for (int i = 0; i < m_horizontalLines.size(); ++i) {

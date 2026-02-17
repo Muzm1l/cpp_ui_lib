@@ -214,6 +214,19 @@ public:
     QDateTime getHorizontalLineTimestamp(const QUuid &lineId) const;
     
     /**
+     * @brief Get the timestamp of the first horizontal line (if any).
+     * @return The timestamp of the first line, or invalid QDateTime if none
+     */
+    QDateTime getFirstHorizontalLineTimestamp() const;
+    
+    /**
+     * @brief Get the timestamp of the latest horizontal line (most recently added).
+     * Used e.g. to define history selection from real time to BTW line.
+     * @return The timestamp of the last line, or invalid QDateTime if none
+     */
+    QDateTime getLatestHorizontalLineTimestamp() const;
+    
+    /**
      * @brief Remove a horizontal line by its ID
      * @param lineId The unique identifier of the line to remove
      * @return True if the line was found and removed

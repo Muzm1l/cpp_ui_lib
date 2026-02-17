@@ -740,6 +740,8 @@ void GraphContainer::setupEventConnections()
                 this, &GraphContainer::onTimeSelectionMade);
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionModified,
                 this, [this](int index, const TimeSelectionSpan &newSpan) { emit TimeSelectionModified(index, newSpan); });
+        connect(m_timelineSelectionView, &TimeSelectionVisualizer::fullSelectionRequested,
+                this, &GraphContainer::onHistoryFullSelectionRequested);
     }
 
     DEBUG_OUT() << "GraphContainer: All event connections established";
@@ -1740,6 +1742,24 @@ void GraphContainer::onClearTimeSelectionsButtonClicked()
 {
     DEBUG_OUT() << "GraphContainer: Clear time selections button clicked";
     clearTimeSelections();
+}
+
+void GraphContainer::onHistoryFullSelectionRequested()
+{
+    // When user clicks H button with no selections: use "real time to BTW horizontal line" if a line exists, else full range
+    WaterfallGraph *btwBase = getWaterfallGraph(GraphType::BTW);
+    BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwBase);
+    QDateTime lineTime = btwGraph ? btwGraph->getLatestHorizontalLineTimestamp() : QDateTime();
+    if (lineTime.isValid() && m_timelineSelectionView) {
+        QDateTime now = QDateTime::currentDateTime();
+        TimeSelectionSpan span(lineTime < now ? lineTime : now, lineTime < now ? now : lineTime);
+        m_timelineSelectionView->addTimeSelection(span);
+        emit TimeSelectionCreated(span);
+        DEBUG_OUT() << "GraphContainer: History full selection from BTW line to real time:" << span.startTime.toString() << "to" << span.endTime.toString();
+    } else {
+        if (m_timelineSelectionView)
+            m_timelineSelectionView->createFullSelection();
+    }
 }
 
 // Marker timestamp slot implementations
