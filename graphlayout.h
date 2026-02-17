@@ -376,6 +376,7 @@ protected:
 public slots:
     void onTimerTick();
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
+    void onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     
@@ -447,6 +448,7 @@ private:
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
+    void TimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void TimeSelectionsCleared();
     
     // Marker timestamp signals for external integration

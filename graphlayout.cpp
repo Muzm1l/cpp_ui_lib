@@ -259,6 +259,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
     {
         connect(container, &GraphContainer::TimeSelectionCreated,
                 this, &GraphLayout::onTimeSelectionCreated, Qt::UniqueConnection);
+        connect(container, &GraphContainer::TimeSelectionModified,
+                this, &GraphLayout::onTimeSelectionModified, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeSelectionsCleared,
                 this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
@@ -367,12 +369,14 @@ void GraphLayout::initializeContainers()
     // Attach data sources to containers
     attachContainerDataSources();
     
-    // Connect all containers' TimeSelectionCreated and TimeSelectionsCleared signals to our slots
+    // Connect all containers' TimeSelectionCreated, TimeSelectionModified, and TimeSelectionsCleared signals to our slots
     // Use Qt::UniqueConnection to prevent duplicate connections
     for (auto *container : m_graphContainers)
     {
         connect(container, &GraphContainer::TimeSelectionCreated,
                 this, &GraphLayout::onTimeSelectionCreated, Qt::UniqueConnection);
+        connect(container, &GraphContainer::TimeSelectionModified,
+                this, &GraphLayout::onTimeSelectionModified, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeSelectionsCleared,
                 this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
@@ -1171,10 +1175,11 @@ void GraphLayout::disconnectAllContainerConnections()
     {
         if (container)
         {
-            // Disconnect IntervalChanged, TimeScopeChanged, TimeSelectionCreated, and TimeSelectionsCleared signals to preserve internal functionality
+            // Disconnect IntervalChanged, TimeScopeChanged, TimeSelectionCreated, TimeSelectionModified, and TimeSelectionsCleared signals to preserve internal functionality
             container->disconnect(SIGNAL(IntervalChanged(TimeInterval)));
             container->disconnect(SIGNAL(TimeScopeChanged(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionCreated(TimeSelectionSpan)));
+            container->disconnect(SIGNAL(TimeSelectionModified(int, TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionsCleared()));
             DEBUG_OUT() << "GraphLayout: Disconnected external signals from container";
         }
@@ -1569,6 +1574,18 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
     emit TimeSelectionCreated(selection);
 }
 
+void GraphLayout::onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan)
+{
+    if (index < 0 || index >= static_cast<int>(m_syncState.timeSelections.size()))
+        return;
+    m_syncState.timeSelections[static_cast<size_t>(index)] = newSpan;
+    GraphContainer *source = qobject_cast<GraphContainer *>(sender());
+    for (auto *container : m_graphContainers) {
+        if (container && container != source)
+            container->setTimeSelection(index, newSpan);
+    }
+    emit TimeSelectionModified(index, newSpan);
+}
 
 void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
 {

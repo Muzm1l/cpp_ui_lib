@@ -13,6 +13,7 @@
 #include <QVBoxLayout>
 #include <QTimer>
 #include <QElapsedTimer>
+#include <QMessageBox>
 #include <cmath>
 #include <algorithm>
 
@@ -590,6 +591,8 @@ void MainWindow::setupTimeSelectionHistory()
     // Connect time selection signal to store timestamps
     connect(graphgrid, &GraphLayout::TimeSelectionCreated,
             this, &MainWindow::onTimeSelectionCreated);
+    connect(graphgrid, &GraphLayout::TimeSelectionModified,
+            this, &MainWindow::onTimeSelectionModified);
     
     DEBUG_OUT() << "Time selection history storage initialized (max 5 selections)";
 }
@@ -656,12 +659,19 @@ void MainWindow::setupManoeuvreButton()
     // Connect button click to slot
     connect(btwLineModeButton, &QPushButton::clicked, this, &MainWindow::onBTWLineModeButtonClicked);
     
+    // Test button to show timeframe of history selections
+    showHistorySelectionsButton = new QPushButton("Show history selections", controlsWidget);
+    showHistorySelectionsButton->setObjectName("showHistorySelectionsButton");
+    showHistorySelectionsButton->setFixedSize(180, 28);
+    connect(showHistorySelectionsButton, &QPushButton::clicked, this, &MainWindow::onShowHistorySelectionsButtonClicked);
+    
     // Add buttons to the layout (vertically, one by one)
     controlsLayout->addWidget(addManoeuvreButton);
     controlsLayout->addWidget(clearManoeuvresButton);
     controlsLayout->addWidget(startManoeuvreButton);
     controlsLayout->addWidget(endManoeuvreButton);
     controlsLayout->addWidget(btwLineModeButton);
+    controlsLayout->addWidget(showHistorySelectionsButton);
     controlsLayout->addStretch(); // Add stretch to push everything to the top
     
     DEBUG_OUT() << "Manoeuvre buttons created and connected in vertical layout below combo box";
@@ -756,6 +766,31 @@ void MainWindow::onTimeSelectionCreated(const TimeSelectionSpan &selection)
         DEBUG_OUT() << "  [" << i << "] Start:" << timeSelectionHistory[i].startTime.toString("yyyy-MM-dd hh:mm:ss.zzz")
                  << "End:" << timeSelectionHistory[i].endTime.toString("yyyy-MM-dd hh:mm:ss.zzz");
     }
+}
+
+void MainWindow::onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan)
+{
+    if (index >= 0 && index < static_cast<int>(timeSelectionHistory.size())) {
+        timeSelectionHistory[static_cast<size_t>(index)] = newSpan;
+    }
+}
+
+void MainWindow::onShowHistorySelectionsButtonClicked()
+{
+    QString msg;
+    if (timeSelectionHistory.empty()) {
+        msg = QStringLiteral("No history selections.");
+    } else {
+        msg = QStringLiteral("History selections (timeframes):\n\n");
+        for (size_t i = 0; i < timeSelectionHistory.size(); ++i) {
+            const TimeSelectionSpan &s = timeSelectionHistory[i];
+            msg += QStringLiteral("[%1] %2 — %3\n")
+                .arg(i + 1)
+                .arg(s.startTime.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss.zzz")))
+                .arg(s.endTime.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss.zzz")));
+        }
+    }
+    QMessageBox::information(this, QStringLiteral("History selections"), msg);
 }
 
 void MainWindow::onBTWLineModeButtonClicked()

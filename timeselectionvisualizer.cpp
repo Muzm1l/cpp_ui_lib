@@ -12,6 +12,9 @@ TimeVisualizerWidget::TimeVisualizerWidget(QWidget* parent)
     , m_isSelecting(false)
     , m_selectionStartY(0)
     , m_selectionEndY(0)
+    , m_interactionMode(InteractionMode::None)
+    , m_interactionSelectionIndex(-1)
+    , m_dragStartY(0)
 {
     setFixedWidth(GRAPHICS_VIEW_WIDTH);
     setMinimumHeight(50); // Set a minimum height
@@ -150,6 +153,17 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
     updateVisualization();
 }
 
+void TimeVisualizerWidget::setTimeSelection(int index, const TimeSelectionSpan& span)
+{
+    if (index < 0 || index >= m_timeSelections.size()) return;
+    TimeSelectionSpan s = span;
+    if (s.startTime > s.endTime) std::swap(s.startTime, s.endTime);
+    if (hasValidRange()) s = clampToValidRange(s);
+    if (s.endTime < s.startTime) return;
+    m_timeSelections[index] = s;
+    updateVisualization();
+}
+
 void TimeVisualizerWidget::clearTimeSelections()
 {
     m_timeSelections.clear();
@@ -258,6 +272,7 @@ TimeSelectionVisualizer::TimeSelectionVisualizer(QWidget* parent, QTimer* timer,
 
     // Connect visualizer widget signals to our signals
     connect(m_visualizerWidget, &TimeVisualizerWidget::timeSelectionMade, this, &TimeSelectionVisualizer::timeSelectionMade);
+    connect(m_visualizerWidget, &TimeVisualizerWidget::timeSelectionModified, this, &TimeSelectionVisualizer::timeSelectionModified);
 
     // Set the layout
     setLayout(m_layout);
@@ -318,49 +333,102 @@ void TimeSelectionVisualizer::onButtonClicked()
 // Mouse event handlers for TimeVisualizerWidget
 void TimeVisualizerWidget::mousePressEvent(QMouseEvent* event)
 {
-    if (event->button() == Qt::LeftButton) {
-        m_isSelecting = true;
-        m_selectionStartY = event->pos().y();
-        m_selectionEndY = event->pos().y();
+    if (event->button() != Qt::LeftButton) return;
+    std::pair<int, SelectionHitZone> hit = hitTest(event->pos().x(), event->pos().y());
+    int index = hit.first;
+    SelectionHitZone zone = hit.second;
+    if (index >= 0 && zone != SelectionHitZone::None) {
+        m_interactionSelectionIndex = index;
+        m_dragStartY = event->pos().y();
+        m_dragStartSpan = m_timeSelections.at(index);
+        if (zone == SelectionHitZone::TopEdge)
+            m_interactionMode = InteractionMode::ResizingTop;
+        else if (zone == SelectionHitZone::BottomEdge)
+            m_interactionMode = InteractionMode::ResizingBottom;
+        else
+            m_interactionMode = InteractionMode::Dragging;
         update();
+        return;
     }
+    m_interactionMode = InteractionMode::Creating;
+    m_isSelecting = true;
+    m_selectionStartY = event->pos().y();
+    m_selectionEndY = event->pos().y();
+    update();
 }
 
 void TimeVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    int y = event->pos().y();
+    if (m_interactionMode == InteractionMode::ResizingTop && m_interactionSelectionIndex >= 0) {
+        QDateTime newEnd = timeAtY(y);
+        TimeSelectionSpan span = m_timeSelections.at(m_interactionSelectionIndex);
+        span.endTime = newEnd;
+        if (span.startTime > span.endTime) std::swap(span.startTime, span.endTime);
+        if (span.startTime.secsTo(span.endTime) < MIN_SELECTION_SECONDS) return;
+        if (hasValidRange()) span = clampToValidRange(span);
+        if (span.endTime < span.startTime) return;
+        m_timeSelections[m_interactionSelectionIndex] = span;
+        update();
+        return;
+    }
+    if (m_interactionMode == InteractionMode::ResizingBottom && m_interactionSelectionIndex >= 0) {
+        QDateTime newStart = timeAtY(y);
+        TimeSelectionSpan span = m_timeSelections.at(m_interactionSelectionIndex);
+        span.startTime = newStart;
+        if (span.startTime > span.endTime) std::swap(span.startTime, span.endTime);
+        if (span.startTime.secsTo(span.endTime) < MIN_SELECTION_SECONDS) return;
+        if (hasValidRange()) span = clampToValidRange(span);
+        if (span.endTime < span.startTime) return;
+        m_timeSelections[m_interactionSelectionIndex] = span;
+        update();
+        return;
+    }
+    if (m_interactionMode == InteractionMode::Dragging && m_interactionSelectionIndex >= 0) {
+        qint64 deltaSecs = timeAtY(m_dragStartY).secsTo(timeAtY(y));
+        TimeSelectionSpan span;
+        span.startTime = m_dragStartSpan.startTime.addSecs(deltaSecs);
+        span.endTime = m_dragStartSpan.endTime.addSecs(deltaSecs);
+        if (hasValidRange()) span = clampToValidRange(span);
+        if (span.endTime < span.startTime) return;
+        m_timeSelections[m_interactionSelectionIndex] = span;
+        update();
+        return;
+    }
     if (m_isSelecting) {
-        m_selectionEndY = event->pos().y();
+        m_selectionEndY = y;
         update();
     }
 }
 
 void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
 {
-    if (event->button() == Qt::LeftButton && m_isSelecting) {
-        m_isSelecting = false;
-        
-        // Calculate the selection span
-        TimeSelectionSpan span = calculateSelectionSpan(m_selectionStartY, m_selectionEndY);
-        
-        // Clamp to valid range if configured (before adding and emitting)
-        if (hasValidRange()) {
-            TimeSelectionSpan clamped = clampToValidRange(span);
-            // Only proceed if clamped span is valid
-            if (clamped.endTime >= clamped.startTime) {
-                span = clamped;
-            } else {
-                // Invalid selection after clamping, ignore
-                update();
-                return;
+    if (event->button() != Qt::LeftButton) return;
+    if (m_interactionMode == InteractionMode::ResizingTop || m_interactionMode == InteractionMode::ResizingBottom
+        || m_interactionMode == InteractionMode::Dragging) {
+        if (m_interactionSelectionIndex >= 0 && m_interactionSelectionIndex < m_timeSelections.size()) {
+            TimeSelectionSpan newSpan = m_timeSelections.at(m_interactionSelectionIndex);
+            if (hasValidRange()) newSpan = clampToValidRange(newSpan);
+            if (newSpan.endTime >= newSpan.startTime) {
+                m_timeSelections[m_interactionSelectionIndex] = newSpan;
+                emit timeSelectionModified(m_interactionSelectionIndex, newSpan);
             }
         }
-        
-        // Add the selection using existing method (will clamp again but that's safe)
+        m_interactionMode = InteractionMode::None;
+        m_interactionSelectionIndex = -1;
+        update();
+        return;
+    }
+    if (m_isSelecting) {
+        m_isSelecting = false;
+        TimeSelectionSpan span = calculateSelectionSpan(m_selectionStartY, m_selectionEndY);
+        if (hasValidRange()) {
+            TimeSelectionSpan clamped = clampToValidRange(span);
+            if (clamped.endTime >= clamped.startTime) span = clamped;
+            else { update(); return; }
+        }
         addTimeSelection(span);
-        
-        // Emit signal with the clamped selection span
         emit timeSelectionMade(span);
-        
         update();
     }
 }
@@ -451,6 +519,56 @@ QTime TimeVisualizerWidget::yCoordinateToTime(int y) const
     }
     
     return QTime(hours, minutes, seconds);
+}
+
+QDateTime TimeVisualizerWidget::timeAtY(int y) const
+{
+    QTime t = yCoordinateToTime(y);
+    return QDateTime(QDateTime::currentDateTime().date(), t);
+}
+
+QRect TimeVisualizerWidget::getSelectionRect(int index) const
+{
+    if (index < 0 || index >= m_timeSelections.size()) return QRect();
+    const TimeSelectionSpan& span = m_timeSelections.at(index);
+    QRect drawArea = rect();
+    int widgetHeight = drawArea.height();
+    int widgetWidth = drawArea.width();
+    int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    if (totalSeconds <= 0 || widgetHeight <= 0) return QRect();
+    double pixelsPerSecond = static_cast<double>(widgetHeight) / totalSeconds;
+    int currentTimeSeconds = m_currentTime.hour() * 3600 + m_currentTime.minute() * 60 + m_currentTime.second();
+    QTime selectionStartTime = span.startTime.time();
+    QTime selectionEndTime = span.endTime.time();
+    int selectionStartSeconds = selectionStartTime.hour() * 3600 + selectionStartTime.minute() * 60 + selectionStartTime.second();
+    int selectionEndSeconds = selectionEndTime.hour() * 3600 + selectionEndTime.minute() * 60 + selectionEndTime.second();
+    int timeSpanStartSeconds = currentTimeSeconds - totalSeconds;
+    if (selectionEndSeconds >= timeSpanStartSeconds && selectionStartSeconds <= currentTimeSeconds) {
+        int topY = static_cast<int>((currentTimeSeconds - selectionEndSeconds) * pixelsPerSecond);
+        int bottomY = static_cast<int>((currentTimeSeconds - selectionStartSeconds) * pixelsPerSecond);
+        topY = qMax(0, qMin(widgetHeight, topY));
+        bottomY = qMax(0, qMin(widgetHeight, bottomY));
+        int rectHeight = qMax(1, bottomY - topY);
+        return QRect(0, topY, widgetWidth, rectHeight);
+    }
+    return QRect();
+}
+
+std::pair<int, SelectionHitZone> TimeVisualizerWidget::hitTest(int x, int y) const
+{
+    (void)x;
+    for (int i = 0; i < m_timeSelections.size(); ++i) {
+        QRect r = getSelectionRect(i);
+        if (!r.contains(0, y)) continue;
+        int topY = r.top();
+        int bottomY = r.bottom();
+        if (y - topY <= RESIZE_EDGE_THRESHOLD)
+            return { i, SelectionHitZone::TopEdge };
+        if (bottomY - y <= RESIZE_EDGE_THRESHOLD)
+            return { i, SelectionHitZone::BottomEdge };
+        return { i, SelectionHitZone::Center };
+    }
+    return { -1, SelectionHitZone::None };
 }
 
 TimeSelectionSpan TimeVisualizerWidget::calculateSelectionSpan(int startY, int endY) const

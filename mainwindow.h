@@ -93,6 +93,7 @@ private:
     QPushButton* redrawGraphsButton; ///< Button to manually trigger redraw of all graphs
     QPushButton* testEmptyDataButton; ///< Button to test setDataToDataSource with empty data for FTW and FDW
     QPushButton* clearFTWFDWButton; ///< Button to test clearGraph API for FTW and FDW
+    QPushButton* showHistorySelectionsButton; ///< Test button to show timeframe of history selections
     
     // BTW horizontal line mode state
     BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
@@ -183,6 +184,8 @@ private slots:
      * Stores the selection timestamps in history (max 5).
      */
     void onTimeSelectionCreated(const TimeSelectionSpan &selection);
+    void onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
+    void onShowHistorySelectionsButtonClicked();
 
     /**
      * @brief Handles add manoeuvre button click

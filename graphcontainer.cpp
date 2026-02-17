@@ -738,6 +738,8 @@ void GraphContainer::setupEventConnections()
         // Connect TimeSelectionVisualizer time selection made events
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionMade,
                 this, &GraphContainer::onTimeSelectionMade);
+        connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionModified,
+                this, [this](int index, const TimeSelectionSpan &newSpan) { emit TimeSelectionModified(index, newSpan); });
     }
 
     DEBUG_OUT() << "GraphContainer: All event connections established";
@@ -1425,6 +1427,12 @@ void GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
     {
         qWarning() << "GraphContainer: Timeline selection view is null - cannot add selection";
     }
+}
+
+void GraphContainer::setTimeSelection(int index, const TimeSelectionSpan &selection)
+{
+    if (m_timelineSelectionView)
+        m_timelineSelectionView->setTimeSelection(index, selection);
 }
 
 void GraphContainer::clearTimeSelections()
