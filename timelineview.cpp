@@ -1172,6 +1172,55 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
     // when syncing from another timeline view
 }
 
+void TimelineVisualizerWidget::setVisibleTimeWindowFromSync(const TimeSelectionSpan &window)
+{
+    // Same as setVisibleTimeWindow but always apply (no FROZEN_MODE early return).
+    // Used when another timeline's slider is dragged so all visible sliders stay in sync
+    // and timeline window matches graph range (crosshair timestamp aligns with graph crosshair).
+    if (!window.startTime.isValid() || !window.endTime.isValid())
+    {
+        return;
+    }
+
+    // Calculate the interval from the window size to ensure we use the correct interval
+    qint64 windowDurationMs = window.startTime.msecsTo(window.endTime);
+    if (windowDurationMs > 0)
+    {
+        int windowDurationMinutes = static_cast<int>(windowDurationMs / 60000);
+        static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+        TimeInterval calculatedInterval = m_timeInterval;
+        for (TimeInterval interval : intervals)
+        {
+            int intervalMinutes = static_cast<int>(interval);
+            if (abs(intervalMinutes - windowDurationMinutes) < abs(static_cast<int>(calculatedInterval) - windowDurationMinutes))
+            {
+                calculatedInterval = interval;
+            }
+        }
+        if (calculatedInterval != m_timeInterval)
+        {
+            QTime newLength = timeIntervalToQTime(calculatedInterval);
+            m_timeLineLength = newLength;
+            m_timeInterval = calculatedInterval;
+        }
+    }
+
+    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
+    m_sliderVisibleWindow = m_sliderState.getTimeWindow();
+
+    if (m_manoeuvreOverlay)
+    {
+        m_manoeuvreOverlay->setTimeRange(window.startTime, window.endTime);
+    }
+
+    if (m_showCrosshairTimestamp && m_crosshairTimestamp.isValid())
+    {
+        updateCrosshairTimestampFromTime(m_crosshairTimestamp);
+    }
+
+    updateVisualization();
+}
+
 void TimelineVisualizerWidget::emitTimeScopeChanged()
 {
     // Get time window from state manager and ensure it's valid before emitting
@@ -2033,6 +2082,14 @@ void TimelineView::setVisibleTimeWindow(const TimeSelectionSpan &window)
     if (m_visualizerWidget)
     {
         m_visualizerWidget->setVisibleTimeWindow(window);
+    }
+}
+
+void TimelineView::setVisibleTimeWindowFromSync(const TimeSelectionSpan &window)
+{
+    if (m_visualizerWidget)
+    {
+        m_visualizerWidget->setVisibleTimeWindowFromSync(window);
     }
 }
 

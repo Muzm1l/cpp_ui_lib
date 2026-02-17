@@ -1363,7 +1363,7 @@ void GraphLayout::syncAllTimelineViews()
             if (i != j && timelineViewPairs[j].second)
             {
                 disconnect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                          timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindow);
+                          timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindowFromSync);
             }
         }
         
@@ -1444,10 +1444,10 @@ void GraphLayout::syncAllTimelineViews()
         {
             if (i != j && timelineViewPairs[j].second)
             {
-                // Connect to setVisibleTimeWindow to sync slider positions
-                // This ensures all timeline views' sliders stay in sync
+                // Connect to setVisibleTimeWindowFromSync so all sliders stay in sync (even when frozen)
+                // and timeline window matches graph range (crosshair timestamp aligns with graph crosshair)
                 connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                        timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindow);
+                        timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindowFromSync);
             }
         }
         
@@ -1509,9 +1509,9 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
                 
                 // Also sync time scope changes
                 connect(externalTimelineView, &TimelineView::TimeScopeChanged,
-                        graphTimelineView, &TimelineView::setVisibleTimeWindow, Qt::UniqueConnection);
+                        graphTimelineView, &TimelineView::setVisibleTimeWindowFromSync, Qt::UniqueConnection);
                 connect(graphTimelineView, &TimelineView::TimeScopeChanged,
-                        externalTimelineView, &TimelineView::setVisibleTimeWindow, Qt::UniqueConnection);
+                        externalTimelineView, &TimelineView::setVisibleTimeWindowFromSync, Qt::UniqueConnection);
                 
                 // Sync time interval changes
                 connect(externalTimelineView, &TimelineView::TimeIntervalChanged,

@@ -155,7 +155,9 @@ public:
     
     //--------------syed-----------------------rebase conflict
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
-    
+    /** Apply visible time window from another timeline's sync; always updates slider (ignores FROZEN_MODE) so all sliders stay in sync and crosshair aligns. */
+    void setVisibleTimeWindowFromSync(const TimeSelectionSpan &window);
+
     // Get application start time
     QDateTime getApplicationStartTime() const { return m_applicationStartTime; }
     
@@ -352,6 +354,8 @@ public:
     
     // Time window control for syncing
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    /** Apply visible time window from another timeline's sync; always updates slider so all sliders and crosshairs stay aligned. */
+    void setVisibleTimeWindowFromSync(const TimeSelectionSpan &window);
     TimeSelectionSpan getVisibleTimeWindow() const;
 
     // Mode control
