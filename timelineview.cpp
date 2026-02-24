@@ -109,11 +109,11 @@ int SliderState::getYPosition() const
     return m_yPosition;
 }
 
-void SliderState::setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval)
+void SliderState::setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval, const QDateTime& rangeStart)
 {
     m_timeWindow = window;
-    // Sync position based on end time (top = now)
-    syncPositionFromTimeWindow(widgetHeight);
+    // Sync position based on end time (top = now); use rangeStart when valid so "recent past" maps correctly
+    syncPositionFromTimeWindow(widgetHeight, rangeStart);
     clampToBounds(widgetHeight, interval);
 }
 
@@ -235,31 +235,23 @@ void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& inte
     m_timeWindow = TimeSelectionSpan(windowStart, windowEnd);
 }
 
-void SliderState::syncPositionFromTimeWindow(int widgetHeight)
+void SliderState::syncPositionFromTimeWindow(int widgetHeight, const QDateTime& rangeStart)
 {
     // Calculate position based on the END time (top represents "now")
-    // Position slider so its top edge represents the end time of the window
+    // Use application-start→now when rangeStart is valid so "recent past" windows map to correct Y (not Y≈0)
     QDateTime now = QDateTime::currentDateTime();
-    QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    QDateTime rangeStartActual = rangeStart.isValid() ? rangeStart : now.addSecs(-12 * 3600);
+    int totalMinutes = rangeStart.isValid()
+        ? qMax(1, static_cast<int>(rangeStartActual.msecsTo(now) / 60000))
+        : SliderGeometry::getTwelveHoursInMinutes();
     
-    // Calculate minutes from twelveHoursAgo to the window end time
-    int minutesFromStart = twelveHoursAgo.msecsTo(m_timeWindow.endTime) / 60000;
-    int twelveHoursInMinutes = SliderGeometry::getTwelveHoursInMinutes();
-    minutesFromStart = qBound(0, minutesFromStart, twelveHoursInMinutes);
+    // Minutes from range start to the window end time
+    int minutesFromStart = rangeStartActual.msecsTo(m_timeWindow.endTime) / 60000;
+    minutesFromStart = qBound(0, minutesFromStart, totalMinutes);
     
-    // Convert to Y position (top = now, bottom = 12 hours ago)
-    double positionRatio = static_cast<double>(minutesFromStart) / static_cast<double>(twelveHoursInMinutes);
-    
-    // Position is at the top of the slider rectangle, so we need to adjust
-    // For a slider at the top, the top edge should be at Y=0 when endTime = now
-    // So if endTime = now, Y should be 0 (after accounting for slider height)
+    // Convert to Y position (top = now, bottom = range start)
+    double positionRatio = static_cast<double>(minutesFromStart) / static_cast<double>(totalMinutes);
     int calculatedY = static_cast<int>((1.0 - positionRatio) * widgetHeight);
-    
-    // But we want the slider rectangle's top edge at this position
-    // Since positionRatio of 1.0 (endTime = now) should give Y = 0
-    // We invert: Y = (1.0 - ratio) * height
-    // For endTime at now: ratio = 1.0, so Y = 0 ✓
-    // For endTime at twelveHoursAgo: ratio = 0.0, so Y = height (but need to account for slider height)
     
     m_yPosition = calculatedY;
 }
@@ -291,7 +283,7 @@ TimelineVisualizerWidget::TimelineVisualizerWidget(QWidget *parent, GraphContain
     TimeSelectionSpan initialWindow(startTime, now);
     
     // Set the time window (this will sync position to top since endTime = now)
-    m_sliderState.setTimeWindow(initialWindow, rect().height(), m_timeLineLength);
+    m_sliderState.setTimeWindow(initialWindow, rect().height(), m_timeLineLength, getEffectiveRangeStart());
     
     // Ensure slider is at the top (Y=0)
     m_sliderState.setYPosition(0, rect().height(), m_timeLineLength);
@@ -363,7 +355,7 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
         QDateTime startTime = now.addSecs(-intervalSeconds);
         newWindow = TimeSelectionSpan(startTime, now);
     }
-    m_sliderState.setTimeWindow(newWindow, rect().height(), newLength);
+    m_sliderState.setTimeWindow(newWindow, rect().height(), newLength, getEffectiveRangeStart());
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -398,7 +390,17 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
 void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
 {
     m_lastCurrentTime = m_currentTime;
-    m_currentTime = currentTime;
+    // When frozen, use visible window end so segment labels match the slider (not real time)
+    if (m_timelineViewMode == TimelineViewMode::FROZEN_MODE)
+    {
+        TimeSelectionSpan w = m_sliderState.getTimeWindow();
+        if (w.endTime.isValid())
+            m_currentTime = w.endTime.time();
+        else
+            m_currentTime = currentTime;
+    }
+    else
+        m_currentTime = currentTime;
     
     // Only update pixel speed and animate timeline when in follow mode
     // In frozen mode, keep the timeline static (no animation)
@@ -421,7 +423,7 @@ void TimelineVisualizerWidget::setCurrentTime(const QTime &currentTime)
             int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
             QDateTime startTime = now.addSecs(-intervalSeconds);
             TimeSelectionSpan newWindow(startTime, now);
-            m_sliderState.setTimeWindow(newWindow, rect().height(), m_timeLineLength);
+            m_sliderState.setTimeWindow(newWindow, rect().height(), m_timeLineLength, getEffectiveRangeStart());
             // Ensure slider is at the top
             m_sliderState.setYPosition(0, rect().height(), m_timeLineLength);
             // Keep legacy member in sync
@@ -508,6 +510,13 @@ double TimelineVisualizerWidget::calculateSmoothOffset()
 {
     // Return the accumulated offset for smooth shifting
     return m_accumulatedOffset;
+}
+
+QDateTime TimelineVisualizerWidget::getEffectiveRangeStart() const
+{
+    if (m_syncState && m_syncState->hasApplicationStartTime && m_syncState->applicationStartTime.isValid())
+        return m_syncState->applicationStartTime;
+    return m_applicationStartTime;
 }
 
 int TimelineVisualizerWidget::calculateOptimalDivisions() const
@@ -976,8 +985,8 @@ void TimelineVisualizerWidget::updateSliderIndicator()
         return;
     }
     
-    // Sync position from current time window
-    m_sliderState.syncPositionFromTimeWindow(rect().height());
+    // Sync position from current time window (use app start range so recent-past windows map correctly)
+    m_sliderState.syncPositionFromTimeWindow(rect().height(), getEffectiveRangeStart());
     m_sliderState.clampToBounds(rect().height(), m_timeLineLength);
     
     // Keep legacy member in sync
@@ -993,7 +1002,7 @@ void TimelineVisualizerWidget::updateSliderFromMousePosition(const QPoint& curre
         return;
     }
     
-        m_sliderState.updateDrag(currentPos, rect().height(), m_timeLineLength, m_applicationStartTime);
+        m_sliderState.updateDrag(currentPos, rect().height(), m_timeLineLength, getEffectiveRangeStart());
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -1142,7 +1151,7 @@ void TimelineVisualizerWidget::setVisibleTimeWindow(const TimeSelectionSpan &win
     }
     
     // Update the slider state with the new time window using the correct interval length
-    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
+    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength, getEffectiveRangeStart());
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -1205,7 +1214,7 @@ void TimelineVisualizerWidget::setVisibleTimeWindowFromSync(const TimeSelectionS
         }
     }
 
-    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
+    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength, getEffectiveRangeStart());
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
 
     if (m_manoeuvreOverlay)
@@ -1276,7 +1285,7 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
     if (m_sliderState.isDragging())
     {
         // Update slider based on mouse movement using state manager
-        m_sliderState.updateDrag(event->pos(), rect().height(), m_timeLineLength, m_applicationStartTime);
+        m_sliderState.updateDrag(event->pos(), rect().height(), m_timeLineLength, getEffectiveRangeStart());
         
         // Keep legacy member in sync
         m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -1330,7 +1339,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton && m_sliderState.isDragging())
     {
         // End drag using state manager (finalizes position and syncs time window)
-        m_sliderState.endDrag(rect().height(), m_timeLineLength, m_applicationStartTime);
+        m_sliderState.endDrag(rect().height(), m_timeLineLength, getEffectiveRangeStart());
         
         // Check if slider is at the top (Y=0 or very close to it)
         int sliderY = m_sliderState.getYPosition();
@@ -1347,7 +1356,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
             int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
             QDateTime startTime = now.addSecs(-intervalSeconds);
             TimeSelectionSpan newWindow(startTime, now);
-            m_sliderState.setTimeWindow(newWindow, rect().height(), m_timeLineLength);
+            m_sliderState.setTimeWindow(newWindow, rect().height(), m_timeLineLength, getEffectiveRangeStart());
             
             // Emit signal to notify parent TimelineView
             emit timelineViewModeChanged(TimelineViewMode::FOLLOW_MODE);
@@ -1427,7 +1436,7 @@ void TimelineVisualizerWidget::setTimelineViewMode(TimelineViewMode mode)
         int intervalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
         QDateTime startTime = now.addSecs(-intervalSeconds);
         TimeSelectionSpan newWindow(startTime, now);
-        m_sliderState.setTimeWindow(newWindow, rect().height(), m_timeLineLength);
+        m_sliderState.setTimeWindow(newWindow, rect().height(), m_timeLineLength, getEffectiveRangeStart());
         // Ensure slider is at the top
         m_sliderState.setYPosition(0, rect().height(), m_timeLineLength);
         // Keep legacy member in sync
@@ -1471,7 +1480,7 @@ void TimelineVisualizerWidget::setTimeWindowSilent(const TimeSelectionSpan& wind
     }
     
     // In FOLLOW_MODE, update slider state with new time window (this will sync the position)
-    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength);
+    m_sliderState.setTimeWindow(window, rect().height(), m_timeLineLength, getEffectiveRangeStart());
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -2043,7 +2052,7 @@ void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection
             m_syncState->hasTimeScope = true;
         }
         
-        emit TimeScopeChanged(selection);
+        emit TimeScopeChanged(selection, m_timelineViewMode == TimelineViewMode::FROZEN_MODE);
     }
 
 
@@ -2091,6 +2100,14 @@ void TimelineView::setVisibleTimeWindowFromSync(const TimeSelectionSpan &window)
     {
         m_visualizerWidget->setVisibleTimeWindowFromSync(window);
     }
+}
+
+void TimelineView::onTimeScopeChangedFromOtherTimeline(const TimeSelectionSpan &selection, bool fromFrozenUserDrag)
+{
+    if (fromFrozenUserDrag)
+        setVisibleTimeWindowFromSync(selection);
+    else
+        setVisibleTimeWindow(selection);
 }
 
 TimeSelectionSpan TimelineView::getVisibleTimeWindow() const

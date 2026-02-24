@@ -102,6 +102,10 @@ public:
     // Graph Container data follower synchronization
     bool isGraphContainerInFollowMode = true;
 
+    // Shared application start time so all timeline views use same range for Y mapping (slider position consistency)
+    QDateTime applicationStartTime;
+    bool hasApplicationStartTime = false;
+
     // Absolute/Relative time mode synchronization
     bool isAbsoluteTime = true;
     bool hasAbsoluteTime = false;

@@ -137,8 +137,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
 
         // Connect the time scope change handler of containers 1 to the event of 0 and the 3 to the event of 2
         // Note: Interval changes are now handled centrally by GraphLayout
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
 
         break;
     case LayoutType::GPW2WV:
@@ -167,7 +167,7 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
 
         // Connect the time scope change handler of containers 1 to the event of 0
         // Note: Interval changes are now handled centrally by GraphLayout
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
         break;
     case LayoutType::GPW4WH:
     // this 4 horizantal graphs with no GPW
@@ -192,9 +192,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
         
         // Connect the time scope change handlers of containers 0,1,3 to the event of 2 (container 2 has timeline view)
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[0], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[0], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
         break;
     // Layout 2W: two graph container side by side, but take up whole screen. this is similar 2WH
     case LayoutType::NOGPW2WH:
@@ -217,7 +217,7 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
         
         // Connect the time scope change handler of container 1 to the event of 0
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
         break;
     case LayoutType::HIDDEN:
         // Hide all containers
@@ -360,6 +360,10 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
 
 void GraphLayout::initializeContainers()
 {
+    // Set shared application start time once so all timeline views use same range for Y mapping (slider position consistency)
+    m_syncState.applicationStartTime = QDateTime::currentDateTime();
+    m_syncState.hasApplicationStartTime = true;
+
     // Create 4 graph containers with timer and shared sync state
     m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer, 0, 0, &m_syncState));
     m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer, 0, 0, &m_syncState));
@@ -1225,11 +1229,11 @@ void GraphLayout::linkHorizontalContainers()
     case LayoutType::GPW4W:
         // Link row 1: container 0 -> container 1 (time scope change)
         connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+                m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
 
         // Link row 2: container 2 -> container 3 (time scope change)
         connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+                m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
 
         DEBUG_OUT() << "GraphLayout: Linked containers for GPW4W layout";
         break;
@@ -1237,7 +1241,7 @@ void GraphLayout::linkHorizontalContainers()
     case LayoutType::GPW2WH:
         // Link horizontal: container 0 -> container 1 (time scope change)
         connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+                m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
 
         DEBUG_OUT() << "GraphLayout: Linked containers for GPW2WH layout";
         break;
@@ -1253,11 +1257,11 @@ void GraphLayout::linkHorizontalContainers()
         
         // Link horizontal: container 2 (has timeline view) -> containers 0, 1, 3 (time scope change)
         connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[0], &GraphContainer::onTimeScopeChanged);
+                m_graphContainers[0], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
         connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[1], &GraphContainer::onTimeScopeChanged);
+                m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
         connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[3], &GraphContainer::onTimeScopeChanged);
+                m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
 
         DEBUG_OUT() << "GraphLayout: Linked containers for GPW4WH layout";
         break;
@@ -1316,8 +1320,8 @@ void GraphLayout::syncAllTimelineViews()
             {
                 connect(pair.second, &TimelineView::TimeIntervalChanged,
                         pair.first, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
-                connect(pair.second, &TimelineView::TimeScopeChanged,
-                        pair.first, &GraphContainer::onTimeScopeChanged, Qt::UniqueConnection);
+                connect(pair.second, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                        pair.first, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged), Qt::UniqueConnection);
             }
         }
         else
@@ -1362,8 +1366,8 @@ void GraphLayout::syncAllTimelineViews()
         {
             if (i != j && timelineViewPairs[j].second)
             {
-                disconnect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                          timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindowFromSync);
+                disconnect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                          timelineViewPairs[j].second, &TimelineView::onTimeScopeChangedFromOtherTimeline);
             }
         }
         
@@ -1386,8 +1390,8 @@ void GraphLayout::syncAllTimelineViews()
                 
                 if (!isOwnContainer)
                 {
-                    disconnect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                              container, &GraphContainer::onTimeScopeChanged);
+                    disconnect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                              container, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
                 }
             }
         }
@@ -1422,11 +1426,10 @@ void GraphLayout::syncAllTimelineViews()
         if (pair.first && pair.second)
         {
             // Ensure the internal connection: TimelineView -> its own container
-            // Use QOverload to ensure we connect to the right slot signature
             connect(pair.second, &TimelineView::TimeIntervalChanged,
                     pair.first, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
-            connect(pair.second, &TimelineView::TimeScopeChanged,
-                    pair.first, &GraphContainer::onTimeScopeChanged, Qt::UniqueConnection);
+            connect(pair.second, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                    pair.first, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged), Qt::UniqueConnection);
         }
     }
     
@@ -1440,14 +1443,13 @@ void GraphLayout::syncAllTimelineViews()
             continue;
         
         // Connect source timeline view's TimeScopeChanged to all other timeline views
+        // Use onTimeScopeChangedFromOtherTimeline so we force-sync only when source is frozen (user drag)
         for (size_t j = 0; j < timelineViewPairs.size(); ++j)
         {
             if (i != j && timelineViewPairs[j].second)
             {
-                // Connect to setVisibleTimeWindowFromSync so all sliders stay in sync (even when frozen)
-                // and timeline window matches graph range (crosshair timestamp aligns with graph crosshair)
-                connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                        timelineViewPairs[j].second, &TimelineView::setVisibleTimeWindowFromSync);
+                connect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                        timelineViewPairs[j].second, &TimelineView::onTimeScopeChangedFromOtherTimeline);
             }
         }
         
@@ -1472,9 +1474,8 @@ void GraphLayout::syncAllTimelineViews()
                 if (!isOwnContainer)
                 {
                     // Connect to the container's onTimeScopeChanged to update the graph
-                    // This ensures all graphs stay in sync with the timeline views
-                    connect(sourceTimelineView, &TimelineView::TimeScopeChanged,
-                            container, &GraphContainer::onTimeScopeChanged);
+                    connect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                            container, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
                 }
             }
         }
@@ -1507,11 +1508,11 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
                 connect(graphTimelineView, &TimelineView::AbsoluteTimeModeChanged,
                         externalTimelineView, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
                 
-                // Also sync time scope changes
-                connect(externalTimelineView, &TimelineView::TimeScopeChanged,
-                        graphTimelineView, &TimelineView::setVisibleTimeWindowFromSync, Qt::UniqueConnection);
-                connect(graphTimelineView, &TimelineView::TimeScopeChanged,
-                        externalTimelineView, &TimelineView::setVisibleTimeWindowFromSync, Qt::UniqueConnection);
+                // Also sync time scope changes (respect frozen: only force-sync when source is frozen)
+                connect(externalTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                        graphTimelineView, &TimelineView::onTimeScopeChangedFromOtherTimeline, Qt::UniqueConnection);
+                connect(graphTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                        externalTimelineView, &TimelineView::onTimeScopeChangedFromOtherTimeline, Qt::UniqueConnection);
                 
                 // Sync time interval changes
                 connect(externalTimelineView, &TimelineView::TimeIntervalChanged,
@@ -1527,8 +1528,8 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
         if (container)
         {
             // Connect time scope changes to update waterfall graph time ranges
-            connect(externalTimelineView, &TimelineView::TimeScopeChanged,
-                    container, &GraphContainer::onTimeScopeChanged, Qt::UniqueConnection);
+            connect(externalTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                    container, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged), Qt::UniqueConnection);
             
             // Connect time interval changes to update waterfall graph intervals
             connect(externalTimelineView, &TimelineView::TimeIntervalChanged,

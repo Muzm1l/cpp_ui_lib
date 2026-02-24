@@ -1107,8 +1107,8 @@ void MainWindow::setupTimelineView()
     instructionsLabel->setWordWrap(true);
     
     // Connect TimeScopeChanged signal to update labels
-    connect(testTimelineView, &TimelineView::TimeScopeChanged, 
-            [this](const TimeSelectionSpan& selection) {
+    connect(testTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+            [this](const TimeSelectionSpan& selection, bool /* fromFrozenUserDrag */) {
                 if (selection.startTime.isValid() && selection.endTime.isValid()) {
                     // Update start time label (QDateTime formatting)
                     timespanStartLabel->setText(selection.startTime.toString("HH:mm:ss"));

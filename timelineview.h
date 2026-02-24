@@ -88,7 +88,8 @@ public:
     
     // Time window management
     TimeSelectionSpan getTimeWindow() const;
-    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval);
+    /** rangeStart: when valid (e.g. application start), Y is computed over [rangeStart, now]; else 12-hour range. Prevents "recent past" windows from mapping to Y≈0. */
+    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval, const QDateTime& rangeStart = QDateTime());
     
     // Drag state management
     void startDrag(const QPoint& mousePos);
@@ -99,7 +100,8 @@ public:
     // Validation and synchronization
     void clampToBounds(int widgetHeight, const QTime& interval);
     void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime = QDateTime(), bool isDragging = false);
-    void syncPositionFromTimeWindow(int widgetHeight);
+    /** rangeStart: when valid, use [rangeStart, now] for Y mapping; else 12-hour range. */
+    void syncPositionFromTimeWindow(int widgetHeight, const QDateTime& rangeStart = QDateTime());
     
 private:
     int m_yPosition = 0;              // Current pixel position (source of truth)
@@ -267,6 +269,8 @@ private:
     double calculateTimeOffset();
     void updatePixelSpeed();
     double calculateSmoothOffset();
+    /** Use shared application start from sync state when available so all timeline views use same range for Y mapping. */
+    QDateTime getEffectiveRangeStart() const;
 
     // Drawing object management
     void createDrawingObjects();
@@ -357,6 +361,8 @@ public:
     /** Apply visible time window from another timeline's sync; always updates slider so all sliders and crosshairs stay aligned. */
     void setVisibleTimeWindowFromSync(const TimeSelectionSpan &window);
     TimeSelectionSpan getVisibleTimeWindow() const;
+    /** Used by GraphLayout: apply scope from another timeline; force-sync only when fromFrozenUserDrag. */
+    void onTimeScopeChangedFromOtherTimeline(const TimeSelectionSpan &selection, bool fromFrozenUserDrag);
 
     // Mode control
     void setTimelineViewMode(TimelineViewMode mode);
@@ -390,7 +396,8 @@ public:
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
-    void TimeScopeChanged(const TimeSelectionSpan& selection);
+    /** selection: visible time window; fromFrozenUserDrag: true if source timeline is frozen (user just dragged), so other timelines should force-sync; false if from follow-mode (e.g. timer), so frozen timelines should not be overwritten. */
+    void TimeScopeChanged(const TimeSelectionSpan& selection, bool fromFrozenUserDrag);
     void GraphContainerInFollowModeChanged(bool isInFollowMode);
     void AbsoluteTimeModeChanged(bool isAbsoluteTime);
 

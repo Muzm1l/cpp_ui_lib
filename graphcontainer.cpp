@@ -722,8 +722,8 @@ void GraphContainer::setupEventConnections()
         connect(m_timelineView, &TimelineView::TimeIntervalChanged,
                 this, &GraphContainer::onTimeIntervalChanged);
         
-        connect(m_timelineView, &TimelineView::TimeScopeChanged,
-                this, &GraphContainer::onTimeScopeChanged);
+        connect(m_timelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                this, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
         
         connect(m_timelineView, &TimelineView::GraphContainerInFollowModeChanged,
                 this, &GraphContainer::onGraphContainerInFollowModeChanged);
@@ -1275,6 +1275,11 @@ void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
 
 void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
 {
+    onTimeScopeChanged(selection, false);
+}
+
+void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection, bool /* fromFrozenUserDrag */)
+{
     // Skip processing if we're in the middle of updating the time interval
     // This prevents TimeScopeChanged (which is emitted as a side effect of interval changes)
     // from interfering with the proper time range setup during interval updates
@@ -1582,8 +1587,9 @@ void GraphContainer::onDataChanged(GraphType graphType)
                              << timelineWindow.startTime.toString() << "to" << timelineWindow.endTime.toString();
                 }
             }
-            else
+            else if (m_isInFollowMode)
             {
+                // Only auto-advance time range when in follow mode. When frozen, keep the user's range.
                 // Graph has a valid time range - check if we need to update it for new data
                 QDateTime currentTime = QDateTime::currentDateTime();
                 qint64 timeDiffMs = timeRange.second.msecsTo(currentTime);

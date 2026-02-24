@@ -171,6 +171,8 @@ public slots:
     void onSelectionCreated(const TimeSelectionSpan &selection);
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
+    void onTimeScopeChanged(const TimeSelectionSpan &selection, bool fromFrozenUserDrag);
+    /** Overload for container-to-container sync (GraphContainer::TimeScopeChanged has one arg). */
     void onTimeScopeChanged(const TimeSelectionSpan &selection);
     
     // Marker timestamp slots
