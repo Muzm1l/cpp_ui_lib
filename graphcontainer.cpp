@@ -1278,7 +1278,7 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
     onTimeScopeChanged(selection, false);
 }
 
-void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection, bool /* fromFrozenUserDrag */)
+void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection, bool fromFrozenUserDrag)
 {
     // Skip processing if we're in the middle of updating the time interval
     // This prevents TimeScopeChanged (which is emitted as a side effect of interval changes)
@@ -1292,6 +1292,11 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection, bool
     {
         return;
     }
+
+    // When we're frozen, only apply scope from a frozen user drag (own or other timeline).
+    // Ignore scope from follow-mode timelines (live window) so they don't overwrite our frozen graph.
+    if (!m_isInFollowMode && !fromFrozenUserDrag)
+        return;
 
     // NOTE: This handler receives signals from the user's own timeline slider (drag + release).
     // It must ALWAYS be processed regardless of follow/frozen mode.

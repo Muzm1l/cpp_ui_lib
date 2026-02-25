@@ -1290,21 +1290,18 @@ void GraphLayout::syncAllTimelineViews()
     // 4. Works for all layout types: GPW1W, GPW2WV, GPW4W, GPW2WH, GPW4WH, NOGPW2WH
     
     // Collect all visible TimelineView instances with their containers
-    // This includes timeline views from all visible containers, regardless of layout
+    // Include every visible container that has a timeline view so ALL timeline views stay synced
+    // (one changed applies to all, regardless of getShowTimelineView() in current layout)
     std::vector<std::pair<GraphContainer*, TimelineView*>> timelineViewPairs;
     for (auto *container : m_graphContainers)
     {
-        if (container && container->isVisible() && container->getShowTimelineView())
+        if (container && container->isVisible())
         {
             TimelineView *timelineView = container->getTimelineView();
             if (timelineView)
             {
                 timelineViewPairs.push_back({container, timelineView});
                 DEBUG_OUT() << "GraphLayout: Found timeline view in container";
-            }
-            else
-            {
-                qWarning() << "GraphLayout: Container has showTimelineView=true but timelineView is null";
             }
         }
     }

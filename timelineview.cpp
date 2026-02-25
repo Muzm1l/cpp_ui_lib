@@ -2105,7 +2105,11 @@ void TimelineView::setVisibleTimeWindowFromSync(const TimeSelectionSpan &window)
 void TimelineView::onTimeScopeChangedFromOtherTimeline(const TimeSelectionSpan &selection, bool fromFrozenUserDrag)
 {
     if (fromFrozenUserDrag)
+    {
         setVisibleTimeWindowFromSync(selection);
+        // Keep this timeline frozen at the synced window so the next timer tick does not revert it to live
+        setTimelineViewMode(TimelineViewMode::FROZEN_MODE);
+    }
     else
         setVisibleTimeWindow(selection);
 }
