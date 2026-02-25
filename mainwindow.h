@@ -3,9 +3,10 @@
 
 #include "bdwgraph.h"
 #include "brwgraph.h"
-#include "btwgraph.h"
+#include "btwgraph.h"  // For BTWGraph::HorizontalLineMode enum
 #include "fdwgraph.h"
 #include "ftwgraph.h"
+#include "graphcontainer.h"
 #include "graphlayout.h"
 #include "ltwgraph.h"
 #include "rtwgraph.h"
@@ -15,10 +16,14 @@
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
 #include "zoompanel.h"
-#include "rtwsymbols.h"
+#include "rtwsymboldrawing.h"
+#include "scwwindow.h"
+#include "scwsimulator.h"
 #include <QMainWindow>
 #include <QTimer>
 #include <QPaintEvent>
+#include <QPushButton>
+#include <vector>
 #include <cstdlib>
 #include <ctime>
 
@@ -44,7 +49,7 @@ private:
     QTimer* timeUpdateTimer; ///< Timer for updating current time
 
     GraphLayout* graphgrid; ///< Graph layout widget
-    Simulator* simulator;   ///< Simulator for generating data
+    Simulator* simulator = nullptr;   ///< Simulator for generating data (disabled by default)
 
     // New graph components for the second tab
     FDWGraph* fdwGraph; ///< FDW Graph component
@@ -73,9 +78,36 @@ private:
     QLabel* timespanStartLabel; ///< Label to display start time
     QLabel* timespanEndLabel; ///< Label to display end time
     QLabel* timespanDurationLabel; ///< Label to display duration
+    QLabel* timelineModeLabel; ///< Label to display current timeline mode (FOLLOW_MODE or FROZEN_MODE)
+    QLabel* markerTimestampLabel; ///< Label to display marker timestamp in first tab
+    QLabel* rtwSymbolTimestampLabel; ///< Label to display RTW symbol timestamp when clicked
+    QLabel* rtwRMarkerTimestampLabel; ///< Label to display RTW R marker timestamp when clicked
+
+    // Manoeuvre management buttons
+    QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout
+    QPushButton* clearManoeuvresButton; ///< Button to clear all manoeuvres from the graph layout
+    QPushButton* startManoeuvreButton; ///< Button to start drawing a manoeuvre (new API)
+    QPushButton* endManoeuvreButton; ///< Button to end drawing a manoeuvre (new API)
+    QPushButton* btwLineModeButton; ///< Button to toggle BTW horizontal line mode (Normal/DrawLine/DeleteLine)
+    QPushButton* clearAllGraphsButton; ///< Button to test clearAllGraphs API
+    QPushButton* redrawGraphsButton; ///< Button to manually trigger redraw of all graphs
+    QPushButton* testEmptyDataButton; ///< Button to test setDataToDataSource with empty data for FTW and FDW
+    QPushButton* clearFTWFDWButton; ///< Button to test clearGraph API for FTW and FDW
+    QPushButton* showHistorySelectionsButton; ///< Test button to show timeframe of history selections
+    
+    // BTW horizontal line mode state
+    BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
+
     
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
+    
+    // Time selection history storage (max 5 selections)
+    std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
+        
+    // SCWWindow for SCW tab (disabled by default)
+    SCWWindow* scwWindow = nullptr; ///< SCW Window widget
+    SCWSimulator* scwSimulator = nullptr; ///< Simulator for SCWWindow data generation
 
     // void configureTimeVisualizer();
     // void configureTimelineView();
@@ -86,10 +118,14 @@ private:
     void setupCustomGraphsTab();
     void setupTestWaterfallGraph(); ///< Setup test WaterfallGraph in controls tab
     void setupTimelineView(); ///< Setup TimelineView in controls tab for testing
+    void setupSCWWindow(); ///< Setup SCWWindow in a new tab
     void setupNewGraphData();
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
+    void setupTimeSelectionHistory(); ///< Setup time selection history storage
+    void setupManoeuvreButton(); ///< Setup button to add manoeuvres
+    void updateBTWLineModeButton(); ///< Update BTW line mode button text and style
 
     long simTick;
 
@@ -140,6 +176,56 @@ private slots:
      * Called when user selects a different layout type from the combobox.
      */
     void onLayoutTypeChanged(int index);
+    
+    /**
+     * @brief Handles time selection created events
+     *
+     * Called when a time selection is created on the timeline.
+     * Stores the selection timestamps in history (max 5).
+     */
+    void onTimeSelectionCreated(const TimeSelectionSpan &selection);
+    void onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
+    void onShowHistorySelectionsButtonClicked();
+
+    /**
+     * @brief Handles add manoeuvre button click
+     *
+     * Called when the add manoeuvre button is clicked.
+     * Creates a sample manoeuvre and adds it to the graph layout.
+     */
+    void onAddManoeuvreButtonClicked();
+
+    /**
+     * @brief Handles clear manoeuvres button click
+     *
+     * Called when the clear manoeuvres button is clicked.
+     * Clears all manoeuvres from the graph layout.
+     */
+    void onClearManoeuvresButtonClicked();
+
+    /**
+     * @brief Handles start manoeuvre drawing button click
+     *
+     * Called when the start manoeuvre button is clicked.
+     * Starts a new manoeuvre drawing session with current time and random parameters.
+     */
+    void onStartManoeuvreButtonClicked();
+
+    /**
+     * @brief Handles end manoeuvre drawing button click
+     *
+     * Called when the end manoeuvre button is clicked.
+     * Completes the current manoeuvre drawing session with current time.
+     */
+    void onEndManoeuvreButtonClicked();
+    
+    /**
+     * @brief Handles BTW line mode toggle button click
+     *
+     * Called when the BTW line mode button is clicked.
+     * Cycles through Normal -> DrawLine -> DeleteLine -> Normal
+     */
+    void onBTWLineModeButtonClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

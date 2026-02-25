@@ -29,6 +29,7 @@ private:
     // BRW-specific properties and methods can be added here
     void drawBRWScatterplot();
     void drawZeroAxis();
+    QGraphicsLineItem *m_zeroAxisLineItem;  // Store reference to zero axis line for updates
 };
 
 #endif // BRWGRAPH_H

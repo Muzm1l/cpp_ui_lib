@@ -1,4 +1,5 @@
 #include "drawutils.h"
+#include "debugutils.h"
 
 /**
  * @brief converts to bearing to radians
@@ -111,7 +112,7 @@ void DrawUtils::addTestPattern(QGraphicsScene *scene, QRectF rectToDraw)
 {
     if (!scene)
     {
-        qDebug() << "No scene found, existing DrawUtils::addTestPattern";
+        DEBUG_OUT() << "No scene found, existing DrawUtils::addTestPattern";
         return;
     }
 
@@ -132,7 +133,7 @@ void DrawUtils::addTestLine(QGraphicsScene *scene, QLineF lineToDraw)
 {
     if (!scene)
     {
-        qDebug() << "No scene found, existing DrawUtils::addTestPattern";
+        DEBUG_OUT() << "No scene found, existing DrawUtils::addTestPattern";
         return;
     }
 
@@ -193,7 +194,7 @@ QTransform DrawUtils::computeTransformationMatrix(const QRectF &sourceRect, cons
 
     // Uniform scale factor
     qreal scaleFactor = targetSmallestDimension / sourceLargestDimension;
-    // qDebug() << "Scale Factor: " << scaleFactor;
+    // DEBUG_OUT() << "Scale Factor: " << scaleFactor;
 
     QPointF sourceCenter = sourceRect.center();
     QPointF targetCenter = targetRect.center();

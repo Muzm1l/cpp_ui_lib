@@ -20,17 +20,27 @@
 #include <QHBoxLayout>
 #include <QString>
 #include <QTimer>
+#include <QUuid>
 #include <QVBoxLayout>
 #include <QWidget>
 #include <functional>
 #include <map>
 #include <vector>
+#include "sharedsyncstate.h"
+
 
 class GraphContainer : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphContainer(QWidget *parent = nullptr, bool showTimelineView = true, std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), QTimer *timer = nullptr, int containerWidth = 0, int containerHeight = 0);
+    explicit GraphContainer(QWidget *parent = nullptr, 
+        bool showTimelineView = true, 
+        std::map<QString, QColor> seriesColorsMap = std::map<QString, QColor>(), 
+        QTimer *timer = nullptr, 
+        int containerWidth = 0, 
+        int containerHeight = 0, 
+        GraphContainerSyncState *syncState = nullptr
+    );
     ~GraphContainer();
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
@@ -52,6 +62,9 @@ public:
     void setGraphViewSize(int width, int height);
     QSize getGraphViewSize() const;
     QSize getTotalContainerSize() const;
+    
+    // Get the combined height of combo box and zoom panel
+    int getComboBoxAndZoomPanelHeight() const;
 
 
     // Data access methods
@@ -66,6 +79,13 @@ public:
 
     // Graph redraw method
     void redrawWaterfallGraph();
+    void redrawWaterfallGraph(GraphType graphType); // Redraw a specific graph type
+    
+    // Get the current waterfall graph
+    WaterfallGraph* getCurrentWaterfallGraph() const;
+    
+    // Get a specific waterfall graph by type
+    WaterfallGraph* getWaterfallGraph(GraphType graphType) const;
 
     // Data options management
     void addDataOption(const GraphType graphType, WaterfallData &dataSource);
@@ -93,6 +113,7 @@ public:
 
     // Selection management methods
     void addTimeSelection(const TimeSelectionSpan &selection);
+    void setTimeSelection(int index, const TimeSelectionSpan &selection);  // replace at index (for sync from GraphLayout)
     void clearTimeSelections();
     void clearTimeSelectionsSilent(); // Clears without emitting signal
 
@@ -106,8 +127,12 @@ public:
     // Public method for external components to update time interval
     void updateTimeInterval(TimeInterval interval);
 
-    // Unified data change notification handler
-    void onDataChanged(GraphType graphType);
+    // API to set time interval without emitting signals (for centralized sync)
+    void setTimeInterval(TimeInterval interval);
+    
+    // API to set time scope without emitting signals (for centralized sync from GraphLayout hub)
+    void setTimeScope(const TimeSelectionSpan &selection);
+
 
     // Chevron label control methods
     void setChevronLabel1(const QString &label);
@@ -116,6 +141,11 @@ public:
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
+
+    // Manoeuvre methods
+    void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
 
     // Range limits management methods
     void setGraphRangeLimits(const GraphType graphType, qreal yMin, qreal yMax);
@@ -141,7 +171,34 @@ public slots:
     void onSelectionCreated(const TimeSelectionSpan &selection);
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
+    void onTimeScopeChanged(const TimeSelectionSpan &selection, bool fromFrozenUserDrag);
+    /** Overload for container-to-container sync (GraphContainer::TimeScopeChanged has one arg). */
     void onTimeScopeChanged(const TimeSelectionSpan &selection);
+    
+    // Marker timestamp slots
+    void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+    void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    void onGraphContainerInFollowModeChanged(bool isInFollowMode);
+    
+    // BTW Horizontal line slots
+    void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
+    void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    
+    // BTW Marker sync slots (called when syncing markers from other containers)
+    void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    void onBTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // Shaded region sync slots (called when syncing regions from other containers)
+    void onShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    void onShadedRegionSyncRemoved(const QUuid &syncId);
+    void onShadedRegionsSyncCleared();
+    // Unified data change notification handler
+    void onDataChanged(GraphType graphType);
+    
+    // Fast incremental update for interactive drag (no range recalculation, no full redraw)
+    void onDataChangedInteractive(GraphType graphType, const QString &seriesLabel);
 
 private:
     void updateTotalContainerSize();
@@ -158,14 +215,79 @@ private:
     void setupTimer();
     void onTimerTick();
     void onClearTimeSelectionsButtonClicked();
+    void onHistoryFullSelectionRequested();
 
 signals:
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
+    void TimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void DeltaTimeSelectionChanged(qreal deltaTime);
     void TimeSelectionsCleared();
     void IntervalChanged(TimeInterval interval);
     void TimeScopeChanged(const TimeSelectionSpan &selection);
     void DeleteInteractiveMarkers();
+    
+    // Marker timestamp signals
+    void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
+    void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+    void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
+    void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
+    
+    // BTW Horizontal line signals
+    void BTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
+    void BTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    /**
+     * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
+     * @param timestamp The timestamp of the marker
+     * @param value The value (range) of the marker
+     */
+    void markerTimestampValueChanged(const QDateTime &timestamp, qreal value);
+    
+    /**
+     * @brief Emitted when a marker is clicked with full data
+     * 
+     * This signal provides all marker data for external integration:
+     * - timestamp: When the marker is positioned in time
+     * - rangeValue: The X-axis range value (horizontal position)
+     * - bearingRate: The bearing rate value shown in the box (rotation angle / 10)
+     * 
+     * @param timestamp The timestamp of the marker
+     * @param rangeValue The range value (X-axis position)
+     * @param bearingRate The bearing rate value (from the box display)
+     */
+    void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+    
+    // ========== BTW Marker Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a BTW marker's data changes and needs to be synced
+     * @param markerData The current state of the marker
+     */
+    void BTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
+    
+    /**
+     * @brief Emitted when a BTW marker is deleted and needs to be synced
+     * @param markerId The unique ID of the deleted marker
+     */
+    void BTWMarkerSyncDeleted(const QUuid &markerId);
+    
+    // ========== Shaded Region Sync Signals ==========
+    
+    /**
+     * @brief Emitted when a shaded region is added and needs to be synced
+     * @param regionData The shaded region data to sync
+     */
+    void ShadedRegionSyncAdded(const ShadedRegionSyncData &regionData);
+    
+    /**
+     * @brief Emitted when a shaded region is removed and needs to be synced
+     * @param syncId The global sync ID of the removed region
+     */
+    void ShadedRegionSyncRemoved(const QUuid &syncId);
+    
+    /**
+     * @brief Emitted when all shaded regions are cleared
+     */
+    void ShadedRegionsSyncCleared();
 
 private:
     QHBoxLayout *m_mainLayout;
@@ -208,6 +330,16 @@ private:
     std::function<void(GraphContainer *, const QDateTime &)> m_cursorTimeChangedCallback;
     QDateTime m_sharedCursorTime;
     bool m_hasSharedCursorTime;
+
+    // Graph container in follow mode
+    bool m_isInFollowMode = true;
+
+    // Shared synchronization state pointer
+    GraphContainerSyncState *m_syncState;
+    
+    // Track last known time scope from sync state to detect changes
+    TimeSelectionSpan m_lastSyncedTimeScope;
+    bool m_hasLastSyncedTimeScope;
 };
 
 #endif // GRAPHCONTAINER_H

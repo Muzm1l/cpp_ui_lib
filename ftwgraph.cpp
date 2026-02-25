@@ -1,4 +1,5 @@
 #include "ftwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 
 /**
@@ -12,7 +13,7 @@
 FTWGraph::FTWGraph(QWidget* parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
-    qDebug() << "FTWGraph constructor called";
+    DEBUG_OUT() << "FTWGraph constructor called";
 }
 
 /**
@@ -21,7 +22,7 @@ FTWGraph::FTWGraph(QWidget* parent, bool enableGrid, int gridDivisions, TimeInte
  */
 FTWGraph::~FTWGraph()
 {
-    qDebug() << "FTWGraph destructor called";
+    DEBUG_OUT() << "FTWGraph destructor called";
 }
 
 /**
@@ -32,11 +33,33 @@ void FTWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        DEBUG_OUT() << "FTWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
-    graphicsScene->clear();
+    // Only perform full clear for FULL_REDRAW state
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
+    
+    if (needsFullClear)
+    {
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    }
+    
     setupDrawingArea();
 
-    if (gridEnabled)
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
@@ -55,17 +78,67 @@ void FTWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points
-                    drawDataLine(seriesLabel, false);
+                    // Draw ADOPTED series as solid line (no points)
+                    // Draw during both full redraw and incremental updates
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
+                    {
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
-                    // Draw scatterplot for other series
-                    drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                    // Draw scatterplot for other series - respects render state internally
+                    drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // CRITICAL FIX: When data is empty, force full clear to ensure graphics scene is cleared
+        // This prevents old drawn elements from remaining visible when empty data is passed
+        if (!needsFullClear)
+        {
+            // Clear all item pointers since we're about to clear the scene
+            m_seriesScatterplotItems.clear();
+            m_seriesPathItems.clear();
+            m_seriesPointItems.clear();
+            
+            // Clear graphics scene to remove all drawn elements
+            graphicsScene->clear();
+            graphicsScene->update(); // Force immediate update to ensure clearing is visible
+        }
+        
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        
+        // CRITICAL FIX: Clear data line paths (ADOPTED series line)
+        // These paths are rendered in paintEvent() and may contain gaps from when
+        // BTW symbols were present. When data is cleared, these old paths must be
+        // cleared too, otherwise the line with gaps remains visible.
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        
+        // Trigger repaint to clear the line from screen
+        update();
+        
+        DEBUG_OUT() << "FTWGraph: Data source is empty, forced full clear and cleaned up all scatterplot items and data line paths";
+    }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    // CRITICAL FIX: Draw during both full redraw and incremental updates
+    // Symbols need to be redrawn when time range changes (timer ticks, animation, zoom)
+    // because their Y positions depend on the time range
+    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
+    {
+        drawBTWSymbols();
+    }
+    
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
+    
+    isDrawing = false;
 }
 
 /**
@@ -75,7 +148,7 @@ void FTWGraph::draw()
  */
 void FTWGraph::onMouseClick(const QPointF& scenePos)
 {
-    qDebug() << "FTWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "FTWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -87,7 +160,7 @@ void FTWGraph::onMouseClick(const QPointF& scenePos)
  */
 void FTWGraph::onMouseDrag(const QPointF& scenePos)
 {
-    qDebug() << "FTWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "FTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -101,5 +174,5 @@ void FTWGraph::drawFTWScatterplot()
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("FTW-1"), Qt::white, 4.0, Qt::black);
 
-    qDebug() << "FTW scatterplot drawn";
+    DEBUG_OUT() << "FTW scatterplot drawn";
 }

@@ -26,6 +26,7 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
     // Initialize scene
     scene = new QGraphicsScene(this);
     scene->setSceneRect(0, 0, width(), height());
+    scene->setBackgroundBrush(QBrush(Qt::black));
     setScene(scene);
 
     // Optimize QGraphicsView performance
@@ -40,8 +41,8 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
     // Enable mouse tracking
     // setMouseTracking(true);
 
-    // Initial draw
-    draw();
+    // Initial draw - DISABLED to prevent uninitialized value errors
+    // draw();
 }
 
 /**
@@ -86,7 +87,7 @@ void TacticalSolutionView::drawCustomBackground()
     if (!scene)
         return;
 
-    // Draw the background - currently empty as we use widget background
+    // Background is handled by scene's background brush (set to black in constructor)
 }
 
 /// @brief Draws the various vectors

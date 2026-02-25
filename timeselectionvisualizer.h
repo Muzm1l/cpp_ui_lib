@@ -17,6 +17,16 @@
 #define BUTTON_SIZE 32
 #define GRAPHICS_VIEW_WIDTH 32
 #define MAX_TIME_SELECTIONS 5
+#define RESIZE_EDGE_THRESHOLD 4   // pixels from top/bottom edge for resize vs center drag
+#define MIN_SELECTION_SECONDS 1   // minimum duration when resizing
+
+#include <utility>
+
+// Hit zone when clicking on an existing selection
+enum class SelectionHitZone { None, TopEdge, BottomEdge, Center };
+
+// Interaction mode after mouse press
+enum class InteractionMode { None, Creating, ResizingTop, ResizingBottom, Dragging };
 
 class TimeVisualizerWidget : public QWidget
 {
@@ -27,6 +37,7 @@ public:
 
     // Time selection management
     void addTimeSelection(TimeSelectionSpan span);
+    void setTimeSelection(int index, const TimeSelectionSpan& span);  // replace at index (for sync from other containers)
     void clearTimeSelections();
     bool hasTimeSelections() const { return !m_timeSelections.isEmpty(); }
     void createFullSelection();
@@ -52,6 +63,7 @@ protected:
 
 signals:
     void timeSelectionMade(const TimeSelectionSpan& span);
+    void timeSelectionModified(int index, const TimeSelectionSpan& newSpan);
 
 private:
     QList<TimeSelectionSpan> m_timeSelections;
@@ -62,18 +74,27 @@ private:
     QTime m_validStartTime;
     QTime m_validEndTime;
 
-    // Mouse selection state
+    // Mouse selection state (creating new selection)
     bool m_isSelecting;
     int m_selectionStartY;
     int m_selectionEndY;
+
+    // Resize/drag state (interacting with existing selection)
+    InteractionMode m_interactionMode;
+    int m_interactionSelectionIndex;
+    int m_dragStartY;
+    TimeSelectionSpan m_dragStartSpan;
 
     void updateVisualization();
     void drawSelection(QPainter& painter, const TimeSelectionSpan& span);
     void drawCurrentSelection(QPainter& painter);
     QTime yCoordinateToTime(int y) const;
+    QDateTime timeAtY(int y) const;
     TimeSelectionSpan calculateSelectionSpan(int startY, int endY) const;
     bool hasValidRange() const { return !m_validStartTime.isNull() && !m_validEndTime.isNull(); }
     TimeSelectionSpan clampToValidRange(const TimeSelectionSpan& span) const;
+    QRect getSelectionRect(int index) const;
+    std::pair<int, SelectionHitZone> hitTest(int x, int y) const;
 };
 
 class TimeSelectionVisualizer : public QWidget
@@ -86,7 +107,9 @@ public:
 
     // Delegate methods to the visualizer widget
     void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
+    void setTimeSelection(int index, const TimeSelectionSpan& span) { m_visualizerWidget->setTimeSelection(index, span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
+    void createFullSelection() { m_visualizerWidget->createFullSelection(); }
     bool hasTimeSelections() const { return m_visualizerWidget->hasTimeSelections(); }
     void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
     void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
@@ -97,6 +120,9 @@ public:
 signals:
     void timeSelectionsCleared();
     void timeSelectionMade(const TimeSelectionSpan& span);
+    void timeSelectionModified(int index, const TimeSelectionSpan& newSpan);
+    /** Emitted when the user clicks the H button with no selections; container can create selection from real time to BTW line or fall back to full range */
+    void fullSelectionRequested();
 
 private slots:
     void onButtonClicked();

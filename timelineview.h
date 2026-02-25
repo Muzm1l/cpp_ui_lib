@@ -6,6 +6,7 @@
 #include <QVBoxLayout>
 #include <QPainter>
 #include <QPaintEvent>
+#include <QPixmap>
 #include <QResizeEvent>
 #include <QEvent>
 #include <QMouseEvent>
@@ -23,10 +24,19 @@
 #include <vector>
 #include "timelineutils.h"
 #include "timelinedrawingobjects.h"
+#include "sharedsyncstate.h"
+#include "manoeuvreoverlay.h"
 
 // Compile-time parameters
 #define TIMELINE_VIEW_BUTTON_SIZE 64
 #define TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH 64
+
+// Enum describing the follow mode of the timeline view
+enum class TimelineViewMode
+{
+    FOLLOW_MODE = 0,
+    FROZEN_MODE = 1,
+};
 
 // Forward declarations
 class TimelineVisualizerWidget;
@@ -73,23 +83,25 @@ public:
     SliderState();
     
     // Position management
-    void setYPosition(int y, int widgetHeight, const QTime& interval);
+    void setYPosition(int y, int widgetHeight, const QTime& interval, bool preserveTimeWindow = false);
     int getYPosition() const;
     
     // Time window management
     TimeSelectionSpan getTimeWindow() const;
-    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval);
+    /** rangeStart: when valid (e.g. application start), Y is computed over [rangeStart, now]; else 12-hour range. Prevents "recent past" windows from mapping to Y≈0. */
+    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval, const QDateTime& rangeStart = QDateTime());
     
     // Drag state management
     void startDrag(const QPoint& mousePos);
-    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval);
-    void endDrag(int widgetHeight, const QTime& interval);
+    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime);
+    void endDrag(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime);
     bool isDragging() const;
     
     // Validation and synchronization
     void clampToBounds(int widgetHeight, const QTime& interval);
-    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval);
-    void syncPositionFromTimeWindow(int widgetHeight);
+    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime = QDateTime(), bool isDragging = false);
+    /** rangeStart: when valid, use [rangeStart, now] for Y mapping; else 12-hour range. */
+    void syncPositionFromTimeWindow(int widgetHeight, const QDateTime& rangeStart = QDateTime());
     
 private:
     int m_yPosition = 0;              // Current pixel position (source of truth)
@@ -104,7 +116,7 @@ class TimelineVisualizerWidget : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineVisualizerWidget(QWidget* parent = nullptr);
+    explicit TimelineVisualizerWidget(QWidget* parent = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
     ~TimelineVisualizerWidget();
 
     // Properties
@@ -142,12 +154,42 @@ public:
 
     // Slider visible window access
     TimeSelectionSpan getVisibleTimeWindow() const { return m_sliderVisibleWindow; }
+    
+    //--------------syed-----------------------rebase conflict
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    /** Apply visible time window from another timeline's sync; always updates slider (ignores FROZEN_MODE) so all sliders stay in sync and crosshair aligns. */
+    void setVisibleTimeWindowFromSync(const TimeSelectionSpan &window);
+
+    // Get application start time
+    QDateTime getApplicationStartTime() const { return m_applicationStartTime; }
     
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
     void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
     void clearCrosshairTimestamp();
+
+    // Mode control
+    void setTimelineViewMode(TimelineViewMode mode);
+    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
+    
+    // Set time window without emitting signals (for external synchronization)
+    void setTimeWindowSilent(const TimeSelectionSpan& window);
+    
+    // Optional rendering control
+    void setSliderVisible(bool visible);
+    bool isSliderVisible() const { return m_sliderVisible; }
+    void setChevronVisible(bool visible);
+    bool isChevronVisible() const { return m_chevronVisible; }
+
+    // Navtime label calculation methods (public for TimelineView access)
+    int getLabelSpacingMinutes(TimeInterval interval) const;
+    std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
+    double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
+
+    // Manoeuvre overlay methods
+    void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -169,8 +211,7 @@ private:
     double m_pixelSpeed; // pixels per second
     double m_accumulatedOffset; // accumulated pixel offset
 
-    // Drawing objects (only segments and chevron)
-    TimelineChevronDrawer* m_chevronDrawer;
+    // Drawing objects (only segments)
     std::vector<TimelineSegmentDrawer*> m_segmentDrawers;
 
     // Label mode control
@@ -194,10 +235,42 @@ private:
     qreal m_crosshairYPosition;
     bool m_showCrosshairTimestamp;
 
+    // Timeline view mode
+    TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
+
+    // Shared sync state reference
+    GraphContainerSyncState *m_syncState;
+    
+    // Optional rendering flags
+    bool m_sliderVisible = true;  // Default: slider is visible
+    bool m_chevronVisible = true; // Default: chevron (maneuvers) is visible
+
+    // Manoeuvre overlay
+    ManoeuvreOverlay *m_manoeuvreOverlay;
+
+    // Application start time - timestamps before this should not be displayed
+    QDateTime m_applicationStartTime;
+
+    // Cached timestamp labels for performance (avoid recalculating on every paint)
+    struct CachedTimestampLabel {
+        QString text;
+        qreal normalizedY;  // 0.0 = top, 1.0 = bottom
+    };
+    std::vector<CachedTimestampLabel> m_cachedTimestampLabels;
+    QDateTime m_lastCachedWindowStart;
+    QDateTime m_lastCachedWindowEnd;
+    bool m_lastCachedShowRelativeLabels;  // Track last mode to detect changes
+
+    // Cached background pixmap for performance (avoid redrawing static elements on every paint)
+    QPixmap m_cachedBackground;
+    bool m_backgroundNeedsRedraw = true;
+
     void updateVisualization();
     double calculateTimeOffset();
     void updatePixelSpeed();
     double calculateSmoothOffset();
+    /** Use shared application start from sync state when available so all timeline views use same range for Y mapping. */
+    QDateTime getEffectiveRangeStart() const;
 
     // Drawing object management
     void createDrawingObjects();
@@ -205,7 +278,11 @@ private:
 
     // Helper methods for drawing with QPainter
     void drawSegmentWithPainter(QPainter& painter, TimelineSegmentDrawer* segmentDrawer);
-    void drawChevronWithPainter(QPainter& painter, TimelineChevronDrawer* chevronDrawer);
+    void drawNavTimeLabels(QPainter& painter, const QRect& drawArea);
+    void drawCrosshairTimestampLabel(QPainter& painter, const QRect& drawArea);
+    void drawRegularIntervalTimestamps(QPainter& painter, const QRect& drawArea);
+    void updateCachedTimestampLabels();
+    void renderBackgroundToCache();
     
     // Slider methods (following zoom slider pattern)
     void createSliderIndicator();
@@ -215,6 +292,7 @@ private:
 
 signals:
     void visibleTimeWindowChanged(const TimeSelectionSpan& selection);
+    void timelineViewModeChanged(TimelineViewMode mode);
 
 };
 
@@ -224,14 +302,40 @@ class TimelineView : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr);
+    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
     ~TimelineView();
 
     // No time selection methods needed for TimelineView
     void setTimeLineLength(TimeInterval interval) {
+        // Update the interval index to match the new interval
+        // This ensures button state stays in sync when interval is changed via signal
+        static const std::vector<TimeInterval> intervals = getValidTimeIntervals();
+        for (size_t i = 0; i < intervals.size(); ++i)
+        {
+            if (intervals[i] == interval)
+            {
+                intervalIndex = static_cast<int>(i);
+                break;
+            }
+        }
+        
         m_visualizerWidget->setTimeInterval(interval);
         updateButtonText(interval);
+        
+        // Update sync state if available (when called from signal, keeps sync state in sync)
+        if (m_syncState)
+        {
+            m_syncState->currentInterval = interval;
+            m_syncState->hasInterval = true;
+        }
+        
+        // Ensure timer is still running after interval change to keep animation active
+        // This is critical - restart timer explicitly to resume animation
+        ensureTimerRunning();
     }
+    
+    // Ensure timer is running - call this after operations that might stop animation
+    void ensureTimerRunning();
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
     void setNumberOfDivisions(int divisions) { m_visualizerWidget->setNumberOfDivisions(divisions); }
 
@@ -245,7 +349,8 @@ public:
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
-    
+
+    //-----------syed----------------------rebase conflict
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
     void updateCrosshairTimestampFromTime(const QDateTime &timestamp);
@@ -253,10 +358,50 @@ public:
     
     // Time window control for syncing
     void setVisibleTimeWindow(const TimeSelectionSpan &window);
+    /** Apply visible time window from another timeline's sync; always updates slider so all sliders and crosshairs stay aligned. */
+    void setVisibleTimeWindowFromSync(const TimeSelectionSpan &window);
+    TimeSelectionSpan getVisibleTimeWindow() const;
+    /** Used by GraphLayout: apply scope from another timeline; force-sync only when fromFrozenUserDrag. */
+    void onTimeScopeChangedFromOtherTimeline(const TimeSelectionSpan &selection, bool fromFrozenUserDrag);
+    /** Used by GraphLayout: when another timeline enters follow mode (slider at y=0), switch this one to follow mode so all stay in sync. */
+    void onOtherContainerEnteredFollowMode(bool isInFollowMode);
+
+    // Mode control
+    void setTimelineViewMode(TimelineViewMode mode);
+    TimelineViewMode getTimelineViewMode() const { return m_timelineViewMode; }
+    
+    // Set time window without emitting signals (for external synchronization)
+    void setTimeWindowSilent(const TimeSelectionSpan& window);
+
+    // Navtime label calculation methods
+    int getLabelSpacingMinutes(TimeInterval interval) const;
+    std::vector<QDateTime> calculateNavTimeLabels(const QDateTime& currentNavTime, TimeInterval interval, const QTime& timelineLength) const;
+    double calculateLabelYPosition(const QDateTime& labelNavTime, const QDateTime& currentNavTime, const QTime& timelineLength, int widgetHeight) const;
+    
+    // Get application start time
+    QDateTime getApplicationStartTime() const;
+    
+    // Optional rendering control
+    void setSliderVisible(bool visible);
+    bool isSliderVisible() const;
+    void setChevronVisible(bool visible);
+    bool isChevronVisible() const;
+
+    // Manoeuvre methods
+    void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
+    void setInProgressManoeuvre(const QDateTime &startTime);
+    void clearInProgressManoeuvre();
+    
+    // Absolute/Relative time mode control
+    void setIsAbsoluteTime(bool isAbsoluteTime);
+    bool getIsAbsoluteTime() const { return m_isAbsoluteTime; }
 
 signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
-    void TimeScopeChanged(const TimeSelectionSpan& selection);
+    /** selection: visible time window; fromFrozenUserDrag: true if source timeline is frozen (user just dragged), so other timelines should force-sync; false if from follow-mode (e.g. timer), so frozen timelines should not be overwritten. */
+    void TimeScopeChanged(const TimeSelectionSpan& selection, bool fromFrozenUserDrag);
+    void GraphContainerInFollowModeChanged(bool isInFollowMode);
+    void AbsoluteTimeModeChanged(bool isAbsoluteTime);
 
 private:
     QPushButton* m_intervalChangeButton;
@@ -274,6 +419,14 @@ private:
     void updateTimeModeButtonText(bool isAbsoluteTime);
     void setupTimer();
     void onVisibleTimeWindowChanged(const TimeSelectionSpan& selection);
+    void onTimelineViewModeChanged(TimelineViewMode mode);
+    void handleModeTransitionLogic(TimelineViewMode newMode);
+
+    // Timeline view mode
+    TimelineViewMode m_timelineViewMode = TimelineViewMode::FOLLOW_MODE;
+
+    // Shared sync state reference
+    GraphContainerSyncState *m_syncState;
 
 private slots:
     void onIntervalButtonClicked();

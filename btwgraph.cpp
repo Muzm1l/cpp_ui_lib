@@ -1,8 +1,17 @@
 #include "btwgraph.h"
 #include "btwinteractiveoverlay.h"
 #include "interactivegraphicsitem.h"
-#include <QDebug>
+#include "graphcontainer.h"
+#include "graphlayout.h"
+#include "waterfalldata.h"
+#include "graphtype.h"
+#include "zoompanel.h"
+#include "sharedsyncstate.h"
+#include "debugutils.h"
 #include <QRandomGenerator>
+#include <QPainter>
+#include <QPixmap>
+#include <mutex>
 
 /**
  * @brief Construct a new BTWGraph::BTWGraph object
@@ -15,9 +24,13 @@
 BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
     : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
     , m_interactiveOverlay(nullptr)
+    , symbols(40)  // Initialize BTW symbol cache
+    , m_nextRegionId(1)
+    , m_horizontalLineMode(HorizontalLineMode::Normal)
+    , m_cachedWindowSize(QSize())
+    , m_cachedMarkerRadius(0.0)
+    , m_windowSizeCacheValid(false)
 {
-    qDebug() << "BTWGraph constructor called";
-    
     // Setup interactive overlay
     setupInteractiveOverlay();
 }
@@ -28,7 +41,6 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 BTWGraph::~BTWGraph()
 {
-    qDebug() << "BTWGraph destructor called";
 }
 
 /**
@@ -39,11 +51,70 @@ void BTWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        return;
+    }
+    
+    isDrawing = true;
 
-    graphicsScene->clear();
+    // Only perform full clear for FULL_REDRAW state
+    // For INCREMENTAL_UPDATE or RANGE_UPDATE_ONLY, keep existing items and just update positions
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
+    
+    if (needsFullClear)
+    {
+        // Clear existing items - ensure complete clearing before drawing
+        // CRITICAL FIX: Automatic circle markers (blue markers) are now in overlayScene, not graphicsScene
+        // They will be cleared when overlayScene items are removed, but we need to track them
+        // Shaded region polygon items are in overlayScene, so we need to remove them explicitly
+        // Clear polygon items from overlayScene before nulling pointers
+        for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+            if (it.value().polygonItem) {
+                // Actually remove from overlayScene, not just null the pointer
+                QGraphicsScene *itemScene = it.value().polygonItem->scene();
+                if (itemScene && itemScene == overlayScene) {
+                    overlayScene->removeItem(it.value().polygonItem);
+                }
+                delete it.value().polygonItem;
+                it.value().polygonItem = nullptr;
+            }
+        }
+        
+        // Clear horizontal line items from scene before clearing
+        // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+        // Note: graphicsScene->clear() will delete all items, so we need to null out pointers
+        // and recreate them in drawHorizontalLines()
+        for (auto &line : m_horizontalLines) {
+            if (line.lineItem) {
+                // Remove from overlayScene before clear() deletes it
+                if (overlayScene && overlayScene->items().contains(line.lineItem)) {
+                    overlayScene->removeItem(line.lineItem);
+                }
+                // Delete the item since clear() will delete it anyway
+                delete line.lineItem;
+                line.lineItem = nullptr;  // Will be recreated in drawHorizontalLines()
+            }
+        }
+        
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+        
+        // Clear stored timestamps when redrawing (markers will be recreated)
+        m_automaticMarkerTimestamps.clear();
+    }
+    
     setupDrawingArea();
 
-    if (gridEnabled)
+    // Grid only needs to be redrawn on full redraw
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
@@ -53,6 +124,7 @@ void BTWGraph::draw()
         updateDataRanges();
         
         // Draw scatterplots for each series with their respective colors
+        // drawScatterplot() respects the render state internally
         std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
         for (const QString &seriesLabel : seriesLabels)
         {
@@ -62,23 +134,87 @@ void BTWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points
-                    drawDataLine(seriesLabel, false);
+                    // Draw ADOPTED series as solid line (no points)
+                    // Draw during both full redraw and incremental updates
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
+                    {
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
                     // Draw scatterplot for other series
-                    drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                    // This respects render state and does incremental updates when possible
+                    drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
 
-                if (seriesLabel == "BTW-1")
-                {
-                    // Draw custom circle markers for BTW-1 series with delta-calculated angles
-                    drawCustomCircleMarkers(seriesLabel);
-                }
+                // BTW markers are now manually placed through data source - no automatic generation
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        
+        // CRITICAL FIX: Clear data line paths (ADOPTED series line)
+        // These paths are rendered in paintEvent() and may contain gaps from when
+        // BTW symbols were present. When data is cleared, these old paths must be
+        // cleared too, otherwise the line with gaps remains visible.
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        
+        // Trigger repaint to clear the line from screen
+        update();
+        
+        DEBUG_OUT() << "BTWGraph: Data source is empty, cleaned up all scatterplot items and data line paths";
+    }
+    
+    // These items need to be redrawn when time range changes or data updates
+    if (needsFullClear)
+    {
+        // Draw BTW symbols (magenta circles from other graphs)
+        drawBTWSymbols();
+        
+        // Draw manually placed BTW markers from data source
+        drawCustomCircleMarkers();
+        
+        // Draw shaded regions
+        drawShadedRegions();
+        
+        // Draw horizontal lines
+        drawHorizontalLines();
+    }
+    else
+    {
+        // Even on incremental updates, we need to update horizontal lines
+        // because they can be added/removed dynamically
+        drawHorizontalLines();
+        
+        // CRITICAL FIX: Also update shaded regions during incremental updates
+        // Shaded regions need to be redrawn when time range changes (RANGE_UPDATE_ONLY)
+        // or when data is added (INCREMENTAL_UPDATE) because their Y coordinates
+        // depend on the time range. Without this, shaded regions don't appear
+        // until a manual marker triggers a full redraw.
+        drawShadedRegions();
+        
+        // CRITICAL FIX: Also update BTW symbols during incremental updates
+        // Symbols need to be redrawn when time range changes (timer ticks, animation, zoom)
+        // because their Y positions depend on the time range
+        drawBTWSymbols();
+    }
+    
+    // Sync interactive overlay markers with the new time range
+    // This updates marker Y positions to stay in sync with the timeline
+    if (m_interactiveOverlay) {
+        m_interactiveOverlay->syncMarkersWithTimeline();
+    }
+    
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
+    
+    isDrawing = false;
 }
 
 /**
@@ -90,37 +226,104 @@ void BTWGraph::draw()
  */
 void BTWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "BTWGraph mouse clicked at scene position:" << scenePos;
-    
     // Check if we clicked on an existing interactive marker in the overlay scene
+    // The overlay scene and graphics scene share the same coordinate system
     if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
         QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
-        if (itemAtPos) {
-            qDebug() << "BTWGraph: Clicked on existing interactive item:" << itemAtPos << "letting it handle the event";
+        // Filter out crosshair items - they should not prevent marker creation
+        // CRITICAL FIX: Also filter out items that don't accept mouse buttons (like shaded regions)
+        if (itemAtPos && 
+            itemAtPos != crosshairHorizontal && 
+            itemAtPos != crosshairVertical &&
+            itemAtPos->acceptedMouseButtons() != Qt::NoButton) {  // Only block if item accepts mouse events
             // Don't add a new marker, let the interactive item handle the click
             return;
-        } else {
-            qDebug() << "BTWGraph: No interactive item found at position:" << scenePos;
-            qDebug() << "BTWGraph: Overlay scene items count:" << m_interactiveOverlay->getOverlayScene()->items().size();
         }
+    }
+    
+    // Horizontal line mode: draw line at clicked Y position (time)
+    // Note: In BTW graphs, a "horizontal line" means constant time (horizontal on screen)
+    // We use the Y position to determine the time, then draw a line spanning full width
+    if (m_horizontalLineMode != HorizontalLineMode::Normal) {
+        // Check if click is on an existing horizontal line (click-to-delete)
+        // Use cached lineItem for efficient hit detection
+        const qreal hitThreshold = 5.0; // pixels - click within 5px of line to delete
+        qreal clickedY = scenePos.y();
+        
+        for (int i = 0; i < m_horizontalLines.size(); ++i) {
+            if (m_horizontalLines[i].lineItem) {
+                // Get line Y position directly from cached graphics item
+                qreal lineY = m_horizontalLines[i].lineItem->line().y1();
+                if (qAbs(clickedY - lineY) <= hitThreshold) {
+                    // Click is on existing line - delete it
+                    QUuid lineId = m_horizontalLines[i].id;
+                    QDateTime timestamp = m_horizontalLines[i].timestamp; // Get timestamp before removal
+                    removeHorizontalLine(lineId);
+                    emit horizontalLineRemoved(lineId, timestamp);
+                    DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString() << "at" << timestamp.toString();
+                    
+                    // Redraw to remove the line
+                    draw();
+                    return;
+                }
+            }
+        }
+        
+        // No existing line at click position
+        if (m_horizontalLineMode == HorizontalLineMode::DeleteLine) {
+            // In delete mode, only delete lines - don't add new ones
+            DEBUG_OUT() << "BTWGraph: Delete mode - no line found at click position, ignoring";
+            return;
+        }
+        
+        // DrawLine mode: add new line
+        QDateTime timestamp = mapScreenToTime(scenePos.y());
+        if (!timestamp.isValid()) {
+            timestamp = QDateTime::currentDateTime();
+        }
+        
+        // Add horizontal line at this timestamp
+        QUuid lineId = addHorizontalLine(timestamp);
+        
+        // Emit signal for horizontal line placement
+        emit horizontalLinePlaced(lineId, timestamp);
+        
+        // Force full redraw to show the new line
+        forceFullRedraw();
+        return;  // Don't add marker in line mode
     }
     
     // Only add a marker if we clicked on empty space (no interactive items)
     if (m_interactiveOverlay) {
-        // Clear any existing markers first (only allow one marker)
-        m_interactiveOverlay->clearAllMarkers();
-        
         // Convert scene position to overlay coordinates
         QPointF overlayPos = scenePos;
         
-        // Add a data point marker at the clicked position
-        QDateTime timestamp = QDateTime::currentDateTime();
-        qreal value = 50.0; // Default value
+        // Calculate timestamp from Y position (this represents the time at that position on the graph)
+        QDateTime timestamp = mapScreenToTime(scenePos.y());
+        
+        // If timestamp is invalid, fallback to current time
+        if (!timestamp.isValid()) {
+            timestamp = QDateTime::currentDateTime();
+        }
+        
+        // CRITICAL FIX: Block manual marker placement below system start time
+        QDateTime appStartTime = getApplicationStartTime();
+        if (appStartTime.isValid() && timestamp < appStartTime) {
+            DEBUG_OUT() << "BTWGraph::onMouseClick: Blocked marker placement - timestamp" << timestamp.toString() 
+                     << "is before application start time" << appStartTime.toString();
+            return; // Don't create marker
+        }
+        
+        // Get value from X position (range value)
+        qreal value = mapScreenXToRange(scenePos.x());
         QString seriesLabel = "BTW-Click";
         
         m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
         
-        qDebug() << "BTWGraph: Added new interactive marker at:" << overlayPos;
+        // Emit signal for marker timestamp and value
+        if (timestamp.isValid()) {
+            emit markerTimestampValueChanged(timestamp, value);
+        }
     }
     
     // Call parent implementation
@@ -134,7 +337,6 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
  */
 void BTWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "BTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -147,168 +349,116 @@ void BTWGraph::drawBTWScatterplot()
 {
     // By default, create a scatterplot using the parent's scatterplot functionality
     drawScatterplot(QString("BTW-1"), Qt::red, 4.0, Qt::white);
-
-    qDebug() << "BTW scatterplot drawn";
 }
 
 /**
- * @brief Draw custom circle markers with delta-calculated line for BTW graph
- * Circle outline with a line whose angle is calculated from delta values between consecutive points
- *
- * @param seriesLabel The series label to draw markers for
+ * @brief Draw manually placed BTW circle markers from data source
+ * Circle outline with a line whose angle is calculated from delta values
  */
-void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
+void BTWGraph::drawCustomCircleMarkers()
 {
-    if (!dataSource || !graphicsScene) {
-        qDebug() << "BTW: drawCustomCircleMarkers early return - no dataSource or graphicsScene";
+    if (!dataSource || !overlayScene) {
         return;
     }
 
-    // Get BTW-1 series data to calculate deltas
-    const std::vector<qreal>& btw1Data = dataSource->getYDataSeries("BTW-1");
-    const std::vector<QDateTime>& btw1Timestamps = dataSource->getTimestampsSeries("BTW-1");
-    
-    if (btw1Data.size() < 2) {
-        qDebug() << "BTW: Not enough BTW-1 data points for delta calculation";
-        return;
-    }
-
-    // Calculate delta values (differences between consecutive points)
-    std::vector<qreal> deltaValues;
-    std::vector<QDateTime> deltaTimestamps;
-    
-    // First delta is 0 (no previous point)
-    deltaValues.push_back(0.0);
-    deltaTimestamps.push_back(btw1Timestamps[0]);
-    
-    // Calculate deltas for remaining points
-    for (size_t i = 1; i < btw1Data.size(); ++i) {
-        qreal delta = btw1Data[i] - btw1Data[i - 1];
-        deltaValues.push_back(delta);
-        deltaTimestamps.push_back(btw1Timestamps[i]);
-    }
-
-    qDebug() << "BTW: Calculated" << deltaValues.size() << "delta values for custom markers";
-
-    // Use 1/5 of current time interval for sampling (following pattern from RTW/LTW)
-    qint64 samplingIntervalMs = 300000; // 3 seconds
-
-    // Convert to QTime for the binning method
-    QTime binDuration = QTime(0, 0, 0).addMSecs(samplingIntervalMs);
-    
-    // Use BTW-1 data for binning (for positioning), but keep delta values for angle calculation
-    std::vector<std::pair<qreal, QDateTime>> binnedData = WaterfallData::binDataByTime(btw1Data, btw1Timestamps, binDuration);
-    
-    // Filter binned data to only include points within the visible time range
-    std::vector<std::pair<qreal, QDateTime>> visibleBinnedData;
-    for (const auto& point : binnedData) {
-        if (point.second >= timeMin && point.second <= timeMax) {
-            visibleBinnedData.push_back(point);
-        }
-    }
-
-    // Helper function to find delta value for a given timestamp
-    auto findDeltaForTimestamp = [&](const QDateTime& timestamp) -> qreal {
-        // Find the closest timestamp in deltaTimestamps
-        qint64 minDiff = LLONG_MAX;
-        qreal closestDelta = 0.0;
+    // CRITICAL FIX: Always remove old blue automatic marker items before drawing new ones
+    // This prevents duplicates when drawCustomCircleMarkers() is called multiple times
+    // Blue markers are now in overlayScene, not graphicsScene, so they need explicit cleanup
+    QList<QGraphicsItem*> allItems = overlayScene->items();
+    QList<QGraphicsItem*> itemsToRemove;
+    for (QGraphicsItem* item : allItems)
+    {
+        // Identify blue marker items by their zValue (1000, 1001, 1002) and type/color
+        // Blue markers consist of: circle (zValue 1000), line (1001), text (1002), outline (1001)
+        int zVal = static_cast<int>(item->zValue());
+        bool isBlueMarker = false;
         
-        for (size_t i = 0; i < deltaTimestamps.size(); ++i) {
-            qint64 diff = qAbs(deltaTimestamps[i].msecsTo(timestamp));
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestDelta = deltaValues[i];
+        if (QGraphicsTextItem* textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item))
+        {
+            // Text items with zValue 1002 and blue text color are blue marker labels
+            if (zVal == 1002 && textItem->defaultTextColor() == Qt::blue)
+            {
+                isBlueMarker = true;
             }
         }
-        return closestDelta;
-    };
-    
-    qDebug() << "BTW: Time range filtering - Total binned:" << binnedData.size() 
-             << "- Visible binned:" << visibleBinnedData.size()
-             << "- Time range:" << timeMin.toString() << "to" << timeMax.toString();
-
-    qDebug() << "BTW: Binning completed for delta values" 
-             << "- Total delta data:" << deltaValues.size() 
-             << "- Binned data:" << binnedData.size()
-             << "- Visible binned data:" << visibleBinnedData.size()
-             << "- Sampling interval:" << samplingIntervalMs << "ms";
-
-    if (visibleBinnedData.empty()) {
-        qDebug() << "BTW: No visible binned data available for series" << seriesLabel;
-        qDebug() << "BTW: Trying fallback - drawing markers for raw data";
-        
-        // Fallback: draw markers for raw data if binning produces no visible results
-        int fallbackMarkersDrawn = 0;
-        for (size_t i = 0; i < deltaValues.size() && i < 10; ++i) { // Limit to first 10 points
-            qreal deltaValue = deltaValues[i];
-            qreal btw1Value = btw1Data[i]; // Use BTW-1 value for positioning
-            QDateTime timestamp = deltaTimestamps[i];
-            QPointF screenPos = mapDataToScreen(btw1Value, timestamp); // Position based on BTW-1 value
-            
-            if (drawingArea.contains(screenPos)) {
-                QSize windowSize = this->size();
-                qreal markerRadius = std::min(0.04 * windowSize.width(), 12.0);
-                
-                // Draw circle outline
-                QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
-                circleOutline->setRect(screenPos.x() - markerRadius, screenPos.y() - markerRadius, 
-                                     2 * markerRadius, 2 * markerRadius);
-                circleOutline->setPen(QPen(Qt::blue, 2));
-                circleOutline->setBrush(QBrush(Qt::transparent));
-                circleOutline->setZValue(1000);
-                
-                graphicsScene->addItem(circleOutline);
-                
-                // Draw angled line (5x radius on both sides)
-                qreal lineLength = 5 * markerRadius;
-                
-                // Calculate angle from delta value
-                // Map delta value to angle: positive delta = positive angle (clockwise), negative delta = negative angle (counterclockwise)
-                qreal angleDegrees = deltaValue * 10.0; // Scale factor to convert delta to meaningful angle
-                qreal angleRadians = qDegreesToRadians(angleDegrees);
-                
-                // Calculate line endpoints based on angle
-                // For true north (0°), line points up/down (vertical)
-                qreal deltaX = lineLength * qSin(angleRadians);
-                qreal deltaY = -lineLength * qCos(angleRadians); // Negative because Y increases downward
-                
-                QGraphicsLineItem *angledLine = new QGraphicsLineItem();
-                angledLine->setLine(screenPos.x() - deltaX, screenPos.y() - deltaY,
-                                  screenPos.x() + deltaX, screenPos.y() + deltaY);
-                angledLine->setPen(QPen(Qt::blue, 2));
-                angledLine->setZValue(1001);
-                
-                graphicsScene->addItem(angledLine);
-                
-                // Add blue text label with rectangular outline beside the marker
-                DrawUtils::addBearingRateBoxToScene(graphicsScene, deltaValue, Qt::blue, screenPos, markerRadius, 1002);
-                
-                fallbackMarkersDrawn++;
+        else if (QGraphicsEllipseItem* ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(item))
+        {
+            // Circle items with zValue 1000 and blue pen are blue marker circles
+            if (zVal == 1000 && ellipseItem->pen().color() == Qt::blue)
+            {
+                isBlueMarker = true;
             }
         }
-        qDebug() << "BTW: Fallback drew" << fallbackMarkersDrawn << "blue circle markers";
+        else if (QGraphicsLineItem* lineItem = qgraphicsitem_cast<QGraphicsLineItem*>(item))
+        {
+            // Line items with zValue 1001 and blue pen are blue marker lines
+            if (zVal == 1001 && lineItem->pen().color() == Qt::blue)
+            {
+                isBlueMarker = true;
+            }
+        }
+        else if (QGraphicsRectItem* rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(item))
+        {
+            // Rect items with zValue 1001 and blue pen are blue marker text outlines
+            if (zVal == 1001 && rectItem->pen().color() == Qt::blue)
+            {
+                isBlueMarker = true;
+            }
+        }
+        
+        if (isBlueMarker)
+        {
+            itemsToRemove.append(item);
+        }
+    }
+    // Remove items after iteration to avoid modifying list while iterating
+    for (QGraphicsItem* item : itemsToRemove)
+    {
+        overlayScene->removeItem(item);
+        delete item;
+    }
+
+    // Get manually placed markers from data source (filtered by time range using binary search)
+    // Note: BTWMarkerData here is from waterfalldata.h (not BTWSyncMarkerData)
+    std::vector<BTWMarkerData> visibleMarkers;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    
+    if (timeRangeValid) {
+        // Use binary search-based filtering for O(log n) performance
+        visibleMarkers = dataSource->getBTWMarkersWithinTimeRange(timeMin, timeMax);
+    } else {
+        visibleMarkers = dataSource->getBTWMarkers();
+    }
+
+    // CRITICAL FIX: Always clear old blue markers, even if there are no new markers to draw
+    // This ensures blue markers are removed when clearAllGraphs() clears the data source
+    if (visibleMarkers.empty()) {
+        // Still need to clear old markers even if data source is empty
+        // (The clearing code above already handles this, so we can just return)
         return;
     }
 
-    // Draw circle markers for each visible binned point
-    int markersDrawn = 0;
-    qDebug() << "BTW: Drawing area:" << drawingArea;
-    for (const auto& point : visibleBinnedData) {
-        qreal btw1Value = point.first; // BTW-1 value for positioning
-        QDateTime timestamp = point.second;
-        qreal deltaValue = findDeltaForTimestamp(timestamp); // Delta value for angle calculation
-        QPointF screenPos = mapDataToScreen(btw1Value, timestamp); // Position based on BTW-1 value
+    // Apply LOD (Level of Detail) for BTW blue markers when there are many markers
+    // Uses symbol-specific LOD which is less aggressive than data line LOD
+    size_t lodStep = calculateSymbolLODStep(visibleMarkers.size());
+    
+    // Draw circle markers for each visible marker (with LOD)
+    for (size_t i = 0; i < visibleMarkers.size(); i += lodStep) {
+        const auto& markerData = visibleMarkers[i];
+        QDateTime timestamp = markerData.timestamp;
+        qreal range = markerData.range;
+        qreal deltaValue = markerData.delta;
         
-        // Only debug first few points to avoid spam
-        if (markersDrawn < 3) {
-            qDebug() << "BTW: Point" << markersDrawn << "- BTW1:" << btw1Value << "Delta:" << deltaValue << "Time:" << timestamp.toString() << "Screen:" << screenPos << "In area:" << drawingArea.contains(screenPos);
-        }
+        QPointF screenPos = mapDataToScreen(range, timestamp);
         
         // Check if point is within visible area
         if (drawingArea.contains(screenPos)) {
-            // Calculate marker size based on window size
-            QSize windowSize = this->size();
-            qreal markerRadius = std::min(0.04 * windowSize.width(), 12.0); // Circle radius, cap at 12 pixels
+            // Use cached window size and marker radius (Issue #3)
+            // Cache is updated in resizeEvent() and initialized on first use
+            if (!m_windowSizeCacheValid) {
+                updateWindowSizeCache();
+            }
+            qreal markerRadius = m_cachedMarkerRadius; // Use cached radius instead of recalculating
             
             // Draw circle outline
             QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
@@ -318,7 +468,8 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             circleOutline->setBrush(QBrush(Qt::transparent));
             circleOutline->setZValue(1000);
             
-            graphicsScene->addItem(circleOutline);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(circleOutline);
             
             // Draw angled line (5x radius on both sides)
             qreal lineLength = 5 * markerRadius;
@@ -339,7 +490,8 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             angledLine->setPen(QPen(Qt::blue, 2));
             angledLine->setZValue(1001);
             
-            graphicsScene->addItem(angledLine);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(angledLine);
             
             // Add blue text label with rectangular outline beside the marker
             QString prefix = (deltaValue >= 0) ? "R" : "L";
@@ -357,7 +509,8 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
                             screenPos.y() - textRect.height() / 2);
             textLabel->setZValue(1002);
             
-            graphicsScene->addItem(textLabel);
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(textLabel);
             
             // Add rectangular outline around the text
             QGraphicsRectItem *textOutline = new QGraphicsRectItem();
@@ -367,13 +520,10 @@ void BTWGraph::drawCustomCircleMarkers(const QString &seriesLabel)
             textOutline->setBrush(QBrush(Qt::transparent));
             textOutline->setZValue(1001);
             
-            graphicsScene->addItem(textOutline);
-            
-            markersDrawn++;
+            // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
+            overlayScene->addItem(textOutline);
         }
     }
-    
-    qDebug() << "BTW: Drew" << markersDrawn << "delta-based circle markers";
 }
 
 /**
@@ -386,12 +536,23 @@ BTWInteractiveOverlay* BTWGraph::getInteractiveOverlay() const
 }
 
 /**
- * @brief Override resize event to update overlay
- * @param event Resize event
+ * @brief Update window size cache (Issue #3)
  */
+void BTWGraph::updateWindowSizeCache()
+{
+    m_cachedWindowSize = this->size();
+    // Calculate marker radius based on cached window size
+    m_cachedMarkerRadius = std::min(0.04 * m_cachedWindowSize.width(), 12.0);
+    m_windowSizeCacheValid = true;
+}
+
 void BTWGraph::resizeEvent(QResizeEvent *event)
 {
     WaterfallGraph::resizeEvent(event);
+    
+    // Invalidate and update window size cache (Issue #3)
+    m_windowSizeCacheValid = false;
+    updateWindowSizeCache();
     
     // Update overlay after resize
     if (m_interactiveOverlay) {
@@ -422,52 +583,998 @@ void BTWGraph::setupInteractiveOverlay()
     connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerClicked,
             this, &BTWGraph::onMarkerClicked);
     
-    qDebug() << "BTWGraph: Interactive overlay setup complete";
+    // Connect sync signals to forward to GraphContainer
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerDataChanged,
+            this, &BTWGraph::markerSyncDataChanged);
+    connect(m_interactiveOverlay, &BTWInteractiveOverlay::markerDeleted,
+            this, &BTWGraph::markerSyncDeleted);
 }
 
 void BTWGraph::deleteInteractiveMarkers()
 {
     if (!m_interactiveOverlay) {
-        qDebug() << "BTWGraph: deleteInteractiveMarkers called but overlay not available";
         return;
     }
 
-    qDebug() << "BTWGraph: Clearing all interactive markers";
     m_interactiveOverlay->clearAllMarkers();
 }
 
 
 void BTWGraph::onMarkerAdded(InteractiveGraphicsItem *marker, int type)
 {
-    Q_UNUSED(marker);
     Q_UNUSED(type);
-    qDebug() << "BTWGraph: Marker added, type:" << type;
+    if (!marker) {
+        return;
+    }
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    if (timestamp.isValid()) {
+        // Emit signal for external integration
+        emit manualMarkerPlaced(timestamp, marker->scenePos());
+    }
 }
 
 void BTWGraph::onMarkerRemoved(InteractiveGraphicsItem *marker, int type)
 {
     Q_UNUSED(marker);
     Q_UNUSED(type);
-    qDebug() << "BTWGraph: Marker removed, type:" << type;
 }
 
 void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &newPosition)
 {
-    Q_UNUSED(marker);
-    Q_UNUSED(newPosition);
-    qDebug() << "BTWGraph: Marker moved to:" << newPosition;
+    if (!marker) {
+        return;
+    }
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        qreal yPos = newPosition.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    // CRITICAL FIX: Block marker movement below system start time
+    QDateTime appStartTime = getApplicationStartTime();
+    if (appStartTime.isValid() && timestamp.isValid() && timestamp < appStartTime) {
+        // Clamp timestamp to application start time
+        timestamp = appStartTime;
+        // Update marker position to match clamped timestamp
+        qreal clampedY = mapTimeToY(timestamp);
+        if (clampedY >= 0) {
+            marker->setPos(marker->pos().x(), clampedY);
+        }
+    }
+    
+    // Update magenta circles when green marker is moved
+    if (timestamp.isValid()) {
+        emit manualMarkerPlaced(timestamp, newPosition);
+    }
 }
 
 void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
 {
-    Q_UNUSED(marker);
     Q_UNUSED(angle);
-    qDebug() << "BTWGraph: Marker rotated by:" << angle << "degrees";
+    if (!marker) {
+        return;
+    }
+    
+    // Extract timestamp from marker's stored data
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    // Update magenta circles when green marker is rotated (position might have changed)
+    if (timestamp.isValid()) {
+        emit manualMarkerPlaced(timestamp, marker->scenePos());
+    }
 }
 
 void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
 {
-    Q_UNUSED(marker);
     Q_UNUSED(position);
-    qDebug() << "BTWGraph: Marker clicked at:" << position;
+    if (!marker) {
+        return;
+    }
+    
+    // First try to get timestamp from marker's stored data (key 0)
+    QVariant timestampVariant = marker->data(0);
+    QDateTime timestamp;
+    
+    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
+        timestamp = timestampVariant.value<QDateTime>();
+    } else {
+        // Fallback: calculate timestamp from marker's Y position
+        QPointF scenePos = marker->scenePos();
+        qreal yPos = scenePos.y();
+        timestamp = mapScreenToTime(yPos);
+    }
+    
+    // Get range value from marker's X position
+    QPointF scenePos = marker->scenePos();
+    qreal rangeValue = mapScreenXToRange(scenePos.x());
+    
+    // Get bearing rate from marker's rotation
+    // The bearing rate is stored as rotation / 10.0 (same as delta value)
+    qreal bearingRate = marker->rotation() / 10.0;
+    
+    // Also check if there's a stored delta value (key 1)
+    QVariant deltaVariant = marker->data(1);
+    if (deltaVariant.isValid() && deltaVariant.canConvert<qreal>()) {
+        // If delta was stored, use it (might be more accurate)
+        bearingRate = deltaVariant.value<qreal>();
+    }
+    
+    if (timestamp.isValid()) {
+        // Emit signal for external integration (legacy)
+        emit manualMarkerClicked(timestamp, scenePos);
+        
+        // Emit signal for marker timestamp and value (legacy - propagates through GraphContainer -> GraphLayout)
+        emit markerTimestampValueChanged(timestamp, rangeValue);
+        
+        // Emit new comprehensive signal with all three values
+        emit markerClickedWithData(timestamp, rangeValue, bearingRate);
+    }
+}
+
+std::vector<QDateTime> BTWGraph::getAutomaticMarkerTimestamps() const
+{
+    return m_automaticMarkerTimestamps;
+}
+
+/**
+ * @brief Add a manual marker programmatically via API call
+ * 
+ * This method allows creating BTW manual markers programmatically,
+ * similar to how they are created via mouse clicks.
+ * 
+ * @param timestamp The timestamp for the marker (Y-axis position)
+ * @param rangeValue The range value for the marker (X-axis position)
+ * @param bearingRate Optional bearing rate (rotation angle / 10.0). Defaults to 0.0
+ * @return Pointer to the created marker, or nullptr if creation failed
+ */
+InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate)
+{
+    if (!m_interactiveOverlay) {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Interactive overlay not available";
+        return nullptr;
+    }
+    
+    if (!timestamp.isValid()) {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Invalid timestamp provided";
+        return nullptr;
+    }
+    
+    // CRITICAL FIX: Block manual marker placement below system start time
+    QDateTime appStartTime = getApplicationStartTime();
+    if (appStartTime.isValid() && timestamp < appStartTime) {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Blocked marker placement - timestamp" << timestamp.toString() 
+                 << "is before application start time" << appStartTime.toString();
+        return nullptr; // Don't create marker
+    }
+    
+    // Convert data coordinates (timestamp, rangeValue) to screen position
+    QPointF screenPos = mapDataToScreen(rangeValue, timestamp);
+    
+    // Validate screen position
+    if (screenPos.isNull() || !qIsFinite(screenPos.x()) || !qIsFinite(screenPos.y())) {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Failed to map data coordinates to screen position";
+        return nullptr;
+    }
+    
+    // Check if position is within visible drawing area
+    if (!drawingArea.contains(screenPos)) {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Marker position is outside visible area";
+        // Still create the marker, but warn about visibility
+    }
+    
+    QString seriesLabel = "BTW-API"; // Distinguish API-created markers from click-created ones
+    
+    // Create the marker using the interactive overlay
+    InteractiveGraphicsItem* marker = m_interactiveOverlay->addDataPointMarker(screenPos, timestamp, rangeValue, seriesLabel);
+    
+    if (marker) {
+        // Set bearing rate (rotation) if provided
+        if (bearingRate != 0.0) {
+            marker->setRotation(bearingRate * 10.0);
+            // Also store bearing rate in marker data for consistency
+            marker->setData(1, QVariant::fromValue(bearingRate));
+        }
+        
+        // Emit signal for marker timestamp and value (same as click handler)
+        emit markerTimestampValueChanged(timestamp, rangeValue);
+        
+        // Emit manualMarkerPlaced signal (same as click handler)
+        emit manualMarkerPlaced(timestamp, screenPos);
+        
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Marker created at timestamp" 
+                 << timestamp.toString("yyyy-MM-dd HH:mm:ss.zzz")
+                 << "range:" << rangeValue << "bearingRate:" << bearingRate;
+    } else {
+        DEBUG_OUT() << "BTWGraph::addBTWManualMarker: Failed to create marker";
+    }
+    
+    return marker;
+}
+
+void BTWGraph::addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
+{
+    // Store symbol in dataSource (WaterfallData) so it persists with track data
+    if (!dataSource)
+    {
+        return;
+    }
+    
+    dataSource->addBTWSymbol(symbolName, timestamp, range);
+    
+    // Trigger redraw
+    draw();
+}
+
+BTWSymbolDrawing::SymbolType BTWGraph::symbolNameToType(const QString &symbolName) const
+{
+    QString name = symbolName.toUpper();
+    if (name == "MAGENTACIRCLE") return BTWSymbolDrawing::SymbolType::MagentaCircle;
+    
+    // Default to MagentaCircle
+    return BTWSymbolDrawing::SymbolType::MagentaCircle;
+}
+
+void BTWGraph::drawBTWSymbols()
+{
+    // Follow the same pattern as RTW symbols - read symbols from dataSource
+    if (!graphicsScene || !dataSource)
+    {
+        return;
+    }
+    
+    // CRITICAL FIX: Remove old BTW symbol items (magenta circles) before drawing new ones
+    // This prevents duplicates when time range changes and symbols are redrawn
+    // Only remove if not doing a full clear (full clear already cleared the scene)
+    if (m_renderState != RenderState::FULL_REDRAW)
+    {
+        // Remove all QGraphicsPixmapItem objects with z-value 1003 (BTW symbols/magenta circles)
+        QList<QGraphicsItem*> allItems = graphicsScene->items();
+        for (QGraphicsItem* item : allItems)
+        {
+            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+            if (pixmapItem && pixmapItem->zValue() == 1003)
+            {
+                graphicsScene->removeItem(pixmapItem);
+                delete pixmapItem;
+            }
+        }
+    }
+    
+    // Get symbols from dataSource (filtered by time range using binary search)
+    std::vector<BTWSymbolData> visibleSymbols;
+    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    
+    if (timeRangeValid)
+    {
+        // Use binary search-based filtering for O(log n) performance
+        visibleSymbols = dataSource->getBTWSymbolsWithinTimeRange(timeMin, timeMax);
+    }
+    else
+    {
+        visibleSymbols = dataSource->getBTWSymbols();
+    }
+    
+    if (visibleSymbols.empty())
+    {
+        return;
+    }
+    
+    // Draw symbols
+    for (const auto& symbolData : visibleSymbols)
+    {
+        // Map symbol position to screen coordinates
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
+        
+        // Check if point is within visible area
+        if (!drawingArea.contains(screenPos))
+        {
+            continue;
+        }
+        
+        // Convert symbol name to SymbolType
+        BTWSymbolDrawing::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
+        
+        // Get the pixmap for this symbol type
+        const QPixmap& symbolPixmap = symbols.get(symbolType);
+        
+        // Validate pixmap before using it (Issue #4: Use pixmap dimensions directly)
+        if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
+        {
+            continue;
+        }
+        
+        // Create a graphics pixmap item and add it to the scene
+        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
+        
+        // Center the symbol on the data point (Issue #4: Use pixmap dimensions directly instead of boundingRect)
+        // boundingRect() is expensive - use pixmap dimensions directly
+        qreal pixmapWidth = symbolPixmap.width();
+        qreal pixmapHeight = symbolPixmap.height();
+        pixmapItem->setPos(screenPos.x() - pixmapWidth/2, screenPos.y() - pixmapHeight/2);
+        pixmapItem->setZValue(1003); // Above markers but below interactive items
+        
+        graphicsScene->addItem(pixmapItem);
+    }
+}
+
+void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue)
+{
+    Q_UNUSED(btwValue);
+    
+    // Find parent GraphContainer to access GraphLayout
+    QWidget *parent = this->parentWidget();
+    if (!parent) return;
+    
+    // Try to find GraphContainer
+    GraphContainer *container = qobject_cast<GraphContainer*>(parent);
+    if (!container) return;
+    
+    // Try to find GraphLayout (parent of GraphContainer)
+    QWidget *layoutWidget = container->parentWidget();
+    if (!layoutWidget) return;
+    
+    GraphLayout *layout = qobject_cast<GraphLayout*>(layoutWidget);
+    if (!layout) return;
+    
+    // Get all graph containers in the layout
+    // We need to access m_graphContainers, but it's private, so we'll use a different approach
+    // Get all containers using findChildren
+    QList<GraphContainer*> allContainers = layout->findChildren<GraphContainer*>();
+    
+    for (GraphContainer *otherContainer : allContainers)
+    {
+        if (otherContainer == container) continue; // Skip self
+        
+        // Get all graph types in this container
+        std::vector<GraphType> graphTypes = getAllGraphTypes();
+        
+        for (GraphType graphType : graphTypes)
+        {
+            if (graphType == GraphType::BTW) continue; // Skip BTW graphs
+            
+            // Check if this container has this graph type
+            if (!otherContainer->hasDataOption(graphType)) continue;
+            
+            // Get the data source for this graph type
+            WaterfallData *dataSource = layout->getDataSource(graphType);
+            if (!dataSource) continue;
+            
+            // Check if symbol already exists at this timestamp (deduplication)
+            // This prevents adding duplicate symbols when draw() is called multiple times
+            // Use binary search to check symbols within a small time window (100ms tolerance)
+            QDateTime checkStart = timestamp.addMSecs(-100);
+            QDateTime checkEnd = timestamp.addMSecs(100);
+            std::vector<BTWSymbolData> nearbySymbols = dataSource->getBTWSymbolsWithinTimeRange(checkStart, checkEnd);
+            bool symbolExists = false;
+            for (const auto& existingSymbol : nearbySymbols)
+            {
+                // Check if symbol exists at the same timestamp (within 100ms tolerance) and same name
+                if (existingSymbol.symbolName == "MagentaCircle")
+                {
+                    symbolExists = true;
+                    break;
+                }
+            }
+            
+            if (symbolExists) continue; // Skip if symbol already exists
+            
+            // Check if there's a datapoint at this timestamp using binary search
+            bool hasDataPoint = false;
+            qreal dataValue = 0.0;
+            size_t unusedIndex;
+            
+            // Check all series in the data source using binary search
+            std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+            for (const QString &seriesLabel : seriesLabels)
+            {
+                // Use binary search to find closest data point (within 1 second = 1000ms)
+                if (dataSource->findClosestDataPoint(seriesLabel, timestamp, 1000, dataValue, unusedIndex))
+                {
+                    hasDataPoint = true;
+                    break;
+                }
+            }
+            
+            // Only add symbol if there's a datapoint
+            if (hasDataPoint)
+            {
+                // Add magenta circle symbol to this graph's data source
+                dataSource->addBTWSymbol("MagentaCircle", timestamp, dataValue);
+                
+                // Trigger full redraw of the graph since we added new data
+                WaterfallGraph *graph = otherContainer->getCurrentWaterfallGraph();
+                if (graph && graph->getDataSource() == dataSource)
+                {
+                    graph->forceFullRedraw();
+                }
+            }
+        }
+    }
+}
+
+/**
+ * @brief Get zoom panel from parent GraphContainer
+ * @return Pointer to ZoomPanel, or nullptr if not found
+ */
+ZoomPanel* BTWGraph::getZoomPanel() const
+{
+    // Find parent GraphContainer
+    QWidget *parent = this->parentWidget();
+    if (!parent) {
+        return nullptr;
+    }
+    
+    // Try to find GraphContainer
+    GraphContainer *container = qobject_cast<GraphContainer*>(parent);
+    if (!container) {
+        // If parent is not GraphContainer, try to find it in the widget hierarchy
+        container = parent->findChild<GraphContainer*>();
+    }
+    
+    if (!container) {
+        return nullptr;
+    }
+    
+    // Get zoom panel from GraphContainer (we need to access it through a public method)
+    // Since GraphContainer doesn't expose getZoomPanel, we'll use findChild
+    return container->findChild<ZoomPanel*>();
+}
+
+void BTWGraph::getVisibleBearingRange(qreal &outMin, qreal &outMax) const
+{
+    ZoomPanel *panel = getZoomPanel();
+    if (panel) {
+        outMin = panel->getLeftLabelValue();
+        outMax = panel->getRightLabelValue();
+        if (outMax <= outMin || !qIsFinite(outMin) || !qIsFinite(outMax)) {
+            outMin = 0.0;
+            outMax = 360.0;
+        }
+    } else {
+        outMin = 0.0;
+        outMax = 360.0;
+    }
+}
+
+/**
+ * @brief Add a shaded region to the graph
+ * @param startX Starting X value (range value)
+ * @param startY Starting Y value (timestamp)
+ * @return Unique identifier for the shaded region
+ */
+int BTWGraph::addShadedRegion(qreal startX, qreal endX, const QDateTime &startY)
+{
+    Q_UNUSED(startY);
+    
+    int regionId = m_nextRegionId++;
+    ShadedRegionData regionData(startX, endX, startY);
+    ShadedRegionItem regionItem(regionData);
+    m_shadedRegions[regionId] = regionItem;
+    
+    // Store reverse lookup for sync ID
+    m_syncIdToRegionId[regionItem.syncId] = regionId;
+    
+    // Trigger redraw to show the new region
+    draw();
+    
+    // Emit sync signal
+    ShadedRegionSyncData syncData(regionId, startX, endX);
+    syncData.syncId = regionItem.syncId;  // Use the same sync ID
+    emit shadedRegionAdded(syncData);
+    
+    return regionId;
+}
+
+/**
+ * @brief Remove a shaded region by its identifier
+ * @param regionId The identifier returned by addShadedRegion
+ */
+void BTWGraph::removeShadedRegion(int regionId)
+{
+    if (m_shadedRegions.contains(regionId)) {
+        ShadedRegionItem &item = m_shadedRegions[regionId];
+        QUuid syncId = item.syncId;  // Save sync ID before removal
+        
+        // Remove graphics item from scene if it exists
+        if (item.polygonItem && graphicsScene) {
+            graphicsScene->removeItem(item.polygonItem);
+            delete item.polygonItem;
+            item.polygonItem = nullptr;
+        }
+        
+        // Remove from reverse lookup
+        m_syncIdToRegionId.remove(syncId);
+        
+        m_shadedRegions.remove(regionId);
+        
+        // Trigger redraw
+        draw();
+        
+        // Emit sync signal
+        emit shadedRegionRemoved(syncId);
+    }
+}
+
+/**
+ * @brief Clear all shaded regions
+ */
+void BTWGraph::clearShadedRegions()
+{
+    // Remove all graphics items from scene
+    for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+        if (it.value().polygonItem && overlayScene) {
+            overlayScene->removeItem(it.value().polygonItem);
+            delete it.value().polygonItem;
+        }
+    }
+    m_shadedRegions.clear();
+    m_syncIdToRegionId.clear();
+    
+    // Trigger redraw
+    draw();
+    
+    // Emit sync signal
+    emit shadedRegionsCleared();
+}
+
+/**
+ * @brief Draw all shaded regions using zoom panel sticker values
+ */
+// Static cached hatch brush for shaded regions (shared across all instances)
+QBrush BTWGraph::getCachedHatchBrush()
+{
+    static QBrush s_cachedHatchBrush;
+    static std::once_flag brushInitFlag;
+    
+    std::call_once(brushInitFlag, []() {
+        // Create hatch pattern using a custom QPixmap
+        // This is created once and reused for all shaded regions
+        const int patternSize = 10;  // Size of the pattern tile (controls line spacing)
+        QPixmap patternPixmap(patternSize, patternSize);
+        patternPixmap.fill(Qt::transparent);  // Transparent background
+        
+        QPainter patternPainter(&patternPixmap);
+        patternPainter.setRenderHint(QPainter::Antialiasing, true);
+        
+        // Draw single diagonal line for hatch effect
+        QColor lineColor(100, 100, 100, 180);  // Dark gray lines
+        QPen linePen(lineColor, 1);
+        patternPainter.setPen(linePen);
+        
+        // Forward diagonal line (/) - from bottom-left to top-right
+        patternPainter.drawLine(0, patternSize, patternSize, 0);
+        
+        patternPainter.end();
+        
+        // Create brush with the hatch pattern
+        s_cachedHatchBrush = QBrush(patternPixmap);
+    });
+    
+    return s_cachedHatchBrush;
+}
+
+void BTWGraph::drawShadedRegions()
+{
+    // Safety checks: Only draw if scene is initialized and graph is ready
+    if (!overlayScene || m_shadedRegions.isEmpty() || !dataRangesValid || !isVisible()) {
+        return;
+    }
+    
+    // Get time range for Y direction - region spans from top to bottom (all visible timestamps)
+    QDateTime topTime = timeMin.isValid() ? timeMin : QDateTime::currentDateTime();
+    QDateTime bottomTime = timeMax.isValid() ? timeMax : QDateTime::currentDateTime();
+    
+    // Ensure valid time range
+    if (topTime >= bottomTime) {
+        return;
+    }
+    
+    // OPTIMIZATION: Cache Y coordinates (same for all regions since they span full height)
+    // Only need to map one point to get Y coordinates, then reuse for all regions
+    QPointF topLeftBase = mapDataToScreen(0.0, topTime);
+    QPointF bottomLeftBase = mapDataToScreen(0.0, bottomTime);
+    qreal topY = topLeftBase.y();
+    qreal bottomY = bottomLeftBase.y();
+    
+    // Get cached hatch brush (created once, reused for all regions)
+    QBrush hatchBrush = getCachedHatchBrush();
+    QColor borderColor(150, 150, 150, 200);  // Medium gray border
+    
+    // Draw each shaded region
+    for (auto it = m_shadedRegions.begin(); it != m_shadedRegions.end(); ++it) {
+        ShadedRegionItem &item = it.value();
+        const ShadedRegionData &data = item.data;
+        
+        // Ensure valid X range
+        if (data.startX >= data.endX) {
+            // Remove item if it exists and region is invalid
+            if (item.polygonItem) {
+                overlayScene->removeItem(item.polygonItem);
+                delete item.polygonItem;
+                item.polygonItem = nullptr;
+            }
+            continue;
+        }
+        
+        // OPTIMIZATION: Only calculate X coordinates (Y is same for all regions)
+        // Map startX and endX to screen coordinates - only need X values
+        QPointF startScreen = mapDataToScreen(data.startX, topTime);
+        QPointF endScreen = mapDataToScreen(data.endX, topTime);
+        qreal startX = startScreen.x();
+        qreal endX = endScreen.x();
+        
+        // OPTIMIZATION: Simplified visibility check using X coordinates only
+        // Since regions span full height, only need to check if X range intersects drawing area
+        bool shouldDraw = (endX >= drawingArea.left() && startX <= drawingArea.right());
+        
+        if (shouldDraw) {
+            // OPTIMIZATION: Update existing polygon instead of recreating
+            if (item.polygonItem) {
+                // Safety check: Verify polygon item is still valid and in a scene
+                if (item.polygonItem->scene() != overlayScene) {
+                    // Item was removed from scene, delete and recreate
+                    delete item.polygonItem;
+                    item.polygonItem = nullptr;
+                } else {
+                    // Update polygon coordinates
+                    QPolygonF polygon;
+                    polygon << QPointF(startX, topY)
+                            << QPointF(endX, topY)
+                            << QPointF(endX, bottomY)
+                            << QPointF(startX, bottomY);
+                    item.polygonItem->setPolygon(polygon);
+                }
+            }
+            
+            // Create new item if it doesn't exist (or was invalidated above)
+            if (!item.polygonItem) {
+                // Create new item only if it doesn't exist
+                QPolygonF polygon;
+                polygon << QPointF(startX, topY)
+                        << QPointF(endX, topY)
+                        << QPointF(endX, bottomY)
+                        << QPointF(startX, bottomY);
+                
+                QGraphicsPolygonItem *polygonItem = new QGraphicsPolygonItem(polygon);
+                polygonItem->setBrush(hatchBrush);
+                polygonItem->setPen(QPen(borderColor, 1));
+                polygonItem->setZValue(500);  // Below markers but above grid
+                
+                // CRITICAL FIX: Make shaded region non-interactive so it doesn't block manual marker creation
+                polygonItem->setAcceptedMouseButtons(Qt::NoButton);
+                polygonItem->setAcceptHoverEvents(false);
+                
+                overlayScene->addItem(polygonItem);
+                item.polygonItem = polygonItem;
+            }
+        } else {
+            // Remove item if region is not visible
+            if (item.polygonItem) {
+                overlayScene->removeItem(item.polygonItem);
+                delete item.polygonItem;
+                item.polygonItem = nullptr;
+            }
+        }
+    }
+}
+
+// ========== Marker Sync Methods Implementation ==========
+
+bool BTWGraph::createMarkerFromSyncData(const BTWSyncMarkerData &markerData)
+{
+    if (!m_interactiveOverlay) {
+        return false;
+    }
+    
+    // Check if marker already exists
+    if (m_interactiveOverlay->hasMarker(markerData.id)) {
+        return updateMarkerFromSyncData(markerData);
+    }
+    
+    InteractiveGraphicsItem *marker = m_interactiveOverlay->createMarkerFromData(markerData);
+    if (!marker) {
+        return false;
+    }
+    
+    return true;
+}
+
+bool BTWGraph::updateMarkerFromSyncData(const BTWSyncMarkerData &markerData)
+{
+    if (!m_interactiveOverlay) {
+        return false;
+    }
+    
+    return m_interactiveOverlay->updateMarkerFromData(markerData);
+}
+
+bool BTWGraph::deleteMarkerBySyncId(const QUuid &markerId)
+{
+    if (!m_interactiveOverlay) {
+        return false;
+    }
+    
+    return m_interactiveOverlay->removeMarkerById(markerId);
+}
+
+bool BTWGraph::hasMarkerWithSyncId(const QUuid &markerId) const
+{
+    if (!m_interactiveOverlay) {
+        return false;
+    }
+    
+    return m_interactiveOverlay->hasMarker(markerId);
+}
+
+// ========== Shaded Region Sync Methods Implementation ==========
+
+int BTWGraph::createShadedRegionFromSyncData(const ShadedRegionSyncData &regionData)
+{
+    // Check if region with this sync ID already exists
+    if (m_syncIdToRegionId.contains(regionData.syncId)) {
+        return m_syncIdToRegionId[regionData.syncId];
+    }
+    
+    // Create the region without emitting sync signal (to avoid loop)
+    int regionId = m_nextRegionId++;
+    ShadedRegionData data(regionData.startX, regionData.endX, QDateTime());  // No timestamp needed
+    ShadedRegionItem regionItem(data);
+    regionItem.syncId = regionData.syncId;  // Use the provided sync ID
+    
+    m_shadedRegions[regionId] = regionItem;
+    m_syncIdToRegionId[regionData.syncId] = regionId;
+    
+    // Trigger redraw to show the new region
+    draw();
+    
+    return regionId;
+}
+
+bool BTWGraph::deleteShadedRegionBySyncId(const QUuid &syncId)
+{
+    if (!m_syncIdToRegionId.contains(syncId)) {
+        return false;
+    }
+    
+    int regionId = m_syncIdToRegionId[syncId];
+    
+    if (m_shadedRegions.contains(regionId)) {
+        ShadedRegionItem &item = m_shadedRegions[regionId];
+        
+        // Remove graphics item from scene if it exists
+        if (item.polygonItem && graphicsScene) {
+            graphicsScene->removeItem(item.polygonItem);
+            delete item.polygonItem;
+            item.polygonItem = nullptr;
+        }
+        
+        // Remove from both maps
+        m_syncIdToRegionId.remove(syncId);
+        m_shadedRegions.remove(regionId);
+        
+        // Trigger redraw
+        draw();
+        
+        return true;
+    }
+    
+    return false;
+}
+
+bool BTWGraph::hasShadedRegionWithSyncId(const QUuid &syncId) const
+{
+    return m_syncIdToRegionId.contains(syncId);
+}
+
+// ========== Horizontal Line Management ==========
+
+void BTWGraph::setHorizontalLineMode(HorizontalLineMode mode)
+{
+    m_horizontalLineMode = mode;
+    const char* modeStr = (mode == HorizontalLineMode::Normal) ? "Normal" :
+                          (mode == HorizontalLineMode::DrawLine) ? "DrawLine" : "DeleteLine";
+    DEBUG_OUT() << "BTWGraph: Horizontal line mode set to" << modeStr;
+}
+
+void BTWGraph::setHorizontalLineMode(bool enabled)
+{
+    // Legacy boolean interface for backward compatibility
+    setHorizontalLineMode(enabled ? HorizontalLineMode::DrawLine : HorizontalLineMode::Normal);
+}
+
+BTWGraph::HorizontalLineMode BTWGraph::getHorizontalLineMode() const
+{
+    return m_horizontalLineMode;
+}
+
+bool BTWGraph::isHorizontalLineMode() const
+{
+    // Legacy method - returns true if in DrawLine or DeleteLine mode
+    return m_horizontalLineMode != HorizontalLineMode::Normal;
+}
+
+QUuid BTWGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width)
+{
+    HorizontalLineItem lineItem(timestamp, color, width);
+    m_horizontalLines.append(lineItem);
+    
+    DEBUG_OUT() << "BTWGraph: Added horizontal line at time:" << timestamp.toString() << "ID:" << lineItem.id.toString();
+    
+    // New line doesn't have a cached item yet - will be created in next draw()
+    // No need to invalidate existing cached items
+    
+    return lineItem.id;
+}
+
+QDateTime BTWGraph::getHorizontalLineTimestamp(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines)
+    {
+        if (line.id == lineId)
+        {
+            return line.timestamp;
+        }
+    }
+    
+    return QDateTime(); // Return invalid QDateTime if not found
+}
+
+QDateTime BTWGraph::getFirstHorizontalLineTimestamp() const
+{
+    if (m_horizontalLines.isEmpty())
+        return QDateTime();
+    return m_horizontalLines.first().timestamp;
+}
+
+QDateTime BTWGraph::getLatestHorizontalLineTimestamp() const
+{
+    if (m_horizontalLines.isEmpty())
+        return QDateTime();
+    return m_horizontalLines.last().timestamp;
+}
+
+bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
+{
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].id == lineId) {
+            // Remove graphics item if it exists
+            if (m_horizontalLines[i].lineItem) {
+                if (graphicsScene) {
+                    graphicsScene->removeItem(m_horizontalLines[i].lineItem);
+                }
+                delete m_horizontalLines[i].lineItem;
+            }
+            
+            m_horizontalLines.removeAt(i);
+            DEBUG_OUT() << "BTWGraph: Removed horizontal line ID:" << lineId.toString();
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+int BTWGraph::removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs)
+{
+    int removedCount = 0;
+    qint64 toleranceMicroseconds = static_cast<qint64>(toleranceMs * 1000.0);
+    
+    // Iterate backwards to safely remove items
+    for (int i = m_horizontalLines.size() - 1; i >= 0; --i) {
+        qint64 timeDiff = qAbs(m_horizontalLines[i].timestamp.msecsTo(timestamp));
+        if (timeDiff <= toleranceMicroseconds) {
+            QUuid lineId = m_horizontalLines[i].id;
+            
+            // Remove graphics item if it exists
+            if (m_horizontalLines[i].lineItem) {
+                if (graphicsScene) {
+                    graphicsScene->removeItem(m_horizontalLines[i].lineItem);
+                }
+                delete m_horizontalLines[i].lineItem;
+            }
+            
+            m_horizontalLines.removeAt(i);
+            removedCount++;
+            DEBUG_OUT() << "BTWGraph: Removed horizontal line by timestamp:" << timestamp.toString() << "ID:" << lineId.toString();
+        }
+    }
+    
+    return removedCount;
+}
+
+void BTWGraph::clearHorizontalLines()
+{
+    // Remove all graphics items
+    // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+    for (auto &line : m_horizontalLines) {
+        if (line.lineItem) {
+            if (overlayScene) {
+                overlayScene->removeItem(line.lineItem);
+            }
+            delete line.lineItem;
+            line.lineItem = nullptr;
+        }
+    }
+    
+    m_horizontalLines.clear();
+    DEBUG_OUT() << "BTWGraph: Cleared all horizontal lines";
+}
+
+void BTWGraph::drawHorizontalLines()
+{
+    // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+    if (!overlayScene || !dataRangesValid || drawingArea.isEmpty()) {
+        return;
+    }
+    
+    // Update or create cached line items
+    for (auto &line : m_horizontalLines) {
+        // Calculate screen Y position from timestamp (horizontal line = constant time)
+        qreal screenY = mapTimeToY(line.timestamp);
+        
+        // Skip if timestamp is outside visible range
+        if (screenY < 0 || screenY < drawingArea.top() || screenY > drawingArea.bottom()) {
+            // Line is outside visible range, but keep the cached item
+            // Just hide it or remove it from scene
+            // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+            if (line.lineItem && overlayScene && overlayScene->items().contains(line.lineItem)) {
+                overlayScene->removeItem(line.lineItem);
+            }
+            continue;
+        }
+        
+        // Clamp to drawing area
+        screenY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), screenY));
+        
+        if (line.lineItem) {
+            // Update existing cached line - just update position
+            line.lineItem->setLine(drawingArea.left(), screenY, drawingArea.right(), screenY);
+            
+            // Re-add to overlayScene if it was removed
+            // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
+            if (overlayScene && !overlayScene->items().contains(line.lineItem)) {
+                overlayScene->addItem(line.lineItem);
+            }
+        } else {
+            // Create new cached line item (horizontal line spanning full width)
+            line.lineItem = new QGraphicsLineItem(drawingArea.left(), screenY, drawingArea.right(), screenY);
+            line.lineItem->setPen(QPen(line.color, line.width));
+            line.lineItem->setZValue(1000);  // Above data, below markers
+            
+            // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
+            if (overlayScene) {
+                overlayScene->addItem(line.lineItem);
+            }
+        }
+    }
 }

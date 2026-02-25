@@ -3,6 +3,8 @@ QT       += core gui
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
 CONFIG += c++11
+CONFIG += debug
+CONFIG -= release
 
 # Fix for macOS AGL framework issue - use modern OpenGL instead
 macx {
@@ -22,6 +24,7 @@ DEFINES += QT_DEPRECATED_WARNINGS
 
 SOURCES += \
     graphcontainer.cpp \
+    graphengine.cpp \
     graphlayout.cpp \
     graphtype.cpp \
     main.cpp \
@@ -43,13 +46,20 @@ SOURCES += \
     ftwgraph.cpp \
     ltwgraph.cpp \
     rtwgraph.cpp \
-    rtwsymbol.cpp \
+    rtwsymboldrawing.cpp \
+    btwsymboldrawing.cpp \
     simulator.cpp \
     interactivegraphicsitem.cpp \
-    btwinteractiveoverlay.cpp 
+    btwinteractiveoverlay.cpp \
+    navtimeutils.cpp \
+    scwwindow.cpp \
+    scwsimulator.cpp \
+    manoeuvreoverlay.cpp \
+    debugutils.cpp
 
 HEADERS += \
     graphcontainer.h \
+    graphengine.h \
     graphlayout.h \
     graphtype.h \
     mainwindow.h \
@@ -70,10 +80,16 @@ HEADERS += \
     ftwgraph.h \
     ltwgraph.h \
     rtwgraph.h \
-    rtwsymbols.h \
+    rtwsymboldrawing.h \
+    btwsymboldrawing.h \
     simulator.h \
     interactivegraphicsitem.h \
-    btwinteractiveoverlay.h 
+    btwinteractiveoverlay.h \
+    navtimeutils.h  \
+    scwwindow.h \
+    scwsimulator.h \
+    manoeuvreoverlay.h \
+    debugutils.h
 
 FORMS += \
     mainwindow.ui

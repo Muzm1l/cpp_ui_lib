@@ -1,4 +1,5 @@
 #include "bdwgraph.h"
+#include "debugutils.h"
 #include <QDebug>
 
 /**
@@ -10,9 +11,10 @@
  * @param timeInterval Time interval for the waterfall display
  */
 BDWGraph::BDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
+    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval),
+      m_zeroAxisLineItem(nullptr)
 {
-    qDebug() << "BDWGraph constructor called";
+    DEBUG_OUT() << "BDWGraph constructor called";
 }
 
 /**
@@ -21,7 +23,7 @@ BDWGraph::BDWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
  */
 BDWGraph::~BDWGraph()
 {
-    qDebug() << "BDWGraph destructor called";
+    DEBUG_OUT() << "BDWGraph destructor called";
 }
 
 /**
@@ -32,17 +34,55 @@ void BDWGraph::draw()
 {
     if (!graphicsScene)
         return;
+    
+    // Prevent concurrent drawing to avoid marker duplication
+    if (isDrawing) {
+        DEBUG_OUT() << "BDWGraph: draw() already in progress, skipping";
+        return;
+    }
+    
+    isDrawing = true;
 
-    graphicsScene->clear();
+    // Only perform full clear for FULL_REDRAW state
+    bool needsFullClear = (m_renderState == RenderState::FULL_REDRAW);
+    
+    if (needsFullClear)
+    {
+        // Clear all item pointers since clear() will delete them
+        // This prevents use-after-free in cleanup functions
+        m_seriesScatterplotItems.clear();
+        m_seriesPathItems.clear();
+        m_seriesPointItems.clear();
+        
+        // Clear zero axis line from overlayScene on full redraw (layout changes, graph switches)
+        if (m_zeroAxisLineItem) {
+            QGraphicsScene *itemScene = m_zeroAxisLineItem->scene();
+            if (itemScene && itemScene == overlayScene) {
+                overlayScene->removeItem(m_zeroAxisLineItem);
+            }
+            delete m_zeroAxisLineItem;
+            m_zeroAxisLineItem = nullptr;
+        }
+        
+        graphicsScene->clear();
+        graphicsScene->update(); // Force immediate update to ensure clearing is visible
+    }
+    
     setupDrawingArea();
 
-    if (gridEnabled)
+    if (needsFullClear && gridEnabled)
     {
         drawGrid();
     }
 
-    // Draw dashed grey vertical axis at 0 value
-    drawZeroAxis();
+    // Draw dashed grey vertical axis at 0 value (update on full redraw, range updates, incremental updates, and when line doesn't exist)
+    // Range updates happen when zoom panel changes, so we need to update the line position
+    // Incremental updates happen when time range changes (timer ticks, animation), so line position needs updating
+    // Also draw if line doesn't exist yet (e.g., when graph is first selected)
+    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE || !m_zeroAxisLineItem)
+    {
+        drawZeroAxis();
+    }
     
     if (dataSource && !dataSource->isEmpty())
     {
@@ -58,17 +98,53 @@ void BDWGraph::draw()
                 
                 if (seriesLabel == "ADOPTED")
                 {
-                    // Draw curve for ADOPTED series without points
-                    drawDataLine(seriesLabel, false);
+                    // Draw ADOPTED series as solid line (no points)
+                    // Draw during both full redraw and incremental updates
+                    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
+                    {
+                        drawDataLine(seriesLabel, false);
+                    }
                 }
                 else
                 {
-                    // Draw scatterplot for other series
-                    drawScatterplot(seriesLabel, seriesColor, 3.0, Qt::black);
+                    // Draw scatterplot for other series - respects render state internally
+                    drawScatterplot(seriesLabel, seriesColor, 4.0, Qt::black);
                 }
             }
         }
     }
+    else if (dataSource && dataSource->isEmpty())
+    {
+        // Data source is empty - cleanup all scatterplot items to ensure they're removed
+        cleanupAllScatterplotItems();
+        
+        // CRITICAL FIX: Clear data line paths (ADOPTED series line)
+        // These paths are rendered in paintEvent() and may contain gaps from when
+        // BTW symbols were present. When data is cleared, these old paths must be
+        // cleared too, otherwise the line with gaps remains visible.
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        
+        // Trigger repaint to clear the line from screen
+        update();
+        
+        DEBUG_OUT() << "BDWGraph: Data source is empty, cleaned up all scatterplot items and data line paths";
+    }
+    
+    // Draw BTW symbols (magenta circles) if any exist in data source
+    // CRITICAL FIX: Draw during both full redraw and incremental updates
+    // Symbols need to be redrawn when time range changes (timer ticks, animation, zoom)
+    // because their Y positions depend on the time range
+    if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
+    {
+        drawBTWSymbols();
+    }
+    
+    // Reset render state to clean after drawing
+    setRenderState(RenderState::CLEAN);
+    
+    isDrawing = false;
 }
 
 /**
@@ -78,7 +154,7 @@ void BDWGraph::draw()
  */
 void BDWGraph::onMouseClick(const QPointF &scenePos)
 {
-    qDebug() << "BDWGraph mouse clicked at scene position:" << scenePos;
+    DEBUG_OUT() << "BDWGraph mouse clicked at scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseClick(scenePos);
 }
@@ -90,7 +166,7 @@ void BDWGraph::onMouseClick(const QPointF &scenePos)
  */
 void BDWGraph::onMouseDrag(const QPointF &scenePos)
 {
-    qDebug() << "BDWGraph mouse dragged to scene position:" << scenePos;
+    DEBUG_OUT() << "BDWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
 }
@@ -105,7 +181,7 @@ void BDWGraph::drawBDWScatterplot()
     // TODO: Change
     drawScatterplot(QString("BDW-1"), Qt::magenta, 4.0, Qt::white);
 
-    qDebug() << "BDW scatterplot drawn";
+    DEBUG_OUT() << "BDW scatterplot drawn";
 }
 
 /**
@@ -114,13 +190,25 @@ void BDWGraph::drawBDWScatterplot()
  */
 void BDWGraph::drawZeroAxis()
 {
-    if (!graphicsScene) {
+    if (!overlayScene) {
         return;
     }
 
-    // Map 0 value to screen coordinates using current time as timestamp
+    // Remove old line if it exists to prevent duplication
+    if (m_zeroAxisLineItem) {
+        // Safety check: Verify item is still valid and in the scene before removing
+        // Check if item has a scene and it matches overlayScene
+        QGraphicsScene *itemScene = m_zeroAxisLineItem->scene();
+        if (itemScene && itemScene == overlayScene) {
+            overlayScene->removeItem(m_zeroAxisLineItem);
+        }
+        delete m_zeroAxisLineItem;
+        m_zeroAxisLineItem = nullptr;
+    }
+
+    // Map zero axis value (zoom panel middle sticker value) to screen coordinates using current time as timestamp
     QDateTime currentTime = QDateTime::currentDateTime();
-    QPointF zeroPoint = mapDataToScreen(0.0, currentTime);
+    QPointF zeroPoint = mapDataToScreen(m_zeroAxisValue, currentTime);
     
     // Create vertical line from top to bottom of drawing area at x = 0
     QPointF topPoint(zeroPoint.x(), drawingArea.top());
@@ -130,82 +218,10 @@ void BDWGraph::drawZeroAxis()
     QPen zeroAxisPen(QColor(255, 255, 255), 1.0, Qt::DashLine); // White dashed line
     zeroAxisPen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
     
-    // Draw the vertical line
-    graphicsScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
+    // Draw the vertical line and store reference for future updates
+    m_zeroAxisLineItem = overlayScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
     
-    qDebug() << "BDW zero axis drawn at x:" << zeroPoint.x();
+    DEBUG_OUT() << "BDW zero axis drawn at x:" << zeroPoint.x();
 }
 
-/**
- * @brief Override drawDataLine to use dashed lines for BDW graph
- *
- */
-void BDWGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
-{
-    if (!graphicsScene || !dataSource || dataSource->isEmpty() || !dataRangesValid)
-    {
-        return;
-    }
-
-    const auto &yData = dataSource->getYDataSeries(seriesLabel);
-    const auto &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-
-    // Filter data points to only include those within the current time range
-    std::vector<std::pair<qreal, QDateTime>> visibleData;
-    for (size_t i = 0; i < yData.size(); ++i)
-    {
-        if (timestamps[i] >= timeMin && timestamps[i] <= timeMax)
-        {
-            visibleData.push_back({yData[i], timestamps[i]});
-        }
-    }
-
-    if (visibleData.empty())
-    {
-        qDebug() << "No data points within current time range";
-        return;
-    }
-
-    if (visibleData.size() < 2)
-    {
-        // Draw a single point if we only have one data point
-        QPointF screenPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-        QPen pointPen(Qt::green, 0); // No stroke (width 0)
-        graphicsScene->addEllipse(screenPoint.x() - 2, screenPoint.y() - 2, 4, 4, pointPen);
-        qDebug() << "Data line drawn with 1 visible point";
-        return;
-    }
-
-    // Create a path for the line
-    QPainterPath path;
-    QPointF firstPoint = mapDataToScreen(visibleData[0].first, visibleData[0].second);
-    path.moveTo(firstPoint);
-
-    // Add lines connecting all visible data points
-    for (size_t i = 1; i < visibleData.size(); ++i)
-    {
-        QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-        path.lineTo(point);
-    }
-
-    // Draw the line with dashed style
-    QColor seriesColor = getSeriesColor(seriesLabel);
-    QPen linePen(seriesColor, 2);
-    linePen.setStyle(Qt::DashLine);
-    linePen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
-    graphicsScene->addPath(path, linePen);
-
-    // Draw data points if enabled
-    if (plotPoints)
-    {
-        // Draw data points
-        QPen pointPen(seriesColor, 0); // No stroke (width 0)
-        for (size_t i = 0; i < visibleData.size(); ++i)
-        {
-            QPointF point = mapDataToScreen(visibleData[i].first, visibleData[i].second);
-            graphicsScene->addEllipse(point.x() - 1, point.y() - 1, 2, 2, pointPen);
-        }
-    }
-
-    qDebug() << "BDW data line drawn (dashed) for series" << seriesLabel << "with" << visibleData.size() << "visible points";
-}
+// drawDataLine() override removed - now uses base class which draws solid lines for ADOPTED

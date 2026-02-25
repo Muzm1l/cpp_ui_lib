@@ -26,12 +26,12 @@ protected:
     void onMouseDrag(const QPointF &scenePos) override;
     
     // Override drawDataLine to use dashed lines
-    void drawDataLine(const QString &seriesLabel, bool plotPoints = true) override;
 
 private:
     // FDW-specific properties and methods can be added here
     void drawFDWScatterplot();
     void drawZeroAxis();
+    QGraphicsLineItem *m_zeroAxisLineItem;  // Store reference to zero axis line for updates
 };
 
 #endif // FDWGRAPH_H

@@ -1,11 +1,12 @@
 #include "simulator.h"
+#include "debugutils.h"
 #include <QDateTime>
 #include <QRandomGenerator>
 
 Simulator::Simulator(QObject *parent, QTimer *timer, GraphLayout *graphLayout)
     : QObject(parent), m_timer(timer), m_graphLayout(graphLayout), m_running(false)
 {
-    qDebug() << "Simulator constructor called with timer:" << m_timer << "graphLayout:" << m_graphLayout;
+    DEBUG_OUT() << "Simulator constructor called with timer:" << m_timer << "graphLayout:" << m_graphLayout;
 
     // Initialize configurations and current values
     initializeConfigurations();
@@ -17,15 +18,15 @@ Simulator::Simulator(QObject *parent, QTimer *timer, GraphLayout *graphLayout)
         connect(m_timer, &QTimer::timeout, this, &Simulator::onTimerTick);
         connect(m_timer, &QObject::destroyed, this, [this]()
         {
-            qDebug() << "Simulator: Connected timer destroyed, clearing pointer";
+            DEBUG_OUT() << "Simulator: Connected timer destroyed, clearing pointer";
             m_timer = nullptr;
             m_running = false; 
         });
-        qDebug() << "Simulator: Timer connected successfully";
+        DEBUG_OUT() << "Simulator: Timer connected successfully";
     }
     else
     {
-        qDebug() << "Simulator: No timer provided!";
+        DEBUG_OUT() << "Simulator: No timer provided!";
     }
 }
 
@@ -52,21 +53,21 @@ void Simulator::start()
             {
                 m_timer->start();
                 m_running = true;
-                qDebug() << "Simulator started successfully";
+                DEBUG_OUT() << "Simulator started successfully";
             }
             else
             {
-                qDebug() << "Simulator start failed - timer parent is null";
+                DEBUG_OUT() << "Simulator start failed - timer parent is null";
             }
         }
         catch (...)
         {
-            qDebug() << "Simulator start failed - timer is invalid or being destroyed";
+            DEBUG_OUT() << "Simulator start failed - timer is invalid or being destroyed";
         }
     }
     else
     {
-        qDebug() << "Simulator start failed - timer:" << m_timer << "running:" << m_running;
+        DEBUG_OUT() << "Simulator start failed - timer:" << m_timer << "running:" << m_running;
     }
 }
 
@@ -90,13 +91,13 @@ void Simulator::stop()
             // Timer was already deleted, just continue
         }
         m_running = false;
-        qDebug() << "Simulator stopped";
+        DEBUG_OUT() << "Simulator stopped";
     }
     else if (m_running)
     {
         // Timer is null but we were running - just set running to false
         m_running = false;
-        qDebug() << "Simulator stopped (timer was null)";
+        DEBUG_OUT() << "Simulator stopped (timer was null)";
     }
 }
 
@@ -159,7 +160,7 @@ void Simulator::addDataPoints()
     m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-1", m_currentFTWValue, currentTime);
     m_graphLayout->addDataPointToDataSource(GraphType::FTW, "FTW-2", m_currentFTWValue + 10, currentTime);
 
-    qDebug() << "Added data points - FDW:" << m_currentFDWValue
+    DEBUG_OUT() << "Added data points - FDW:" << m_currentFDWValue
              << "BDW:" << m_currentBDWValue
              << "BRW:" << m_currentBRWValue
              << "LTW:" << m_currentLTWValue
@@ -172,7 +173,7 @@ void Simulator::generateBulkData(WaterfallData *data, SimulatorConfig config, in
 {
     if (!data)
     {
-        qDebug() << "Simulator: Null WaterfallData pointer provided";
+        DEBUG_OUT() << "Simulator: Null WaterfallData pointer provided";
         return;
     }
 
@@ -180,11 +181,11 @@ void Simulator::generateBulkData(WaterfallData *data, SimulatorConfig config, in
     std::vector<QString> seriesLabels = data->getDataSeriesLabels();
     if (seriesLabels.empty())
     {
-        qDebug() << "Simulator: No series labels found in WaterfallData";
+        DEBUG_OUT() << "Simulator: No series labels found in WaterfallData";
         return;
     }
 
-    qDebug() << "Simulator: Generating bulk data for" << seriesLabels.size() << "series in WaterfallData:" << data->getDataTitle();
+    DEBUG_OUT() << "Simulator: Generating bulk data for" << seriesLabels.size() << "series in WaterfallData:" << data->getDataTitle();
 
     // Generate data for each series
     for (size_t seriesIndex = 0; seriesIndex < seriesLabels.size(); ++seriesIndex)
@@ -224,12 +225,15 @@ void Simulator::generateBulkData(WaterfallData *data, SimulatorConfig config, in
             dataSeries.push_back(value);
         }
 
-        qDebug() << "Simulator: Adding bulk data to series:" << seriesLabel << "with" << dataSeries.size() << "points";
+        DEBUG_OUT() << "Simulator: Adding bulk data to series:" << seriesLabel << "with" << dataSeries.size() << "points";
+
+        // Convert qreal (double) to float for API
+        std::vector<float> dataSeriesFloat(dataSeries.begin(), dataSeries.end());
 
         // Add the data to this series
-        data->addDataPointsToSeries(seriesLabel, dataSeries, timestamps);
+        data->addDataPointsToSeries(seriesLabel, dataSeriesFloat, timestamps);
 
-        qDebug() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end())
+        DEBUG_OUT() << "Generated data series range:" << *std::min_element(dataSeries.begin(), dataSeries.end())
                  << "to" << *std::max_element(dataSeries.begin(), dataSeries.end())
                  << "for series:" << seriesLabel;
     }
@@ -239,7 +243,7 @@ void Simulator::generateBulkDataForWaterfallData(
     std::map<WaterfallData *, SimulatorConfig> &waterfallDataMap,
     int numPoints)
 {
-    qDebug() << "Simulator: Generating bulk data for" << numPoints << "points using static method";
+    DEBUG_OUT() << "Simulator: Generating bulk data for" << numPoints << "points using static method";
 
     // Go through each of the waterfallDataMap
     for (const auto &pair : waterfallDataMap)
@@ -247,7 +251,7 @@ void Simulator::generateBulkDataForWaterfallData(
         WaterfallData *data = pair.first;
         SimulatorConfig config = pair.second;
 
-        qDebug() << "Simulator: Processing WaterfallData with title:" << data->getDataTitle();
+        DEBUG_OUT() << "Simulator: Processing WaterfallData with title:" << data->getDataTitle();
 
         // Generate the points based on the config
         generateBulkData(data, config, numPoints);
@@ -257,17 +261,17 @@ void Simulator::generateBulkDataForWaterfallData(
         if (!seriesLabels.empty())
         {
             QString firstSeries = seriesLabels[0];
-            qDebug() << "Simulator: Verified data added to series" << firstSeries
+            DEBUG_OUT() << "Simulator: Verified data added to series" << firstSeries
                      << "with" << data->getDataSeriesSize(firstSeries) << "points";
         }
     }
 
-    qDebug() << "Simulator: Static bulk data generation completed";
+    DEBUG_OUT() << "Simulator: Static bulk data generation completed";
 }
 
 void Simulator::onTimerTick()
 {
-    qDebug() << "Simulator::onTimerTick() called";
+    DEBUG_OUT() << "Simulator::onTimerTick() called";
     updateValues();
     addDataPoints();
 }
