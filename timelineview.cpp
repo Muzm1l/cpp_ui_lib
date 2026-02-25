@@ -2197,6 +2197,16 @@ void TimelineView::setTimelineViewMode(TimelineViewMode mode)
     emit GraphContainerInFollowModeChanged(isInFollowMode);
 }
 
+void TimelineView::onOtherContainerEnteredFollowMode(bool isInFollowMode)
+{
+    if (!isInFollowMode)
+        return;
+    // Already in follow mode: avoid re-entrant setTimelineViewMode (prevents cascade and QTextLayout re-entry segfault)
+    if (m_timelineViewMode == TimelineViewMode::FOLLOW_MODE)
+        return;
+    setTimelineViewMode(TimelineViewMode::FOLLOW_MODE);
+}
+
 // Navtime label calculation methods (delegate to visualizer widget)
 int TimelineView::getLabelSpacingMinutes(TimeInterval interval) const
 {

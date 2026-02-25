@@ -1368,6 +1368,16 @@ void GraphLayout::syncAllTimelineViews()
             }
         }
         
+        // Disconnect GraphContainerInFollowModeChanged connections to other timeline views
+        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
+        {
+            if (i != j && timelineViewPairs[j].second)
+            {
+                disconnect(sourceTimelineView, &TimelineView::GraphContainerInFollowModeChanged,
+                          timelineViewPairs[j].second, &TimelineView::onOtherContainerEnteredFollowMode);
+            }
+        }
+        
         // Disconnect TimeScopeChanged connections to containers (external sync only)
         for (auto *container : m_graphContainers)
         {
@@ -1412,6 +1422,10 @@ void GraphLayout::syncAllTimelineViews()
                 // This ensures all timeline views' abs/rel buttons stay in sync
                 connect(timelineViewPairs[i].second, &TimelineView::AbsoluteTimeModeChanged,
                         timelineViewPairs[j].second, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
+                
+                // When one timeline enters follow mode (slider at y=0), switch all others to follow mode so sliders stay in sync
+                connect(timelineViewPairs[i].second, &TimelineView::GraphContainerInFollowModeChanged,
+                        timelineViewPairs[j].second, &TimelineView::onOtherContainerEnteredFollowMode, Qt::UniqueConnection);
             }
         }
     }
@@ -1516,6 +1530,12 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
                         graphTimelineView, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
                 connect(graphTimelineView, &TimelineView::TimeIntervalChanged,
                         externalTimelineView, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
+                
+                // When one enters follow mode (slider at y=0), switch the other to follow mode so sliders stay in sync
+                connect(externalTimelineView, &TimelineView::GraphContainerInFollowModeChanged,
+                        graphTimelineView, &TimelineView::onOtherContainerEnteredFollowMode, Qt::UniqueConnection);
+                connect(graphTimelineView, &TimelineView::GraphContainerInFollowModeChanged,
+                        externalTimelineView, &TimelineView::onOtherContainerEnteredFollowMode, Qt::UniqueConnection);
             }
         }
         

@@ -363,6 +363,8 @@ public:
     TimeSelectionSpan getVisibleTimeWindow() const;
     /** Used by GraphLayout: apply scope from another timeline; force-sync only when fromFrozenUserDrag. */
     void onTimeScopeChangedFromOtherTimeline(const TimeSelectionSpan &selection, bool fromFrozenUserDrag);
+    /** Used by GraphLayout: when another timeline enters follow mode (slider at y=0), switch this one to follow mode so all stay in sync. */
+    void onOtherContainerEnteredFollowMode(bool isInFollowMode);
 
     // Mode control
     void setTimelineViewMode(TimelineViewMode mode);
