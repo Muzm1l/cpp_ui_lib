@@ -336,26 +336,13 @@ void TimelineVisualizerWidget::setTimeInterval(TimeInterval interval)
     // Reset accumulated offset when interval changes
     m_accumulatedOffset = 0.0;
 
-    // Update slider state to match the new interval length.
-    // In FROZEN_MODE: preserve the user's chosen END time, only adjust start for new interval.
-    // In FOLLOW_MODE: reset window to [now - interval, now] as before.
+    // When interval changes, reset to live window and slider at top (y=0).
     int intervalSeconds = newLength.hour() * 3600 + newLength.minute() * 60 + newLength.second();
-    TimeSelectionSpan newWindow;
-    if (m_timelineViewMode == TimelineViewMode::FROZEN_MODE)
-    {
-        // Preserve the user's frozen window end time
-        TimeSelectionSpan currentWindow = m_sliderState.getTimeWindow();
-        QDateTime endTime = currentWindow.endTime.isValid() ? currentWindow.endTime : QDateTime::currentDateTime();
-        QDateTime startTime = endTime.addSecs(-intervalSeconds);
-        newWindow = TimeSelectionSpan(startTime, endTime);
-    }
-    else
-    {
-        QDateTime now = QDateTime::currentDateTime();
-        QDateTime startTime = now.addSecs(-intervalSeconds);
-        newWindow = TimeSelectionSpan(startTime, now);
-    }
+    QDateTime now = QDateTime::currentDateTime();
+    QDateTime startTime = now.addSecs(-intervalSeconds);
+    TimeSelectionSpan newWindow(startTime, now);
     m_sliderState.setTimeWindow(newWindow, rect().height(), newLength, getEffectiveRangeStart());
+    m_sliderState.setYPosition(0, rect().height(), newLength, true); // keep window, ensure slider at top
     
     // Keep legacy member in sync
     m_sliderVisibleWindow = m_sliderState.getTimeWindow();
@@ -757,8 +744,11 @@ void TimelineVisualizerWidget::renderBackgroundToCache()
     QPainter painter(&m_cachedBackground);
     painter.setRenderHint(QPainter::Antialiasing);
     
-    // Calculate smooth offset to determine which segments to draw
-    double smoothOffset = calculateSmoothOffset();
+    // In follow mode use 0 so segment ticks align with the visible time window (and labels).
+    // Otherwise the scrolling smoothOffset would misalign ticks with time labels.
+    double smoothOffset = (m_timelineViewMode == TimelineViewMode::FOLLOW_MODE)
+        ? 0.0
+        : calculateSmoothOffset();
     double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
     
     // Calculate which segments should be visible
@@ -812,8 +802,10 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Segment management still needs to happen (creating/removing segments as they scroll)
-    double smoothOffset = calculateSmoothOffset();
+    // In follow mode use 0 so segment ticks align with the visible time window (and labels).
+    double smoothOffset = (m_timelineViewMode == TimelineViewMode::FOLLOW_MODE)
+        ? 0.0
+        : calculateSmoothOffset();
     double segmentHeight = static_cast<double>(rect().height()) / m_numberOfDivisions;
 
     // Remove segments that have gone completely out of view (below the bottom)
