@@ -1245,6 +1245,25 @@ size_t WaterfallData::getBTWSymbolsCount() const
 
 void WaterfallData::addBTWMarker(const QDateTime& timestamp, float range, float delta)
 {
+    // Deduplication: when integrated in main system, the same automatic marker can be
+    // reported twice (e.g. once with delta 0 and once with the real delta). If a marker
+    // already exists at the same (timestamp, range) within tolerance, update its delta
+    // instead of appending a duplicate. Prefer non-zero delta when one is 0.
+    const qint64 timeToleranceMs = 500;
+    const float rangeTolerance = 0.5f;
+    for (size_t i = 0; i < btwMarkers.size(); ++i) {
+        const BTWMarkerData& existing = btwMarkers[i];
+        qint64 timeDiff = qAbs(existing.timestamp.msecsTo(timestamp));
+        float rangeDiff = qAbs(existing.range - range);
+        if (timeDiff <= timeToleranceMs && rangeDiff <= rangeTolerance) {
+            // Prefer non-zero delta: don't overwrite existing non-zero with 0
+            float newDelta = (existing.delta != 0.0f && delta == 0.0f) ? existing.delta : delta;
+            btwMarkers[i].delta = newDelta;
+            DEBUG_OUT() << "WaterfallData: Updated existing BTW marker at timestamp" << timestamp.toString() << "range" << range << "delta" << newDelta << "(deduplicated)";
+            return;
+        }
+    }
+
     BTWMarkerData markerData;
     markerData.timestamp = timestamp;
     markerData.range = range;
