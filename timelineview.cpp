@@ -1698,8 +1698,10 @@ void TimelineVisualizerWidget::updateCachedTimestampLabels()
             // CRITICAL FIX: Generate relative or absolute labels based on mode
             if (m_showRelativeLabels)
             {
-                // Calculate relative time difference from window end (represents "now")
-                qint64 diffMs = time.msecsTo(windowEnd);
+                // Relative to "now" (current time) so when slider is dragged to e.g. 1h ago,
+                // labels show -01:00, -01:15 etc., not 00:00 to -00:15 from window end.
+                QDateTime now = QDateTime::currentDateTime();
+                qint64 diffMs = time.msecsTo(now);
                 qint64 diffSeconds = diffMs / 1000;
                 int diffHours = static_cast<int>(diffSeconds / 3600);
                 int diffMinutes = static_cast<int>((diffSeconds % 3600) / 60);
