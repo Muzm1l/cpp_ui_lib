@@ -49,8 +49,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     marker->setPos(position);
     marker->setSize(QSizeF(20, 20));
 
-    // Set custom drawing function for data point
-    // The lambda captures the marker pointer to read current color/style settings
+    // Set custom drawing function for data point (head/tail distinction: head = filled circle at one end)
     marker->setCustomDrawFunction([marker](QPainter *painter, const QRectF &rect) {
         Q_UNUSED(rect);
         
@@ -69,24 +68,25 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
         QRectF circleRect(-markerRadius, -markerRadius, 2*markerRadius, 2*markerRadius);
         painter->drawEllipse(circleRect);
         
-        // Draw angled line through center
-        // Use a default angle for the interactive marker (0 degrees)
-        qreal angleDegrees = 0.0; // Default angle for interactive marker
+        // Line from center: tail end (startPoint) and head end (endPoint)
+        qreal angleDegrees = 0.0;
         qreal angleRadians = qDegreesToRadians(angleDegrees);
-        qreal lineLength = 5 * markerRadius; // Same as BTW custom markers
-        
-        // Calculate line endpoints based on angle
-        // For true north (0°), line points up/down (vertical)
+        qreal lineLength = 5 * markerRadius;
         qreal deltaX = lineLength * qSin(angleRadians);
-        qreal deltaY = -lineLength * qCos(angleRadians); // Negative because Y increases downward
-        
-        // Use the center of the item (0,0) as the reference point
+        qreal deltaY = -lineLength * qCos(angleRadians);
         QPointF startPoint = QPointF(-deltaX, -deltaY);
         QPointF endPoint = QPointF(deltaX, deltaY);
         
-        // Draw the angled line with customizable color/style
+        // Draw line (tail from center to startPoint, then center to head at endPoint)
         painter->setPen(QPen(lineColor, lineWidth, lineStyle));
-        painter->drawLine(startPoint, endPoint);
+        painter->drawLine(QPointF(0, 0), startPoint);  // tail
+        painter->drawLine(QPointF(0, 0), endPoint);    // head stem
+        
+        // Draw head: filled circle at endPoint so head is visually distinct from tail
+        qreal headRadius = 3.0;
+        painter->setPen(QPen(lineColor, lineWidth));
+        painter->setBrush(QBrush(lineColor));
+        painter->drawEllipse(endPoint, headRadius, headRadius);
     });
 
     // Apply styling and configure interaction regions
@@ -95,6 +95,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     marker->setShowDragRegion(false);  // Hide the drag region square
     marker->setShowRotateRegion(false); // Hide the rotate regions at line ends
     marker->setRotateRegionSize(QSizeF(12, 12)); // Set rotation regions to 12x12 pixels
+    marker->setRotateEnd(InteractiveGraphicsItem::HeadOnly); // Only head can rotate; tail is non-interactive
 
     // Store the timestamp in the marker for later retrieval
     // Use QGraphicsItem::setData() with key 0 to store the timestamp
@@ -978,7 +979,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
     marker->setPos(screenPos);
     marker->setSize(QSizeF(20, 20));
     
-    // Set custom drawing function (same as addDataPointMarker)
+    // Set custom drawing function (same as addDataPointMarker: head/tail distinction)
     marker->setCustomDrawFunction([marker](QPainter *painter, const QRectF &rect) {
         Q_UNUSED(rect);
         
@@ -997,15 +998,18 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
         qreal angleDegrees = 0.0;
         qreal angleRadians = qDegreesToRadians(angleDegrees);
         qreal lineLength = 5 * markerRadius;
-        
         qreal deltaX = lineLength * qSin(angleRadians);
         qreal deltaY = -lineLength * qCos(angleRadians);
-        
         QPointF startPoint = QPointF(-deltaX, -deltaY);
         QPointF endPoint = QPointF(deltaX, deltaY);
         
         painter->setPen(QPen(lineColor, lineWidth, lineStyle));
-        painter->drawLine(startPoint, endPoint);
+        painter->drawLine(QPointF(0, 0), startPoint);  // tail
+        painter->drawLine(QPointF(0, 0), endPoint);    // head stem
+        qreal headRadius = 3.0;
+        painter->setPen(QPen(lineColor, lineWidth));
+        painter->setBrush(QBrush(lineColor));
+        painter->drawEllipse(endPoint, headRadius, headRadius);  // head
     });
     
     // Apply styling
@@ -1014,6 +1018,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
     marker->setShowDragRegion(false);
     marker->setShowRotateRegion(false);
     marker->setRotateRegionSize(QSizeF(12, 12));
+    marker->setRotateEnd(InteractiveGraphicsItem::HeadOnly); // Only head can rotate; tail non-interactive
     
     // Store data in marker
     marker->setData(0, QVariant::fromValue(markerData.timestamp));

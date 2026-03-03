@@ -400,12 +400,17 @@ QList<QRectF> InteractiveGraphicsItem::getRotateRegions() const
     QPointF startPoint = QPointF(-deltaX, -deltaY);
     QPointF endPoint = QPointF(deltaX, deltaY);
     
-    // Create rotation regions at both ends of the line
+    // Create rotation regions at both ends of the line (region1 = tail, region2 = head)
     QPointF region1TopLeft = startPoint - QPointF(m_rotateRegionSize.width()/2, m_rotateRegionSize.height()/2);
     QPointF region2TopLeft = endPoint - QPointF(m_rotateRegionSize.width()/2, m_rotateRegionSize.height()/2);
     
-    regions.append(QRectF(region1TopLeft, m_rotateRegionSize));
-    regions.append(QRectF(region2TopLeft, m_rotateRegionSize));
+    if (m_rotateEnd == HeadOnly) {
+        // Only the head end (second region) can be used to rotate; tail is non-interactive
+        regions.append(QRectF(region2TopLeft, m_rotateRegionSize));
+    } else {
+        regions.append(QRectF(region1TopLeft, m_rotateRegionSize));
+        regions.append(QRectF(region2TopLeft, m_rotateRegionSize));
+    }
     
     // Cache the result
     m_cachedRotateRegions = regions;
