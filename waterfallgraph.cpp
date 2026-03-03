@@ -4727,6 +4727,12 @@ void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &co
  */
 QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 {
+
+    // adopted color is red
+    if (seriesLabel == "adopted")
+    {
+        return Qt::red;
+    }
     // OPTIMIZATION FIX #3: Check explicit color map first
     auto it = seriesColors.find(seriesLabel);
     if (it != seriesColors.end())
@@ -4743,7 +4749,8 @@ QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 
     // Return a default color based on series index
     static const QColor defaultColors[] = {
-        Qt::green, Qt::red, Qt::blue, Qt::yellow, Qt::cyan, Qt::magenta, Qt::white};
+        // set all default colors to yellow
+        Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow};
 
     // Generate a consistent color based on the series label hash
     uint hash = qHash(seriesLabel);
