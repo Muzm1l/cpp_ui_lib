@@ -110,6 +110,13 @@ public:
     void populateTimestampsSeries(const QString& seriesLabel, std::vector<QDateTime>& output) const;
     void populateTimestampsEpochSeries(const QString& seriesLabel, std::vector<qint64>& output) const;
     std::vector<qint64> getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
+    
+    // Phase 3: window-only access helpers (avoid full-series temporary vectors in hot paths)
+    bool findVisibleEpochRange(const QString& seriesLabel, qint64 timeMinEpoch, qint64 timeMaxEpoch,
+                               size_t& firstIdx, size_t& lastIdx) const;
+    void populateSeriesRangeFloatEpoch(const QString& seriesLabel, size_t firstIdx, size_t lastIdx,
+                                       std::vector<std::pair<float, qint64>>& output) const;
+    bool getSeriesPointAtIndexEpoch(const QString& seriesLabel, size_t index, float& yValue, qint64& timestampEpoch) const;
 
     // Data series utility methods
     size_t getDataSeriesSize(const QString& seriesLabel) const;

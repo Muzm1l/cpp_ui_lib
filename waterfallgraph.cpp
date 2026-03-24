@@ -1709,23 +1709,17 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
         m_cachedVisibleData[seriesLabel].clear();
         return;
     }
-    
-    // Use reusable vectors to avoid toVector() allocations
-    // OPTIMIZATION: Use float version to eliminate float-to-double conversion overhead
-    dataSource->populateYDataSeriesFloat(seriesLabel, m_reusableYDataFloat);
-    dataSource->populateTimestampsEpochSeries(seriesLabel, m_reusableTimestampsEpoch);
-    const std::vector<float> &yData = m_reusableYDataFloat; // Use float, not qreal
-    const std::vector<qint64> &timestampsEpoch = m_reusableTimestampsEpoch; // Use epoch milliseconds
-    
-    if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
+
+    const size_t currentSize = dataSource->getDataSeriesSize(seriesLabel);
+    if (currentSize == 0)
     {
         m_cachedVisibleData[seriesLabel].clear();
         m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
         m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(
             timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0,
             timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0);
-        m_cachedDataSize[seriesLabel] = yData.size();
-        m_lastProcessedIndex[seriesLabel] = yData.size();
+        m_cachedDataSize[seriesLabel] = 0;
+        m_lastProcessedIndex[seriesLabel] = 0;
         return;
     }
     
@@ -1734,32 +1728,32 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
     qint64 timeMinEpoch = m_cachedTimeMinEpoch;
     qint64 timeMaxEpoch = m_cachedTimeMaxEpoch;
     
-    // Use binary search on epoch milliseconds (much faster than QDateTime comparison)
-    auto startIt = std::lower_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMinEpoch);
-    auto endIt = std::upper_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMaxEpoch);
-    
-    size_t firstIdx = std::distance(timestampsEpoch.begin(), startIt);
-    size_t lastIdx = std::distance(timestampsEpoch.begin(), endIt);
+    size_t firstIdx = 0;
+    size_t lastIdx = 0;
+    const bool hasVisibleRange = dataSource->findVisibleEpochRange(seriesLabel, timeMinEpoch, timeMaxEpoch, firstIdx, lastIdx);
     
     // Build filtered visible data - NO QDateTime CONVERSION, NO FLOAT-TO-DOUBLE CONVERSION!
     CircularBuffer<std::pair<float, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     cache.clear();
+    const size_t visibleCount = hasVisibleRange ? (lastIdx - firstIdx) : 0;
     // Reserve capacity if not already set (circular buffer will handle capacity limits)
     if (cache.capacity() == 0)
     {
-        cache.reserve(lastIdx - firstIdx);
+        cache.reserve(visibleCount);
     }
-    
-    for (size_t i = firstIdx; i < lastIdx && i < yData.size(); ++i)
+
+    if (hasVisibleRange)
     {
-        cache.push_back(std::make_pair(yData[i], timestampsEpoch[i])); // Store as float, epoch ms
+        // Populate only the visible slice directly from circular buffers (no full-series copy).
+        dataSource->populateSeriesRangeFloatEpoch(seriesLabel, firstIdx, lastIdx, m_reusableVisibleData);
+        cache.push_back(m_reusableVisibleData);
     }
     
     // Update tracking
     m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
     m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
-    m_cachedDataSize[seriesLabel] = yData.size();
-    m_lastProcessedIndex[seriesLabel] = yData.size();
+    m_cachedDataSize[seriesLabel] = currentSize;
+    m_lastProcessedIndex[seriesLabel] = currentSize;
 }
 
 /**
@@ -1781,15 +1775,12 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     // If we're here, the cache was valid (time range matched), so we can do incremental update
     // No need to re-check the time range here (redundant check removed)
     
-    // Use reusable vectors to avoid toVector() allocations
-    // OPTIMIZATION: Use float version to eliminate float-to-double conversion overhead
-    dataSource->populateYDataSeriesFloat(seriesLabel, m_reusableYDataFloat);
-    dataSource->populateTimestampsEpochSeries(seriesLabel, m_reusableTimestampsEpoch);
-    const std::vector<float> &yData = m_reusableYDataFloat; // Use float, not qreal
-    const std::vector<qint64> &timestampsEpoch = m_reusableTimestampsEpoch; // Use epoch milliseconds
-    
-    if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
+    const size_t currentSize = dataSource->getDataSeriesSize(seriesLabel);
+    if (currentSize == 0)
     {
+        m_cachedVisibleData[seriesLabel].clear();
+        m_cachedDataSize[seriesLabel] = 0;
+        m_lastProcessedIndex[seriesLabel] = 0;
         return;
     }
     
@@ -1802,14 +1793,14 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     }
     
     // If data was cleared/reduced, do full refilter
-    if (yData.size() < lastProcessed)
+    if (currentSize < lastProcessed)
     {
         updateVisibleDataCacheFull(seriesLabel);
         return;
     }
     
     // If no new data, nothing to do
-    if (yData.size() == lastProcessed)
+    if (currentSize == lastProcessed)
     {
         return;
     }
@@ -1822,19 +1813,25 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     // Process only new data points - NO QDateTime CONVERSION, NO FLOAT-TO-DOUBLE CONVERSION!
     CircularBuffer<std::pair<float, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     
-    for (size_t i = lastProcessed; i < yData.size(); ++i)
+    for (size_t i = lastProcessed; i < currentSize; ++i)
     {
-        qint64 tsEpoch = timestampsEpoch[i];
+        float yValue = 0.0f;
+        qint64 tsEpoch = 0;
+        if (!dataSource->getSeriesPointAtIndexEpoch(seriesLabel, i, yValue, tsEpoch))
+        {
+            break;
+        }
+
         if (tsEpoch >= timeMinEpoch && tsEpoch <= timeMaxEpoch)
         {
-            cache.push_back(std::make_pair(yData[i], tsEpoch)); // Store as float, epoch ms
+            cache.push_back(std::make_pair(yValue, tsEpoch)); // Store as float, epoch ms
         }
     }
     
     // Update tracking
     m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
-    m_cachedDataSize[seriesLabel] = yData.size();
-    m_lastProcessedIndex[seriesLabel] = yData.size();
+    m_cachedDataSize[seriesLabel] = currentSize;
+    m_lastProcessedIndex[seriesLabel] = currentSize;
 }
 
 // ============================================================================

@@ -689,6 +689,117 @@ void WaterfallData::populateTimestampsEpochSeries(const QString& seriesLabel, st
     }
 }
 
+bool WaterfallData::findVisibleEpochRange(const QString& seriesLabel, qint64 timeMinEpoch, qint64 timeMaxEpoch,
+                                          size_t& firstIdx, size_t& lastIdx) const
+{
+    firstIdx = 0;
+    lastIdx = 0;
+
+    auto epochIt = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (epochIt == dataSeriesTimestampsEpoch.end())
+    {
+        return false;
+    }
+
+    const CircularBuffer<qint64>& epochs = epochIt->second;
+    const size_t n = epochs.size();
+    if (n == 0)
+    {
+        return false;
+    }
+
+    // lower_bound on circular buffer logical indices (0 = oldest, n-1 = newest)
+    size_t lo = 0;
+    size_t hi = n;
+    while (lo < hi)
+    {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (epochs[mid] < timeMinEpoch)
+        {
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
+        }
+    }
+    firstIdx = lo;
+
+    // upper_bound on circular buffer logical indices
+    lo = firstIdx;
+    hi = n;
+    while (lo < hi)
+    {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (epochs[mid] <= timeMaxEpoch)
+        {
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
+        }
+    }
+    lastIdx = lo;
+
+    return firstIdx < lastIdx;
+}
+
+void WaterfallData::populateSeriesRangeFloatEpoch(const QString& seriesLabel, size_t firstIdx, size_t lastIdx,
+                                                  std::vector<std::pair<float, qint64>>& output) const
+{
+    output.clear();
+
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto epochIt = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (yIt == dataSeriesYData.end() || epochIt == dataSeriesTimestampsEpoch.end())
+    {
+        return;
+    }
+
+    const CircularBuffer<float>& yBuffer = yIt->second;
+    const CircularBuffer<qint64>& epochBuffer = epochIt->second;
+    const size_t n = std::min(yBuffer.size(), epochBuffer.size());
+    if (n == 0 || firstIdx >= n)
+    {
+        return;
+    }
+
+    const size_t endIdx = std::min(lastIdx, n);
+    if (firstIdx >= endIdx)
+    {
+        return;
+    }
+
+    output.reserve(endIdx - firstIdx);
+    for (size_t i = firstIdx; i < endIdx; ++i)
+    {
+        output.push_back(std::make_pair(yBuffer[i], epochBuffer[i]));
+    }
+}
+
+bool WaterfallData::getSeriesPointAtIndexEpoch(const QString& seriesLabel, size_t index, float& yValue, qint64& timestampEpoch) const
+{
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto epochIt = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (yIt == dataSeriesYData.end() || epochIt == dataSeriesTimestampsEpoch.end())
+    {
+        return false;
+    }
+
+    const CircularBuffer<float>& yBuffer = yIt->second;
+    const CircularBuffer<qint64>& epochBuffer = epochIt->second;
+    const size_t n = std::min(yBuffer.size(), epochBuffer.size());
+    if (index >= n)
+    {
+        return false;
+    }
+
+    yValue = yBuffer[index];
+    timestampEpoch = epochBuffer[index];
+    return true;
+}
+
 size_t WaterfallData::getDataSeriesSize(const QString& seriesLabel) const
 {
     auto it = dataSeriesYData.find(seriesLabel);
