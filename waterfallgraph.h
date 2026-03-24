@@ -206,7 +206,7 @@ protected:
     // Data plotting methods
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     void buildBatchedLinePaths(const QString &seriesLabel,
-                               const std::vector<std::pair<float, qint64>> &visibleData, // Use float to eliminate conversions
+                               const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                size_t lodStep,
                                const QColor &seriesColor);
     virtual void drawAllDataSeries();
@@ -248,15 +248,15 @@ protected:
     // Incremental graphics item management (State Machine Based)
     // Use epoch milliseconds to avoid QDateTime timezone conversion in hot path
     void updateScatterplotItemsIncremental(const QString &seriesLabel, 
-                                           const std::vector<std::pair<float, qint64>> &newVisibleData, // epoch ms, float Y values
+                                           const CircularBuffer<std::pair<float, qint64>> &newVisibleData,
                                            const QColor &pointColor, qreal pointSize);
     void updateScatterplotItemsFull(const QString &seriesLabel,
-                                    const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                    const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                     const QColor &pointColor, qreal pointSize);
     void removeScatterplotItemsOutsideRange(const QString &seriesLabel, 
                                             const QDateTime &oldTimeMin, const QDateTime &newTimeMin);
     void updateScatterplotItemPositions(const QString &seriesLabel,
-                                        const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                        const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                         qreal pointSize);
     void cleanupScatterplotItems(const QString &seriesLabel);
     void cleanupAllScatterplotItems();
@@ -414,7 +414,8 @@ protected:
     
     // Helper methods to reduce code duplication
     void ensureVisibleDataCacheValid(const QString &seriesLabel);  // Ensures cache is valid, updates if needed
-    const std::vector<std::pair<float, qint64>>& getVisibleDataVector(const QString &seriesLabel);  // Gets visible data vector (handles copying from cache)
+    /** Phase 4: read visible cache directly (no copy to std::vector). */
+    const CircularBuffer<std::pair<float, qint64>>& cachedVisibleBuffer(const QString &seriesLabel) const;
     bool isValidScreenPoint(const QPointF& point) const;  // Validates screen point (not null and finite)
     
     // Reusable vectors/arrays to avoid repeated allocations

@@ -1620,24 +1620,11 @@ void WaterfallGraph::ensureVisibleDataCacheValid(const QString &seriesLabel)
     }
 }
 
-/**
- * @brief Get visible data vector from cache, handling copying if needed.
- * 
- * This helper method eliminates code duplication for copying from CircularBuffer to vector.
- * 
- * @param seriesLabel The series to get visible data for
- * @return Reference to the visible data vector
- */
-const std::vector<std::pair<float, qint64>>& WaterfallGraph::getVisibleDataVector(const QString &seriesLabel)
+const CircularBuffer<std::pair<float, qint64>>& WaterfallGraph::cachedVisibleBuffer(const QString &seriesLabel) const
 {
-    const CircularBuffer<std::pair<float, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel];
-    m_reusableVisibleData.clear();
-    m_reusableVisibleData.reserve(visibleDataBuffer.size());
-    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
-    {
-        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
-    }
-    return m_reusableVisibleData;
+    static const CircularBuffer<std::pair<float, qint64>> s_emptyVisibleCache;
+    auto it = m_cachedVisibleData.find(seriesLabel);
+    return (it != m_cachedVisibleData.end()) ? it->second : s_emptyVisibleCache;
 }
 
 /**
@@ -1949,7 +1936,7 @@ void WaterfallGraph::cleanupSeriesItems(const QString &seriesLabel)
  * @param pointSize Size of points for positioning
  */
 void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
-                                                     const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                                     const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                                      qreal pointSize)
 {
     // CRITICAL FIX: Update m_scatterPoints for paintEvent() rendering
@@ -1963,8 +1950,9 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
         points.reserve(visibleData.size());
     }
     
-    for (const auto &dataPoint : visibleData)
+    for (size_t i = 0; i < visibleData.size(); ++i)
     {
+        const auto &dataPoint = visibleData[i];
         if (dataPoint.second == 0)
         {
             continue; // Skip invalid timestamps
@@ -2046,25 +2034,31 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
     {
         return;
     }
-    
-    // Convert circular buffer to reusable vector for iteration (avoid repeated allocations)
-    // Use helper method to get visible data vector (eliminates duplication)
-    const std::vector<std::pair<float, qint64>> &cachedData = getVisibleDataVector(seriesLabel); // epoch ms, float Y values
+
+    const CircularBuffer<std::pair<float, qint64>> &cachedData = cacheIt->second;
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
     // Convert newTimeMin to epoch ONCE (not per iteration!)
     qint64 newTimeMinEpoch = newTimeMin.isValid() ? newTimeMin.toMSecsSinceEpoch() : 0;
     
-    // Use binary search to find first item that should be kept (>= newTimeMin)
+    // Binary search on chronological visible cache for first index with epoch >= newTimeMin
     size_t firstKeepIndex = 0;
-    for (size_t i = 0; i < cachedData.size(); ++i)
+    const size_t n = cachedData.size();
+    size_t lo = 0;
+    size_t hi = n;
+    while (lo < hi)
     {
-        if (cachedData[i].second >= newTimeMinEpoch) // Compare epoch ms, not QDateTime
+        const size_t mid = lo + (hi - lo) / 2;
+        if (cachedData[mid].second < newTimeMinEpoch)
         {
-            firstKeepIndex = i;
-            break;
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
         }
     }
+    firstKeepIndex = lo;
     
     // Remove items before firstKeepIndex
     for (size_t i = 0; i < firstKeepIndex && i < items.size(); ++i)
@@ -2121,7 +2115,7 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
  * @param pointSize Size of points
  */
 void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
-                                                 const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                                 const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                                  const QColor &pointColor, qreal pointSize)
 {
     // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
@@ -2143,8 +2137,9 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
         points.reserve(visibleData.size());
     }
     
-    for (const auto &dataPoint : visibleData)
+    for (size_t i = 0; i < visibleData.size(); ++i)
     {
+        const auto &dataPoint = visibleData[i];
         // dataPoint.second is now qint64 (epoch ms), not QDateTime - no isValid() check needed
         // Just check if it's non-zero (0 is invalid epoch)
         if (dataPoint.second == 0)
@@ -2182,7 +2177,7 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
  * @param pointSize Size of points
  */
 void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabel,
-                                                         const std::vector<std::pair<float, qint64>> &newVisibleData, // epoch ms, float Y values
+                                                         const CircularBuffer<std::pair<float, qint64>> &newVisibleData,
                                                          const QColor &pointColor, qreal pointSize)
 {
     // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
@@ -2205,8 +2200,9 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
         points.reserve(newVisibleData.size());
     }
     
-    for (const auto &dataPoint : newVisibleData)
+    for (size_t i = 0; i < newVisibleData.size(); ++i)
     {
+        const auto &dataPoint = newVisibleData[i];
         // dataPoint.second is now qint64 (epoch ms), not QDateTime
         if (dataPoint.second == 0)
         {
@@ -3315,7 +3311,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     // Removing these calls eliminates unnecessary populateYDataSeries/populateTimestampsSeries calls
     // Ensure cache is valid and get visible data
     ensureVisibleDataCacheValid(seriesLabel);
-    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
+    const CircularBuffer<std::pair<float, qint64>> &visibleData = cachedVisibleBuffer(seriesLabel);
 
     if (visibleData.empty())
     {
@@ -3692,7 +3688,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
  * @param seriesColor Color for the line
  */
 void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
-                                            const std::vector<std::pair<float, qint64>> &visibleData, // Use float to eliminate conversions
+                                            const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                             size_t lodStep,
                                             const QColor &/*seriesColor*/)
 {
@@ -4289,7 +4285,7 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
     // Removing these calls eliminates 555K+ unnecessary populateYDataSeries/populateTimestampsSeries calls
     // Ensure cache is valid and get visible data
     ensureVisibleDataCacheValid(seriesLabel);
-    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
+    const CircularBuffer<std::pair<float, qint64>> &visibleData = cachedVisibleBuffer(seriesLabel);
 
     if (visibleData.empty())
     {
@@ -4460,7 +4456,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     // Removing these calls eliminates unnecessary populateYDataSeries/populateTimestampsSeries calls
     // Ensure cache is valid and get visible data
     ensureVisibleDataCacheValid(seriesLabel);
-    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
+    const CircularBuffer<std::pair<float, qint64>> &visibleData = cachedVisibleBuffer(seriesLabel);
 
     if (visibleData.empty())
     {
@@ -4721,8 +4717,9 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         scatterPoints.reserve(visibleData.size());
     }
     
-    for (const auto &dataPoint : visibleData)
+    for (size_t i = 0; i < visibleData.size(); ++i)
     {
+        const auto &dataPoint = visibleData[i];
         if (dataPoint.second == 0)
             continue; // Skip invalid timestamps
         
