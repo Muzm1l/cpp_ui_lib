@@ -1222,7 +1222,7 @@ void TimelineVisualizerWidget::setVisibleTimeWindowFromSync(const TimeSelectionS
     updateVisualization();
 }
 
-void TimelineVisualizerWidget::emitTimeScopeChanged()
+void TimelineVisualizerWidget::emitTimeScopeChanged(bool forceEmit)
 {
     // Get time window from state manager and ensure it's valid before emitting
     TimeSelectionSpan window = m_sliderState.getTimeWindow();
@@ -1230,20 +1230,45 @@ void TimelineVisualizerWidget::emitTimeScopeChanged()
     // Keep legacy member in sync
     m_sliderVisibleWindow = window;
     
-    if (window.startTime.isValid() && window.endTime.isValid())
+    if (!window.startTime.isValid() || !window.endTime.isValid())
     {
-        // Ensure endTime is after startTime
-        if (window.startTime <= window.endTime)
+        return;
+    }
+
+    // Ensure endTime is after startTime
+    TimeSelectionSpan normalizedWindow = window;
+    if (normalizedWindow.startTime > normalizedWindow.endTime)
+    {
+        normalizedWindow = TimeSelectionSpan(normalizedWindow.endTime, normalizedWindow.startTime);
+    }
+
+    // Dedupe by value (epoch milliseconds)
+    if (m_hasLastEmittedTimeWindow)
+    {
+        const qint64 newStartEpoch = normalizedWindow.startTime.toMSecsSinceEpoch();
+        const qint64 newEndEpoch = normalizedWindow.endTime.toMSecsSinceEpoch();
+        const qint64 lastStartEpoch = m_lastEmittedTimeWindow.startTime.toMSecsSinceEpoch();
+        const qint64 lastEndEpoch = m_lastEmittedTimeWindow.endTime.toMSecsSinceEpoch();
+
+        if (newStartEpoch == lastStartEpoch && newEndEpoch == lastEndEpoch)
         {
-            emit visibleTimeWindowChanged(window);
-        }
-        else
-        {
-            // Swap times if they're reversed
-            TimeSelectionSpan corrected(window.endTime, window.startTime);
-            emit visibleTimeWindowChanged(corrected);
+            return;
         }
     }
+
+    // Throttle high-frequency drag updates; always allow forced emits
+    if (!forceEmit && m_sliderState.isDragging() && m_timeScopeEmitTimer.isValid())
+    {
+        if (m_timeScopeEmitTimer.elapsed() < DRAG_EMIT_THROTTLE_MS)
+        {
+            return;
+        }
+    }
+
+    m_lastEmittedTimeWindow = normalizedWindow;
+    m_hasLastEmittedTimeWindow = true;
+    m_timeScopeEmitTimer.restart();
+    emit visibleTimeWindowChanged(normalizedWindow);
 }
 
 void TimelineVisualizerWidget::mousePressEvent(QMouseEvent* event)
@@ -1307,7 +1332,7 @@ void TimelineVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
         repaint();
         
         // Emit signal during drag
-        emitTimeScopeChanged();
+        emitTimeScopeChanged(true);
         
         event->accept();
         return;

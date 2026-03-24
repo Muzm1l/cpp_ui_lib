@@ -14,6 +14,7 @@
 #include <QDateTime>
 #include <QList>
 #include <QObject>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -288,7 +289,13 @@ private:
     void createSliderIndicator();
     void updateSliderIndicator();
     void updateSliderFromMousePosition(const QPoint& currentPos);
-    void emitTimeScopeChanged();
+    void emitTimeScopeChanged(bool forceEmit = false);
+
+    // Emission dedupe/throttle state (Phase 1 optimization)
+    TimeSelectionSpan m_lastEmittedTimeWindow;
+    bool m_hasLastEmittedTimeWindow = false;
+    QElapsedTimer m_timeScopeEmitTimer;
+    static constexpr qint64 DRAG_EMIT_THROTTLE_MS = 33; // ~30 Hz while dragging
 
 signals:
     void visibleTimeWindowChanged(const TimeSelectionSpan& selection);
