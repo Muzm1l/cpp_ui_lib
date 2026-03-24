@@ -1446,6 +1446,7 @@ void WaterfallGraph::invalidateVisibleDataCache(const QString &seriesLabel)
     m_lastProcessedIndex.erase(seriesLabel);
     m_cachedDataSize.erase(seriesLabel);
     m_cachedTimeRange.erase(seriesLabel);
+    m_cachedTimeRangeEpoch.erase(seriesLabel);
     
     // Phase 1: Clear version-based cache for this series
     m_cachedDataVersion.erase(seriesLabel);
@@ -1463,6 +1464,7 @@ void WaterfallGraph::invalidateAllVisibleDataCache()
     m_lastProcessedIndex.clear();
     m_cachedDataSize.clear();
     m_cachedTimeRange.clear();
+    m_cachedTimeRangeEpoch.clear();
     
     // Phase 1: Clear version-based cache
     m_cachedDataVersion.clear();
@@ -1507,17 +1509,40 @@ bool WaterfallGraph::isVisibleDataCacheValid(const QString &seriesLabel) const
     }
     else
     {
-        // Check if time range matches
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt == m_cachedTimeRange.end())
+        // Check if epoch time range matches (more stable than QDateTime object equality)
+        qint64 currentTimeMinEpoch = m_cachedTimeMinEpoch;
+        qint64 currentTimeMaxEpoch = m_cachedTimeMaxEpoch;
+        if (currentTimeMinEpoch == 0 && timeMin.isValid())
+        {
+            currentTimeMinEpoch = timeMin.toMSecsSinceEpoch();
+        }
+        if (currentTimeMaxEpoch == 0 && timeMax.isValid())
+        {
+            currentTimeMaxEpoch = timeMax.toMSecsSinceEpoch();
+        }
+
+        auto epochRangeIt = m_cachedTimeRangeEpoch.find(seriesLabel);
+        if (epochRangeIt == m_cachedTimeRangeEpoch.end())
         {
             isValid = false;
         }
-        else if (rangeIt->second.first != timeMin || rangeIt->second.second != timeMax)
+        else if (epochRangeIt->second.first != currentTimeMinEpoch || epochRangeIt->second.second != currentTimeMaxEpoch)
         {
             isValid = false;
         }
         else
+        {
+            isValid = true;
+        }
+        // Keep QDateTime range map as a fallback/backward compatibility signal for old callers/debugging.
+        // It is no longer the primary invalidation key.
+        // Check if time range metadata exists
+        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
+        if (isValid && rangeIt == m_cachedTimeRange.end())
+        {
+            isValid = false;
+        }
+        else if (isValid)
         {
             // Check if data size matches (no new data added) - use cached size
             if (!dataSource)
@@ -1569,10 +1594,22 @@ void WaterfallGraph::ensureVisibleDataCacheValid(const QString &seriesLabel)
 {
     if (!isVisibleDataCacheValid(seriesLabel))
     {
-        // Check if we can do incremental update (same time range, just new data)
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt != m_cachedTimeRange.end() &&
-            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
+        qint64 currentTimeMinEpoch = m_cachedTimeMinEpoch;
+        qint64 currentTimeMaxEpoch = m_cachedTimeMaxEpoch;
+        if (currentTimeMinEpoch == 0 && timeMin.isValid())
+        {
+            currentTimeMinEpoch = timeMin.toMSecsSinceEpoch();
+        }
+        if (currentTimeMaxEpoch == 0 && timeMax.isValid())
+        {
+            currentTimeMaxEpoch = timeMax.toMSecsSinceEpoch();
+        }
+
+        // Check if we can do incremental update (same epoch window, just new data)
+        auto rangeEpochIt = m_cachedTimeRangeEpoch.find(seriesLabel);
+        if (rangeEpochIt != m_cachedTimeRangeEpoch.end() &&
+            rangeEpochIt->second.first == currentTimeMinEpoch &&
+            rangeEpochIt->second.second == currentTimeMaxEpoch)
         {
             updateVisibleDataCacheIncremental(seriesLabel);
         }
@@ -1684,6 +1721,9 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
     {
         m_cachedVisibleData[seriesLabel].clear();
         m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
+        m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(
+            timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0,
+            timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0);
         m_cachedDataSize[seriesLabel] = yData.size();
         m_lastProcessedIndex[seriesLabel] = yData.size();
         return;
@@ -1717,6 +1757,7 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
     
     // Update tracking
     m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
+    m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
     m_cachedDataSize[seriesLabel] = yData.size();
     m_lastProcessedIndex[seriesLabel] = yData.size();
 }
@@ -1791,6 +1832,7 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     }
     
     // Update tracking
+    m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
     m_cachedDataSize[seriesLabel] = yData.size();
     m_lastProcessedIndex[seriesLabel] = yData.size();
 }

@@ -331,6 +331,7 @@ protected:
     // Uses float instead of qreal to eliminate float-to-double conversion overhead
     std::map<QString, CircularBuffer<std::pair<float, qint64>>> m_cachedVisibleData; // epoch ms, float Y values (circular buffer)
     std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
+    std::map<QString, std::pair<qint64, qint64>> m_cachedTimeRangeEpoch; // epoch ms range used to build visible cache
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
     
