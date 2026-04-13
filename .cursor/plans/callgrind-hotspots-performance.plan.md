@@ -319,3 +319,72 @@ Aligned with [Explicit implementation priority](#explicit-implementation-priorit
 | [circularbuffer.h](circularbuffer.h) ~142–166       | Logical index order (oldest→newest) for index binary search |
 
 
+---
+
+## Extension: Data March 26th, 2026
+
+This extension adds analysis from a later heavy profile run:
+
+- **Profile file:** [callgrind.out.47407](callgrind.out.47407)
+- **Date:** **March 26th, 2026**
+- **Total Ir:** **6,312,466,656,664** (~6.31e12)
+- **Observation:** significantly heavier than `callgrind.out.31545` (~4.11e12), indicating either longer runtime or more intense event/update activity.
+
+### Extension findings (inclusive)
+
+Dominant inclusive chains in `callgrind.out.47407`:
+
+1. `Simulator::onTimerTick()` / `Simulator::addDataPoints()` (~54.3%)
+2. `GraphLayout::addDataPointToDataSource(...)` (~54.3%)
+3. `GraphContainer::onDataChanged(GraphType)` (~49.5%)
+4. `TimelineVisualizerWidget::emitTimeScopeChanged(bool)` + `TimelineView::onVisibleTimeWindowChanged(...)` + `GraphContainer::onTimeScopeChanged(...)` (~41%)
+5. `WaterfallGraph::drawScatterplot(...)` (~29.1%)
+6. `GraphLayout::onContainerTimeScopeChanged(...)` + `GraphContainer::setTimeScope(...)` (~28.7%)
+7. `WaterfallData::getCombinedTimeRange()` / `getLatestTime()` (~26.4% / ~17.3% inclusive)
+8. `TimelineView::onTimerTick()` + `TimelineVisualizerWidget::setCurrentTime(...)` (~24.8%)
+
+### Extension findings (project-filtered self cost)
+
+Top attributed hotspots:
+
+
+| Area                                                 | Approx. share | Notes                                      |
+| ---------------------------------------------------- | ------------- | ------------------------------------------ |
+| `QDateTime::operator<`                               | ~10.5%        | Timestamp comparisons remain expensive     |
+| `CircularBuffer<QDateTime>::operator[]`              | ~8.24%        | High indexed access on datetime buffers    |
+| `WaterfallGraph::mapDataToScreen(double, long long)` | ~6.55%        | Per-point mapping cost still large         |
+| `std::vector<QDateTime>::operator[]`                 | ~5.49%        | Datetime vector indexing in hot path       |
+| `WaterfallData::getCombinedTimeRange()`              | ~4.21%        | Repeated range queries                     |
+| `WaterfallData::getLatestTime()`                     | ~3.01%        | Repeated latest-time lookups               |
+| `WaterfallGraph::updateScatterplotItemsFull(...)`    | ~2.40%        | Scatter full update remains costly         |
+| `WaterfallData::populateSeriesRangeFloatEpoch(...)`  | ~0.26%        | Range-based populate path is active (good) |
+
+
+### What this changes in the plan
+
+The original data-movement fix remains valid and should continue, but this run shows the next bottleneck has shifted toward **timestamp-heavy control/data loops** and **signal fan-out frequency**.
+
+Updated emphasis:
+
+1. Keep Phase 3/4 (window-only data path + remove redundant copies).
+2. Move urgency of Phase 1/2 higher for simulator-driven workloads (scope dedupe/throttle + invalidation tightening).
+3. Expand Phase 6 to aggressively replace hot-loop `QDateTime` comparisons/indexing with epoch (`qint64`) paths where feasible.
+4. Add caching/versioning for `getCombinedTimeRange()` and `getLatestTime()` in fast paths.
+5. Add metrics for event fan-out counts per tick in verification.
+
+### Added verification checkpoints for this extension
+
+In addition to existing Phase 8 checks, compare before/after:
+
+- Calls per second to:
+  - `GraphContainer::onDataChanged`
+  - `GraphContainer::onTimeScopeChanged`
+  - `TimelineVisualizerWidget::emitTimeScopeChanged`
+- Ir share of:
+  - `QDateTime::operator<`
+  - `CircularBuffer<QDateTime>::operator[]`
+  - `WaterfallData::getCombinedTimeRange`
+  - `WaterfallData::getLatestTime`
+  - `WaterfallGraph::updateScatterplotItemsFull`
+
+Success condition for this extension: reduced signal/update fan-out and reduced datetime hot-loop cost without regressing visible behavior.
