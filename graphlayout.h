@@ -37,7 +37,7 @@ class GraphLayout : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap = std::map<GraphType, std::vector<QPair<QString, QColor>>>());
+    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap = std::map<GraphType, std::vector<QPair<QString, QColor>>>(), const QDateTime &systemStartTimeAtInit = QDateTime());
     ~GraphLayout();
 
     void setLayoutType(LayoutType layoutType);
@@ -120,6 +120,19 @@ public:
     
     // Get sync state pointer for external synchronization
     GraphContainerSyncState* getSyncState() { return &m_syncState; }
+
+    /**
+     * @brief Session / system start time for timeline slider mapping (range from this time to effective timeline end).
+     * @see GraphLayout(QWidget*, LayoutType, QTimer*, seriesLabelsMap, systemStartTimeAtInit) to set at construction.
+     */
+    void setSystemStartTime(const QDateTime &t);
+    QDateTime systemStartTime() const;
+    /** Clears shared system start; mapping falls back to wall-clock now as in-range anchor. */
+    void clearSystemStartTime();
+
+    /** Timeline "now" edge; use for replay / paused playback. Pass invalid to clear. */
+    void setTimelineEndOverride(const QDateTime &t);
+    void clearTimelineEndOverride();
 
     // Chevron label control methods - operate on all visible containers
     void setChevronLabel1(const QString &label);
@@ -438,6 +451,10 @@ private:
 
     // Container synchronization state
     GraphContainerSyncState m_syncState;
+
+    QDateTime m_systemStartTimeAtInit;
+
+    void propagateSystemStartTimeToContainers();
 
     // Manoeuvre drawing state
     bool m_manoeuvreDrawingInProgress; ///< Flag indicating if a manoeuvre is currently being drawn

@@ -134,6 +134,24 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     updateTotalContainerSize();
 }
 
+void GraphContainer::applySharedSystemStartTimeFromSync()
+{
+    QDateTime start;
+    if (m_syncState && m_syncState->hasApplicationStartTime && m_syncState->applicationStartTime.isValid())
+        start = m_syncState->applicationStartTime;
+    else
+        start = QDateTime::currentDateTime();
+
+    if (m_timelineView)
+        m_timelineView->setSystemStartTime(start);
+
+    for (auto &pair : m_waterfallGraphs)
+    {
+        if (pair.second)
+            pair.second->setApplicationStartTime(start);
+    }
+}
+
 void GraphContainer::setupTimer()
 {
     // If no timer provided, create a default 1-second timer
@@ -203,8 +221,8 @@ void GraphContainer::onTimerTick()
         auto timeRange = m_currentWaterfallGraph->getTimeRange();
         if (timeRange.first.isValid() && timeRange.second.isValid())
         {
-            QDateTime currentDateTime = QDateTime::currentDateTime();
-            qint64 timeDiffMs = timeRange.second.msecsTo(currentDateTime);
+            QDateTime timelineEnd = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
+            qint64 timeDiffMs = timeRange.second.msecsTo(timelineEnd);
             
             // If showing recent data (within 1 minute), check for new data
             if (timeDiffMs >= 0 && timeDiffMs < 60000)
@@ -1596,8 +1614,8 @@ void GraphContainer::onDataChanged(GraphType graphType)
             {
                 // Only auto-advance time range when in follow mode. When frozen, keep the user's range.
                 // Graph has a valid time range - check if we need to update it for new data
-                QDateTime currentTime = QDateTime::currentDateTime();
-                qint64 timeDiffMs = timeRange.second.msecsTo(currentTime);
+                QDateTime timelineEnd = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
+                qint64 timeDiffMs = timeRange.second.msecsTo(timelineEnd);
                 
                 // If timeMax is within 1 minute of current time, we're showing recent data
                 // Update the time range to include new data points
@@ -1762,7 +1780,7 @@ void GraphContainer::onHistoryFullSelectionRequested()
     BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwBase);
     QDateTime lineTime = btwGraph ? btwGraph->getLatestHorizontalLineTimestamp() : QDateTime();
     if (lineTime.isValid() && m_timelineSelectionView) {
-        QDateTime now = QDateTime::currentDateTime();
+        QDateTime now = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
         TimeSelectionSpan span(lineTime < now ? lineTime : now, lineTime < now ? now : lineTime);
         m_timelineSelectionView->addTimeSelection(span);
         emit TimeSelectionCreated(span);

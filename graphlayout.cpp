@@ -6,8 +6,8 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
-GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap)
-    : QWidget{parent}, m_layoutType(layoutType), m_timer(timer)
+GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap, const QDateTime &systemStartTimeAtInit)
+    : QWidget{parent}, m_layoutType(layoutType), m_timer(timer), m_systemStartTimeAtInit(systemStartTimeAtInit)
 {
 
     // If the timer is not provided, create a default 1-second timer
@@ -360,9 +360,16 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
 
 void GraphLayout::initializeContainers()
 {
-    // Set shared application start time once so all timeline views use same range for Y mapping (slider position consistency)
-    m_syncState.applicationStartTime = QDateTime::currentDateTime();
-    m_syncState.hasApplicationStartTime = true;
+    if (m_systemStartTimeAtInit.isValid())
+    {
+        m_syncState.applicationStartTime = m_systemStartTimeAtInit;
+        m_syncState.hasApplicationStartTime = true;
+    }
+    else if (!m_syncState.hasApplicationStartTime)
+    {
+        m_syncState.applicationStartTime = QDateTime::currentDateTime();
+        m_syncState.hasApplicationStartTime = true;
+    }
 
     // Create 4 graph containers with timer and shared sync state
     m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer, 0, 0, &m_syncState));
@@ -427,7 +434,51 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::onShadedRegionsSyncCleared, Qt::UniqueConnection);
     }
 
+    propagateSystemStartTimeToContainers();
+
     registerCursorSyncCallbacks();
+}
+
+void GraphLayout::setSystemStartTime(const QDateTime &t)
+{
+    if (!t.isValid())
+        return;
+    m_syncState.applicationStartTime = t;
+    m_syncState.hasApplicationStartTime = true;
+    propagateSystemStartTimeToContainers();
+}
+
+QDateTime GraphLayout::systemStartTime() const
+{
+    if (m_syncState.hasApplicationStartTime && m_syncState.applicationStartTime.isValid())
+        return m_syncState.applicationStartTime;
+    return QDateTime();
+}
+
+void GraphLayout::clearSystemStartTime()
+{
+    m_syncState.hasApplicationStartTime = false;
+    m_syncState.applicationStartTime = QDateTime();
+    propagateSystemStartTimeToContainers();
+}
+
+void GraphLayout::setTimelineEndOverride(const QDateTime &t)
+{
+    m_syncState.setTimelineEndOverride(t);
+}
+
+void GraphLayout::clearTimelineEndOverride()
+{
+    m_syncState.clearTimelineEndOverride();
+}
+
+void GraphLayout::propagateSystemStartTimeToContainers()
+{
+    for (GraphContainer *c : m_graphContainers)
+    {
+        if (c)
+            c->applySharedSystemStartTimeFromSync();
+    }
 }
 
 void GraphLayout::attachContainerDataSources()

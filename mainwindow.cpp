@@ -53,8 +53,10 @@ MainWindow::MainWindow(QWidget *parent)
     seriesLabelsMap[GraphType::LTW] = {{"LTW-1", QColor(Qt::red)}, {"ADOPTED", QColor(Qt::yellow)}};
     seriesLabelsMap[GraphType::RTW] = {{"RTW-1", QColor(Qt::red)}, {"ADOPTED", QColor(Qt::yellow)}};
 
-    // Create GraphLayout programmatically with default graph types and timer
-    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap);
+    // Session / system start: four hours before wall-clock now (timeline slider span anchor)
+    const QDateTime systemStartTime = QDateTime::currentDateTime().addSecs(-4 * 3600);
+    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap, systemStartTime);
+    DEBUG_OUT() << "MainWindow: system start time (4h before now):" << systemStartTime.toString(Qt::ISODate);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
     

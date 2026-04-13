@@ -45,6 +45,9 @@ public:
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
     TimelineView *getTimelineView() const;
+
+    /** Apply m_syncState application start time to timeline and waterfall graphs (after GraphLayout updates sync). */
+    void applySharedSystemStartTimeFromSync();
     void setShowTimeSelectionVisualizer(bool show);
 
     // Sizing methods
