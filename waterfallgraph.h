@@ -212,6 +212,8 @@ protected:
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
+    void scheduleRedraw();
+    void onScheduledRedraw();
     void drawBTWSymbols();
     
     // Cached BTW symbol drawing (magenta circles)
@@ -301,6 +303,9 @@ protected:
     // Incremental rendering support
     RenderState m_renderState;
     bool m_rangeUpdateNeeded;
+    bool m_redrawPending;
+    QDateTime m_renderedTimeMin;
+    QDateTime m_renderedTimeMax;
     std::set<QString> m_dirtySeries;
     bool m_fastTrackSwitchMode;  // Flag for visible-window-first rendering on track change (auto-reset after render)
     std::map<QString, QGraphicsPathItem*> m_seriesPathItems;

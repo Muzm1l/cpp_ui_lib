@@ -61,6 +61,9 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     lastNotifiedCrosshairXPosition(-1.0),
     m_renderState(RenderState::FULL_REDRAW),
     m_rangeUpdateNeeded(false),
+    m_redrawPending(false),
+    m_renderedTimeMin(QDateTime()),
+    m_renderedTimeMax(QDateTime()),
     m_fastTrackSwitchMode(false),  // Initialize fast track switch mode flag
     m_zeroAxisValue(0.0),
     m_cachedTimeIntervalMs(-1),  // Invalid initial value
@@ -357,6 +360,8 @@ void WaterfallGraph::setDataSource(WaterfallData &dataSource)
 
     this->dataSource = &dataSource;
     // New data source requires full redraw (automatically marks all series dirty)
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
     setRenderState(RenderState::FULL_REDRAW);
     draw(); // Trigger redraw with new data source
     DEBUG_OUT() << "Data source set successfully";
@@ -439,6 +444,8 @@ void WaterfallGraph::attachEngine(GraphEngine *engine)
         resetViewState();
         
         // Force full redraw
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
         setRenderState(RenderState::FULL_REDRAW);
         draw();
         
@@ -570,10 +577,6 @@ void WaterfallGraph::triggerIncrementalRedraw(const QString &seriesLabel)
     // Mark only this series as dirty (not all series)
     markSeriesDirty(seriesLabel);
     
-    // Clear range update flag to prevent range recalculation in interactive mode
-    // Interactive updates should skip expensive range calculations
-    m_rangeUpdateNeeded = false;
-    
     // Use incremental update state - this skips expensive operations:
     // - No range recalculation
     // - No cache clearing
@@ -611,6 +614,8 @@ void WaterfallGraph::setData(const WaterfallData &data)
         invalidateAllVisibleDataCache();
         
         // Force full redraw to clear all graphics items
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
         setRenderState(RenderState::FULL_REDRAW);
         
         DEBUG_OUT() << "Data is empty, clearing graph display";
@@ -638,6 +643,8 @@ void WaterfallGraph::clearData()
     invalidateAllVisibleDataCache();
     
     // Force full redraw to clear all graphics items
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
     setRenderState(RenderState::FULL_REDRAW);
 
     DEBUG_OUT() << "Data cleared successfully";
@@ -827,8 +834,10 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
     if (isVisible() && graphicsScene)
     {
         // Time interval change requires full redraw since visible data window changes significantly
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
         setRenderState(RenderState::FULL_REDRAW);
-        draw();
+        scheduleRedraw();
 
         // Explicitly update the graphics view to ensure repaint
         if (graphicsView)
@@ -871,8 +880,10 @@ void WaterfallGraph::setGridEnabled(bool enabled)
     if (gridEnabled != enabled)
     {
         gridEnabled = enabled;
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
         setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
-        draw(); // Redraw to show/hide grid
+        scheduleRedraw(); // Redraw to show/hide grid
         DEBUG_OUT() << "Grid" << (enabled ? "enabled" : "disabled");
     }
 }
@@ -882,8 +893,10 @@ void WaterfallGraph::setUseLineDrawing(bool useLines)
     if (m_useLineDrawing != useLines)
     {
         m_useLineDrawing = useLines;
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
         setRenderState(RenderState::FULL_REDRAW); // Drawing mode change requires full redraw
-        draw(); // Redraw with new drawing mode
+        scheduleRedraw(); // Redraw with new drawing mode
         DEBUG_OUT() << "Line drawing" << (useLines ? "enabled" : "disabled");
     }
 }
@@ -915,8 +928,10 @@ void WaterfallGraph::setGridDivisions(int divisions)
         gridDivisions = divisions;
         if (gridEnabled)
         {
+            m_renderedTimeMin = QDateTime();
+            m_renderedTimeMax = QDateTime();
             setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
-            draw(); // Redraw to update grid divisions
+            scheduleRedraw(); // Redraw to update grid divisions
         }
         DEBUG_OUT() << "Grid divisions set to:" << divisions;
     }
@@ -960,17 +975,26 @@ void WaterfallGraph::draw()
     if (!graphicsScene)
         return;
 
-    // Only set FULL_REDRAW if we're in CLEAN state (no pending updates)
-    // Otherwise respect the current state (INCREMENTAL_UPDATE, etc.) that was set
-    // by methods like setTimeRange() or addDataPoint()
-    if (m_renderState == RenderState::CLEAN)
-    {
-        setRenderState(RenderState::FULL_REDRAW);
-    }
-    // If state is already INCREMENTAL_UPDATE, RANGE_UPDATE_ONLY, or FULL_REDRAW,
-    // keep it - don't override incremental updates with full redraws
+    // Callers must set render state explicitly before draw().
 
     // Use incremental draw which will handle the current state
+    drawIncremental();
+}
+
+void WaterfallGraph::scheduleRedraw()
+{
+    if (!m_redrawPending)
+    {
+        m_redrawPending = true;
+        QMetaObject::invokeMethod(this,
+                                  &WaterfallGraph::onScheduledRedraw,
+                                  Qt::QueuedConnection);
+    }
+}
+
+void WaterfallGraph::onScheduledRedraw()
+{
+    m_redrawPending = false;
     drawIncremental();
 }
 
@@ -1158,6 +1182,18 @@ void WaterfallGraph::drawIncremental()
             // Reset fast track switch mode after rendering completes
             // Normal operation resumes - subsequent updates will work as usual
             m_fastTrackSwitchMode = false;
+            
+            // Record the extent that was fully rendered for range-only updates.
+            if (timeMin.isValid() && timeMax.isValid() && timeMin < timeMax)
+            {
+                m_renderedTimeMin = timeMin;
+                m_renderedTimeMax = timeMax;
+            }
+            else
+            {
+                m_renderedTimeMin = QDateTime();
+                m_renderedTimeMax = QDateTime();
+            }
 
             m_dirtySeries.clear();
             m_renderState = RenderState::CLEAN;
@@ -1344,6 +1380,8 @@ void WaterfallGraph::forceFullRedraw()
 {
     // Invalidate all cached visible data to ensure old data doesn't remain on screen
     invalidateAllVisibleDataCache();
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
     setRenderState(RenderState::FULL_REDRAW);
     draw();
 }
@@ -1382,6 +1420,8 @@ void WaterfallGraph::markTrackChanged()
     
     // Mark all series dirty and trigger visible-window-first render
     markAllSeriesDirty();
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
     setRenderState(RenderState::FULL_REDRAW);
     
     // Trigger immediate render - this will only build geometry for visible window
@@ -3979,7 +4019,7 @@ void WaterfallGraph::setRangeLimitingEnabled(bool enabled)
         if (dataSource && !dataSource->isEmpty())
         {
             updateDataRanges();
-            draw();
+            scheduleRedraw();
         }
 
         DEBUG_OUT() << "Range limiting" << (enabled ? "enabled" : "disabled");
@@ -4024,6 +4064,8 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     // Y range change significantly requires full redraw, otherwise just range update
     if (significantChange)
     {
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
         setRenderState(RenderState::FULL_REDRAW);
     }
     else
@@ -4032,7 +4074,7 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     }
 
     // Force redraw to show new range
-    draw();
+    scheduleRedraw();
 
     DEBUG_OUT() << "Custom Y range set to:" << yMin << "to" << yMax;
 }
@@ -4074,7 +4116,7 @@ void WaterfallGraph::updateTimeRange()
     }
 
     // Force redraw to show only data within the new time range
-    draw();
+    scheduleRedraw();
 }
 
 /**
@@ -4090,7 +4132,7 @@ void WaterfallGraph::unsetCustomYRange()
     if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        draw();
+        scheduleRedraw();
     }
 
     DEBUG_OUT() << "Custom Y range unset, reverting to data range";
@@ -4861,7 +4903,7 @@ void WaterfallGraph::setAutoUpdateYRange(bool enabled)
     if (dataSource && !dataSource->isEmpty())
     {
         updateYRange();
-        draw();
+        scheduleRedraw();
     }
 
     DEBUG_OUT() << "Auto-update Y range" << (enabled ? "enabled" : "disabled");
@@ -4897,7 +4939,7 @@ void WaterfallGraph::forceRangeUpdate()
 {
     dataRangesValid = false;
     updateDataRanges();
-    draw();
+    scheduleRedraw();
     DEBUG_OUT() << "Forced range update - Y:" << yMin << "to" << yMax;
 }
 
@@ -5024,10 +5066,6 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
         return;
     }
 
-    // Only invalidate visible data cache if the effective time range actually changes.
-    // This avoids unnecessary full refilters when callers repeat the same range.
-    invalidateAllVisibleDataCache();
-
     // Invalidate mapScreenToTime cache when time range changes
     m_mapScreenToTimeCacheValid = false;
 
@@ -5039,14 +5077,24 @@ void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &tim
     this->timeMin = timeMin;
     this->timeMax = timeMax;
 
-    // CRITICAL FIX: Time range change via slider requires FULL_REDRAW
-    // The visible data window completely changes, so we need to:
-    // - Clear all old graphics items (outside new time range)
-    // - Rebuild drawing area (recalculate coordinate mappings)
-    // - Redraw all series from scratch with new time range
-    // INCREMENTAL_UPDATE doesn't clear old items, which can cause stale data to remain visible
-    // setRenderState(FULL_REDRAW) automatically marks all series as dirty via markAllSeriesDirty()
-    setRenderState(RenderState::FULL_REDRAW);
+    bool renderedExtentValid = m_renderedTimeMin.isValid() &&
+                               m_renderedTimeMax.isValid() &&
+                               m_renderedTimeMin < m_renderedTimeMax;
+    bool withinExtent = renderedExtentValid &&
+                        timeMin >= m_renderedTimeMin &&
+                        timeMax <= m_renderedTimeMax;
+
+    if (withinExtent)
+    {
+        setRenderState(RenderState::RANGE_UPDATE_ONLY);
+    }
+    else
+    {
+        invalidateAllVisibleDataCache();
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        setRenderState(RenderState::FULL_REDRAW);
+    }
 
     DEBUG_OUT() << "Custom time range set to:" << timeMin.toString() << "to" << timeMax.toString();
 }
@@ -5368,7 +5416,7 @@ void WaterfallGraph::unsetCustomTimeRange()
     setTimeRangeFromData();
 
     // Force redraw to show new time range
-    draw();
+    scheduleRedraw();
 
     DEBUG_OUT() << "Custom time range unset, reverting to data-based time range";
 }
