@@ -267,6 +267,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeScopeChanged,
                 this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
+
+        container->attachSharedCacheStore(&m_sharedRenderCache);
         
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
@@ -394,6 +396,8 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         connect(container, &GraphContainer::TimeScopeChanged,
                 this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
+
+        container->attachSharedCacheStore(&m_sharedRenderCache);
         
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
@@ -860,6 +864,7 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QSt
     auto it = m_engines.find(graphType);
     if (it != m_engines.end())
     {
+        m_sharedRenderCache.bumpDataEpoch();
         it->second->addDataPoint(seriesLabel, yValue, timestamp);
         DEBUG_OUT() << "Added data point to" << dataSourceLabel << "series" << seriesLabel << "y:" << yValue << "time:" << timestamp.toString();
 
@@ -884,6 +889,7 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QS
     auto it = m_engines.find(graphType);
     if (it != m_engines.end())
     {
+        m_sharedRenderCache.bumpDataEpoch();
         it->second->addDataPoints(seriesLabel, yValues, timestamps);
         DEBUG_OUT() << "Added" << yValues.size() << "data points to" << dataSourceLabel << "series" << seriesLabel;
 
@@ -908,6 +914,7 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
     auto it = m_engines.find(graphType);
     if (it != m_engines.end())
     {
+        m_sharedRenderCache.bumpDataEpoch();
         it->second->setDataSeries(seriesLabel, yData, timestamps);
         DEBUG_OUT() << "Set data for" << dataSourceLabel << "series" << seriesLabel << "size:" << yData.size();
 
@@ -2440,7 +2447,7 @@ void GraphLayout::clearGraph(const GraphType &graphType)
                 // - Clear all graphics items
                 // - Clear all caches
                 // - Trigger complete redraw (but now with empty data source, so nothing will be drawn)
-                graph->forceFullRedraw();
+                graph->forceFullRedraw(QStringLiteral("graphlayout_clear_graph"));
                 DEBUG_OUT() << "GraphLayout: Forced full redraw for graph type" << static_cast<int>(graphType) << "in container";
             }
         }

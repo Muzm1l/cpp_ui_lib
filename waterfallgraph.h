@@ -40,10 +40,14 @@
 #include <set>
 #include <vector>
 #include <functional>
+#include <deque>
+#include <optional>
+#include "rendercommands.h"
 #include "sharedsyncstate.h"
 
 // Forward declaration
 class GraphEngine;
+class SharedCacheStore;
 
 class WaterfallGraph : public QWidget
 {
@@ -212,8 +216,6 @@ protected:
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
-    void scheduleRedraw();
-    void onScheduledRedraw();
     void drawBTWSymbols();
     
     // Cached BTW symbol drawing (magenta circles)
@@ -303,7 +305,6 @@ protected:
     // Incremental rendering support
     RenderState m_renderState;
     bool m_rangeUpdateNeeded;
-    bool m_redrawPending;
     QDateTime m_renderedTimeMin;
     QDateTime m_renderedTimeMax;
     std::set<QString> m_dirtySeries;
@@ -437,7 +438,18 @@ protected:
     mutable std::vector<float> m_reusableYDataFloat;  // Reusable vector for Y data series (float, no conversion overhead)
     mutable std::vector<QDateTime> m_reusableTimestamps;  // Reusable vector for QDateTime timestamps (avoids toVector() allocations)
     mutable std::vector<qint64> m_reusableTimestampsEpoch;  // Reusable vector for epoch timestamps (avoids toVector() allocations)
-    
+
+    QTimer *m_frameTickTimer = nullptr;
+    std::deque<RenderCommand> m_commandQueue;
+    std::function<std::optional<ScopeChange>()> m_scopeFlushCallback;
+    SharedCacheStore *m_sharedCacheStore = nullptr;
+
+    bool scopeWithinRenderedExtent(const ScopeChange &c) const;
+    void applyScopeToModel(const QDateTime &min, const QDateTime &max);
+    bool tryFillVisibleCacheFromSharedStore(const QString &seriesLabel);
+    void publishVisibleCacheToSharedStore(const QString &seriesLabel);
+    void processRenderCommandQueue();
+
     // Crosshair update caches (Issue #2)
     QRectF m_cachedCursorSceneRect;        // Cached cursor scene rectangle
     QRectF m_cachedOverlaySceneRect;       // Cached overlay scene rectangle
@@ -466,8 +478,15 @@ protected:
 private slots:
     // Cursor layer update method
     void updateCursorLayer();
+    void onFrameTick();
 
 public:
+    void postCommand(RenderCommand cmd);
+    void setScopeFlushCallback(std::function<std::optional<ScopeChange>()> cb);
+    void setSharedCacheStore(SharedCacheStore *store) { m_sharedCacheStore = store; }
+    SharedCacheStore *sharedCacheStore() const { return m_sharedCacheStore; }
+    void drainRenderQueueSynchronously();
+
     // Coordinate mapping methods (public for overlay sync)
     qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const; // Convert data to screen coordinates
@@ -529,7 +548,7 @@ public:
     
     // Force a full redraw (clears and recreates all graphics items)
     // Use this when data changes significantly or after initial setup
-    void forceFullRedraw();
+    void forceFullRedraw(const QString &reason = QString());
 
     // Drawing methods for custom elements
     void drawPoint(const QPointF &position, const QColor &color = Qt::white, qreal size = 2.0);

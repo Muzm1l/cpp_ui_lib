@@ -1451,6 +1451,7 @@ void TimelineVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         
         // Emit signal when drag is complete (final update)
         emitTimeScopeChanged();
+        emit timeScopeCommitted(m_sliderVisibleWindow);
         DEBUG_OUT() << "Slider drag ended - Final window:" 
                  << m_sliderVisibleWindow.startTime.toString("HH:mm:ss") 
                  << "to" << m_sliderVisibleWindow.endTime.toString("HH:mm:ss");
@@ -1928,6 +1929,8 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
     {
         connect(m_visualizerWidget, &TimelineVisualizerWidget::visibleTimeWindowChanged, 
                 this, &TimelineView::onVisibleTimeWindowChanged);
+        connect(m_visualizerWidget, &TimelineVisualizerWidget::timeScopeCommitted,
+                this, &TimelineView::TimeScopeCommitted);
         connect(m_visualizerWidget, &TimelineVisualizerWidget::timelineViewModeChanged,
                 this, &TimelineView::onTimelineViewModeChanged);
         // Initialize the visualizer widget's mode

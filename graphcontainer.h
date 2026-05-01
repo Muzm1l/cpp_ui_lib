@@ -27,7 +27,9 @@
 #include <map>
 #include <vector>
 #include "sharedsyncstate.h"
+#include "scopecoalescer.h"
 
+class SharedCacheStore;
 
 class GraphContainer : public QWidget
 {
@@ -48,6 +50,9 @@ public:
 
     /** Apply m_syncState application start time to timeline and waterfall graphs (after GraphLayout updates sync). */
     void applySharedSystemStartTimeFromSync();
+
+    /** Internal: shared visible-data projection cache (owned by GraphLayout). */
+    void attachSharedCacheStore(SharedCacheStore *store);
     void setShowTimeSelectionVisualizer(bool show);
 
     // Sizing methods
@@ -343,6 +348,8 @@ private:
     // Track last known time scope from sync state to detect changes
     TimeSelectionSpan m_lastSyncedTimeScope;
     bool m_hasLastSyncedTimeScope;
+
+    ScopeCoalescer m_scopeCoalescer;
 };
 
 #endif // GRAPHCONTAINER_H

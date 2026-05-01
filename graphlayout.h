@@ -18,6 +18,7 @@
 #include <map>
 #include <vector>
 #include "sharedsyncstate.h"
+#include "sharedcachestore.h"
 
 // Forward declaration
 class BTWGraph;
@@ -451,6 +452,8 @@ private:
 
     // Container synchronization state
     GraphContainerSyncState m_syncState;
+
+    SharedCacheStore m_sharedRenderCache;
 
     QDateTime m_systemStartTimeAtInit;
 

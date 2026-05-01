@@ -2,6 +2,7 @@
 #include "graphlayout.h"
 #include "graphengine.h"
 #include "btwinteractiveoverlay.h"
+#include "sharedcachestore.h"
 #include "debugutils.h"
 #include <QDebug>
 #include <QTimer>
@@ -258,6 +259,15 @@ void GraphContainer::onTimerTick()
     // DEBUG_OUT() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
 }
 
+void GraphContainer::attachSharedCacheStore(SharedCacheStore *store)
+{
+    for (auto &pair : m_waterfallGraphs)
+    {
+        if (pair.second)
+            pair.second->setSharedCacheStore(store);
+    }
+}
+
 GraphContainer::~GraphContainer()
 {
     // Stop the timer if we own it
@@ -505,21 +515,14 @@ std::pair<qreal, qreal> GraphContainer::getYRange() const
 void GraphContainer::redrawWaterfallGraph()
 {
     if (m_currentWaterfallGraph)
-    {
-        // Force full redraw which should handle cache invalidation
-        m_currentWaterfallGraph->forceFullRedraw();
-    }
+        m_currentWaterfallGraph->forceFullRedraw(QStringLiteral("graphcontainer_redraw_current"));
 }
 
 void GraphContainer::redrawWaterfallGraph(GraphType graphType)
 {
-    // Redraw a specific graph type, even if it's not currently displayed
     auto it = m_waterfallGraphs.find(graphType);
     if (it != m_waterfallGraphs.end() && it->second)
-    {
-        // Force full redraw which should handle cache invalidation
-        it->second->forceFullRedraw();
-    }
+        it->second->forceFullRedraw(QStringLiteral("graphcontainer_redraw_type"));
 }
 
 WaterfallGraph* GraphContainer::getCurrentWaterfallGraph() const
@@ -738,13 +741,22 @@ void GraphContainer::setupEventConnections()
     if (m_timelineView)
     {
         connect(m_timelineView, &TimelineView::TimeIntervalChanged,
-                this, &GraphContainer::onTimeIntervalChanged);
+                this, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
         
         connect(m_timelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                this, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
+                this, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged),
+                Qt::UniqueConnection);
+
+        connect(m_timelineView, &TimelineView::TimeScopeCommitted, this, [this](const TimeSelectionSpan &) {
+            if (!m_currentWaterfallGraph)
+                return;
+            if (auto sc = m_scopeCoalescer.flush())
+                m_currentWaterfallGraph->postCommand(*sc);
+            m_currentWaterfallGraph->drainRenderQueueSynchronously();
+        }, Qt::UniqueConnection);
         
         connect(m_timelineView, &TimelineView::GraphContainerInFollowModeChanged,
-                this, &GraphContainer::onGraphContainerInFollowModeChanged);
+                this, &GraphContainer::onGraphContainerInFollowModeChanged, Qt::UniqueConnection);
     }
 
     // Connect TimeSelectionVisualizer clear button events
@@ -852,6 +864,13 @@ void GraphContainer::createAllWaterfallGraphs()
                 this, &GraphContainer::markerTimestampValueChanged);
     }
     
+    if (m_currentWaterfallGraph)
+    {
+        m_currentWaterfallGraph->setScopeFlushCallback([this]() -> std::optional<ScopeChange> {
+            return m_scopeCoalescer.flush();
+        });
+    }
+
     DEBUG_OUT() << "GraphContainer: Created all waterfall graph instances";
 }
 
@@ -1117,6 +1136,12 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
             targetGraph->setAutoUpdateYRange(true);
         }
         
+        for (auto &pair : m_waterfallGraphs)
+            pair.second->setScopeFlushCallback(nullptr);
+        targetGraph->setScopeFlushCallback([this]() -> std::optional<ScopeChange> {
+            return m_scopeCoalescer.flush();
+        });
+
         // Set current waterfall graph reference
         m_currentWaterfallGraph = targetGraph;
         
@@ -1232,9 +1257,7 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
     // Explicitly redraw the current waterfall graph with full redraw
     // Time interval change requires full redraw since visible data changes significantly
     if (m_currentWaterfallGraph)
-    {
-        m_currentWaterfallGraph->forceFullRedraw();
-    }
+        m_currentWaterfallGraph->forceFullRedraw(QStringLiteral("graphcontainer_time_interval"));
 
     // Update the time selection visualizer time interval
     if (m_timelineSelectionView)
@@ -1322,13 +1345,7 @@ void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection, bool
     // NOT here. Blocking here would prevent the user's drag-release from reaching the graph,
     // because mouseReleaseEvent transitions to FROZEN_MODE before emitting the final scope.
 
-    // Update the waterfall graph's time range to match the visible scope
-    // setTimeRange() no longer auto-draws - it sets INCREMENTAL_UPDATE state
-    m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
-    
-    // Trigger incremental redraw - this will use the state machine to efficiently
-    // update only what changed rather than clearing and recreating everything
-    m_currentWaterfallGraph->draw();
+    m_scopeCoalescer.post(selection.startTime, selection.endTime);
 
     // Update shared sync state so other containers can be synchronized
     if (m_syncState)

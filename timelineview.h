@@ -310,6 +310,8 @@ private:
 
 signals:
     void visibleTimeWindowChanged(const TimeSelectionSpan& selection);
+    /** Emitted once when slider drag ends (final window). */
+    void timeScopeCommitted(const TimeSelectionSpan &selection);
     void timelineViewModeChanged(TimelineViewMode mode);
 
 };
@@ -421,6 +423,7 @@ signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
     /** selection: visible time window; fromFrozenUserDrag: true if source timeline is frozen (user just dragged), so other timelines should force-sync; false if from follow-mode (e.g. timer), so frozen timelines should not be overwritten. */
     void TimeScopeChanged(const TimeSelectionSpan& selection, bool fromFrozenUserDrag);
+    void TimeScopeCommitted(const TimeSelectionSpan &selection);
     void GraphContainerInFollowModeChanged(bool isInFollowMode);
     void AbsoluteTimeModeChanged(bool isAbsoluteTime);
 

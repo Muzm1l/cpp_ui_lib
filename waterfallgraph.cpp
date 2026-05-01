@@ -1,6 +1,8 @@
 #include "waterfallgraph.h"
 #include "waterfalldata.h"  // For BTWSymbolData
 #include "graphengine.h"
+#include "graphtype.h"
+#include "sharedcachestore.h"
 #include "debugutils.h"
 #include <QApplication>
 #include <QPointF>
@@ -61,7 +63,6 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     lastNotifiedCrosshairXPosition(-1.0),
     m_renderState(RenderState::FULL_REDRAW),
     m_rangeUpdateNeeded(false),
-    m_redrawPending(false),
     m_renderedTimeMin(QDateTime()),
     m_renderedTimeMax(QDateTime()),
     m_fastTrackSwitchMode(false),  // Initialize fast track switch mode flag
@@ -264,6 +265,12 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     cursorUpdateTimer->setInterval(16); // 60fps
     connect(cursorUpdateTimer, &QTimer::timeout, this, &WaterfallGraph::updateCursorLayer);
 
+    m_frameTickTimer = new QTimer(this);
+    m_frameTickTimer->setTimerType(Qt::PreciseTimer);
+    m_frameTickTimer->setInterval(16);
+    connect(m_frameTickTimer, &QTimer::timeout, this, &WaterfallGraph::onFrameTick);
+    m_frameTickTimer->start();
+
     // Debug: Print initial state (commented out for performance)
     // DEBUG_OUT() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
     // DEBUG_OUT() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
@@ -279,6 +286,9 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
  */
 WaterfallGraph::~WaterfallGraph()
 {
+    if (m_frameTickTimer)
+        m_frameTickTimer->stop();
+
     // Clean up waterfall buffer explicitly to free QImageData memory
     // This addresses the 11.6 MB QImageData::create leak identified by heaptrack
     m_waterfallBuffer = QPixmap(); // Clear QPixmap to free underlying QImageData
@@ -407,47 +417,34 @@ void WaterfallGraph::attachEngine(GraphEngine *engine)
         // Connect engine signals
         connect(m_engine, &GraphEngine::dataAppended,
                 this, [this](const QString &seriesLabel) {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            markSeriesDirty(seriesLabel);
-            markRangeUpdateNeeded();
-            drawIncremental();
+            postCommand(DataAppend{seriesLabel});
         });
         
         connect(m_engine, &GraphEngine::dataRangeChanged, this, [this]() {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            markRangeUpdateNeeded();
             dataRangesValid = false;
-            drawIncremental();
+            postCommand(YRangeChange{});
         });
         
         connect(m_engine, &GraphEngine::symbolsChanged, this, [this]() {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            setRenderState(RenderState::INCREMENTAL_UPDATE);
-            drawIncremental();
+            postCommand(IncrementalRedrawAllSeries{});
         });
         
         connect(m_engine, &GraphEngine::markersChanged, this, [this]() {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            setRenderState(RenderState::INCREMENTAL_UPDATE);
-            drawIncremental();
+            postCommand(IncrementalRedrawAllSeries{});
         });
         
         // Reset view state
         resetViewState();
         
-        // Force full redraw
-        m_renderedTimeMin = QDateTime();
-        m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW);
-        draw();
+        forceFullRedraw(QStringLiteral("attach_engine"));
         
         DEBUG_OUT() << "WaterfallGraph: Attached engine for graph type" << static_cast<int>(m_engine->getGraphType());
     } else {
@@ -541,10 +538,9 @@ void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<float
 
     DEBUG_OUT() << "Data set successfully. Size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
-
-    // Redraw the graph with the new data
+    postCommand(DataAppend{seriesLabel});
+    postCommand(YRangeChange{});
     draw();
 }
 
@@ -607,21 +603,14 @@ void WaterfallGraph::setData(const WaterfallData &data)
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
 
-    // If data is empty, clear the graph properly to remove existing graphics
     if (dataSource->isEmpty())
     {
-        // Invalidate all cached visible data to ensure old data doesn't remain on screen
-        invalidateAllVisibleDataCache();
-        
-        // Force full redraw to clear all graphics items
-        m_renderedTimeMin = QDateTime();
-        m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW);
-        
         DEBUG_OUT() << "Data is empty, clearing graph display";
+        forceFullRedraw(QStringLiteral("waterfalldata_empty"));
+        return;
     }
 
-    // Redraw the graph with the new data (or cleared if empty)
+    postCommand(StyleChange{});
     draw();
 }
 
@@ -639,18 +628,9 @@ void WaterfallGraph::clearData()
 
     dataSource->clearData();
 
-    // Invalidate all cached visible data to ensure old data doesn't remain on screen
-    invalidateAllVisibleDataCache();
-    
-    // Force full redraw to clear all graphics items
-    m_renderedTimeMin = QDateTime();
-    m_renderedTimeMax = QDateTime();
-    setRenderState(RenderState::FULL_REDRAW);
-
     DEBUG_OUT() << "Data cleared successfully";
 
-    // Redraw the graph
-    draw();
+    forceFullRedraw(QStringLiteral("clear_data"));
 }
 
 /**
@@ -671,17 +651,8 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, float yValue, cons
 
     DEBUG_OUT() << "Data point added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark series as dirty and range update needed
-    markSeriesDirty(seriesLabel);
-    markRangeUpdateNeeded();
-    dataRangesValid = false;
-    
-    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when data ranges become invalid
-    // Y range will change, making cached mappings invalid
-    m_mapDataToScreenCache.clear();
-
-    // Use incremental draw instead of full redraw
-    drawIncremental();
+    postCommand(DataAppend{seriesLabel});
+    onFrameTick();
 }
 
 /**
@@ -702,17 +673,8 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
 
     DEBUG_OUT() << "Data points added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark series as dirty and range update needed
-    markSeriesDirty(seriesLabel);
-    markRangeUpdateNeeded();
-    dataRangesValid = false;
-    
-    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when data ranges become invalid
-    // Y range will change, making cached mappings invalid
-    m_mapDataToScreenCache.clear();
-
-    // Use incremental draw instead of full redraw
-    drawIncremental();
+    postCommand(DataAppend{seriesLabel});
+    onFrameTick();
 }
 
 /**
@@ -829,17 +791,13 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
         dataRangesValid = true;
     }
 
-    // Force redraw regardless of data presence to update grid and layout
-    // Only draw if graph is visible and initialized to avoid issues with non-visible graphs
     if (isVisible() && graphicsScene)
     {
-        // Time interval change requires full redraw since visible data window changes significantly
         m_renderedTimeMin = QDateTime();
         m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW);
-        scheduleRedraw();
+        postCommand(StyleChange{});
+        drainRenderQueueSynchronously();
 
-        // Explicitly update the graphics view to ensure repaint
         if (graphicsView)
         {
             graphicsView->update();
@@ -882,8 +840,8 @@ void WaterfallGraph::setGridEnabled(bool enabled)
         gridEnabled = enabled;
         m_renderedTimeMin = QDateTime();
         m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
-        scheduleRedraw(); // Redraw to show/hide grid
+        postCommand(StyleChange{});
+        drainRenderQueueSynchronously();
         DEBUG_OUT() << "Grid" << (enabled ? "enabled" : "disabled");
     }
 }
@@ -895,8 +853,8 @@ void WaterfallGraph::setUseLineDrawing(bool useLines)
         m_useLineDrawing = useLines;
         m_renderedTimeMin = QDateTime();
         m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW); // Drawing mode change requires full redraw
-        scheduleRedraw(); // Redraw with new drawing mode
+        postCommand(StyleChange{});
+        drainRenderQueueSynchronously();
         DEBUG_OUT() << "Line drawing" << (useLines ? "enabled" : "disabled");
     }
 }
@@ -930,8 +888,8 @@ void WaterfallGraph::setGridDivisions(int divisions)
         {
             m_renderedTimeMin = QDateTime();
             m_renderedTimeMax = QDateTime();
-            setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
-            scheduleRedraw(); // Redraw to update grid divisions
+            postCommand(StyleChange{});
+            drainRenderQueueSynchronously();
         }
         DEBUG_OUT() << "Grid divisions set to:" << divisions;
     }
@@ -970,32 +928,214 @@ void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
  * @brief Draw the graph.
  *
  */
-void WaterfallGraph::draw()
+void WaterfallGraph::postCommand(RenderCommand cmd)
+{
+    m_commandQueue.push_back(std::move(cmd));
+}
+
+void WaterfallGraph::setScopeFlushCallback(std::function<std::optional<ScopeChange>()> cb)
+{
+    m_scopeFlushCallback = std::move(cb);
+}
+
+void WaterfallGraph::processRenderCommandQueue()
 {
     if (!graphicsScene)
         return;
 
-    // Callers must set render state explicitly before draw().
+    if (m_scopeFlushCallback) {
+        if (auto sc = m_scopeFlushCallback())
+            m_commandQueue.push_back(*sc);
+    }
 
-    // Use incremental draw which will handle the current state
-    drawIncremental();
-}
+    if (m_commandQueue.empty())
+        return;
 
-void WaterfallGraph::scheduleRedraw()
-{
-    if (!m_redrawPending)
-    {
-        m_redrawPending = true;
-        QMetaObject::invokeMethod(this,
-                                  &WaterfallGraph::onScheduledRedraw,
-                                  Qt::QueuedConnection);
+    RenderPath path = RenderPath::None;
+    std::set<QString> dataAppendDirty;
+    std::optional<ScopeChange> lastScope;
+    bool yRange = false;
+    QString fullReason;
+    bool sawForce = false;
+
+    while (!m_commandQueue.empty()) {
+        RenderCommand cmd = std::move(m_commandQueue.front());
+        m_commandQueue.pop_front();
+        std::visit(overloaded{
+            [&](const DataAppend &c) {
+                dataAppendDirty.insert(c.seriesLabel);
+                dataRangesValid = false;
+                m_mapDataToScreenCache.clear();
+                path = maxRenderPath(path, RenderPath::Incremental);
+            },
+            [&](const ScopeChange &c) {
+                lastScope = c;
+                const bool within = scopeWithinRenderedExtent(c);
+                if (!within) {
+                    invalidateAllVisibleDataCache();
+                    m_renderedTimeMin = QDateTime();
+                    m_renderedTimeMax = QDateTime();
+                    if (fullReason.isEmpty())
+                        fullReason = QStringLiteral("scope_outside_rendered_extent");
+                }
+                path = maxRenderPath(path, within ? RenderPath::RangeOnly : RenderPath::Full);
+            },
+            [&](const StyleChange &) {
+                path = maxRenderPath(path, RenderPath::Full);
+                if (fullReason.isEmpty())
+                    fullReason = QStringLiteral("style_change");
+            },
+            [&](const ForceInvalidate &c) {
+                sawForce = true;
+                path = maxRenderPath(path, RenderPath::Full);
+                fullReason = c.reason;
+            },
+            [&](const YRangeChange &) {
+                yRange = true;
+                path = maxRenderPath(path, RenderPath::Incremental);
+            },
+            [&](const IncrementalRedrawAllSeries &) {
+                if (dataSource && !dataSource->isEmpty()) {
+                    for (const QString &lb : dataSource->getDataSeriesLabels())
+                        dataAppendDirty.insert(lb);
+                }
+                path = maxRenderPath(path, RenderPath::Incremental);
+            },
+        }, cmd);
+    }
+
+    if (lastScope && lastScope->min.isValid() && lastScope->max.isValid() && lastScope->min < lastScope->max) {
+        if (timeMin != lastScope->min || timeMax != lastScope->max)
+            applyScopeToModel(lastScope->min, lastScope->max);
+    }
+
+    if (yRange) {
+        m_rangeUpdateNeeded = true;
+        transitionToAppropriateState();
+    }
+
+    for (const QString &s : dataAppendDirty) {
+        markSeriesDirty(s);
+        m_rangeUpdateNeeded = true;
+    }
+    if (!dataAppendDirty.empty())
+        transitionToAppropriateState();
+
+    if (path == RenderPath::None)
+        return;
+
+    if (path == RenderPath::Full || sawForce) {
+        if (fullReason.isEmpty())
+            fullReason = QStringLiteral("full_redraw");
+        DEBUG_OUT() << "WaterfallGraph: FULL_REDRAW reason:" << fullReason;
+        invalidateAllVisibleDataCache();
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        setRenderState(RenderState::FULL_REDRAW);
+    } else if (path == RenderPath::RangeOnly) {
+        setRenderState(RenderState::RANGE_UPDATE_ONLY);
+    } else {
+        setRenderState(RenderState::INCREMENTAL_UPDATE);
     }
 }
 
-void WaterfallGraph::onScheduledRedraw()
+void WaterfallGraph::onFrameTick()
 {
-    m_redrawPending = false;
-    drawIncremental();
+    processRenderCommandQueue();
+    if (m_renderState != RenderState::CLEAN)
+        drawIncremental();
+}
+
+void WaterfallGraph::drainRenderQueueSynchronously()
+{
+    if (!graphicsScene)
+        return;
+    processRenderCommandQueue();
+    if (m_renderState != RenderState::CLEAN)
+        drawIncremental();
+}
+
+void WaterfallGraph::draw()
+{
+    if (!graphicsScene)
+        return;
+    processRenderCommandQueue();
+    if (m_renderState != RenderState::CLEAN)
+        drawIncremental();
+}
+
+bool WaterfallGraph::scopeWithinRenderedExtent(const ScopeChange &c) const
+{
+    if (!m_renderedTimeMin.isValid() || !m_renderedTimeMax.isValid() || m_renderedTimeMin >= m_renderedTimeMax)
+        return false;
+    return c.min >= m_renderedTimeMin && c.max <= m_renderedTimeMax;
+}
+
+void WaterfallGraph::applyScopeToModel(const QDateTime &tMin, const QDateTime &tMax)
+{
+    m_mapScreenToTimeCacheValid = false;
+    customTimeMin = tMin;
+    customTimeMax = tMax;
+    customTimeRangeEnabled = true;
+    timeMin = tMin;
+    timeMax = tMax;
+}
+
+bool WaterfallGraph::tryFillVisibleCacheFromSharedStore(const QString &seriesLabel)
+{
+    if (!m_sharedCacheStore || !m_engine)
+        return false;
+    if (!timeMin.isValid() || !timeMax.isValid() || timeMin >= timeMax)
+        return false;
+
+    const CacheKey key{m_engine->getGraphType(),
+                       timeMin.toMSecsSinceEpoch(),
+                       timeMax.toMSecsSinceEpoch(),
+                       m_sharedCacheStore->currentEpoch()};
+    const auto projOpt = m_sharedCacheStore->get(key);
+    if (!projOpt)
+        return false;
+    const CachedProjection &proj = *projOpt;
+    const auto dataIt = proj.visibleData.find(seriesLabel);
+    if (dataIt == proj.visibleData.end())
+        return false;
+
+    m_cachedVisibleData[seriesLabel] = dataIt->second;
+    const auto teIt = proj.timeRangeEpoch.find(seriesLabel);
+    if (teIt != proj.timeRangeEpoch.end())
+        m_cachedTimeRangeEpoch[seriesLabel] = teIt->second;
+    const auto lpIt = proj.lastProcessedIndex.find(seriesLabel);
+    if (lpIt != proj.lastProcessedIndex.end())
+        m_lastProcessedIndex[seriesLabel] = lpIt->second;
+    const auto csIt = proj.cachedDataSize.find(seriesLabel);
+    if (csIt != proj.cachedDataSize.end())
+        m_cachedDataSize[seriesLabel] = csIt->second;
+    m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
+    if (dataSource)
+    {
+        m_cachedDataVersion[seriesLabel] = dataSource->getDataVersion();
+        m_cacheValidResult[seriesLabel] = true;
+    }
+    return true;
+}
+
+void WaterfallGraph::publishVisibleCacheToSharedStore(const QString & /*seriesLabel*/)
+{
+    if (!m_sharedCacheStore || !m_engine)
+        return;
+    if (!timeMin.isValid() || !timeMax.isValid() || timeMin >= timeMax)
+        return;
+
+    const CacheKey key{m_engine->getGraphType(),
+                       timeMin.toMSecsSinceEpoch(),
+                       timeMax.toMSecsSinceEpoch(),
+                       m_sharedCacheStore->currentEpoch()};
+    CachedProjection snap;
+    snap.visibleData = m_cachedVisibleData;
+    snap.timeRangeEpoch = m_cachedTimeRangeEpoch;
+    snap.lastProcessedIndex = m_lastProcessedIndex;
+    snap.cachedDataSize = m_cachedDataSize;
+    m_sharedCacheStore->put(key, std::move(snap));
 }
 
 /**
@@ -1376,14 +1516,11 @@ void WaterfallGraph::setRenderState(RenderState newState)
  * Sets the render state to FULL_REDRAW and calls draw().
  * Use this when data changes significantly or after initial setup.
  */
-void WaterfallGraph::forceFullRedraw()
+void WaterfallGraph::forceFullRedraw(const QString &reason)
 {
-    // Invalidate all cached visible data to ensure old data doesn't remain on screen
-    invalidateAllVisibleDataCache();
-    m_renderedTimeMin = QDateTime();
-    m_renderedTimeMax = QDateTime();
-    setRenderState(RenderState::FULL_REDRAW);
-    draw();
+    const QString r = reason.isEmpty() ? QStringLiteral("unspecified") : reason;
+    postCommand(ForceInvalidate{r});
+    drainRenderQueueSynchronously();
 }
 
 /**
@@ -1418,16 +1555,12 @@ void WaterfallGraph::markTrackChanged()
     // The flag will be automatically reset after rendering completes
     m_fastTrackSwitchMode = true;
     
-    // Mark all series dirty and trigger visible-window-first render
-    markAllSeriesDirty();
     m_renderedTimeMin = QDateTime();
     m_renderedTimeMax = QDateTime();
-    setRenderState(RenderState::FULL_REDRAW);
-    
-    // Trigger immediate render - this will only build geometry for visible window
-    // due to m_fastTrackSwitchMode flag
-    draw();
-    
+
+    postCommand(ForceInvalidate{QStringLiteral("track_changed")});
+    drainRenderQueueSynchronously();
+
     DEBUG_OUT() << "Track change marked - fast track switch mode enabled";
 }
 
@@ -1634,6 +1767,8 @@ void WaterfallGraph::ensureVisibleDataCacheValid(const QString &seriesLabel)
 {
     if (!isVisibleDataCacheValid(seriesLabel))
     {
+        if (tryFillVisibleCacheFromSharedStore(seriesLabel) && isVisibleDataCacheValid(seriesLabel))
+            return;
         qint64 currentTimeMinEpoch = m_cachedTimeMinEpoch;
         qint64 currentTimeMaxEpoch = m_cachedTimeMaxEpoch;
         if (currentTimeMinEpoch == 0 && timeMin.isValid())
@@ -1781,6 +1916,8 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
     m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
     m_cachedDataSize[seriesLabel] = currentSize;
     m_lastProcessedIndex[seriesLabel] = currentSize;
+
+    publishVisibleCacheToSharedStore(seriesLabel);
 }
 
 /**
@@ -4019,7 +4156,8 @@ void WaterfallGraph::setRangeLimitingEnabled(bool enabled)
         if (dataSource && !dataSource->isEmpty())
         {
             updateDataRanges();
-            scheduleRedraw();
+            postCommand(YRangeChange{});
+            drainRenderQueueSynchronously();
         }
 
         DEBUG_OUT() << "Range limiting" << (enabled ? "enabled" : "disabled");
@@ -4061,20 +4199,18 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     // Always update Y range immediately when custom range is set
     updateYRange();
 
-    // Y range change significantly requires full redraw, otherwise just range update
     if (significantChange)
     {
         m_renderedTimeMin = QDateTime();
         m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW);
+        postCommand(StyleChange{});
     }
     else
     {
-        markRangeUpdateNeeded();
+        postCommand(YRangeChange{});
     }
 
-    // Force redraw to show new range
-    scheduleRedraw();
+    drainRenderQueueSynchronously();
 
     DEBUG_OUT() << "Custom Y range set to:" << yMin << "to" << yMax;
 }
@@ -4115,8 +4251,8 @@ void WaterfallGraph::updateTimeRange()
         updateDataRanges();
     }
 
-    // Force redraw to show only data within the new time range
-    scheduleRedraw();
+    postCommand(YRangeChange{});
+    drainRenderQueueSynchronously();
 }
 
 /**
@@ -4132,7 +4268,8 @@ void WaterfallGraph::unsetCustomYRange()
     if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        scheduleRedraw();
+        postCommand(YRangeChange{});
+        drainRenderQueueSynchronously();
     }
 
     DEBUG_OUT() << "Custom Y range unset, reverting to data range";
@@ -4903,7 +5040,8 @@ void WaterfallGraph::setAutoUpdateYRange(bool enabled)
     if (dataSource && !dataSource->isEmpty())
     {
         updateYRange();
-        scheduleRedraw();
+        postCommand(YRangeChange{});
+        drainRenderQueueSynchronously();
     }
 
     DEBUG_OUT() << "Auto-update Y range" << (enabled ? "enabled" : "disabled");
@@ -4939,7 +5077,8 @@ void WaterfallGraph::forceRangeUpdate()
 {
     dataRangesValid = false;
     updateDataRanges();
-    scheduleRedraw();
+    postCommand(YRangeChange{});
+    drainRenderQueueSynchronously();
     DEBUG_OUT() << "Forced range update - Y:" << yMin << "to" << yMax;
 }
 
@@ -5050,51 +5189,18 @@ void WaterfallGraph::updateYRangeFromCustom()
  */
 void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &timeMax)
 {
-    // Validate the range
     if (timeMin >= timeMax)
     {
         DEBUG_OUT() << "Error: Invalid time range - min must be before max";
         return;
     }
 
-    // Check if range actually changed
     bool rangeChanged = (this->timeMin != timeMin || this->timeMax != timeMax);
-    
     if (!rangeChanged)
-    {
-        // No change - skip update entirely
         return;
-    }
 
-    // Invalidate mapScreenToTime cache when time range changes
-    m_mapScreenToTimeCacheValid = false;
-
-    customTimeMin = timeMin;
-    customTimeMax = timeMax;
-    customTimeRangeEnabled = true;
-
-    // Update the current time range
-    this->timeMin = timeMin;
-    this->timeMax = timeMax;
-
-    bool renderedExtentValid = m_renderedTimeMin.isValid() &&
-                               m_renderedTimeMax.isValid() &&
-                               m_renderedTimeMin < m_renderedTimeMax;
-    bool withinExtent = renderedExtentValid &&
-                        timeMin >= m_renderedTimeMin &&
-                        timeMax <= m_renderedTimeMax;
-
-    if (withinExtent)
-    {
-        setRenderState(RenderState::RANGE_UPDATE_ONLY);
-    }
-    else
-    {
-        invalidateAllVisibleDataCache();
-        m_renderedTimeMin = QDateTime();
-        m_renderedTimeMax = QDateTime();
-        setRenderState(RenderState::FULL_REDRAW);
-    }
+    applyScopeToModel(timeMin, timeMax);
+    postCommand(ScopeChange{timeMin, timeMax});
 
     DEBUG_OUT() << "Custom time range set to:" << timeMin.toString() << "to" << timeMax.toString();
 }
@@ -5415,8 +5521,8 @@ void WaterfallGraph::unsetCustomTimeRange()
     // Update time range based on data
     setTimeRangeFromData();
 
-    // Force redraw to show new time range
-    scheduleRedraw();
+    postCommand(StyleChange{});
+    drainRenderQueueSynchronously();
 
     DEBUG_OUT() << "Custom time range unset, reverting to data-based time range";
 }
