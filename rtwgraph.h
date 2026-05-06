@@ -33,6 +33,8 @@ public:
 protected:
     // Override the draw method to create scatterplots by default
     void draw() override;
+    void refreshOverlaysAfterVisibleTimeRangeChange() override;
+    void augmentOverlayPassAfterSymbols() override;
 
     // Override mouse event handlers if needed
     void onMouseClick(const QPointF &scenePos) override;

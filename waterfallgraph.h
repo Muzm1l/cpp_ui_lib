@@ -216,7 +216,14 @@ protected:
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
-    void drawBTWSymbols();
+    /** Called from RANGE_UPDATE_ONLY after updateDataRanges(); redraws overlays tied to the time axis. */
+    virtual void refreshOverlaysAfterVisibleTimeRangeChange();
+    /** Rebuild paintEvent scatter/line data for current timeMin/timeMax (fixes stale pixels when window has no data). */
+    virtual void redrawDataLayerForVisibleTimeRange();
+    bool shouldRenderSeriesAsLine(const QString &seriesLabel) const;
+    virtual void drawBTWSymbols();
+    /** BTW/RTW: extra overlay items after drawBTWSymbols() on FULL_REDRAW / INCREMENTAL_UPDATE (blue markers, R markers, etc.). */
+    virtual void augmentOverlayPassAfterSymbols();
     
     // Cached BTW symbol drawing (magenta circles)
     BTWSymbolDrawing m_btwSymbols;

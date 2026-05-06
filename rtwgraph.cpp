@@ -187,6 +187,18 @@ void RTWGraph::draw()
     isDrawing = false;
 }
 
+void RTWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
+{
+    WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange();
+    augmentOverlayPassAfterSymbols();
+}
+
+void RTWGraph::augmentOverlayPassAfterSymbols()
+{
+    drawCustomRMarkers();
+    drawRTWSymbols();
+}
+
 /**
  * @brief Handle mouse click events specific to RTW graph
  *

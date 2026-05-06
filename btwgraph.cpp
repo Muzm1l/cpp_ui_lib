@@ -185,36 +185,34 @@ void BTWGraph::draw()
         
         // Draw horizontal lines
         drawHorizontalLines();
+        if (m_interactiveOverlay)
+            m_interactiveOverlay->syncMarkersWithTimeline();
     }
     else
     {
-        // Even on incremental updates, we need to update horizontal lines
-        // because they can be added/removed dynamically
-        drawHorizontalLines();
-        
-        // CRITICAL FIX: Also update shaded regions during incremental updates
-        // Shaded regions need to be redrawn when time range changes (RANGE_UPDATE_ONLY)
-        // or when data is added (INCREMENTAL_UPDATE) because their Y coordinates
-        // depend on the time range. Without this, shaded regions don't appear
-        // until a manual marker triggers a full redraw.
-        drawShadedRegions();
-        
-        // CRITICAL FIX: Also update BTW symbols during incremental updates
-        // Symbols need to be redrawn when time range changes (timer ticks, animation, zoom)
-        // because their Y positions depend on the time range
-        drawBTWSymbols();
-    }
-    
-    // Sync interactive overlay markers with the new time range
-    // This updates marker Y positions to stay in sync with the timeline
-    if (m_interactiveOverlay) {
-        m_interactiveOverlay->syncMarkersWithTimeline();
+        // Same overlay pass as frame-tick RANGE_UPDATE_ONLY (magenta symbols, blue markers, lines, shaded, interactive sync)
+        refreshOverlaysAfterVisibleTimeRangeChange();
     }
     
     // Reset render state to clean after drawing
     setRenderState(RenderState::CLEAN);
     
     isDrawing = false;
+}
+
+void BTWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
+{
+    drawBTWSymbols();
+    augmentOverlayPassAfterSymbols();
+}
+
+void BTWGraph::augmentOverlayPassAfterSymbols()
+{
+    drawCustomCircleMarkers();
+    drawHorizontalLines();
+    drawShadedRegions();
+    if (m_interactiveOverlay)
+        m_interactiveOverlay->syncMarkersWithTimeline();
 }
 
 /**

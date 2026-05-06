@@ -252,6 +252,9 @@ public slots:
 protected:
     // Override the draw method to create scatterplots by default
     void draw() override;
+    void refreshOverlaysAfterVisibleTimeRangeChange() override;
+    void drawBTWSymbols() override;
+    void augmentOverlayPassAfterSymbols() override;
 
     // Override mouse event handlers to add interactive markers on click
     void onMouseClick(const QPointF &scenePos) override;
@@ -272,7 +275,6 @@ private:
     // BTW-specific properties and methods can be added here
     void drawBTWScatterplot();
     void drawCustomCircleMarkers();
-    void drawBTWSymbols();
     BTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
     void addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue);
     

@@ -1142,6 +1142,48 @@ void WaterfallGraph::publishVisibleCacheToSharedStore(const QString & /*seriesLa
  * @brief Incremental draw method that only redraws dirty series.
  *
  */
+void WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange()
+{
+    drawBTWSymbols();
+}
+
+bool WaterfallGraph::shouldRenderSeriesAsLine(const QString &seriesLabel) const
+{
+    if (m_useLineDrawing)
+        return true;
+    return seriesLabel.compare(QStringLiteral("ADOPTED"), Qt::CaseInsensitive) == 0;
+}
+
+void WaterfallGraph::redrawDataLayerForVisibleTimeRange()
+{
+    if (!dataSource || dataSource->isEmpty() || !dataRangesValid)
+    {
+        m_scatterPoints.clear();
+        m_scatterColors.clear();
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        update();
+        return;
+    }
+    const std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+    for (const QString &seriesLabel : seriesLabels)
+    {
+        if (!isSeriesVisible(seriesLabel))
+            continue;
+        if (shouldRenderSeriesAsLine(seriesLabel))
+        {
+            drawDataLine(seriesLabel, false);
+            continue;
+        }
+        drawScatterplot(seriesLabel, getSeriesColor(seriesLabel), 4.0, Qt::black);
+    }
+}
+
+void WaterfallGraph::augmentOverlayPassAfterSymbols()
+{
+}
+
 void WaterfallGraph::drawIncremental()
 {
     // Skip updates if widget is not visible (optimization: avoid wasted CPU)
@@ -1162,6 +1204,10 @@ void WaterfallGraph::drawIncremental()
             {
                 updateDataRanges();
             }
+            // Refilter series into paintEvent buffers; otherwise m_scatterPoints / paths stay stale when
+            // the visible window moves to a range with no data (leftover pixels until a full redraw).
+            redrawDataLayerForVisibleTimeRange();
+            refreshOverlaysAfterVisibleTimeRangeChange();
             m_rangeUpdateNeeded = false;
             m_renderState = RenderState::CLEAN;
             break;
@@ -1189,7 +1235,7 @@ void WaterfallGraph::drawIncremental()
                     if (isSeriesVisible(seriesLabel))
                     {
                         // Use line drawing if flag is set, otherwise use scatterplot
-                        if (m_useLineDrawing)
+                        if (shouldRenderSeriesAsLine(seriesLabel))
                         {
                             drawDataLine(seriesLabel, false);
                         }
@@ -1203,6 +1249,7 @@ void WaterfallGraph::drawIncremental()
 
             // Draw BTW symbols (magenta circles) after drawing data series
             drawBTWSymbols();
+            augmentOverlayPassAfterSymbols();
 
             m_dirtySeries.clear();
             m_renderState = RenderState::CLEAN;
@@ -1295,7 +1342,7 @@ void WaterfallGraph::drawIncremental()
                     if (isSeriesVisible(seriesLabel))
                     {
                         // Use line drawing if flag is set, otherwise use scatterplot
-                        if (m_useLineDrawing)
+                        if (shouldRenderSeriesAsLine(seriesLabel))
                         {
                             drawDataLine(seriesLabel, false);
                         }
@@ -1318,6 +1365,7 @@ void WaterfallGraph::drawIncremental()
 
             // Draw BTW symbols (magenta circles) after drawing data series
             drawBTWSymbols();
+            augmentOverlayPassAfterSymbols();
 
             // Reset fast track switch mode after rendering completes
             // Normal operation resumes - subsequent updates will work as usual
@@ -2011,11 +2059,14 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
  */
 void WaterfallGraph::cleanupScatterplotItems(const QString &seriesLabel)
 {
+    m_scatterPoints.remove(seriesLabel);
+    m_scatterColors.remove(seriesLabel);
+
     if (!graphicsScene)
     {
         return;
     }
-    
+
     auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
     if (itemIt != m_seriesScatterplotItems.end())
     {
@@ -4471,6 +4522,7 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
         // No visible data - cleanup items if they exist
         cleanupScatterplotItems(seriesLabel);
         DEBUG_OUT() << "No data points within current time range for default scatterplot";
+        update();
         return;
     }
 
@@ -4640,6 +4692,8 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     if (visibleData.empty())
     {
         // No visible data - cleanup items if they exist
+        m_scatterPoints.remove(seriesLabel);
+        m_scatterColors.remove(seriesLabel);
         auto pathIt = m_seriesPathItems.find(seriesLabel);
         if (pathIt != m_seriesPathItems.end() && pathIt->second)
         {
@@ -4668,6 +4722,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
             }
             pointIt->second.clear();
         }
+        update();
         return;
     }
 
