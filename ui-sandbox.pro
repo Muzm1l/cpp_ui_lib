@@ -56,7 +56,8 @@ SOURCES += \
     scwsimulator.cpp \
     manoeuvreoverlay.cpp \
     debugutils.cpp \
-    sharedcachestore.cpp
+    sharedcachestore.cpp \
+    scopebus.cpp
 
 HEADERS += \
     graphcontainer.h \
@@ -92,8 +93,8 @@ HEADERS += \
     manoeuvreoverlay.h \
     debugutils.h \
     rendercommands.h \
-    scopecoalescer.h \
-    sharedcachestore.h
+    sharedcachestore.h \
+    scopebus.h
 
 FORMS += \
     mainwindow.ui

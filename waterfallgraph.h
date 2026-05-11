@@ -448,7 +448,6 @@ protected:
 
     QTimer *m_frameTickTimer = nullptr;
     std::deque<RenderCommand> m_commandQueue;
-    std::function<std::optional<ScopeChange>()> m_scopeFlushCallback;
     SharedCacheStore *m_sharedCacheStore = nullptr;
 
     bool scopeWithinRenderedExtent(const ScopeChange &c) const;
@@ -489,7 +488,6 @@ private slots:
 
 public:
     void postCommand(RenderCommand cmd);
-    void setScopeFlushCallback(std::function<std::optional<ScopeChange>()> cb);
     void setSharedCacheStore(SharedCacheStore *store) { m_sharedCacheStore = store; }
     SharedCacheStore *sharedCacheStore() const { return m_sharedCacheStore; }
     void drainRenderQueueSynchronously();
@@ -530,6 +528,20 @@ public:
     void setRangeLimitingEnabled(bool enabled);
     bool isRangeLimitingEnabled() const;
     void setCustomYRange(const qreal yMin, const qreal yMax);
+    /**
+     * @brief Cheap, non-draining custom Y-range update for live (drag/extend) interactions.
+     *
+     * Writes customYMin/customYMax, posts a single YRangeChange render command,
+     * and returns immediately. The 16 ms frame-tick timer (m_frameTickTimer)
+     * coalesces incoming live updates and applies them via the
+     * RANGE_UPDATE_ONLY render path, which preserves existing QGraphicsItems
+     * and only rescales positions.
+     *
+     * Use this from interactive update slots (e.g. ZoomPanel::valueChanging).
+     * Use setCustomYRange() for one-shot/structural changes (init, graph
+     * switch, programmatic limits) where a synchronous final frame is wanted.
+     */
+    void setCustomYRangeLive(const qreal yMin, const qreal yMax);
     std::pair<qreal,qreal> getCustomYRange() const;
     void unsetCustomYRange();
 

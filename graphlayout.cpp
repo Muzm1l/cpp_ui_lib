@@ -61,6 +61,15 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, 
     m_currentManoeuvreBearing = 0;
     m_currentManoeuvreSpeed = 0;
     m_currentManoeuvreDepth = 0;
+
+    // Install the ONE writer of GraphContainerSyncState::currentTimeScope.
+    // Every other place that wrote that field has been removed: this callback
+    // is the single ingress point.
+    m_scopeBusWriterToken = m_scopeBus.subscribe(
+        [this](const TimeScopeBus::Snapshot& s) {
+            m_syncState.currentTimeScope = s.span;
+            m_syncState.hasTimeScope     = true;
+        });
 }
 
 GraphLayout::~GraphLayout()
@@ -135,10 +144,9 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         // Hide time selection visualizer for first container in bottom row (container 2)
         m_graphContainers[2]->setShowTimeSelectionVisualizer(false);
 
-        // Connect the time scope change handler of containers 1 to the event of 0 and the 3 to the event of 2
-        // Note: Interval changes are now handled centrally by GraphLayout
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+        // Time-scope propagation is handled centrally by TimeScopeBus; no
+        // direct container-to-container TimeScopeChanged wiring needed here.
+        // Interval changes are also handled centrally by GraphLayout.
 
         break;
     case LayoutType::GPW2WV:
@@ -165,9 +173,7 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         m_graphContainers[2]->setVisible(false);
         m_graphContainers[3]->setVisible(false);
 
-        // Connect the time scope change handler of containers 1 to the event of 0
-        // Note: Interval changes are now handled centrally by GraphLayout
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+        // Time-scope propagation is handled centrally by TimeScopeBus.
         break;
     case LayoutType::GPW4WH:
     // this 4 horizantal graphs with no GPW
@@ -190,11 +196,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[0], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged, m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
-        
-        // Connect the time scope change handlers of containers 0,1,3 to the event of 2 (container 2 has timeline view)
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[0], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged, m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+
+        // Time-scope propagation is handled centrally by TimeScopeBus.
         break;
     // Layout 2W: two graph container side by side, but take up whole screen. this is similar 2WH
     case LayoutType::NOGPW2WH:
@@ -212,12 +215,10 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         m_graphContainers[2]->setVisible(false);
         m_graphContainers[3]->setVisible(false);
 
-        // Note: Interval changes are now handled centrally by GraphLayout
-        // Connect the interval change handler of container 1 to the event of 0
+        // Interval changes are handled centrally by GraphLayout.
         connect(m_graphContainers[0], &GraphContainer::IntervalChanged, m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
-        
-        // Connect the time scope change handler of container 1 to the event of 0
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged, m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
+
+        // Time-scope propagation is handled centrally by TimeScopeBus.
         break;
     case LayoutType::HIDDEN:
         // Hide all containers
@@ -265,11 +266,14 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
                 this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
-        connect(container, &GraphContainer::TimeScopeChanged,
-                this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
+        // Time-scope propagation is handled by TimeScopeBus, not by container signals.
 
         container->attachSharedCacheStore(&m_sharedRenderCache);
-        
+
+        // Re-attach the time-scope bus (idempotent) so layout switches do not
+        // leave a container without a subscription.
+        container->attachScopeBus(&m_scopeBus);
+
         // Connect marker timestamp signals
         connect(container, &GraphContainer::RTWRMarkerTimestampCaptured,
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
@@ -379,6 +383,15 @@ void GraphLayout::initializeContainers()
     m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer, 0, 0, &m_syncState));
     m_graphContainers.push_back(new GraphContainer(this, true, m_seriesColorsMap, m_timer, 0, 0, &m_syncState));
 
+    // Attach the centralized time-scope bus to every container.
+    // Containers publish slider/programmatic intents into the bus and apply
+    // every broadcast snapshot to their own waterfall + timeline.
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+            container->attachScopeBus(&m_scopeBus);
+    }
+
     // Attach data sources to containers
     attachContainerDataSources();
     
@@ -394,8 +407,7 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::onTimeSelectionsCleared, Qt::UniqueConnection);
         connect(container, &GraphContainer::IntervalChanged,
                 this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
-        connect(container, &GraphContainer::TimeScopeChanged,
-                this, &GraphLayout::onContainerTimeScopeChanged, Qt::UniqueConnection);
+        // Time-scope propagation is handled by TimeScopeBus, not by container signals.
 
         container->attachSharedCacheStore(&m_sharedRenderCache);
         
@@ -1237,9 +1249,9 @@ void GraphLayout::disconnectAllContainerConnections()
     {
         if (container)
         {
-            // Disconnect IntervalChanged, TimeScopeChanged, TimeSelectionCreated, TimeSelectionModified, and TimeSelectionsCleared signals to preserve internal functionality
+            // Disconnect IntervalChanged, TimeSelectionCreated, TimeSelectionModified, and TimeSelectionsCleared signals to preserve internal functionality
+            // (time-scope propagation is now bus-driven, not signal-driven)
             container->disconnect(SIGNAL(IntervalChanged(TimeInterval)));
-            container->disconnect(SIGNAL(TimeScopeChanged(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionCreated(TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionModified(int, TimeSelectionSpan)));
             container->disconnect(SIGNAL(TimeSelectionsCleared()));
@@ -1278,50 +1290,32 @@ void GraphLayout::linkHorizontalContainers()
     // Disconnect all existing connections first to avoid duplicates
     disconnectAllContainerConnections();
 
-    // Note: Interval synchronization is now handled centrally by GraphLayout
-    // via onContainerIntervalChanged, which uses setTimeInterval API to avoid signal loops.
-    // Only TimeScopeChanged needs direct container-to-container connections for now.
+    // Interval and time-scope synchronization are now handled centrally:
+    //   - intervals via GraphLayout::onContainerIntervalChanged (setTimeInterval API)
+    //   - time-scope via TimeScopeBus (every container subscribes in initializeContainers)
+    // Only the GPW4WH layout still needs direct interval forwarding from the
+    // single timeline-bearing container to its siblings.
 
     switch (m_layoutType)
     {
     case LayoutType::GPW4W:
-        // Link row 1: container 0 -> container 1 (time scope change)
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-
-        // Link row 2: container 2 -> container 3 (time scope change)
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-
-        DEBUG_OUT() << "GraphLayout: Linked containers for GPW4W layout";
+        DEBUG_OUT() << "GraphLayout: GPW4W: time-scope handled by TimeScopeBus";
         break;
 
     case LayoutType::GPW2WH:
-        // Link horizontal: container 0 -> container 1 (time scope change)
-        connect(m_graphContainers[0], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-
-        DEBUG_OUT() << "GraphLayout: Linked containers for GPW2WH layout";
+        DEBUG_OUT() << "GraphLayout: GPW2WH: time-scope handled by TimeScopeBus";
         break;
 
     case LayoutType::GPW4WH:
-        // Link horizontal: container 2 (has timeline view) -> containers 0, 1, 3 (interval change)
+        // Direct interval forwarding from container 2 (which owns the timeline) to siblings.
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
                 m_graphContainers[0], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
                 m_graphContainers[1], &GraphContainer::onTimeIntervalChanged);
         connect(m_graphContainers[2], &GraphContainer::IntervalChanged,
                 m_graphContainers[3], &GraphContainer::onTimeIntervalChanged);
-        
-        // Link horizontal: container 2 (has timeline view) -> containers 0, 1, 3 (time scope change)
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[0], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[1], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
-        connect(m_graphContainers[2], &GraphContainer::TimeScopeChanged,
-                m_graphContainers[3], QOverload<const TimeSelectionSpan &>::of(&GraphContainer::onTimeScopeChanged));
 
-        DEBUG_OUT() << "GraphLayout: Linked containers for GPW4WH layout";
+        DEBUG_OUT() << "GraphLayout: Linked containers for GPW4WH layout (intervals only)";
         break;
 
     case LayoutType::GPW1W:
@@ -1369,14 +1363,13 @@ void GraphLayout::syncAllTimelineViews()
         if (timelineViewPairs.size() == 1)
         {
             DEBUG_OUT() << "GraphLayout: Only 1 timeline view found, ensuring internal connections are set up";
-            // Even with 1 timeline view, ensure internal connections are properly set up
+            // Even with 1 timeline view, ensure internal connections are properly set up.
+            // Time-scope propagation is bus-driven; only interval still needs an internal connect.
             const auto &pair = timelineViewPairs[0];
             if (pair.first && pair.second)
             {
                 connect(pair.second, &TimelineView::TimeIntervalChanged,
                         pair.first, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
-                connect(pair.second, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                        pair.first, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged), Qt::UniqueConnection);
             }
         }
         else
@@ -1416,16 +1409,9 @@ void GraphLayout::syncAllTimelineViews()
             }
         }
         
-        // Disconnect TimeScopeChanged connections to other timeline views
-        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
-        {
-            if (i != j && timelineViewPairs[j].second)
-            {
-                disconnect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                          timelineViewPairs[j].second, &TimelineView::onTimeScopeChangedFromOtherTimeline);
-            }
-        }
-        
+        // Time-scope is bus-driven; no per-pair TimelineView::TimeScopeChanged
+        // connections to disconnect.
+
         // Disconnect GraphContainerInFollowModeChanged connections to other timeline views
         for (size_t j = 0; j < timelineViewPairs.size(); ++j)
         {
@@ -1433,31 +1419,6 @@ void GraphLayout::syncAllTimelineViews()
             {
                 disconnect(sourceTimelineView, &TimelineView::GraphContainerInFollowModeChanged,
                           timelineViewPairs[j].second, &TimelineView::onOtherContainerEnteredFollowMode);
-            }
-        }
-        
-        // Disconnect TimeScopeChanged connections to containers (external sync only)
-        for (auto *container : m_graphContainers)
-        {
-            if (container && container->isVisible())
-            {
-                // Only disconnect if this is NOT the timeline view's own container
-                // (we want to preserve the internal connection)
-                bool isOwnContainer = false;
-                for (const auto &pair : timelineViewPairs)
-                {
-                    if (pair.first == container && pair.second == sourceTimelineView)
-                    {
-                        isOwnContainer = true;
-                        break;
-                    }
-                }
-                
-                if (!isOwnContainer)
-                {
-                    disconnect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                              container, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
-                }
             }
         }
     }
@@ -1488,68 +1449,17 @@ void GraphLayout::syncAllTimelineViews()
         }
     }
     
-    // Ensure each TimelineView is connected to its own container (internal connections)
-    // These should already exist, but we ensure they're there
+    // Ensure each TimelineView is connected to its own container (internal interval connection only).
+    // Time-scope propagation is bus-driven; the container subscribed to TimeScopeBus in initializeContainers().
     for (const auto &pair : timelineViewPairs)
     {
         if (pair.first && pair.second)
         {
-            // Ensure the internal connection: TimelineView -> its own container
             connect(pair.second, &TimelineView::TimeIntervalChanged,
                     pair.first, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
-            connect(pair.second, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                    pair.first, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged), Qt::UniqueConnection);
         }
     }
-    
-    // Connect timeline views for scope changes - sync slider positions directly
-    // When one timeline view's scope changes, update all other timeline views' sliders
-    // and update ALL containers (including those without timeline views)
-    for (size_t i = 0; i < timelineViewPairs.size(); ++i)
-    {
-        TimelineView *sourceTimelineView = timelineViewPairs[i].second;
-        if (!sourceTimelineView)
-            continue;
-        
-        // Connect source timeline view's TimeScopeChanged to all other timeline views
-        // Use onTimeScopeChangedFromOtherTimeline so we force-sync only when source is frozen (user drag)
-        for (size_t j = 0; j < timelineViewPairs.size(); ++j)
-        {
-            if (i != j && timelineViewPairs[j].second)
-            {
-                connect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                        timelineViewPairs[j].second, &TimelineView::onTimeScopeChangedFromOtherTimeline);
-            }
-        }
-        
-        // Connect source timeline view's TimeScopeChanged to ALL visible containers
-        // This ensures ALL graphs (including those without timeline views) stay in sync
-        for (auto *container : m_graphContainers)
-        {
-            if (container && container->isVisible())
-            {
-                // Only connect to containers that are NOT the source timeline view's own container
-                // (the internal connection is already handled above)
-                bool isOwnContainer = false;
-                for (const auto &pair : timelineViewPairs)
-                {
-                    if (pair.first == container && pair.second == sourceTimelineView)
-                    {
-                        isOwnContainer = true;
-                        break;
-                    }
-                }
-                
-                if (!isOwnContainer)
-                {
-                    // Connect to the container's onTimeScopeChanged to update the graph
-                    connect(sourceTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                            container, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
-                }
-            }
-        }
-    }
-    
+
     DEBUG_OUT() << "GraphLayout: Timeline views synced successfully";
 }
 
@@ -1577,12 +1487,10 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
                 connect(graphTimelineView, &TimelineView::AbsoluteTimeModeChanged,
                         externalTimelineView, &TimelineView::setIsAbsoluteTime, Qt::UniqueConnection);
                 
-                // Also sync time scope changes (respect frozen: only force-sync when source is frozen)
-                connect(externalTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                        graphTimelineView, &TimelineView::onTimeScopeChangedFromOtherTimeline, Qt::UniqueConnection);
-                connect(graphTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                        externalTimelineView, &TimelineView::onTimeScopeChangedFromOtherTimeline, Qt::UniqueConnection);
-                
+                // Time-scope sync between this layout's timelines and the external timeline
+                // is now handled centrally by TimeScopeBus. The external timeline can be
+                // wired to it directly via getScopeBus()->subscribe(...) by the caller.
+
                 // Sync time interval changes
                 connect(externalTimelineView, &TimelineView::TimeIntervalChanged,
                         graphTimelineView, &TimelineView::setTimeLineLength, Qt::UniqueConnection);
@@ -1597,16 +1505,11 @@ void GraphLayout::syncExternalTimelineView(TimelineView *externalTimelineView)
             }
         }
         
-        // Connect external timeline to ALL containers (not just visible ones)
-        // This ensures waterfall graphs update when SCW timeline changes (SCW -> GraphLayout sync)
-        // We connect to all containers regardless of visibility so connections persist when layout changes
+        // Time-scope updates from the external timeline are routed through TimeScopeBus.
+        // External integrators are expected to publish into getScopeBus() directly.
+        // Only interval is wired here for parity with the legacy behavior.
         if (container)
         {
-            // Connect time scope changes to update waterfall graph time ranges
-            connect(externalTimelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                    container, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged), Qt::UniqueConnection);
-            
-            // Connect time interval changes to update waterfall graph intervals
             connect(externalTimelineView, &TimelineView::TimeIntervalChanged,
                     container, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
         }
@@ -1685,28 +1588,9 @@ void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
     }
 }
 
-void GraphLayout::onContainerTimeScopeChanged(const TimeSelectionSpan &selection)
-{
-    DEBUG_OUT() << "GraphLayout: Container time scope changed from" << selection.startTime.toString() << "to" << selection.endTime.toString();
-    
-    // Update sync state
-    m_syncState.currentTimeScope = selection;
-    m_syncState.hasTimeScope = true;
-    
-    // Identify the source container to avoid updating it again
-    GraphContainer *source = qobject_cast<GraphContainer *>(sender());
-    
-    // Act as hub: propagate time scope to all other containers
-    // This ensures all waterfall graphs stay synchronized
-    for (auto *container : m_graphContainers)
-    {
-        if (container && container != source)
-        {
-            // Use setTimeScope to update without triggering signals (prevents feedback loops)
-            container->setTimeScope(selection);
-        }
-    }
-}
+// onContainerTimeScopeChanged removed: time-scope propagation is now centralized
+// in TimeScopeBus. Containers publish via GraphContainer::onTimelineScope*() and
+// every container subscribes via GraphContainer::attachScopeBus().
 
 // void GraphLayout::onCursorTimeChanged(const QDateTime &time)
 // {

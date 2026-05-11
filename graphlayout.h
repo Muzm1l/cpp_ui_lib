@@ -19,6 +19,7 @@
 #include <vector>
 #include "sharedsyncstate.h"
 #include "sharedcachestore.h"
+#include "scopebus.h"
 
 // Forward declaration
 class BTWGraph;
@@ -121,6 +122,15 @@ public:
     
     // Get sync state pointer for external synchronization
     GraphContainerSyncState* getSyncState() { return &m_syncState; }
+
+    /**
+     * @brief Single source of truth for time-scope (visible window) propagation.
+     *
+     * Containers, timelines, and external integrators all publish/subscribe
+     * through this bus. The layout itself installs the only writer of
+     * GraphContainerSyncState::currentTimeScope.
+     */
+    TimeScopeBus* getScopeBus() { return &m_scopeBus; }
 
     /**
      * @brief Session / system start time for timeline slider mapping (range from this time to effective timeline end).
@@ -439,7 +449,6 @@ private:
     void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
     void registerCursorSyncCallbacks();
     void onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time);
-    void onContainerTimeScopeChanged(const TimeSelectionSpan &selection);
     
     // Helper to add BTW symbol (magenta circle) to all graphs at a timestamp
     void addBTWSymbolToAllGraphs(const QDateTime &timestamp, float range);
@@ -454,6 +463,10 @@ private:
     GraphContainerSyncState m_syncState;
 
     SharedCacheStore m_sharedRenderCache;
+
+    // Centralized time-scope propagation (replaces ad-hoc connections + ScopeCoalescer).
+    TimeScopeBus m_scopeBus;
+    int          m_scopeBusWriterToken = -1;
 
     QDateTime m_systemStartTimeAtInit;
 

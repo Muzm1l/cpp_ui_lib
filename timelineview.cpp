@@ -2089,23 +2089,17 @@ void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
 
 void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection)
 {
-    // Ensure we emit a valid timespan with proper start and end times
+    // GraphContainerSyncState::currentTimeScope is now written by the
+    // TimeScopeBus writer subscription in GraphLayout, never directly here.
+    // We just emit the intent; GraphContainer::onTimelineScopePending forwards
+    // it to the bus, which broadcasts a single Snapshot back to all subscribers.
     if (selection.startTime.isValid() && selection.endTime.isValid())
     {
-        // Update sync state if available (for sync state pattern)
-        if (m_syncState)
-        {
-            m_syncState->currentTimeScope = selection;
-            m_syncState->hasTimeScope = true;
-        }
-        
         emit TimeScopeChanged(selection, m_timelineViewMode == TimelineViewMode::FROZEN_MODE);
     }
 
-
-    //---- syed ------------------------------rebase conflict
-    // Ensure timer is running after window changes (e.g., after slider drag)
-    // This is critical to resume animation after user interactions
+    // Ensure timer is running after window changes (e.g., after slider drag).
+    // Critical for resuming animation after user interactions.
     ensureTimerRunning();
 }
 

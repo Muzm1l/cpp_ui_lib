@@ -16,6 +16,8 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QDebug>
+#include <QElapsedTimer>
+#include <QTimer>
 
 struct ZoomBounds
 {
@@ -28,6 +30,22 @@ class ZoomPanel : public QWidget
     Q_OBJECT
 
 signals:
+    /**
+     * @brief Live, throttled bounds updates while the user is dragging or extending.
+     *
+     * Fires at most once per ~16 ms during interaction. Intended to drive cheap
+     * incremental rescales (e.g. WaterfallGraph::setCustomYRangeLive) without
+     * doing a full synchronous redraw on every mouse-move event.
+     */
+    void valueChanging(ZoomBounds bounds);
+
+    /**
+     * @brief Final, committed bounds update.
+     *
+     * Fires on mouse release at the end of a drag/extend, and on a one-shot
+     * scrollbar-style click outside the indicator. Intended to drive the
+     * heavier synchronous render path (final frame, overlay sync, etc.).
+     */
     void valueChanged(ZoomBounds bounds);
 
 public:
@@ -139,6 +157,23 @@ private:
     const qreal m_interpolationLowerBound = 0.0;
     const qreal m_interpolationUpperBound = 1.0;
 
+    // Live-update throttling (drag/extend). Coalesces rapid mouse-move events
+    // into at most one valueChanging emit per LIVE_EMIT_THROTTLE_MS. A pending
+    // payload is flushed by the single-shot timer so the last position is not
+    // dropped if the user holds the mouse still between throttle windows.
+    static constexpr qint64 LIVE_EMIT_THROTTLE_MS = 16; // ~60 Hz
+    QElapsedTimer m_liveEmitTimer;
+    QTimer        m_liveFlushTimer;
+    bool          m_hasPendingLiveBounds = false;
+    ZoomBounds    m_pendingLiveBounds{0.0, 0.0};
+    bool          m_hasLastLiveBounds    = false;
+    ZoomBounds    m_lastLiveBounds{0.0, 0.0};
+
+    void emitLiveBounds(const ZoomBounds &bounds);
+    void flushPendingLiveBounds();
+
+private slots:
+    void onLiveFlushTick();
 };
 
 #endif // ZOOMPANEL_H

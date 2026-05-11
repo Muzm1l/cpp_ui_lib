@@ -933,20 +933,10 @@ void WaterfallGraph::postCommand(RenderCommand cmd)
     m_commandQueue.push_back(std::move(cmd));
 }
 
-void WaterfallGraph::setScopeFlushCallback(std::function<std::optional<ScopeChange>()> cb)
-{
-    m_scopeFlushCallback = std::move(cb);
-}
-
 void WaterfallGraph::processRenderCommandQueue()
 {
     if (!graphicsScene)
         return;
-
-    if (m_scopeFlushCallback) {
-        if (auto sc = m_scopeFlushCallback())
-            m_commandQueue.push_back(*sc);
-    }
 
     if (m_commandQueue.empty())
         return;
@@ -4240,9 +4230,7 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
         return;
     }
 
-    // Check if range changed significantly (more than 10% difference)
-    bool significantChange = (qAbs(customYMin - yMin) > (customYMax - customYMin) * 0.1) ||
-                             (qAbs(customYMax - yMax) > (customYMax - customYMin) * 0.1);
+    const bool firstSet = (customYMin == 0.0 && customYMax == 0.0);
 
     customYMin = yMin;
     customYMax = yMax;
@@ -4250,7 +4238,9 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     // Always update Y range immediately when custom range is set
     updateYRange();
 
-    if (significantChange)
+    // Initial application requires a structural redraw (no scene built yet);
+    // subsequent applications are pure rescales and stay on the cheap path.
+    if (firstSet)
     {
         m_renderedTimeMin = QDateTime();
         m_renderedTimeMax = QDateTime();
@@ -4264,6 +4254,26 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     drainRenderQueueSynchronously();
 
     DEBUG_OUT() << "Custom Y range set to:" << yMin << "to" << yMax;
+}
+
+void WaterfallGraph::setCustomYRangeLive(const qreal yMin, const qreal yMax)
+{
+    if (yMin >= yMax)
+        return;
+
+    if (customYMin == yMin && customYMax == yMax)
+        return;
+
+    customYMin = yMin;
+    customYMax = yMax;
+
+    // Recompute yMin/yMax (display range) cheaply; updateYRange() picks the
+    // right source (custom vs data) without touching scene items.
+    updateYRange();
+
+    // Single command, no synchronous drain. The frame timer pulls it through
+    // RANGE_UPDATE_ONLY -> updateDataRanges() + position-only rescale.
+    postCommand(YRangeChange{});
 }
 
 /**
