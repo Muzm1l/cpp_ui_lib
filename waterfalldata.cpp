@@ -1316,34 +1316,28 @@ std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
 std::vector<BTWSymbolData> WaterfallData::getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
 {
     std::vector<BTWSymbolData> result;
-    
+
     if (btwSymbols.empty()) {
         return result;
     }
-    
-    // Create a sorted copy for binary search (symbols may not be sorted)
-    // This is more efficient than sorting the original vector
-    std::vector<BTWSymbolData> sortedSymbols = btwSymbols.toVector();
-    std::sort(sortedSymbols.begin(), sortedSymbols.end(),
-        [](const BTWSymbolData& a, const BTWSymbolData& b) {
-            return a.timestamp < b.timestamp;
-        });
-    
-    // Use binary search to find the range of symbols within the time window
-    auto startIt = std::lower_bound(sortedSymbols.begin(), sortedSymbols.end(), startTime,
-        [](const BTWSymbolData& symbol, const QDateTime& time) {
-            return symbol.timestamp < time;
-        });
-    
-    auto endIt = std::upper_bound(sortedSymbols.begin(), sortedSymbols.end(), endTime,
-        [](const QDateTime& time, const BTWSymbolData& symbol) {
-            return time < symbol.timestamp;
-        });
-    
-    // Copy the range
-    result.reserve(std::distance(startIt, endIt));
-    result.assign(startIt, endIt);
-    
+
+    const qint64 startEpoch = startTime.isValid() ? startTime.toMSecsSinceEpoch() : std::numeric_limits<qint64>::min();
+    const qint64 endEpoch = endTime.isValid() ? endTime.toMSecsSinceEpoch() : std::numeric_limits<qint64>::max();
+    if (startEpoch > endEpoch)
+    {
+        return result;
+    }
+
+    result.reserve(btwSymbols.size());
+    for (size_t i = 0; i < btwSymbols.size(); ++i)
+    {
+        const BTWSymbolData &symbol = btwSymbols[i];
+        if (symbol.timestampEpoch >= startEpoch && symbol.timestampEpoch <= endEpoch)
+        {
+            result.push_back(symbol);
+        }
+    }
+
     return result;
 }
 
@@ -1425,34 +1419,27 @@ std::vector<BTWMarkerData> WaterfallData::getBTWMarkers() const
 std::vector<BTWMarkerData> WaterfallData::getBTWMarkersWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
 {
     std::vector<BTWMarkerData> result;
-    
+
     if (btwMarkers.empty()) {
         return result;
     }
-    
-    // Create a sorted copy for binary search (markers may not be sorted)
-    // This is more efficient than sorting the original vector
-    std::vector<BTWMarkerData> sortedMarkers = btwMarkers.toVector();
-    std::sort(sortedMarkers.begin(), sortedMarkers.end(),
-        [](const BTWMarkerData& a, const BTWMarkerData& b) {
-            return a.timestamp < b.timestamp;
-        });
-    
-    // Use binary search to find the range of markers within the time window
-    auto startIt = std::lower_bound(sortedMarkers.begin(), sortedMarkers.end(), startTime,
-        [](const BTWMarkerData& marker, const QDateTime& time) {
-            return marker.timestamp < time;
-        });
-    
-    auto endIt = std::upper_bound(sortedMarkers.begin(), sortedMarkers.end(), endTime,
-        [](const QDateTime& time, const BTWMarkerData& marker) {
-            return time < marker.timestamp;
-        });
-    
-    // Copy the range
-    result.reserve(std::distance(startIt, endIt));
-    result.assign(startIt, endIt);
-    
+
+    if (startTime.isValid() && endTime.isValid() && startTime > endTime)
+    {
+        return result;
+    }
+
+    result.reserve(btwMarkers.size());
+    for (size_t i = 0; i < btwMarkers.size(); ++i)
+    {
+        const BTWMarkerData &marker = btwMarkers[i];
+        if ((!startTime.isValid() || marker.timestamp >= startTime) &&
+            (!endTime.isValid() || marker.timestamp <= endTime))
+        {
+            result.push_back(marker);
+        }
+    }
+
     return result;
 }
 

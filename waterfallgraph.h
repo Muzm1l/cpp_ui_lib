@@ -96,8 +96,8 @@ public:
     std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QString &seriesLabel, const QDateTime &startTime, const QDateTime &endTime) const;
 
     // Direct access to data vectors (delegates to data source)
-    const std::vector<qreal> &getYData(const QString &seriesLabel) const;
-    const std::vector<QDateTime> &getTimestamps(const QString &seriesLabel) const;
+    std::vector<qreal> getYData(const QString &seriesLabel) const;
+    std::vector<QDateTime> getTimestamps(const QString &seriesLabel) const;
 
     // Mouse event handlers (virtual so they can be overridden in derived classes)
     virtual void onMouseClick(const QPointF &scenePos);
@@ -222,11 +222,14 @@ protected:
     virtual void redrawDataLayerForVisibleTimeRange();
     bool shouldRenderSeriesAsLine(const QString &seriesLabel) const;
     virtual void drawBTWSymbols();
+    void clearBTWSymbolOverlayItems();
     /** BTW/RTW: extra overlay items after drawBTWSymbols() on FULL_REDRAW / INCREMENTAL_UPDATE (blue markers, R markers, etc.). */
     virtual void augmentOverlayPassAfterSymbols();
     
     // Cached BTW symbol drawing (magenta circles)
     BTWSymbolDrawing m_btwSymbols;
+    // Reused overlay items for BTW symbols to avoid per-frame delete/recreate churn.
+    std::vector<QGraphicsPixmapItem*> m_btwSymbolItems;
 
     // State machine for rendering
     enum class RenderState {

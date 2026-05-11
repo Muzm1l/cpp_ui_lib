@@ -200,8 +200,11 @@ void FDWGraph::drawFDWScatterplot()
 // drawDataLine() override removed - now uses base class which draws solid lines for ADOPTED
 
 /**
- * @brief Draw dashed white vertical line at 0 value
+ * @brief Draw / reposition the dashed white vertical axis at m_zeroAxisValue.
  *
+ * Reuses the existing QGraphicsLineItem via setLine() when possible, so the
+ * per-frame zoom path only pays an O(1) bounding-rect update instead of a
+ * scene-graph tear-down + addLine() on every tick.
  */
 void FDWGraph::drawZeroAxis()
 {
@@ -209,32 +212,36 @@ void FDWGraph::drawZeroAxis()
         return;
     }
 
-    // Remove old line if it exists to prevent duplication
+    const QDateTime currentTime = QDateTime::currentDateTime();
+    const QPointF zeroPoint = mapDataToScreen(m_zeroAxisValue, currentTime);
+    const QLineF newLine(QPointF(zeroPoint.x(), drawingArea.top()),
+                         QPointF(zeroPoint.x(), drawingArea.bottom()));
+
+    if (m_zeroAxisLineItem && m_zeroAxisLineItem->scene() == overlayScene) {
+        m_zeroAxisLineItem->setLine(newLine);
+        return;
+    }
+
     if (m_zeroAxisLineItem) {
-        // Safety check: Verify item is still valid and in the scene before removing
-        // Check if item has a scene and it matches overlayScene
-        QGraphicsScene *itemScene = m_zeroAxisLineItem->scene();
-        if (itemScene && itemScene == overlayScene) {
-            overlayScene->removeItem(m_zeroAxisLineItem);
-        }
         delete m_zeroAxisLineItem;
         m_zeroAxisLineItem = nullptr;
     }
 
-    // Map zero axis value (zoom panel middle sticker value) to screen coordinates using current time as timestamp
-    QDateTime currentTime = QDateTime::currentDateTime();
-    QPointF zeroPoint = mapDataToScreen(m_zeroAxisValue, currentTime);
-    
-    // Create vertical line from top to bottom of drawing area at x = 0
-    QPointF topPoint(zeroPoint.x(), drawingArea.top());
-    QPointF bottomPoint(zeroPoint.x(), drawingArea.bottom());
-    
-    // Create dashed white pen
-    QPen zeroAxisPen(QColor(255, 255, 255), 1.0, Qt::DashLine); // White dashed line
-    zeroAxisPen.setDashPattern({8, 4}); // Custom dash pattern: 8px dash, 4px gap
-    
-    // Draw the vertical line and store reference for future updates
-    m_zeroAxisLineItem = overlayScene->addLine(QLineF(topPoint, bottomPoint), zeroAxisPen);
-    
+    QPen zeroAxisPen(QColor(255, 255, 255), 1.0, Qt::DashLine);
+    zeroAxisPen.setDashPattern({8, 4});
+    m_zeroAxisLineItem = overlayScene->addLine(newLine, zeroAxisPen);
+
     DEBUG_OUT() << "FDW zero axis drawn at x:" << zeroPoint.x();
+}
+
+void FDWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
+{
+    // Hit by ZoomPanel live drag via the RANGE_UPDATE_ONLY branch.
+    drawZeroAxis();
+}
+
+void FDWGraph::augmentOverlayPassAfterSymbols()
+{
+    // Hit by INCREMENTAL_UPDATE / FULL_REDRAW branches after BTW symbols.
+    drawZeroAxis();
 }

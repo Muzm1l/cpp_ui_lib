@@ -289,6 +289,8 @@ WaterfallGraph::~WaterfallGraph()
     if (m_frameTickTimer)
         m_frameTickTimer->stop();
 
+    clearBTWSymbolOverlayItems();
+
     // Clean up waterfall buffer explicitly to free QImageData memory
     // This addresses the 11.6 MB QImageData::create leak identified by heaptrack
     m_waterfallBuffer = QPixmap(); // Clear QPixmap to free underlying QImageData
@@ -482,6 +484,7 @@ void WaterfallGraph::resetViewState()
 {
     // Clear cached data
     invalidateAllVisibleDataCache();
+    clearBTWSymbolOverlayItems();
     
     // Clear scatterplot item vectors first (before clearing scene items)
     for (auto& pair : m_seriesScatterplotItems) {
@@ -714,12 +717,11 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(
  *
  * @return const std::vector<qreal>&
  */
-const std::vector<qreal> &WaterfallGraph::getYData(const QString &seriesLabel) const
+std::vector<qreal> WaterfallGraph::getYData(const QString &seriesLabel) const
 {
-    static const std::vector<qreal> emptyVector;
     if (!dataSource)
     {
-        return emptyVector;
+        return {};
     }
     return dataSource->getYDataSeries(seriesLabel);
 }
@@ -729,12 +731,11 @@ const std::vector<qreal> &WaterfallGraph::getYData(const QString &seriesLabel) c
  *
  * @return const std::vector<QDateTime>&
  */
-const std::vector<QDateTime> &WaterfallGraph::getTimestamps(const QString &seriesLabel) const
+std::vector<QDateTime> WaterfallGraph::getTimestamps(const QString &seriesLabel) const
 {
-    static const std::vector<QDateTime> emptyVector;
     if (!dataSource)
     {
-        return emptyVector;
+        return {};
     }
     return dataSource->getTimestampsSeries(seriesLabel);
 }
@@ -981,8 +982,22 @@ void WaterfallGraph::processRenderCommandQueue()
                 fullReason = c.reason;
             },
             [&](const YRangeChange &) {
+                // A pure Y-axis rescale is item-preserving: every existing
+                // scatterplot/line item just needs its screen position
+                // recomputed against the new yMin/yMax. That is exactly what
+                // the RANGE_UPDATE_ONLY branch in drawIncremental() does via
+                // redrawDataLayerForVisibleTimeRange() + the position-only
+                // path inside drawScatterplot()/drawDataLine().
+                //
+                // Mapping to Incremental was wrong: INCREMENTAL_UPDATE only
+                // redraws series in m_dirtySeries, but YRangeChange does not
+                // mark anything dirty, so data points stayed pinned to their
+                // stale positions and only the overlay (BTW symbols) refreshed.
+                //
+                // maxRenderPath is monotonic, so a coincident DataAppend or
+                // FULL command still wins over RangeOnly.
                 yRange = true;
-                path = maxRenderPath(path, RenderPath::Incremental);
+                path = maxRenderPath(path, RenderPath::RangeOnly);
             },
             [&](const IncrementalRedrawAllSeries &) {
                 if (dataSource && !dataSource->isEmpty()) {
@@ -1411,96 +1426,89 @@ void WaterfallGraph::transitionToAppropriateState()
  */
 void WaterfallGraph::drawBTWSymbols()
 {
-    // Follow the same pattern as RTW symbols - read symbols from dataSource
-    // OPTIMIZATION: Use overlayScene instead of graphicsScene for symbols (interactive overlays)
+    // Use persistent QGraphicsPixmapItems for BTW symbols. Repositioning/hiding
+    // existing items is significantly cheaper than scanning/deleting/recreating
+    // overlay items every frame as history grows.
     if (!overlayScene || !dataSource)
     {
+        clearBTWSymbolOverlayItems();
         return;
     }
-    
-    // CRITICAL FIX: Always remove old BTW symbol items (magenta circles) before drawing new ones
-    // This prevents duplicates when drawBTWSymbols() is called multiple times
-    // Even during FULL_REDRAW, we need to clean up because overlayScene is not cleared
-    // (only graphicsScene is cleared during FULL_REDRAW)
-    QList<QGraphicsItem*> allItems = overlayScene->items();
-    QList<QGraphicsItem*> itemsToRemove;
-    for (QGraphicsItem* item : allItems)
+
+    const std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
+    const size_t requiredCount = btwSymbols.size();
+
+    // Grow pool on demand.
+    while (m_btwSymbolItems.size() < requiredCount)
     {
-        QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
-        if (pixmapItem && pixmapItem->zValue() == 1003)
+        QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
+        item->setZValue(1003); // Above markers but below interactive items
+        overlayScene->addItem(item);
+        m_btwSymbolItems.push_back(item);
+    }
+
+    // Shrink pool if symbols were removed.
+    while (m_btwSymbolItems.size() > requiredCount)
+    {
+        QGraphicsPixmapItem *item = m_btwSymbolItems.back();
+        m_btwSymbolItems.pop_back();
+        if (item)
         {
-            itemsToRemove.append(pixmapItem);
-        }
-    }
-    // Remove items after iteration to avoid modifying list while iterating
-    for (QGraphicsItem* item : itemsToRemove)
-    {
-        overlayScene->removeItem(item);
-        delete item;
-    }
-    
-    // Get symbols from dataSource
-    std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
-    
-    if (btwSymbols.empty())
-    {
-        return;
-    }
-    
-    // Filter symbols to only include those within the visible time range
-    std::vector<BTWSymbolData> visibleSymbols;
-    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
-    
-    if (timeRangeValid)
-    {
-        for (const auto& symbolData : btwSymbols)
-        {
-            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
+            if (item->scene() == overlayScene)
             {
-                visibleSymbols.push_back(symbolData);
+                overlayScene->removeItem(item);
             }
+            delete item;
         }
     }
-    else
+
+    const bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    const qint64 timeMinEpoch = timeRangeValid ? timeMin.toMSecsSinceEpoch() : 0;
+    const qint64 timeMaxEpoch = timeRangeValid ? timeMax.toMSecsSinceEpoch() : 0;
+
+    for (size_t i = 0; i < requiredCount; ++i)
     {
-        // If time range is not valid, show all symbols (they might be needed for initialization)
-        visibleSymbols = btwSymbols;
-    }
-    
-    // Draw symbols using cached pixmap for better performance
-    // Use different pixmap based on sync state
-    for (const auto& symbolData : visibleSymbols)
-    {
-        // OPTIMIZATION: Use cached epoch milliseconds (stored in BTWSymbolData struct)
-        // This avoids repeated toMSecsSinceEpoch() calls and timezone conversions
-        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
-        
-        // Check if point is within visible area
-        if (!drawingArea.contains(screenPos))
+        QGraphicsPixmapItem *item = m_btwSymbolItems[i];
+        if (!item)
         {
             continue;
         }
-        
-        // Select pixmap based on sync state: synced = filled, not synced = hollow
-        BTWSymbolDrawing::SymbolType symbolType = symbolData.isSynced 
-            ? BTWSymbolDrawing::SymbolType::MagentaCircleSynced 
+
+        if (item->scene() != overlayScene)
+        {
+            overlayScene->addItem(item);
+        }
+
+        const BTWSymbolData &symbolData = btwSymbols[i];
+        if (timeRangeValid && (symbolData.timestampEpoch < timeMinEpoch || symbolData.timestampEpoch > timeMaxEpoch))
+        {
+            item->setVisible(false);
+            continue;
+        }
+
+        const QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
+        if (!drawingArea.contains(screenPos))
+        {
+            item->setVisible(false);
+            continue;
+        }
+
+        const BTWSymbolDrawing::SymbolType symbolType = symbolData.isSynced
+            ? BTWSymbolDrawing::SymbolType::MagentaCircleSynced
             : BTWSymbolDrawing::SymbolType::MagentaCircle;
-        const QPixmap& symbolPixmap = m_btwSymbols.get(symbolType);
-        
+        const QPixmap &symbolPixmap = m_btwSymbols.get(symbolType);
         if (symbolPixmap.isNull())
         {
-            continue; // Skip if pixmap not available
+            item->setVisible(false);
+            continue;
         }
-        
-        // Create a graphics pixmap item using cached pixmap
-        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
-        
-        // Center the symbol on the data point
-        pixmapItem->setPos(screenPos.x() - symbolPixmap.width()/2, screenPos.y() - symbolPixmap.height()/2);
-        pixmapItem->setZValue(1003); // Above markers but below interactive items
-        
-        // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
-        overlayScene->addItem(pixmapItem);
+
+        if (item->pixmap().cacheKey() != symbolPixmap.cacheKey())
+        {
+            item->setPixmap(symbolPixmap);
+        }
+        item->setPos(screenPos.x() - symbolPixmap.width() / 2.0, screenPos.y() - symbolPixmap.height() / 2.0);
+        item->setVisible(true);
     }
 
     // If only ranges need update
@@ -1512,6 +1520,23 @@ void WaterfallGraph::drawBTWSymbols()
 
     // Otherwise clean
     m_renderState = RenderState::CLEAN;
+}
+
+void WaterfallGraph::clearBTWSymbolOverlayItems()
+{
+    for (QGraphicsPixmapItem *item : m_btwSymbolItems)
+    {
+        if (!item)
+        {
+            continue;
+        }
+        if (overlayScene && item->scene() == overlayScene)
+        {
+            overlayScene->removeItem(item);
+        }
+        delete item;
+    }
+    m_btwSymbolItems.clear();
 }
 
 /**

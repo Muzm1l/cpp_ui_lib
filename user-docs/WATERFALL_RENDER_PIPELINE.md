@@ -85,7 +85,7 @@ Commands live in `std::deque<RenderCommand>`. `processRenderCommandQueue()` drai
 | `ScopeChange{min,max}` | **RangeOnly** or **Full** | Uses `scopeWithinRenderedExtent` vs `m_renderedTimeMin/Max`; may invalidate visible cache |
 | `StyleChange{}` | **Full** | Grid, line mode, wholesale style / data replace |
 | `ForceInvalidate{reason}` | **Full** | Reason logged; rendered extent reset |
-| `YRangeChange{}` | **Incremental** | Y-axis / range recompute without full scene policy |
+| `YRangeChange{}` | **RangeOnly** | Pure Y-axis rescale; reuses existing items via `updateScatterplotItemPositions()` / line repath in `RANGE_UPDATE_ONLY` branch. Sets `m_rangeUpdateNeeded`. |
 | `IncrementalRedrawAllSeries{}` | **Incremental** | All series marked dirty (symbols, markers) |
 
 **Path cost order** (for `maxRenderPath`): `None` &lt; `RangeOnly` &lt; `Incremental` &lt; `Full`.
