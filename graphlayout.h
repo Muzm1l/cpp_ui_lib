@@ -446,7 +446,7 @@ private:
     void initializeDataSources(std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap);
     int getContainerIndex(const QString &containerLabel) const;
     void disconnectAllContainerConnections();
-    void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
+    void notifyGraphDataChanged(GraphType graphType, bool forceFullRedraw = false);
     void registerCursorSyncCallbacks();
     void onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time);
     

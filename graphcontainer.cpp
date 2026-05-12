@@ -701,17 +701,17 @@ void GraphContainer::setupEventConnections()
 {
     // Connect ComboBox data source selection
     connect(m_comboBox, &QComboBox::currentTextChanged,
-            this, &GraphContainer::onDataOptionChanged);
+            this, &GraphContainer::onDataOptionChanged, Qt::UniqueConnection);
 
     // Connect WaterfallGraph selection events for all graphs
     for (auto &pair : m_waterfallGraphs)
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
-                this, &GraphContainer::onSelectionCreated);
+                this, &GraphContainer::onSelectionCreated, Qt::UniqueConnection);
         
         // Connect marker timestamp and value changes
         connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
-                this, &GraphContainer::markerTimestampValueChanged);
+                this, &GraphContainer::markerTimestampValueChanged, Qt::UniqueConnection);
         
         // Connect crosshair position changes to update zoompanel label
         pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
@@ -735,9 +735,9 @@ void GraphContainer::setupEventConnections()
     //   valueChanging -> live throttled rescale (cheap, frame-timer driven)
     //   valueChanged  -> final commit on release (synchronous, full overlay sync)
     connect(m_zoomPanel, &ZoomPanel::valueChanging,
-            this, &GraphContainer::onZoomValueChanging);
+            this, &GraphContainer::onZoomValueChanging, Qt::UniqueConnection);
     connect(m_zoomPanel, &ZoomPanel::valueChanged,
-            this, &GraphContainer::onZoomValueChanged);
+            this, &GraphContainer::onZoomValueChanged, Qt::UniqueConnection);
 
     // Connect TimelineView interval changes (if timeline view exists)
     if (m_timelineView)
@@ -764,37 +764,18 @@ void GraphContainer::setupEventConnections()
     if (m_timelineSelectionView)
     {
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionsCleared,
-                this, &GraphContainer::onClearTimeSelectionsButtonClicked);
+                this, &GraphContainer::onClearTimeSelectionsButtonClicked, Qt::UniqueConnection);
         
         // Connect TimeSelectionVisualizer time selection made events
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionMade,
-                this, &GraphContainer::onTimeSelectionMade);
+                this, &GraphContainer::onTimeSelectionMade, Qt::UniqueConnection);
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionModified,
                 this, [this](int index, const TimeSelectionSpan &newSpan) { emit TimeSelectionModified(index, newSpan); });
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::fullSelectionRequested,
-                this, &GraphContainer::onHistoryFullSelectionRequested);
+                this, &GraphContainer::onHistoryFullSelectionRequested, Qt::UniqueConnection);
     }
 
     DEBUG_OUT() << "GraphContainer: All event connections established";
-}
-
-void GraphContainer::setupEventConnectionsForWaterfallGraph()
-{
-    if (!m_currentWaterfallGraph)
-    {
-        qWarning() << "GraphContainer: Cannot setup event connections - no waterfall graph";
-        return;
-    }
-
-    // Connect WaterfallGraph selection events
-    connect(m_currentWaterfallGraph, &WaterfallGraph::SelectionCreated,
-            this, &GraphContainer::onSelectionCreated);
-    
-    // Connect marker timestamp and value changes
-    connect(m_currentWaterfallGraph, &WaterfallGraph::markerTimestampValueChanged,
-            this, &GraphContainer::markerTimestampValueChanged);
-
-    DEBUG_OUT() << "GraphContainer: Event connections established for waterfall graph";
 }
 
 WaterfallGraph *GraphContainer::createWaterfallGraph(GraphType graphType)
@@ -852,17 +833,6 @@ void GraphContainer::createAllWaterfallGraphs()
                 graph->hide();
             }
         }
-    }
-    
-    // Connect events for all graphs
-    for (auto &pair : m_waterfallGraphs)
-    {
-        connect(pair.second, &WaterfallGraph::SelectionCreated,
-                this, &GraphContainer::onSelectionCreated);
-        
-        // Connect marker timestamp and value changes
-        connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
-                this, &GraphContainer::markerTimestampValueChanged);
     }
     
     DEBUG_OUT() << "GraphContainer: Created all waterfall graph instances";

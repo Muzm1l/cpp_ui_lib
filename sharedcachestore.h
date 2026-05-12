@@ -8,7 +8,6 @@
 #include <cstddef>
 #include <deque>
 #include <map>
-#include <optional>
 #include <utility>
 #include <vector>
 
@@ -47,7 +46,7 @@ class SharedCacheStore {
 public:
     explicit SharedCacheStore(size_t maxEntries = 64);
 
-    std::optional<CachedProjection> get(const CacheKey &key) const;
+    const CachedProjection* get(const CacheKey &key) const;
     void put(const CacheKey &key, CachedProjection data);
 
     quint64 currentEpoch() const { return m_dataEpoch; }

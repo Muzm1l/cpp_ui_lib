@@ -393,6 +393,7 @@ protected:
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;
+    bool m_dispatchingOverlayMouseEvent;
     
     // Drawing guard to prevent concurrent draws
     bool isDrawing;

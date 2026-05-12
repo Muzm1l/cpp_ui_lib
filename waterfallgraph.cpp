@@ -50,6 +50,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_engine(nullptr),
     dataSource(nullptr), 
     isDragging(false), 
+    m_dispatchingOverlayMouseEvent(false),
     isDrawing(false),
     crosshairHorizontal(nullptr), 
     crosshairVertical(nullptr), 
@@ -269,7 +270,6 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_frameTickTimer->setTimerType(Qt::PreciseTimer);
     m_frameTickTimer->setInterval(16);
     connect(m_frameTickTimer, &QTimer::timeout, this, &WaterfallGraph::onFrameTick);
-    m_frameTickTimer->start();
 
     // Debug: Print initial state (commented out for performance)
     // DEBUG_OUT() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
@@ -932,6 +932,10 @@ void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
 void WaterfallGraph::postCommand(RenderCommand cmd)
 {
     m_commandQueue.push_back(std::move(cmd));
+    if (m_frameTickTimer && !m_frameTickTimer->isActive())
+    {
+        m_frameTickTimer->start();
+    }
 }
 
 void WaterfallGraph::processRenderCommandQueue()
@@ -1049,6 +1053,8 @@ void WaterfallGraph::onFrameTick()
     processRenderCommandQueue();
     if (m_renderState != RenderState::CLEAN)
         drawIncremental();
+    else if (m_commandQueue.empty() && m_frameTickTimer && m_frameTickTimer->isActive())
+        m_frameTickTimer->stop();
 }
 
 void WaterfallGraph::drainRenderQueueSynchronously()
@@ -1097,23 +1103,22 @@ bool WaterfallGraph::tryFillVisibleCacheFromSharedStore(const QString &seriesLab
                        timeMin.toMSecsSinceEpoch(),
                        timeMax.toMSecsSinceEpoch(),
                        m_sharedCacheStore->currentEpoch()};
-    const auto projOpt = m_sharedCacheStore->get(key);
-    if (!projOpt)
+    const CachedProjection *proj = m_sharedCacheStore->get(key);
+    if (!proj)
         return false;
-    const CachedProjection &proj = *projOpt;
-    const auto dataIt = proj.visibleData.find(seriesLabel);
-    if (dataIt == proj.visibleData.end())
+    const auto dataIt = proj->visibleData.find(seriesLabel);
+    if (dataIt == proj->visibleData.end())
         return false;
 
     m_cachedVisibleData[seriesLabel] = dataIt->second;
-    const auto teIt = proj.timeRangeEpoch.find(seriesLabel);
-    if (teIt != proj.timeRangeEpoch.end())
+    const auto teIt = proj->timeRangeEpoch.find(seriesLabel);
+    if (teIt != proj->timeRangeEpoch.end())
         m_cachedTimeRangeEpoch[seriesLabel] = teIt->second;
-    const auto lpIt = proj.lastProcessedIndex.find(seriesLabel);
-    if (lpIt != proj.lastProcessedIndex.end())
+    const auto lpIt = proj->lastProcessedIndex.find(seriesLabel);
+    if (lpIt != proj->lastProcessedIndex.end())
         m_lastProcessedIndex[seriesLabel] = lpIt->second;
-    const auto csIt = proj.cachedDataSize.find(seriesLabel);
-    if (csIt != proj.cachedDataSize.end())
+    const auto csIt = proj->cachedDataSize.find(seriesLabel);
+    if (csIt != proj->cachedDataSize.end())
         m_cachedDataSize[seriesLabel] = csIt->second;
     m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
     if (dataSource)
@@ -2632,11 +2637,15 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
                     sceneEvent.setModifiers(event->modifiers());
                     sceneEvent.setWidget(overlayView->viewport());
                     
-                    // Send event directly to the scene - the scene will dispatch to the item
-                    QApplication::sendEvent(overlayScene, &sceneEvent);
-                    
-                    if (sceneEvent.isAccepted()) {
-                        return; // Don't process further, the overlay item is handling it
+                    if (!m_dispatchingOverlayMouseEvent) {
+                        m_dispatchingOverlayMouseEvent = true;
+                        // Send event directly to the scene - the scene will dispatch to the item
+                        QApplication::sendEvent(overlayScene, &sceneEvent);
+                        m_dispatchingOverlayMouseEvent = false;
+                        
+                        if (sceneEvent.isAccepted()) {
+                            return; // Don't process further, the overlay item is handling it
+                        }
                     }
                 }
             }
@@ -2686,13 +2695,17 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
             sceneEvent.setModifiers(event->modifiers());
             sceneEvent.setWidget(overlayView->viewport());
             
-            // Send event to the scene
-            QApplication::sendEvent(overlayScene, &sceneEvent);
-            
-            if (sceneEvent.isAccepted()) {
-                // Update cursor position for crosshair
-                m_lastMousePos = event->pos();
-                return; // Don't process further, the overlay item is handling it
+            if (!m_dispatchingOverlayMouseEvent) {
+                m_dispatchingOverlayMouseEvent = true;
+                // Send event to the scene
+                QApplication::sendEvent(overlayScene, &sceneEvent);
+                m_dispatchingOverlayMouseEvent = false;
+                
+                if (sceneEvent.isAccepted()) {
+                    // Update cursor position for crosshair
+                    m_lastMousePos = event->pos();
+                    return; // Don't process further, the overlay item is handling it
+                }
             }
         }
     }
@@ -2845,8 +2858,12 @@ void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
             sceneEvent.setModifiers(event->modifiers());
             sceneEvent.setWidget(overlayView->viewport());
             
-            // Send event to the scene
-            QApplication::sendEvent(overlayScene, &sceneEvent);
+            if (!m_dispatchingOverlayMouseEvent) {
+                m_dispatchingOverlayMouseEvent = true;
+                // Send event to the scene
+                QApplication::sendEvent(overlayScene, &sceneEvent);
+                m_dispatchingOverlayMouseEvent = false;
+            }
         }
     }
 

@@ -384,26 +384,39 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
 
 void WaterfallData::addDataPointToSeries(const QString& seriesLabel, float yValue, const QDateTime& timestamp)
 {
+    CircularBuffer<float> &yBuffer = dataSeriesYData[seriesLabel];
+    const bool evictsOldest = yBuffer.full();
+
     // Store directly as float (no conversion needed)
-    dataSeriesYData[seriesLabel].push_back(yValue);
+    yBuffer.push_back(yValue);
     dataSeriesTimestamps[seriesLabel].push_back(timestamp);
     // Store epoch milliseconds in parallel (convert once, not in hot path)
     dataSeriesTimestampsEpoch[seriesLabel].push_back(timestamp.toMSecsSinceEpoch());
 
     validateDataSeriesConsistency(seriesLabel);
     
-    // Phase 1: Incrementally update min/max for this series
+    // Phase 1: Keep min/max cache correct even when circular buffers evict oldest values.
+    // If an element is evicted, incremental min/max updates are not sufficient.
+    if (evictsOldest)
+    {
+        updateSeriesMinMax(seriesLabel);
+        invalidateRangeCache();
+        return;
+    }
+
     auto minMaxIt = m_seriesMinMax.find(seriesLabel);
     if (minMaxIt != m_seriesMinMax.end()) {
-        // Update existing min/max
+        bool rangeChanged = false;
         if (yValue < minMaxIt->second.first) {
             minMaxIt->second.first = yValue;
-            invalidateRangeCache();
+            rangeChanged = true;
         }
         if (yValue > minMaxIt->second.second) {
             minMaxIt->second.second = yValue;
-            invalidateRangeCache();
+            rangeChanged = true;
         }
+        if (rangeChanged)
+            invalidateRangeCache();
     } else {
         // First point in series - initialize min/max
         updateSeriesMinMax(seriesLabel);

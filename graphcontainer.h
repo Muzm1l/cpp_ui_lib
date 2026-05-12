@@ -237,7 +237,6 @@ private:
     void updateComboBoxOptions();
     void onDataOptionChanged(QString title);
     void setupEventConnections();
-    void setupEventConnectionsForWaterfallGraph();
     WaterfallGraph *createWaterfallGraph(GraphType graphType);
     void createAllWaterfallGraphs();
     void setupWaterfallGraphProperties(WaterfallGraph *graph, GraphType graphType);

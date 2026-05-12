@@ -348,6 +348,7 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
         // Connect engine signals
         connect(m_engines[graphType], &GraphEngine::dataAppended,
                 this, [this, graphType](const QString &seriesLabel) {
+            Q_UNUSED(seriesLabel);
             // Notify containers
             for (auto *container : m_graphContainers) {
                 if (container) {
@@ -361,6 +362,19 @@ void GraphLayout::initializeDataSources(std::map<GraphType, std::vector<QPair<QS
             m_seriesColorsMap[seriesPair.first] = seriesPair.second;
         }
 
+    }
+}
+
+void GraphLayout::notifyGraphDataChanged(GraphType graphType, bool forceFullRedraw)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (forceFullRedraw)
+            container->redrawWaterfallGraph(graphType);
+        else
+            container->onDataChanged(graphType);
     }
 }
 
@@ -596,8 +610,6 @@ void GraphLayout::updateLayoutSizing()
     
     // Set container widths and total width based on standard sizes
     int totalWidth = 0;
-    const int timelineViewWidth = 64; // Timeline view width
-    
     switch (m_layoutType)
     {
     case LayoutType::GPW1W:
@@ -880,14 +892,7 @@ void GraphLayout::addDataPointToDataSource(const GraphType &graphType, const QSt
         it->second->addDataPoint(seriesLabel, yValue, timestamp);
         DEBUG_OUT() << "Added data point to" << dataSourceLabel << "series" << seriesLabel << "y:" << yValue << "time:" << timestamp.toString();
 
-        // Notify all containers that have this data source to update their UI
-        for (auto *container : m_graphContainers)
-        {
-            if (container)
-            {
-                container->onDataChanged(graphType);
-            }
-        }
+        // Container updates are driven by GraphEngine::dataAppended signal.
     }
     else
     {
@@ -905,14 +910,7 @@ void GraphLayout::addDataPointsToDataSource(const GraphType &graphType, const QS
         it->second->addDataPoints(seriesLabel, yValues, timestamps);
         DEBUG_OUT() << "Added" << yValues.size() << "data points to" << dataSourceLabel << "series" << seriesLabel;
 
-        // Notify all containers that have this data source to update their UI
-        for (auto *container : m_graphContainers)
-        {
-            if (container)
-            {
-                container->onDataChanged(graphType);
-            }
-        }
+        // Container updates are driven by GraphEngine::dataAppended signal.
     }
     else
     {
@@ -938,22 +936,11 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
             DEBUG_OUT() << "Data is empty for" << dataSourceLabel << "series" << seriesLabel << "- triggering full redraw to clear graphs";
         }
 
-        // Notify all containers that have this data source to update their UI
-        for (auto *container : m_graphContainers)
+        // For non-empty updates, container updates are driven by GraphEngine::dataAppended.
+        // For empty updates, force redraw to clear any stale scene artifacts immediately.
+        if (isEmpty)
         {
-            if (container)
-            {
-                // If data is empty, force a full redraw to ensure graphs are cleared
-                // This ensures existing graph graphics are removed when data becomes empty
-                if (isEmpty)
-                {
-                    container->redrawWaterfallGraph(graphType);
-                }
-                else
-                {
-                    container->onDataChanged(graphType);
-                }
-            }
+            notifyGraphDataChanged(graphType, true);
         }
     }
     else
@@ -1024,15 +1011,8 @@ void GraphLayout::endInteractiveDrag(const GraphType &graphType)
     // Reset throttling timer
     m_interactiveUpdateTimers[graphType].invalidate();
     
-    // Trigger full update with range recalculation for all containers
-    for (auto *container : m_graphContainers)
-    {
-        if (container)
-        {
-            // Use normal onDataChanged which does full update with range recalculation
-            container->onDataChanged(graphType);
-        }
-    }
+    // Trigger full update with range recalculation for all containers.
+    notifyGraphDataChanged(graphType);
 }
 
 void GraphLayout::flushPendingInteractiveUpdates(const GraphType &graphType)
@@ -1087,22 +1067,9 @@ void GraphLayout::setDataToDataSource(const GraphType &graphType, const QString 
             DEBUG_OUT() << "Data is empty for" << dataSourceLabel << "series" << seriesLabel << "- triggering full redraw to clear graphs";
         }
 
-        // Notify all containers that have this data source to update their UI
-        for (auto *container : m_graphContainers)
+        if (isEmpty)
         {
-            if (container)
-            {
-                // If data is empty, force a full redraw to ensure graphs are cleared
-                // This ensures existing graph graphics are removed when data becomes empty
-                if (isEmpty)
-                {
-                    container->redrawWaterfallGraph(graphType);
-                }
-                else
-                {
-                    container->onDataChanged(graphType);
-                }
-            }
+            notifyGraphDataChanged(graphType, true);
         }
     }
     else
@@ -1120,14 +1087,7 @@ void GraphLayout::clearDataSource(const GraphType &graphType, const QString &ser
         it->second->clearDataSeries(seriesLabel);
         DEBUG_OUT() << "Cleared data for" << dataSourceLabel << "series" << seriesLabel;
 
-        // Notify all containers that have this data source to update their UI
-        for (auto *container : m_graphContainers)
-        {
-            if (container)
-            {
-                container->onDataChanged(graphType);
-            }
-        }
+        notifyGraphDataChanged(graphType);
     }
     else
     {
@@ -1599,21 +1559,6 @@ void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
 // }
 
 // ------------------------------------------------------------
-
-void GraphLayout::propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection)
-{
-    // Add the selection to all visible containers
-    for (auto *container : m_graphContainers)
-    {
-        if (container && container->isVisible())
-        {
-            container->addTimeSelection(selection);
-        }
-    }
-
-    // Emit the signal for external consumers
-    emit TimeSelectionCreated(selection);
-}
 
 void GraphLayout::registerCursorSyncCallbacks()
 {

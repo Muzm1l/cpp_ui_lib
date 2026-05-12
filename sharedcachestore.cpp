@@ -6,17 +6,17 @@ SharedCacheStore::SharedCacheStore(size_t maxEntries)
 {
 }
 
-std::optional<CachedProjection> SharedCacheStore::get(const CacheKey &key) const
+const CachedProjection* SharedCacheStore::get(const CacheKey &key) const
 {
     auto it = m_entries.find(key);
     if (it == m_entries.end())
-        return std::nullopt;
+        return nullptr;
     auto lruIt = std::find(m_lru.begin(), m_lru.end(), key);
     if (lruIt != m_lru.end()) {
         m_lru.erase(lruIt);
         m_lru.push_back(key);
     }
-    return it->second;
+    return &it->second;
 }
 
 void SharedCacheStore::put(const CacheKey &key, CachedProjection data)
@@ -32,15 +32,11 @@ void SharedCacheStore::put(const CacheKey &key, CachedProjection data)
 void SharedCacheStore::invalidateEpoch(quint64 newEpoch)
 {
     m_dataEpoch = newEpoch;
-    m_entries.clear();
-    m_lru.clear();
 }
 
 void SharedCacheStore::bumpDataEpoch()
 {
     ++m_dataEpoch;
-    m_entries.clear();
-    m_lru.clear();
 }
 
 void SharedCacheStore::evictIfNeeded()
