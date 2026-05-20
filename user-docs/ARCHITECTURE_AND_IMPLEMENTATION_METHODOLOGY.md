@@ -11,6 +11,7 @@
 | Memory pressure and module map | [`SYSTEM_MEMORY_ARCHITECTURE_REPORT_2026.md`](./SYSTEM_MEMORY_ARCHITECTURE_REPORT_2026.md) |
 | Timeline/slider behavior | [`TIMELINEVIEW_SLIDER_ARCHITECTURE.md`](./TIMELINEVIEW_SLIDER_ARCHITECTURE.md) |
 | SCW subsystem | [`scwwindow.md`](./scwwindow.md), [`scw-working-and-api.md`](./scw-working-and-api.md) |
+| Callgrind-backed perf vs layers (`callgrind.out.213944`) | [`ARCHITECTURE_CALLGRIND_PROFILE_213944.md`](./ARCHITECTURE_CALLGRIND_PROFILE_213944.md) |
 
 ---
 

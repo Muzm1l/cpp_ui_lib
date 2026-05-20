@@ -38,9 +38,6 @@ BTWInteractiveOverlay::~BTWInteractiveOverlay()
 
 InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF &position, const QDateTime &timestamp, float value, const QString &seriesLabel)
 {
-    Q_UNUSED(value); // Not used yet but may be used for bearing rate calculation in future
-    Q_UNUSED(seriesLabel);
-    
     if (!m_overlayScene) {
         return nullptr;
     }
@@ -103,6 +100,8 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     
     // Store the initial range value for reference (key 1)
     marker->setData(1, QVariant::fromValue(value));
+    // Source series this marker was snapped to (e.g. BTW-2), for diagnostics / future use
+    marker->setData(3, seriesLabel);
     
     // Enable horizontal-only movement by default
     // This constrains the marker to move only along the X axis (range), not Y (timestamp)
@@ -136,7 +135,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
     BTWSyncMarkerData markerData;
     markerData.id = markerId;
     markerData.timestamp = timestamp;
-    markerData.rangeValue = m_btwGraph ? m_btwGraph->mapScreenXToRange(position.x()) : 0.0;
+    markerData.rangeValue = static_cast<qreal>(value);
     markerData.bearingRate = marker->rotation() / 10.0;
     markerData.isDeleted = false;
     emit markerDataChanged(markerData);
@@ -794,14 +793,14 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::getMarkerAt(const QPointF &posit
         return nullptr;
     }
     
-    QGraphicsItem *itemAtPos = m_overlayScene->itemAt(position, QTransform());
-    
-    // Check if the item is one of our markers
-    InteractiveGraphicsItem *marker = dynamic_cast<InteractiveGraphicsItem*>(itemAtPos);
-    if (marker && m_markers.contains(marker)) {
-        return marker;
+    // Walk stacking order: skip chrome (e.g. time-selection band) that may sit above markers in z.
+    const QList<QGraphicsItem *> stack = m_overlayScene->items(position);
+    for (QGraphicsItem *item : stack) {
+        auto *marker = dynamic_cast<InteractiveGraphicsItem *>(item);
+        if (marker && m_markers.contains(marker)) {
+            return marker;
+        }
     }
-    
     return nullptr;
 }
 
@@ -1098,8 +1097,11 @@ BTWSyncMarkerData BTWInteractiveOverlay::getMarkerData(InteractiveGraphicsItem *
         data.timestamp = timestampVariant.value<QDateTime>();
     }
     
-    // Get range value from current position
-    if (m_btwGraph) {
+    // Prefer stored range (data 1); it matches snapped data coordinates. Fall back to screen X mapping.
+    QVariant rangeVariant = marker->data(1);
+    if (rangeVariant.isValid() && rangeVariant.canConvert<double>()) {
+        data.rangeValue = rangeVariant.toDouble();
+    } else if (m_btwGraph) {
         data.rangeValue = m_btwGraph->mapScreenXToRange(marker->scenePos().x());
     }
     

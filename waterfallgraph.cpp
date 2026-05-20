@@ -192,7 +192,11 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     selectionRect = new QGraphicsRectItem();
     selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine));    // White dashed line
     selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
-    selectionRect->setZValue(1000);                             // Ensure it's drawn on top
+    // Below crosshair/time cursor and below BTW interactive markers (they use z >= 0 / 1001+);
+    // must not sit on top or itemAt() blocks marker clicks.
+    selectionRect->setZValue(-1);
+    selectionRect->setAcceptedMouseButtons(Qt::NoButton);
+    selectionRect->setAcceptHoverEvents(false);
     overlayScene->addItem(selectionRect);                       // Add to overlay scene
 
     // Setup crosshair
@@ -4048,7 +4052,9 @@ void WaterfallGraph::startSelection(const QPointF &scenePos)
         selectionRect = new QGraphicsRectItem();
         selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine));    // White dashed line
         selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
-        selectionRect->setZValue(1000);                             // Ensure it's drawn on top
+        selectionRect->setZValue(-1);
+        selectionRect->setAcceptedMouseButtons(Qt::NoButton);
+        selectionRect->setAcceptHoverEvents(false);
     }
 
     // Add to scene if not already added
@@ -4057,8 +4063,9 @@ void WaterfallGraph::startSelection(const QPointF &scenePos)
         overlayScene->addItem(selectionRect);
     }
 
-    // Initialize with a small rectangle at the start position
-    selectionRect->setRect(scenePos.x() - 1, scenePos.y() - 1, 2, 2);
+    // Time selection uses only Y → draw a full-width vertical band (not a 2D box in X).
+    const qreal y = qBound(drawingArea.top(), scenePos.y(), drawingArea.bottom());
+    selectionRect->setRect(drawingArea.left(), y - 1, drawingArea.width(), 2);
 
     DEBUG_OUT() << "Selection rectangle created and added to scene. Rect:" << selectionRect->rect();
     DEBUG_OUT() << "Selection started at:" << scenePos;
@@ -4071,14 +4078,11 @@ void WaterfallGraph::updateSelection(const QPointF &scenePos)
 
     selectionEndPos = scenePos;
 
-    // Update rectangle bounds
-    QRectF rect;
-    rect.setLeft(qMin(selectionStartPos.x(), selectionEndPos.x()));
-    rect.setRight(qMax(selectionStartPos.x(), selectionEndPos.x()));
-    rect.setTop(qMin(selectionStartPos.y(), selectionEndPos.y()));
-    rect.setBottom(qMax(selectionStartPos.y(), selectionEndPos.y()));
-
-    // Clamp to drawing area
+    // Time span is Y-only (see endSelection). Keep the preview as a full-width band so
+    // dragging does not imply an X / value-range selection.
+    const qreal minY = qMin(selectionStartPos.y(), selectionEndPos.y());
+    const qreal maxY = qMax(selectionStartPos.y(), selectionEndPos.y());
+    QRectF rect(drawingArea.left(), minY, drawingArea.width(), qMax(1.0, maxY - minY));
     rect = rect.intersected(drawingArea);
 
     // Additional validation: ensure selection is within valid time range

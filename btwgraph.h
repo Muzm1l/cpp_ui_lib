@@ -337,6 +337,13 @@ private:
     QSize m_cachedWindowSize;      // Cached window size
     qreal m_cachedMarkerRadius;    // Cached marker radius based on window size
     bool m_windowSizeCacheValid;   // Flag to track cache validity
+
+    /**
+     * Snap a manual marker to the visible series whose interpolated trace is horizontally
+     * nearest the click at the given time (clicked Y → timestamp).
+     */
+    bool snapManualMarkerToNearestSeriesAtTime(const QPointF &scenePos, const QDateTime &timestamp,
+                                               qreal &outRange, QString &outSeriesLabel) const;
     
     // Cache update function (Issue #3)
     void updateWindowSizeCache();

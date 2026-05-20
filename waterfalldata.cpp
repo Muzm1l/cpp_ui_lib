@@ -603,6 +603,55 @@ bool WaterfallData::findClosestDataPoint(const QString& seriesLabel, const QDate
     return false;
 }
 
+bool WaterfallData::interpolateSeriesRangeAtTime(const QString& seriesLabel, const QDateTime& targetTime, qreal& outRange) const
+{
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto tIt = dataSeriesTimestamps.find(seriesLabel);
+
+    if (yIt == dataSeriesYData.end() || tIt == dataSeriesTimestamps.end()) {
+        return false;
+    }
+
+    const std::vector<QDateTime> timestamps = tIt->second.toVector();
+    const std::vector<float> yData = yIt->second.toVector();
+
+    if (timestamps.empty() || timestamps.size() != yData.size()) {
+        return false;
+    }
+
+    auto it = std::lower_bound(timestamps.begin(), timestamps.end(), targetTime);
+
+    if (it == timestamps.begin()) {
+        outRange = static_cast<qreal>(yData.front());
+        return true;
+    }
+
+    if (it == timestamps.end()) {
+        outRange = static_cast<qreal>(yData.back());
+        return true;
+    }
+
+    const size_t idx = static_cast<size_t>(std::distance(timestamps.begin(), it));
+    if (*it == targetTime) {
+        outRange = static_cast<qreal>(yData[idx]);
+        return true;
+    }
+
+    const size_t prevIdx = idx - 1;
+    const qint64 t0 = timestamps[prevIdx].toMSecsSinceEpoch();
+    const qint64 t1 = timestamps[idx].toMSecsSinceEpoch();
+    const qint64 tt = targetTime.toMSecsSinceEpoch();
+
+    if (t1 == t0) {
+        outRange = static_cast<qreal>(yData[prevIdx]);
+        return true;
+    }
+
+    const qreal alpha = static_cast<qreal>(tt - t0) / static_cast<qreal>(t1 - t0);
+    outRange = (1.0 - alpha) * static_cast<qreal>(yData[prevIdx]) + alpha * static_cast<qreal>(yData[idx]);
+    return true;
+}
+
 std::vector<qreal> WaterfallData::getYDataSeries(const QString& seriesLabel) const
 {
     auto it = dataSeriesYData.find(seriesLabel);

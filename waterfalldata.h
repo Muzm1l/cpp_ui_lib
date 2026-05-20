@@ -98,6 +98,15 @@ public:
     // Binary search helper: find closest data point to a timestamp within tolerance
     bool findClosestDataPoint(const QString& seriesLabel, const QDateTime& targetTime, qint64 toleranceMs, qreal& outValue, size_t& outIndex) const;
 
+    /**
+     * @brief Linearly interpolate series range (Y) at an arbitrary time between samples.
+     * @param seriesLabel Data series key (e.g. BTW-1)
+     * @param targetTime Time at which to evaluate (typically from graph click)
+     * @param outRange Interpolated range/bearing value at targetTime
+     * @return false if the series has no samples
+     */
+    bool interpolateSeriesRangeAtTime(const QString& seriesLabel, const QDateTime& targetTime, qreal& outRange) const;
+
     // Direct access to data series vectors
     // Note: Returns vectors converted from circular buffers (chronological order, oldest first)
     std::vector<qreal> getYDataSeries(const QString& seriesLabel) const;

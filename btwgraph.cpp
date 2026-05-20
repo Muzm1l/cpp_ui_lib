@@ -11,6 +11,7 @@
 #include <QRandomGenerator>
 #include <QPainter>
 #include <QPixmap>
+#include <limits>
 #include <mutex>
 
 /**
@@ -215,6 +216,52 @@ void BTWGraph::augmentOverlayPassAfterSymbols()
         m_interactiveOverlay->syncMarkersWithTimeline();
 }
 
+bool BTWGraph::snapManualMarkerToNearestSeriesAtTime(const QPointF &scenePos, const QDateTime &timestamp,
+                                                    qreal &outRange, QString &outSeriesLabel) const
+{
+    outRange = 0.0;
+    outSeriesLabel.clear();
+
+    if (!dataSource || !timestamp.isValid()) {
+        return false;
+    }
+
+    qreal bestDist = std::numeric_limits<qreal>::max();
+    QString bestLabel;
+    qreal bestRange = 0.0;
+    bool found = false;
+
+    const std::vector<QString> labels = dataSource->getDataSeriesLabels();
+    for (const QString &label : labels) {
+        if (!isSeriesVisible(label)) {
+            continue;
+        }
+        qreal r = 0.0;
+        if (!dataSource->interpolateSeriesRangeAtTime(label, timestamp, r)) {
+            continue;
+        }
+        const QPointF p = mapDataToScreen(r, timestamp);
+        if (!qIsFinite(p.x()) || !qIsFinite(p.y())) {
+            continue;
+        }
+        const qreal dist = qAbs(p.x() - scenePos.x());
+        if (dist < bestDist) {
+            bestDist = dist;
+            bestRange = r;
+            bestLabel = label;
+            found = true;
+        }
+    }
+
+    if (!found) {
+        return false;
+    }
+
+    outRange = bestRange;
+    outSeriesLabel = bestLabel;
+    return true;
+}
+
 /**
  * @brief Handle mouse click events specific to BTW graph
  * Adds a single interactive marker when clicking on the graph
@@ -230,9 +277,10 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         QGraphicsItem *itemAtPos = m_interactiveOverlay->getOverlayScene()->itemAt(scenePos, QTransform());
         // Filter out crosshair items - they should not prevent marker creation
         // CRITICAL FIX: Also filter out items that don't accept mouse buttons (like shaded regions)
-        if (itemAtPos && 
-            itemAtPos != crosshairHorizontal && 
+        if (itemAtPos &&
+            itemAtPos != crosshairHorizontal &&
             itemAtPos != crosshairVertical &&
+            itemAtPos != selectionRect &&
             itemAtPos->acceptedMouseButtons() != Qt::NoButton) {  // Only block if item accepts mouse events
             // Don't add a new marker, let the interactive item handle the click
             return;
@@ -293,9 +341,6 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
     
     // Only add a marker if we clicked on empty space (no interactive items)
     if (m_interactiveOverlay) {
-        // Convert scene position to overlay coordinates
-        QPointF overlayPos = scenePos;
-        
         // Calculate timestamp from Y position (this represents the time at that position on the graph)
         QDateTime timestamp = mapScreenToTime(scenePos.y());
         
@@ -312,11 +357,23 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
             return; // Don't create marker
         }
         
-        // Get value from X position (range value)
+        // Snap to the visible series whose interpolated value at this time is nearest the click in X;
+        // then place the marker on (range, timestamp) so it sits on that series' trace.
         qreal value = mapScreenXToRange(scenePos.x());
-        QString seriesLabel = "BTW-Click";
-        
-        m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, value, seriesLabel);
+        QString seriesLabel = QStringLiteral("BTW-Click");
+        qreal snappedRange = 0.0;
+        QString snappedSeries;
+        if (snapManualMarkerToNearestSeriesAtTime(scenePos, timestamp, snappedRange, snappedSeries)) {
+            value = snappedRange;
+            seriesLabel = snappedSeries;
+        }
+
+        QPointF overlayPos = mapDataToScreen(value, timestamp);
+        if (!qIsFinite(overlayPos.x()) || !qIsFinite(overlayPos.y())) {
+            overlayPos = scenePos;
+        }
+
+        m_interactiveOverlay->addDataPointMarker(overlayPos, timestamp, static_cast<float>(value), seriesLabel);
         
         // Emit signal for marker timestamp and value
         if (timestamp.isValid()) {

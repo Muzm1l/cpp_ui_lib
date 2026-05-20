@@ -906,8 +906,8 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setAutoUpdateYRange(true);
     }
     
-    // Enable mouse selection for the waterfall graph
-    graph->setMouseSelectionEnabled(false);
+    // Rubber-band time interval selection on the graph (emits SelectionCreated → timeline / history)
+    graph->setMouseSelectionEnabled(true);
     
     // Enable range limiting for the waterfall graph
     graph->setRangeLimitingEnabled(true);
