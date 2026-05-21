@@ -1502,9 +1502,8 @@ void WaterfallGraph::drawBTWSymbols()
             continue;
         }
 
-        const BTWSymbolDrawing::SymbolType symbolType = symbolData.isSynced
-            ? BTWSymbolDrawing::SymbolType::MagentaCircleSynced
-            : BTWSymbolDrawing::SymbolType::MagentaCircle;
+        const BTWSymbolDrawing::SymbolType symbolType =
+            BTWSymbolDrawing::resolveDisplayType(symbolData.symbolName, symbolData.isSynced);
         const QPixmap &symbolPixmap = m_btwSymbols.get(symbolType);
         if (symbolPixmap.isNull())
         {

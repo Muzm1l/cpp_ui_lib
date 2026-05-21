@@ -207,6 +207,7 @@ public:
     // Marker and symbol management methods - operate on specific graph type
     void addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
     void addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
+    void addBTWSymbol(const GraphType &graphType, BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, float range);
     void addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float delta);
     void addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range);
     

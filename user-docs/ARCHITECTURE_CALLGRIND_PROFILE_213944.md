@@ -2,7 +2,7 @@
 
 **Purpose:** Relate a concrete **Callgrind** run of `ui-sandbox` to the layered architecture described in [`ARCHITECTURE_AND_IMPLEMENTATION_METHODOLOGY.md`](./ARCHITECTURE_AND_IMPLEMENTATION_METHODOLOGY.md), and record **evidence-backed** performance implications. This is not a substitute for full system design docs; it supplements them with profiling facts.
 
-**See also:** [`PERFORMANCE_ARCHITECTURE_DECISIONS.md`](./PERFORMANCE_ARCHITECTURE_DECISIONS.md) (prioritized remediation patterns).
+**See also:** [`PERFORMANCE_ARCHITECTURE_DECISIONS.md`](./PERFORMANCE_ARCHITECTURE_DECISIONS.md) (prioritized remediation patterns), [`observations-for-future-redesigns.md`](./observations-for-future-redesigns.md) (profiling-backed redesign observations, including `callgrind.out.39553`).
 
 ---
 

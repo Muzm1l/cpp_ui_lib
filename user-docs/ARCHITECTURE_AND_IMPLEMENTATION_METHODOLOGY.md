@@ -12,6 +12,7 @@
 | Timeline/slider behavior | [`TIMELINEVIEW_SLIDER_ARCHITECTURE.md`](./TIMELINEVIEW_SLIDER_ARCHITECTURE.md) |
 | SCW subsystem | [`scwwindow.md`](./scwwindow.md), [`scw-working-and-api.md`](./scw-working-and-api.md) |
 | Callgrind-backed perf vs layers (`callgrind.out.213944`) | [`ARCHITECTURE_CALLGRIND_PROFILE_213944.md`](./ARCHITECTURE_CALLGRIND_PROFILE_213944.md) |
+| Profiling observations for future redesigns (213944 + 39553) | [`observations-for-future-redesigns.md`](./observations-for-future-redesigns.md) |
 
 ---
 

@@ -2,6 +2,7 @@
 #define GRAPHENGINE_H
 
 #include "waterfalldata.h"
+#include "btwsymboldrawing.h"
 #include "graphtype.h"
 #include <QObject>
 #include <QDateTime>
@@ -45,6 +46,7 @@ public:
     // Symbol management (delegate to WaterfallData)
     void addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range);
     void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range);
+    void addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, float range);
     void clearRTWSymbols();
     void clearBTWSymbols();
     bool removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);

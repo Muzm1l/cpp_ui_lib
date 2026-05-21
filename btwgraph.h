@@ -134,11 +134,19 @@ public:
     
     /**
      * @brief Add a BTW symbol to the graph
-     * @param symbolName Name of the symbol (e.g., "MagentaCircle")
+     * @param symbolName Name of the symbol (e.g., "MagentaCircle", "YellowCircle1", "WhiteCircle2")
      * @param timestamp Timestamp when the symbol should be displayed
      * @param range Range value (Y-axis position) where the symbol should be displayed
      */
     void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
+
+    /**
+     * @brief Add a predefined BTW symbol by type (pixmap cache lookup)
+     * @param symbolType Registered BTWSymbolDrawing::SymbolType
+     * @param timestamp Timestamp when the symbol should be displayed
+     * @param range Bearing/range value (X-axis) where the symbol should be displayed
+     */
+    void addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, qreal range);
     
     /**
      * @brief Add a shaded region to the graph
@@ -275,7 +283,6 @@ private:
     // BTW-specific properties and methods can be added here
     void drawBTWScatterplot();
     void drawCustomCircleMarkers();
-    BTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
     void addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue);
     
     // Interactive overlay setup

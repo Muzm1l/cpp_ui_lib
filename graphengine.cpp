@@ -81,6 +81,11 @@ void GraphEngine::addBTWSymbol(const QString &symbolName, const QDateTime &times
     emit symbolsChanged();
 }
 
+void GraphEngine::addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, float range)
+{
+    addBTWSymbol(BTWSymbolDrawing::symbolTypeToName(symbolType), timestamp, range);
+}
+
 void GraphEngine::clearRTWSymbols()
 {
     m_data.clearRTWSymbols();

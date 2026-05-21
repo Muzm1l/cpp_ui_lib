@@ -2337,6 +2337,12 @@ void GraphLayout::addBTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
+void GraphLayout::addBTWSymbol(const GraphType &graphType, BTWSymbolDrawing::SymbolType symbolType,
+                               const QDateTime &timestamp, float range)
+{
+    addBTWSymbol(graphType, BTWSymbolDrawing::symbolTypeToName(symbolType), timestamp, range);
+}
+
 void GraphLayout::addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float delta)
 {
     auto it = m_engines.find(graphType);
@@ -3030,7 +3036,8 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* u
     
     // Get all graph types
     std::vector<GraphType> allGraphTypes = getDataSourceLabels();
-    
+    bool anySymbolAdded = false;
+
     for (GraphType graphType : allGraphTypes)
     {
         // Skip BTW graphs (they already have the marker)
@@ -3113,6 +3120,7 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* u
         // Add magenta circle symbol to this graph's data source
         // Use the range value from the data point at this timestamp (not the BTW marker's range)
         dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange, true); // isSynced=true for symbols added via addBTWSymbolToAllGraphs
+        anySymbolAdded = true;
         DEBUG_OUT() << "GraphLayout: Added BTW symbol to graph type" << static_cast<int>(graphType) << "at timestamp" << timestamp.toString() << "with range" << dataPointRange << "(from data point)";
         
         // Verify the symbol was added
@@ -3123,11 +3131,13 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* u
         redrawGraph(graphType);
     }
     
-    // Redraw all graphs once to ensure symbols appear in all containers
-    redrawAllGraphs();
-    
-    // Emit signal for external consumers (e.g., SCWWindow)
-    emit BTWSymbolAddedToAllGraphs(timestamp);
+    if (anySymbolAdded) {
+        // Redraw all graphs once to ensure symbols appear in all containers
+        redrawAllGraphs();
+
+        // Emit signal for external consumers (e.g., SCWWindow)
+        emit BTWSymbolAddedToAllGraphs(timestamp);
+    }
     
     DEBUG_OUT() << "GraphLayout: Finished adding BTW symbols to all graphs";
 }

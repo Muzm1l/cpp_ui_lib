@@ -725,28 +725,12 @@ void BTWGraph::onMarkerMoved(InteractiveGraphicsItem *marker, const QPointF &new
 
 void BTWGraph::onMarkerRotated(InteractiveGraphicsItem *marker, qreal angle)
 {
+    Q_UNUSED(marker);
     Q_UNUSED(angle);
-    if (!marker) {
-        return;
-    }
-    
-    // Extract timestamp from marker's stored data
-    QVariant timestampVariant = marker->data(0);
-    QDateTime timestamp;
-    
-    if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>()) {
-        timestamp = timestampVariant.value<QDateTime>();
-    } else {
-        // Fallback: calculate timestamp from marker's Y position
-        QPointF scenePos = marker->scenePos();
-        qreal yPos = scenePos.y();
-        timestamp = mapScreenToTime(yPos);
-    }
-    
-    // Update magenta circles when green marker is rotated (position might have changed)
-    if (timestamp.isValid()) {
-        emit manualMarkerPlaced(timestamp, marker->scenePos());
-    }
+    // Bearing-rate label and cross-container sync are handled in BTWInteractiveOverlay
+    // (updateBearingRateBox + markerDataChanged). Do not emit manualMarkerPlaced here:
+    // rotation does not change timestamp/position, and that signal triggers a full
+    // synchronous redraw of all graphs via addBTWSymbolToAllGraphs.
 }
 
 void BTWGraph::onMarkerClicked(InteractiveGraphicsItem *marker, const QPointF &position)
@@ -878,108 +862,25 @@ InteractiveGraphicsItem* BTWGraph::addBTWManualMarker(const QDateTime &timestamp
 
 void BTWGraph::addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range)
 {
-    // Store symbol in dataSource (WaterfallData) so it persists with track data
     if (!dataSource)
     {
         return;
     }
-    
+
     dataSource->addBTWSymbol(symbolName, timestamp, range);
-    
-    // Trigger redraw
     draw();
 }
 
-BTWSymbolDrawing::SymbolType BTWGraph::symbolNameToType(const QString &symbolName) const
+void BTWGraph::addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, qreal range)
 {
-    QString name = symbolName.toUpper();
-    if (name == "MAGENTACIRCLE") return BTWSymbolDrawing::SymbolType::MagentaCircle;
-    
-    // Default to MagentaCircle
-    return BTWSymbolDrawing::SymbolType::MagentaCircle;
+    addBTWSymbol(BTWSymbolDrawing::symbolTypeToName(symbolType), timestamp, range);
 }
 
 void BTWGraph::drawBTWSymbols()
 {
-    // Follow the same pattern as RTW symbols - read symbols from dataSource
-    if (!graphicsScene || !dataSource)
-    {
-        return;
-    }
-    
-    // CRITICAL FIX: Remove old BTW symbol items (magenta circles) before drawing new ones
-    // This prevents duplicates when time range changes and symbols are redrawn
-    // Only remove if not doing a full clear (full clear already cleared the scene)
-    if (m_renderState != RenderState::FULL_REDRAW)
-    {
-        // Remove all QGraphicsPixmapItem objects with z-value 1003 (BTW symbols/magenta circles)
-        QList<QGraphicsItem*> allItems = graphicsScene->items();
-        for (QGraphicsItem* item : allItems)
-        {
-            QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
-            if (pixmapItem && pixmapItem->zValue() == 1003)
-            {
-                graphicsScene->removeItem(pixmapItem);
-                delete pixmapItem;
-            }
-        }
-    }
-    
-    // Get symbols from dataSource (filtered by time range using binary search)
-    std::vector<BTWSymbolData> visibleSymbols;
-    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
-    
-    if (timeRangeValid)
-    {
-        // Use binary search-based filtering for O(log n) performance
-        visibleSymbols = dataSource->getBTWSymbolsWithinTimeRange(timeMin, timeMax);
-    }
-    else
-    {
-        visibleSymbols = dataSource->getBTWSymbols();
-    }
-    
-    if (visibleSymbols.empty())
-    {
-        return;
-    }
-    
-    // Draw symbols
-    for (const auto& symbolData : visibleSymbols)
-    {
-        // Map symbol position to screen coordinates
-        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestamp);
-        
-        // Check if point is within visible area
-        if (!drawingArea.contains(screenPos))
-        {
-            continue;
-        }
-        
-        // Convert symbol name to SymbolType
-        BTWSymbolDrawing::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
-        
-        // Get the pixmap for this symbol type
-        const QPixmap& symbolPixmap = symbols.get(symbolType);
-        
-        // Validate pixmap before using it (Issue #4: Use pixmap dimensions directly)
-        if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
-        {
-            continue;
-        }
-        
-        // Create a graphics pixmap item and add it to the scene
-        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
-        
-        // Center the symbol on the data point (Issue #4: Use pixmap dimensions directly instead of boundingRect)
-        // boundingRect() is expensive - use pixmap dimensions directly
-        qreal pixmapWidth = symbolPixmap.width();
-        qreal pixmapHeight = symbolPixmap.height();
-        pixmapItem->setPos(screenPos.x() - pixmapWidth/2, screenPos.y() - pixmapHeight/2);
-        pixmapItem->setZValue(1003); // Above markers but below interactive items
-        
-        graphicsScene->addItem(pixmapItem);
-    }
+    // Base class draws on overlayScene (visible). This graph's old implementation used
+    // graphicsScene, but graphicsView is hidden — symbols there never appeared on screen.
+    WaterfallGraph::drawBTWSymbols();
 }
 
 void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue)
