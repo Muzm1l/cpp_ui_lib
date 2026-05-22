@@ -49,6 +49,7 @@ public:
     void addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, float range);
     void clearRTWSymbols();
     void clearBTWSymbols();
+    bool removeBTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     std::vector<RTWSymbolData> getRTWSymbols() const;
     std::vector<BTWSymbolData> getBTWSymbols() const;

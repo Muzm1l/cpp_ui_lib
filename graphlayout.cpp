@@ -2302,6 +2302,30 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
+bool GraphLayout::removeBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
+{
+    auto it = m_engines.find(graphType);
+    if (it != m_engines.end() && it->second)
+    {
+        bool removed = it->second->removeBTWSymbol(symbolName, timestamp, range, toleranceMs, rangeTolerance);
+        if (removed)
+        {
+            redrawGraph(graphType);
+            DEBUG_OUT() << "GraphLayout: Removed BTW symbol" << symbolName << "from graph type" << static_cast<int>(graphType);
+        }
+        return removed;
+    }
+
+    DEBUG_OUT() << "GraphLayout: Cannot remove BTW symbol - engine not found for graph type" << static_cast<int>(graphType);
+    return false;
+}
+
+bool GraphLayout::removeBTWSymbol(const GraphType &graphType, BTWSymbolDrawing::SymbolType symbolType,
+                                  const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
+{
+    return removeBTWSymbol(graphType, BTWSymbolDrawing::symbolTypeToName(symbolType), timestamp, range, toleranceMs, rangeTolerance);
+}
+
 bool GraphLayout::removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     auto it = m_engines.find(graphType);

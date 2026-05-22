@@ -1,4 +1,5 @@
 #include "waterfalldata.h"
+#include "btwsymboldrawing.h"
 #include "debugutils.h"
 #include <algorithm>
 #include <limits>
@@ -1368,6 +1369,47 @@ void WaterfallData::clearBTWSymbols()
 {
     btwSymbols.clear();
     DEBUG_OUT() << "WaterfallData: Cleared all BTW symbols";
+}
+
+namespace {
+
+bool btwSymbolNamesMatch(const QString &query, const QString &stored)
+{
+    if (query == stored)
+        return true;
+    const BTWSymbolDrawing::SymbolType queryType = BTWSymbolDrawing::symbolNameToType(query);
+    const BTWSymbolDrawing::SymbolType storedType = BTWSymbolDrawing::symbolNameToType(stored);
+    return queryType == storedType;
+}
+
+} // namespace
+
+bool WaterfallData::removeBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, float toleranceMs, float rangeTolerance)
+{
+    bool found = false;
+    btwSymbols.erase_if([&](const BTWSymbolData& symbol) {
+        if (!btwSymbolNamesMatch(symbolName, symbol.symbolName))
+            return false;
+
+        const qint64 timeDiff = qAbs(symbol.timestamp.msecsTo(timestamp));
+        const float rangeDiff = qAbs(symbol.range - range);
+
+        if (timeDiff <= static_cast<qint64>(toleranceMs) && rangeDiff <= rangeTolerance)
+        {
+            found = true;
+            return true;
+        }
+        return false;
+    });
+
+    if (found)
+    {
+        DEBUG_OUT() << "WaterfallData: Removed BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+        return true;
+    }
+
+    DEBUG_OUT() << "WaterfallData: BTW symbol not found:" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
 }
 
 std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const

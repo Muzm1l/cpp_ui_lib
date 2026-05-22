@@ -98,6 +98,15 @@ void GraphEngine::clearBTWSymbols()
     emit symbolsChanged();
 }
 
+bool GraphEngine::removeBTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
+{
+    bool removed = m_data.removeBTWSymbol(symbolName, timestamp, range, toleranceMs, rangeTolerance);
+    if (removed) {
+        emit symbolsChanged();
+    }
+    return removed;
+}
+
 bool GraphEngine::removeRTWSymbol(const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     bool removed = m_data.removeRTWSymbol(symbolName, timestamp, range, toleranceMs, rangeTolerance);

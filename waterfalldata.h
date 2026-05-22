@@ -175,6 +175,7 @@ public:
     // BTW Symbol management methods (stored with track data)
     void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, bool isSynced = false);
     void clearBTWSymbols();
+    bool removeBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     std::vector<BTWSymbolData> getBTWSymbols() const;
     std::vector<BTWSymbolData> getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
     size_t getBTWSymbolsCount() const;
