@@ -41,7 +41,6 @@
 #include <vector>
 #include <functional>
 #include <deque>
-#include <optional>
 #include "rendercommands.h"
 #include "sharedsyncstate.h"
 

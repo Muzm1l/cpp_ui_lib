@@ -952,7 +952,8 @@ void WaterfallGraph::processRenderCommandQueue()
 
     RenderPath path = RenderPath::None;
     std::set<QString> dataAppendDirty;
-    std::optional<ScopeChange> lastScope;
+    bool hasLastScope = false;
+    ScopeChange lastScope;
     bool yRange = false;
     QString fullReason;
     bool sawForce = false;
@@ -960,66 +961,73 @@ void WaterfallGraph::processRenderCommandQueue()
     while (!m_commandQueue.empty()) {
         RenderCommand cmd = std::move(m_commandQueue.front());
         m_commandQueue.pop_front();
-        std::visit(overloaded{
-            [&](const DataAppend &c) {
-                dataAppendDirty.insert(c.seriesLabel);
-                dataRangesValid = false;
-                m_mapDataToScreenCache.clear();
-                path = maxRenderPath(path, RenderPath::Incremental);
-            },
-            [&](const ScopeChange &c) {
-                lastScope = c;
-                const bool within = scopeWithinRenderedExtent(c);
-                if (!within) {
-                    invalidateAllVisibleDataCache();
-                    m_renderedTimeMin = QDateTime();
-                    m_renderedTimeMax = QDateTime();
-                    if (fullReason.isEmpty())
-                        fullReason = QStringLiteral("scope_outside_rendered_extent");
-                }
-                path = maxRenderPath(path, within ? RenderPath::RangeOnly : RenderPath::Full);
-            },
-            [&](const StyleChange &) {
-                path = maxRenderPath(path, RenderPath::Full);
+        switch (cmd.kind) {
+        case RenderCommand::Kind::DataAppend: {
+            const DataAppend &c = cmd.dataAppend;
+            dataAppendDirty.insert(c.seriesLabel);
+            dataRangesValid = false;
+            m_mapDataToScreenCache.clear();
+            path = maxRenderPath(path, RenderPath::Incremental);
+            break;
+        }
+        case RenderCommand::Kind::ScopeChange: {
+            const ScopeChange &c = cmd.scopeChange;
+            hasLastScope = true;
+            lastScope = c;
+            const bool within = scopeWithinRenderedExtent(c);
+            if (!within) {
+                invalidateAllVisibleDataCache();
+                m_renderedTimeMin = QDateTime();
+                m_renderedTimeMax = QDateTime();
                 if (fullReason.isEmpty())
-                    fullReason = QStringLiteral("style_change");
-            },
-            [&](const ForceInvalidate &c) {
-                sawForce = true;
-                path = maxRenderPath(path, RenderPath::Full);
-                fullReason = c.reason;
-            },
-            [&](const YRangeChange &) {
-                // A pure Y-axis rescale is item-preserving: every existing
-                // scatterplot/line item just needs its screen position
-                // recomputed against the new yMin/yMax. That is exactly what
-                // the RANGE_UPDATE_ONLY branch in drawIncremental() does via
-                // redrawDataLayerForVisibleTimeRange() + the position-only
-                // path inside drawScatterplot()/drawDataLine().
-                //
-                // Mapping to Incremental was wrong: INCREMENTAL_UPDATE only
-                // redraws series in m_dirtySeries, but YRangeChange does not
-                // mark anything dirty, so data points stayed pinned to their
-                // stale positions and only the overlay (BTW symbols) refreshed.
-                //
-                // maxRenderPath is monotonic, so a coincident DataAppend or
-                // FULL command still wins over RangeOnly.
-                yRange = true;
-                path = maxRenderPath(path, RenderPath::RangeOnly);
-            },
-            [&](const IncrementalRedrawAllSeries &) {
-                if (dataSource && !dataSource->isEmpty()) {
-                    for (const QString &lb : dataSource->getDataSeriesLabels())
-                        dataAppendDirty.insert(lb);
-                }
-                path = maxRenderPath(path, RenderPath::Incremental);
-            },
-        }, cmd);
+                    fullReason = QStringLiteral("scope_outside_rendered_extent");
+            }
+            path = maxRenderPath(path, within ? RenderPath::RangeOnly : RenderPath::Full);
+            break;
+        }
+        case RenderCommand::Kind::StyleChange:
+            path = maxRenderPath(path, RenderPath::Full);
+            if (fullReason.isEmpty())
+                fullReason = QStringLiteral("style_change");
+            break;
+        case RenderCommand::Kind::ForceInvalidate: {
+            const ForceInvalidate &c = cmd.forceInvalidate;
+            sawForce = true;
+            path = maxRenderPath(path, RenderPath::Full);
+            fullReason = c.reason;
+            break;
+        }
+        case RenderCommand::Kind::YRangeChange:
+            // A pure Y-axis rescale is item-preserving: every existing
+            // scatterplot/line item just needs its screen position
+            // recomputed against the new yMin/yMax. That is exactly what
+            // the RANGE_UPDATE_ONLY branch in drawIncremental() does via
+            // redrawDataLayerForVisibleTimeRange() + the position-only
+            // path inside drawScatterplot()/drawDataLine().
+            //
+            // Mapping to Incremental was wrong: INCREMENTAL_UPDATE only
+            // redraws series in m_dirtySeries, but YRangeChange does not
+            // mark anything dirty, so data points stayed pinned to their
+            // stale positions and only the overlay (BTW symbols) refreshed.
+            //
+            // maxRenderPath is monotonic, so a coincident DataAppend or
+            // FULL command still wins over RangeOnly.
+            yRange = true;
+            path = maxRenderPath(path, RenderPath::RangeOnly);
+            break;
+        case RenderCommand::Kind::IncrementalRedrawAllSeries:
+            if (dataSource && !dataSource->isEmpty()) {
+                for (const QString &lb : dataSource->getDataSeriesLabels())
+                    dataAppendDirty.insert(lb);
+            }
+            path = maxRenderPath(path, RenderPath::Incremental);
+            break;
+        }
     }
 
-    if (lastScope && lastScope->min.isValid() && lastScope->max.isValid() && lastScope->min < lastScope->max) {
-        if (timeMin != lastScope->min || timeMax != lastScope->max)
-            applyScopeToModel(lastScope->min, lastScope->max);
+    if (hasLastScope && lastScope.min.isValid() && lastScope.max.isValid() && lastScope.min < lastScope.max) {
+        if (timeMin != lastScope.min || timeMax != lastScope.max)
+            applyScopeToModel(lastScope.min, lastScope.max);
     }
 
     if (yRange) {

@@ -32,11 +32,12 @@ void TimeScopeBus::publishPending(const TimeSelectionSpan& span, Origin origin,
     s.isFrozenSource = isFrozenSource;
     s.source         = source;
 
-    if (m_pending && sameSpan(m_pending->span, span)
-                  && m_pending->isFrozenSource == isFrozenSource) {
+    if (m_hasPending && sameSpan(m_pendingSnapshot.span, span)
+        && m_pendingSnapshot.isFrozenSource == isFrozenSource) {
         return;
     }
-    m_pending = s;
+    m_pendingSnapshot = s;
+    m_hasPending = true;
 
     if (!m_pendingFlushTimer.isActive())
         m_pendingFlushTimer.start(m_throttleMs);
@@ -48,7 +49,7 @@ void TimeScopeBus::publishCommitted(const TimeSelectionSpan& span, Origin origin
     if (!span.startTime.isValid() || !span.endTime.isValid())
         return;
 
-    m_pending.reset();
+    m_hasPending = false;
     m_pendingFlushTimer.stop();
 
     if (m_hasScope && sameSpan(m_currentScope, span))
@@ -65,14 +66,14 @@ void TimeScopeBus::publishCommitted(const TimeSelectionSpan& span, Origin origin
 
 void TimeScopeBus::onPendingFlushTick()
 {
-    if (!m_pending) return;
+    if (!m_hasPending) return;
 
-    if (m_hasScope && sameSpan(m_currentScope, m_pending->span)) {
-        m_pending.reset();
+    if (m_hasScope && sameSpan(m_currentScope, m_pendingSnapshot.span)) {
+        m_hasPending = false;
         return;
     }
-    Snapshot s = *m_pending;
-    m_pending.reset();
+    Snapshot s = m_pendingSnapshot;
+    m_hasPending = false;
     broadcast(std::move(s));
 }
 

@@ -6,7 +6,6 @@
 #include <QObject>
 #include <QTimer>
 #include <functional>
-#include <optional>
 #include <vector>
 
 /**
@@ -89,7 +88,8 @@ private:
     quint64           m_generation   = 0;
     int               m_throttleMs   = 16;
 
-    std::optional<Snapshot> m_pending;
+    bool     m_hasPending = false;
+    Snapshot m_pendingSnapshot;
     QTimer                  m_pendingFlushTimer;
 
     struct SubEntry { int token; Subscriber cb; };

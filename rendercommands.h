@@ -4,7 +4,6 @@
 #include <QString>
 #include <QDateTime>
 #include <utility>
-#include <variant>
 
 enum class RenderPath {
     None,
@@ -53,14 +52,49 @@ struct YRangeChange {};
 /** Marks every series dirty with Incremental path (e.g. symbol layer refresh). */
 struct IncrementalRedrawAllSeries {};
 
-using RenderCommand = std::variant<DataAppend, ScopeChange, StyleChange, ForceInvalidate, YRangeChange,
-                                   IncrementalRedrawAllSeries>;
+struct RenderCommand {
+    enum class Kind {
+        DataAppend,
+        ScopeChange,
+        StyleChange,
+        ForceInvalidate,
+        YRangeChange,
+        IncrementalRedrawAllSeries
+    };
 
-template <class... Ts>
-struct overloaded : Ts... {
-    using Ts::operator()...;
+    Kind kind;
+
+    DataAppend dataAppend;
+    ScopeChange scopeChange;
+    ForceInvalidate forceInvalidate;
+
+    RenderCommand()
+        : kind(Kind::StyleChange)
+    {}
+
+    RenderCommand(DataAppend v)
+        : kind(Kind::DataAppend), dataAppend(std::move(v))
+    {}
+
+    RenderCommand(ScopeChange v)
+        : kind(Kind::ScopeChange), scopeChange(std::move(v))
+    {}
+
+    RenderCommand(StyleChange)
+        : kind(Kind::StyleChange)
+    {}
+
+    RenderCommand(ForceInvalidate v)
+        : kind(Kind::ForceInvalidate), forceInvalidate(std::move(v))
+    {}
+
+    RenderCommand(YRangeChange)
+        : kind(Kind::YRangeChange)
+    {}
+
+    RenderCommand(IncrementalRedrawAllSeries)
+        : kind(Kind::IncrementalRedrawAllSeries)
+    {}
 };
-template <class... Ts>
-overloaded(Ts...) -> overloaded<Ts...>;
 
 #endif
