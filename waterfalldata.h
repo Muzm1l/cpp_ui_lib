@@ -98,6 +98,15 @@ public:
     // Binary search helper: find closest data point to a timestamp within tolerance
     bool findClosestDataPoint(const QString& seriesLabel, const QDateTime& targetTime, qint64 toleranceMs, qreal& outValue, size_t& outIndex) const;
 
+    /**
+     * @brief Linearly interpolate series range (Y) at an arbitrary time between samples.
+     * @param seriesLabel Data series key (e.g. BTW-1)
+     * @param targetTime Time at which to evaluate (typically from graph click)
+     * @param outRange Interpolated range/bearing value at targetTime
+     * @return false if the series has no samples
+     */
+    bool interpolateSeriesRangeAtTime(const QString& seriesLabel, const QDateTime& targetTime, qreal& outRange) const;
+
     // Direct access to data series vectors
     // Note: Returns vectors converted from circular buffers (chronological order, oldest first)
     std::vector<qreal> getYDataSeries(const QString& seriesLabel) const;
@@ -110,6 +119,13 @@ public:
     void populateTimestampsSeries(const QString& seriesLabel, std::vector<QDateTime>& output) const;
     void populateTimestampsEpochSeries(const QString& seriesLabel, std::vector<qint64>& output) const;
     std::vector<qint64> getTimestampsEpochSeries(const QString& seriesLabel) const; // Epoch milliseconds (no timezone conversion)
+    
+    // Phase 3: window-only access helpers (avoid full-series temporary vectors in hot paths)
+    bool findVisibleEpochRange(const QString& seriesLabel, qint64 timeMinEpoch, qint64 timeMaxEpoch,
+                               size_t& firstIdx, size_t& lastIdx) const;
+    void populateSeriesRangeFloatEpoch(const QString& seriesLabel, size_t firstIdx, size_t lastIdx,
+                                       std::vector<std::pair<float, qint64>>& output) const;
+    bool getSeriesPointAtIndexEpoch(const QString& seriesLabel, size_t index, float& yValue, qint64& timestampEpoch) const;
 
     // Data series utility methods
     size_t getDataSeriesSize(const QString& seriesLabel) const;
@@ -159,6 +175,7 @@ public:
     // BTW Symbol management methods (stored with track data)
     void addBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, bool isSynced = false);
     void clearBTWSymbols();
+    bool removeBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     std::vector<BTWSymbolData> getBTWSymbols() const;
     std::vector<BTWSymbolData> getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const;
     size_t getBTWSymbolsCount() const;

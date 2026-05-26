@@ -74,18 +74,10 @@ void RTWGraph::draw()
         graphicsScene->clear();
         graphicsScene->update(); // Force immediate update to ensure clearing is visible
         
-        // CRITICAL FIX: Also clear overlayScene to remove RTW symbols
-        // RTW symbols are in overlayScene, not graphicsScene
-        // Without this, symbols accumulate on every FULL_REDRAW
-        // NOTE: overlayScene->clear() deletes all items including selectionRect, crosshair, etc.
-        // These will be recreated when needed (selectionRect in startSelection(), crosshair in setupCrosshair())
-        overlayScene->clear();
-        overlayScene->update();
-        
-        // CRITICAL FIX: After clearing overlayScene, selectionRect is deleted
-        // Set it to nullptr to prevent crashes when clearSelection() is called
-        // selectionRect will be recreated in startSelection() when needed
-        selectionRect = nullptr;
+        // Do not clear overlayScene wholesale. It owns persistent UI items
+        // (crosshair/selection/etc.) and clearing it can delete pooled BTW symbols
+        // behind m_btwSymbolItems, leaving stale pointers and causing crashes.
+        clearBTWSymbolOverlayItems();
     }
     
     setupDrawingArea();
@@ -185,6 +177,18 @@ void RTWGraph::draw()
     setRenderState(RenderState::CLEAN);
     
     isDrawing = false;
+}
+
+void RTWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
+{
+    WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange();
+    augmentOverlayPassAfterSymbols();
+}
+
+void RTWGraph::augmentOverlayPassAfterSymbols()
+{
+    drawCustomRMarkers();
+    drawRTWSymbols();
 }
 
 /**

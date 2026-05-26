@@ -38,6 +38,14 @@ public:
     };
 
     /**
+     * @brief Which end(s) of the marker line allow rotation
+     */
+    enum RotateEnd {
+        BothEnds,       ///< Both ends of the line can be used to rotate (default)
+        HeadOnly        ///< Only the head end can be used to rotate; tail is non-interactive
+    };
+
+    /**
      * @brief Constructor
      * @param parent Parent graphics item
      */
@@ -99,6 +107,12 @@ public:
      * @param size Size of the rotate regions
      */
     void setRotateRegionSize(const QSizeF &size) { m_rotateRegionSize = size; invalidateRotateRegionsCache(); updateInteractionRegions(); }
+
+    /**
+     * @brief Set which end(s) of the line allow rotation (for head/tail distinction)
+     * @param end BothEnds = rotate from either end; HeadOnly = only the head end can rotate
+     */
+    void setRotateEnd(RotateEnd end) { m_rotateEnd = end; invalidateRotateRegionsCache(); updateInteractionRegions(); }
 
     /**
      * @brief Enable or disable drag functionality
@@ -314,6 +328,7 @@ private:
     QRectF m_dragRegion;
     QRectF m_rotateRegion;
     QSizeF m_rotateRegionSize;
+    RotateEnd m_rotateEnd = BothEnds;
 
     // Visual properties
     QPen m_dragRegionPen;

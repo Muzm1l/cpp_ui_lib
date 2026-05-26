@@ -53,8 +53,10 @@ MainWindow::MainWindow(QWidget *parent)
     seriesLabelsMap[GraphType::LTW] = {{"LTW-1", QColor(Qt::red)}, {"ADOPTED", QColor(Qt::yellow)}};
     seriesLabelsMap[GraphType::RTW] = {{"RTW-1", QColor(Qt::red)}, {"ADOPTED", QColor(Qt::yellow)}};
 
-    // Create GraphLayout programmatically with default graph types and timer
-    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap);
+    // Session / system start: four hours before wall-clock now (timeline slider span anchor)
+    const QDateTime systemStartTime = QDateTime::currentDateTime().addSecs(-4 * 3600);
+    graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap, systemStartTime);
+    DEBUG_OUT() << "MainWindow: system start time (4h before now):" << systemStartTime.toString(Qt::ISODate);
     graphgrid->setObjectName("graphgrid");
     graphgrid->setGeometry(QRect(100, 100, 900, 900));
     
@@ -541,6 +543,12 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup RTW Symbols test
     setupRTWSymbolsTest();
 
+    // Setup BTW Symbols gallery tab
+    setupBTWSymbolsTest();
+
+    // Place BTW symbols on the live graph once data/time window is ready
+    QTimer::singleShot(5000, this, &MainWindow::testBTWSymbolsAPI);
+
     // Setup SCWWindow in a new tab
     setupSCWWindow();
     
@@ -584,6 +592,14 @@ MainWindow::MainWindow(QWidget *parent)
     QDateTime testSymbolTime = QDateTime::currentDateTime().addSecs(-120); // 2 minutes ago
     graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
     DEBUG_OUT() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
+
+    // Quick BTW symbol API smoke test (GraphLayout typed + string overloads)
+    graphgrid->addBTWSymbol(GraphType::BTW, BTWSymbolDrawing::SymbolType::YellowCircle1,
+                            testSymbolTime, 18.0f);
+    graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("WhiteCircle1"),
+                            testSymbolTime.addSecs(10), 24.0f);
+    DEBUG_OUT() << "MainWindow: Added test BTW symbols YellowCircle1 + WhiteCircle1 at"
+                << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -1768,6 +1784,153 @@ void MainWindow::setupRTWSymbolsTest()
     DEBUG_OUT() << "RTW Symbols test widget created in new tab";
     DEBUG_OUT() << "RTW Symbols test widget geometry:" << rtwSymbolsTestWidget->geometry();
     DEBUG_OUT() << "RTW Symbols test widget visible:" << rtwSymbolsTestWidget->isVisible();
+}
+
+/**
+ * @brief Simple widget class to display BTW symbols for testing
+ */
+class BTWSymbolsTestWidget : public QWidget
+{
+public:
+    BTWSymbolsTestWidget(QWidget* parent = nullptr) : QWidget(parent), symbols(40)
+    {
+        setMinimumSize(1200, 520);
+        QPalette pal = palette();
+        pal.setColor(QPalette::Window, Qt::black);
+        setPalette(pal);
+        setAutoFillBackground(true);
+    }
+
+protected:
+    void paintEvent(QPaintEvent* event) override
+    {
+        Q_UNUSED(event);
+        QPainter painter(this);
+        painter.setRenderHint(QPainter::Antialiasing);
+
+        const int symbolSize = 60;
+        const int spacing = 95;
+        int currentX = 40;
+        int currentY = 90;
+
+        painter.setPen(Qt::white);
+        painter.setFont(QFont("Arial", 16, QFont::Bold));
+        painter.drawText(QRect(0, 10, width(), 30), Qt::AlignCenter, "BTW Symbols Test");
+
+        const QStringList symbolNames = BTWSymbolDrawing::registeredSymbolNames();
+
+        for (int i = 0; i < symbolNames.size(); ++i) {
+            const BTWSymbolDrawing::SymbolType type =
+                BTWSymbolDrawing::symbolNameToType(symbolNames.at(i));
+
+            painter.setPen(Qt::white);
+            painter.setFont(QFont("Arial", 8));
+            painter.drawText(QRect(currentX - symbolSize / 2, currentY - 36, symbolSize + 30, 28),
+                             Qt::AlignCenter | Qt::TextWordWrap, symbolNames.at(i));
+
+            symbols.draw(&painter, QPointF(currentX, currentY), type);
+
+            currentX += spacing;
+            if (currentX + spacing > width() - 40) {
+                currentX = 40;
+                currentY += spacing + 10;
+            }
+        }
+    }
+
+private:
+    BTWSymbolDrawing symbols;
+};
+
+void MainWindow::setupBTWSymbolsTest()
+{
+    DEBUG_OUT() << "=== Setting up BTW Symbols Test ===";
+
+    QWidget* btwSymbolsTab = new QWidget();
+    btwSymbolsTab->setObjectName("btwSymbolsTab");
+    ui->tabWidget->addTab(btwSymbolsTab, "BTW Symbols Test");
+
+    btwSymbolsTestWidget = new BTWSymbolsTestWidget(btwSymbolsTab);
+    btwSymbolsTestWidget->setObjectName("btwSymbolsTestWidget");
+    btwSymbolsTestWidget->setGeometry(QRect(10, 10, 1200, 520));
+
+    QLabel* instructionsLabel = new QLabel(
+        "BTW Symbols Test\n\n"
+        "Predefined pixmap symbols (BTWSymbolDrawing):\n"
+        "• MagentaCircle — hollow sync marker\n"
+        "• MagentaCircleSynced — filled sync marker\n"
+        "• YellowCircle1–4 — yellow circle, white digit\n"
+        "• WhiteCircle1–4 — white circle, black digit\n\n"
+        "Live graph: open Original View → BTW panel (top-left).\n"
+        "Symbols are placed via testBTWSymbolsAPI() after startup.",
+        btwSymbolsTab);
+    instructionsLabel->setGeometry(QRect(1020, 10, 320, 400));
+    instructionsLabel->setStyleSheet(
+        "QLabel { color: white; font-size: 12px; background-color: rgba(0, 0, 0, 150); "
+        "padding: 10px; border: 1px solid gray; border-radius: 4px; }");
+    instructionsLabel->setWordWrap(true);
+
+    DEBUG_OUT() << "BTW Symbols gallery tab created; registered names:"
+                << BTWSymbolDrawing::registeredSymbolNames();
+}
+
+void MainWindow::testBTWSymbolsAPI()
+{
+    if (!graphgrid) {
+        DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - graphgrid is null";
+        return;
+    }
+
+    DEBUG_OUT() << "=== MainWindow::testBTWSymbolsAPI ===";
+
+    const QDateTime now = QDateTime::currentDateTime();
+
+    // GraphLayout API — typed enum overload (all predefined symbol types)
+    const struct {
+        BTWSymbolDrawing::SymbolType type;
+        float bearing;
+        int offsetSecs;
+    } placements[] = {
+        { BTWSymbolDrawing::SymbolType::MagentaCircle, 12.0f, -180 },
+        { BTWSymbolDrawing::SymbolType::YellowCircle1, 42.0f, -150 },
+        { BTWSymbolDrawing::SymbolType::YellowCircle2, 44.0f, -120 },
+        { BTWSymbolDrawing::SymbolType::YellowCircle3, 46.0f, -90 },
+        { BTWSymbolDrawing::SymbolType::YellowCircle4, 48.0f, -60 },
+        { BTWSymbolDrawing::SymbolType::WhiteCircle1, 50.0f, -45 },
+        { BTWSymbolDrawing::SymbolType::WhiteCircle2, 52.0f, -30 },
+        { BTWSymbolDrawing::SymbolType::WhiteCircle3, 54.0f, -25 },
+        { BTWSymbolDrawing::SymbolType::WhiteCircle4, 56.0f, -22 },
+    };
+
+    for (const auto& p : placements) {
+        const QDateTime ts = now.addSecs(p.offsetSecs);
+        graphgrid->addBTWSymbol(GraphType::BTW, p.type, ts, p.bearing);
+        DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - GraphLayout typed:"
+                    << BTWSymbolDrawing::symbolTypeToName(p.type)
+                    << "@" << ts.toString("yyyy-MM-dd hh:mm:ss")
+                    << "bearing" << p.bearing;
+    }
+
+    // GraphLayout API — string name overload
+    graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("MagentaCircleSynced"),
+                            now.addSecs(-15), 28.0f);
+    DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - GraphLayout string: MagentaCircleSynced";
+
+    // BTWGraph direct API on the layout container's BTW graph
+    const QList<GraphContainer*> containers = graphgrid->findChildren<GraphContainer*>();
+    if (!containers.isEmpty()) {
+        WaterfallGraph* btwBase = containers.first()->getWaterfallGraph(GraphType::BTW);
+        if (auto* btw = qobject_cast<BTWGraph*>(btwBase)) {
+            btw->addBTWSymbol(BTWSymbolDrawing::SymbolType::YellowCircle3, now.addSecs(-10), 32.0);
+            btw->addBTWSymbol(QStringLiteral("WhiteCircle4"), now.addSecs(-5), 38.0);
+            DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - BTWGraph direct addBTWSymbol OK";
+        } else {
+            DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - could not cast to BTWGraph";
+        }
+    }
+
+    graphgrid->redrawAllGraphs();
+    DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - done, redrawAllGraphs called";
 }
 
 /**

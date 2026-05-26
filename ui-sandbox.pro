@@ -2,7 +2,7 @@ QT       += core gui
 
 greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 
-CONFIG += c++11
+CONFIG += c++14
 CONFIG += debug
 CONFIG -= release
 
@@ -55,7 +55,9 @@ SOURCES += \
     scwwindow.cpp \
     scwsimulator.cpp \
     manoeuvreoverlay.cpp \
-    debugutils.cpp
+    debugutils.cpp \
+    sharedcachestore.cpp \
+    scopebus.cpp
 
 HEADERS += \
     graphcontainer.h \
@@ -89,7 +91,10 @@ HEADERS += \
     scwwindow.h \
     scwsimulator.h \
     manoeuvreoverlay.h \
-    debugutils.h
+    debugutils.h \
+    rendercommands.h \
+    sharedcachestore.h \
+    scopebus.h
 
 FORMS += \
     mainwindow.ui

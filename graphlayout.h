@@ -18,6 +18,8 @@
 #include <map>
 #include <vector>
 #include "sharedsyncstate.h"
+#include "sharedcachestore.h"
+#include "scopebus.h"
 
 // Forward declaration
 class BTWGraph;
@@ -37,7 +39,7 @@ class GraphLayout : public QWidget
 {
     Q_OBJECT
 public:
-    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap = std::map<GraphType, std::vector<QPair<QString, QColor>>>());
+    explicit GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer = nullptr, std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap = std::map<GraphType, std::vector<QPair<QString, QColor>>>(), const QDateTime &systemStartTimeAtInit = QDateTime());
     ~GraphLayout();
 
     void setLayoutType(LayoutType layoutType);
@@ -121,6 +123,28 @@ public:
     // Get sync state pointer for external synchronization
     GraphContainerSyncState* getSyncState() { return &m_syncState; }
 
+    /**
+     * @brief Single source of truth for time-scope (visible window) propagation.
+     *
+     * Containers, timelines, and external integrators all publish/subscribe
+     * through this bus. The layout itself installs the only writer of
+     * GraphContainerSyncState::currentTimeScope.
+     */
+    TimeScopeBus* getScopeBus() { return &m_scopeBus; }
+
+    /**
+     * @brief Session / system start time for timeline slider mapping (range from this time to effective timeline end).
+     * @see GraphLayout(QWidget*, LayoutType, QTimer*, seriesLabelsMap, systemStartTimeAtInit) to set at construction.
+     */
+    void setSystemStartTime(const QDateTime &t);
+    QDateTime systemStartTime() const;
+    /** Clears shared system start; mapping falls back to wall-clock now as in-range anchor. */
+    void clearSystemStartTime();
+
+    /** Timeline "now" edge; use for replay / paused playback. Pass invalid to clear. */
+    void setTimelineEndOverride(const QDateTime &t);
+    void clearTimelineEndOverride();
+
     // Chevron label control methods - operate on all visible containers
     void setChevronLabel1(const QString &label);
     void setChevronLabel2(const QString &label);
@@ -183,10 +207,13 @@ public:
     // Marker and symbol management methods - operate on specific graph type
     void addRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
     void addBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range);
+    void addBTWSymbol(const GraphType &graphType, BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, float range);
     void addBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float delta);
     void addRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range);
     
     // Remove individual markers and symbols
+    bool removeBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
+    bool removeBTWSymbol(const GraphType &graphType, BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeRTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
@@ -422,10 +449,9 @@ private:
     void initializeDataSources(std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap);
     int getContainerIndex(const QString &containerLabel) const;
     void disconnectAllContainerConnections();
-    void propagateTimeSelectionToAllContainers(const TimeSelectionSpan &selection);
+    void notifyGraphDataChanged(GraphType graphType, bool forceFullRedraw = false);
     void registerCursorSyncCallbacks();
     void onContainerCursorTimeChanged(GraphContainer *source, const QDateTime &time);
-    void onContainerTimeScopeChanged(const TimeSelectionSpan &selection);
     
     // Helper to add BTW symbol (magenta circle) to all graphs at a timestamp
     void addBTWSymbolToAllGraphs(const QDateTime &timestamp, float range);
@@ -438,6 +464,16 @@ private:
 
     // Container synchronization state
     GraphContainerSyncState m_syncState;
+
+    SharedCacheStore m_sharedRenderCache;
+
+    // Centralized time-scope propagation (replaces ad-hoc connections + ScopeCoalescer).
+    TimeScopeBus m_scopeBus;
+    int          m_scopeBusWriterToken = -1;
+
+    QDateTime m_systemStartTimeAtInit;
+
+    void propagateSystemStartTimeToContainers();
 
     // Manoeuvre drawing state
     bool m_manoeuvreDrawingInProgress; ///< Flag indicating if a manoeuvre is currently being drawn

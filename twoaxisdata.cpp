@@ -32,19 +32,19 @@ void TwoAxisData::updateRanges()
     }
 
     // Find X range
-    auto [xMinIt, xMaxIt] = std::minmax_element(x_data.begin(), x_data.end());
-    x_range.min = *xMinIt;
-    x_range.max = *xMaxIt;
+    const auto xMinMax = std::minmax_element(x_data.begin(), x_data.end());
+    x_range.min = *xMinMax.first;
+    x_range.max = *xMinMax.second;
 
     // Find Y1 range
-    auto [y1MinIt, y1MaxIt] = std::minmax_element(y1_data.begin(), y1_data.end());
-    y1_range.min = *y1MinIt;
-    y1_range.max = *y1MaxIt;
+    const auto y1MinMax = std::minmax_element(y1_data.begin(), y1_data.end());
+    y1_range.min = *y1MinMax.first;
+    y1_range.max = *y1MinMax.second;
 
     // Find Y2 range
-    auto [y2MinIt, y2MaxIt] = std::minmax_element(y2_data.begin(), y2_data.end());
-    y2_range.min = *y2MinIt;
-    y2_range.max = *y2MaxIt;
+    const auto y2MinMax = std::minmax_element(y2_data.begin(), y2_data.end());
+    y2_range.min = *y2MinMax.first;
+    y2_range.max = *y2MinMax.second;
 
     // Add padding (5%)
     auto addPadding = [](Range& r)

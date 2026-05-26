@@ -27,7 +27,9 @@
 #include <map>
 #include <vector>
 #include "sharedsyncstate.h"
+#include "scopebus.h"
 
+class SharedCacheStore;
 
 class GraphContainer : public QWidget
 {
@@ -45,6 +47,12 @@ public:
     void setShowTimelineView(bool showTimelineView);
     bool getShowTimelineView();
     TimelineView *getTimelineView() const;
+
+    /** Apply m_syncState application start time to timeline and waterfall graphs (after GraphLayout updates sync). */
+    void applySharedSystemStartTimeFromSync();
+
+    /** Internal: shared visible-data projection cache (owned by GraphLayout). */
+    void attachSharedCacheStore(SharedCacheStore *store);
     void setShowTimeSelectionVisualizer(bool show);
 
     // Sizing methods
@@ -129,9 +137,20 @@ public:
 
     // API to set time interval without emitting signals (for centralized sync)
     void setTimeInterval(TimeInterval interval);
-    
-    // API to set time scope without emitting signals (for centralized sync from GraphLayout hub)
-    void setTimeScope(const TimeSelectionSpan &selection);
+
+    /**
+     * @brief Wire this container to the layout-owned TimeScopeBus.
+     *
+     * Idempotent. The container becomes:
+     *   - a publisher: every slider drag / commit / programmatic apply on its
+     *     own TimelineView is forwarded to the bus.
+     *   - a subscriber: every Snapshot the bus broadcasts is applied to this
+     *     container's WaterfallGraph and TimelineView (with frozen-mode and
+     *     stale-generation guards).
+     *
+     * Pass nullptr to detach.
+     */
+    void attachScopeBus(TimeScopeBus *bus);
 
 
     // Chevron label control methods
@@ -169,12 +188,25 @@ public:
 public slots:
     void onTimeIntervalChanged(TimeInterval interval);
     void onSelectionCreated(const TimeSelectionSpan &selection);
+    /**
+     * @brief Live zoom-bounds update (slider drag/extend).
+     *
+     * Cheap path: rescales the current waterfall graph's Y range incrementally
+     * without forcing a full synchronous redraw, and updates the zero-axis
+     * value. The 16 ms render frame timer flushes it.
+     */
+    void onZoomValueChanging(ZoomBounds bounds);
+
+    /**
+     * @brief Committed zoom-bounds update (mouse release / scrollbar click).
+     *
+     * Heavy path: applies the final Y range synchronously so the released
+     * frame is final, updates the zero-axis value, and reconciles BTW
+     * markers against the new visible range.
+     */
     void onZoomValueChanged(ZoomBounds bounds);
     void onTimeSelectionMade(const TimeSelectionSpan &selection);
-    void onTimeScopeChanged(const TimeSelectionSpan &selection, bool fromFrozenUserDrag);
-    /** Overload for container-to-container sync (GraphContainer::TimeScopeChanged has one arg). */
-    void onTimeScopeChanged(const TimeSelectionSpan &selection);
-    
+
     // Marker timestamp slots
     void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
     void onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
@@ -205,7 +237,6 @@ private:
     void updateComboBoxOptions();
     void onDataOptionChanged(QString title);
     void setupEventConnections();
-    void setupEventConnectionsForWaterfallGraph();
     WaterfallGraph *createWaterfallGraph(GraphType graphType);
     void createAllWaterfallGraphs();
     void setupWaterfallGraphProperties(WaterfallGraph *graph, GraphType graphType);
@@ -223,7 +254,6 @@ signals:
     void DeltaTimeSelectionChanged(qreal deltaTime);
     void TimeSelectionsCleared();
     void IntervalChanged(TimeInterval interval);
-    void TimeScopeChanged(const TimeSelectionSpan &selection);
     void DeleteInteractiveMarkers();
     
     // Marker timestamp signals
@@ -323,9 +353,6 @@ private:
     // Range limits management
     std::map<GraphType, std::pair<qreal, qreal>> graphRangeLimits;
 
-    // Flag to prevent TimeScopeChanged from interfering with interval updates
-    bool m_updatingTimeInterval;
-
     // Cursor sync state
     std::function<void(GraphContainer *, const QDateTime &)> m_cursorTimeChangedCallback;
     QDateTime m_sharedCursorTime;
@@ -336,10 +363,18 @@ private:
 
     // Shared synchronization state pointer
     GraphContainerSyncState *m_syncState;
-    
-    // Track last known time scope from sync state to detect changes
-    TimeSelectionSpan m_lastSyncedTimeScope;
-    bool m_hasLastSyncedTimeScope;
+
+    // ----- Time-scope bus integration -----
+    /// Publishes a *pending* slider intent (still dragging).
+    void onTimelineScopePending(const TimeSelectionSpan &span, bool fromFrozenUserDrag);
+    /// Publishes a *committed* slider intent (slider released).
+    void onTimelineScopeCommitted(const TimeSelectionSpan &span);
+    /// Subscriber: applies an incoming Snapshot to this container's graph + timeline.
+    void applyScopeFromBus(const TimeScopeBus::Snapshot &snap);
+
+    TimeScopeBus *m_scopeBus            = nullptr;
+    int           m_scopeBusToken       = -1;
+    quint64       m_lastAppliedScopeGen = 0;
 };
 
 #endif // GRAPHCONTAINER_H

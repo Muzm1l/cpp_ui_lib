@@ -40,10 +40,13 @@
 #include <set>
 #include <vector>
 #include <functional>
+#include <deque>
+#include "rendercommands.h"
 #include "sharedsyncstate.h"
 
 // Forward declaration
 class GraphEngine;
+class SharedCacheStore;
 
 class WaterfallGraph : public QWidget
 {
@@ -92,8 +95,8 @@ public:
     std::vector<std::pair<qreal, QDateTime>> getDataWithinTimeRange(const QString &seriesLabel, const QDateTime &startTime, const QDateTime &endTime) const;
 
     // Direct access to data vectors (delegates to data source)
-    const std::vector<qreal> &getYData(const QString &seriesLabel) const;
-    const std::vector<QDateTime> &getTimestamps(const QString &seriesLabel) const;
+    std::vector<qreal> getYData(const QString &seriesLabel) const;
+    std::vector<QDateTime> getTimestamps(const QString &seriesLabel) const;
 
     // Mouse event handlers (virtual so they can be overridden in derived classes)
     virtual void onMouseClick(const QPointF &scenePos);
@@ -206,16 +209,26 @@ protected:
     // Data plotting methods
     virtual void drawDataLine(const QString &seriesLabel, bool plotPoints = true);
     void buildBatchedLinePaths(const QString &seriesLabel,
-                               const std::vector<std::pair<float, qint64>> &visibleData, // Use float to eliminate conversions
+                               const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                size_t lodStep,
                                const QColor &seriesColor);
     virtual void drawAllDataSeries();
     virtual void drawDataSeries(const QString &seriesLabel);
     void drawIncremental();
-    void drawBTWSymbols();
+    /** Called from RANGE_UPDATE_ONLY after updateDataRanges(); redraws overlays tied to the time axis. */
+    virtual void refreshOverlaysAfterVisibleTimeRangeChange();
+    /** Rebuild paintEvent scatter/line data for current timeMin/timeMax (fixes stale pixels when window has no data). */
+    virtual void redrawDataLayerForVisibleTimeRange();
+    bool shouldRenderSeriesAsLine(const QString &seriesLabel) const;
+    virtual void drawBTWSymbols();
+    void clearBTWSymbolOverlayItems();
+    /** BTW/RTW: extra overlay items after drawBTWSymbols() on FULL_REDRAW / INCREMENTAL_UPDATE (blue markers, R markers, etc.). */
+    virtual void augmentOverlayPassAfterSymbols();
     
     // Cached BTW symbol drawing (magenta circles)
     BTWSymbolDrawing m_btwSymbols;
+    // Reused overlay items for BTW symbols to avoid per-frame delete/recreate churn.
+    std::vector<QGraphicsPixmapItem*> m_btwSymbolItems;
 
     // State machine for rendering
     enum class RenderState {
@@ -248,15 +261,15 @@ protected:
     // Incremental graphics item management (State Machine Based)
     // Use epoch milliseconds to avoid QDateTime timezone conversion in hot path
     void updateScatterplotItemsIncremental(const QString &seriesLabel, 
-                                           const std::vector<std::pair<float, qint64>> &newVisibleData, // epoch ms, float Y values
+                                           const CircularBuffer<std::pair<float, qint64>> &newVisibleData,
                                            const QColor &pointColor, qreal pointSize);
     void updateScatterplotItemsFull(const QString &seriesLabel,
-                                    const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                    const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                     const QColor &pointColor, qreal pointSize);
     void removeScatterplotItemsOutsideRange(const QString &seriesLabel, 
                                             const QDateTime &oldTimeMin, const QDateTime &newTimeMin);
     void updateScatterplotItemPositions(const QString &seriesLabel,
-                                        const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                        const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                         qreal pointSize);
     void cleanupScatterplotItems(const QString &seriesLabel);
     void cleanupAllScatterplotItems();
@@ -301,6 +314,8 @@ protected:
     // Incremental rendering support
     RenderState m_renderState;
     bool m_rangeUpdateNeeded;
+    QDateTime m_renderedTimeMin;
+    QDateTime m_renderedTimeMax;
     std::set<QString> m_dirtySeries;
     bool m_fastTrackSwitchMode;  // Flag for visible-window-first rendering on track change (auto-reset after render)
     std::map<QString, QGraphicsPathItem*> m_seriesPathItems;
@@ -331,6 +346,7 @@ protected:
     // Uses float instead of qreal to eliminate float-to-double conversion overhead
     std::map<QString, CircularBuffer<std::pair<float, qint64>>> m_cachedVisibleData; // epoch ms, float Y values (circular buffer)
     std::map<QString, std::pair<QDateTime, QDateTime>> m_cachedTimeRange;
+    std::map<QString, std::pair<qint64, qint64>> m_cachedTimeRangeEpoch; // epoch ms range used to build visible cache
     std::map<QString, size_t> m_lastProcessedIndex;
     std::map<QString, size_t> m_cachedDataSize;
     
@@ -376,6 +392,7 @@ protected:
     // Mouse tracking
     bool isDragging;
     QPointF lastMousePos;
+    bool m_dispatchingOverlayMouseEvent;
     
     // Drawing guard to prevent concurrent draws
     bool isDrawing;
@@ -413,7 +430,8 @@ protected:
     
     // Helper methods to reduce code duplication
     void ensureVisibleDataCacheValid(const QString &seriesLabel);  // Ensures cache is valid, updates if needed
-    const std::vector<std::pair<float, qint64>>& getVisibleDataVector(const QString &seriesLabel);  // Gets visible data vector (handles copying from cache)
+    /** Phase 4: read visible cache directly (no copy to std::vector). */
+    const CircularBuffer<std::pair<float, qint64>>& cachedVisibleBuffer(const QString &seriesLabel) const;
     bool isValidScreenPoint(const QPointF& point) const;  // Validates screen point (not null and finite)
     
     // Reusable vectors/arrays to avoid repeated allocations
@@ -430,7 +448,17 @@ protected:
     mutable std::vector<float> m_reusableYDataFloat;  // Reusable vector for Y data series (float, no conversion overhead)
     mutable std::vector<QDateTime> m_reusableTimestamps;  // Reusable vector for QDateTime timestamps (avoids toVector() allocations)
     mutable std::vector<qint64> m_reusableTimestampsEpoch;  // Reusable vector for epoch timestamps (avoids toVector() allocations)
-    
+
+    QTimer *m_frameTickTimer = nullptr;
+    std::deque<RenderCommand> m_commandQueue;
+    SharedCacheStore *m_sharedCacheStore = nullptr;
+
+    bool scopeWithinRenderedExtent(const ScopeChange &c) const;
+    void applyScopeToModel(const QDateTime &min, const QDateTime &max);
+    bool tryFillVisibleCacheFromSharedStore(const QString &seriesLabel);
+    void publishVisibleCacheToSharedStore(const QString &seriesLabel);
+    void processRenderCommandQueue();
+
     // Crosshair update caches (Issue #2)
     QRectF m_cachedCursorSceneRect;        // Cached cursor scene rectangle
     QRectF m_cachedOverlaySceneRect;       // Cached overlay scene rectangle
@@ -459,8 +487,14 @@ protected:
 private slots:
     // Cursor layer update method
     void updateCursorLayer();
+    void onFrameTick();
 
 public:
+    void postCommand(RenderCommand cmd);
+    void setSharedCacheStore(SharedCacheStore *store) { m_sharedCacheStore = store; }
+    SharedCacheStore *sharedCacheStore() const { return m_sharedCacheStore; }
+    void drainRenderQueueSynchronously();
+
     // Coordinate mapping methods (public for overlay sync)
     qreal mapScreenXToRange(qreal xPos) const; // Convert screen X position to range value
     QPointF mapDataToScreen(qreal yValue, const QDateTime &timestamp) const; // Convert data to screen coordinates
@@ -497,6 +531,20 @@ public:
     void setRangeLimitingEnabled(bool enabled);
     bool isRangeLimitingEnabled() const;
     void setCustomYRange(const qreal yMin, const qreal yMax);
+    /**
+     * @brief Cheap, non-draining custom Y-range update for live (drag/extend) interactions.
+     *
+     * Writes customYMin/customYMax, posts a single YRangeChange render command,
+     * and returns immediately. The 16 ms frame-tick timer (m_frameTickTimer)
+     * coalesces incoming live updates and applies them via the
+     * RANGE_UPDATE_ONLY render path, which preserves existing QGraphicsItems
+     * and only rescales positions.
+     *
+     * Use this from interactive update slots (e.g. ZoomPanel::valueChanging).
+     * Use setCustomYRange() for one-shot/structural changes (init, graph
+     * switch, programmatic limits) where a synchronous final frame is wanted.
+     */
+    void setCustomYRangeLive(const qreal yMin, const qreal yMax);
     std::pair<qreal,qreal> getCustomYRange() const;
     void unsetCustomYRange();
 
@@ -522,7 +570,7 @@ public:
     
     // Force a full redraw (clears and recreates all graphics items)
     // Use this when data changes significantly or after initial setup
-    void forceFullRedraw();
+    void forceFullRedraw(const QString &reason = QString());
 
     // Drawing methods for custom elements
     void drawPoint(const QPointF &position, const QColor &color = Qt::white, qreal size = 2.0);

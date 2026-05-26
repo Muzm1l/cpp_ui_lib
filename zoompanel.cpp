@@ -5,6 +5,10 @@
 ZoomPanel::ZoomPanel(QWidget *parent)
     : QWidget(parent), m_graphicsView(nullptr), m_scene(nullptr), m_indicator(nullptr), m_leftText(nullptr), m_centerText(nullptr), m_rightText(nullptr), m_crosshairLabel(nullptr), m_crosshairLabelBackground(nullptr), m_isDragging(false), m_isExtending(false), m_currentValue(1.0), m_extendMode(None), m_userModifiedBounds(false), m_indicatorLowerBoundValue(0.0), m_indicatorUpperBoundValue(1.0)
 {
+    m_liveFlushTimer.setSingleShot(true);
+    m_liveFlushTimer.setTimerType(Qt::PreciseTimer);
+    connect(&m_liveFlushTimer, &QTimer::timeout, this, &ZoomPanel::onLiveFlushTick);
+
     // Set black background
     this->setStyleSheet("background-color: black;");
 
@@ -439,12 +443,13 @@ void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
 {
     if (event->button() == Qt::LeftButton)
     {
+        const bool wasInteracting = m_isDragging || m_isExtending;
+
         if (m_isDragging)
         {
             m_isDragging = false;
             setCursor(Qt::ArrowCursor);
             DEBUG_OUT() << "Drag mode ended - indicator size and position preserved (scrollbar behavior)";
-            // Don't rebase - keep indicator size and position for scrollbar-like behavior
         }
 
         if (m_isExtending)
@@ -453,9 +458,71 @@ void ZoomPanel::mouseReleaseEvent(QMouseEvent *event)
             m_extendMode = None;
             setCursor(Qt::ArrowCursor);
             DEBUG_OUT() << "Extend mode ended - indicator size preserved (scrollbar behavior)";
-            // Don't rebase - keep indicator size for scrollbar-like behavior
+        }
+
+        if (wasInteracting)
+        {
+            // Cancel any throttled live emit; we are about to send the final commit.
+            m_liveFlushTimer.stop();
+            m_hasPendingLiveBounds = false;
+
+            ZoomBounds bounds = calculateInterpolatedBounds();
+            m_lastLiveBounds    = bounds;
+            m_hasLastLiveBounds = true;
+            DEBUG_OUT() << "ZoomPanel: Emitting valueChanged signal (commit) - Lower:" << bounds.lowerbound << "Upper:" << bounds.upperbound;
+            emit valueChanged(bounds);
         }
     }
+}
+
+void ZoomPanel::emitLiveBounds(const ZoomBounds &bounds)
+{
+    // Drop no-op repeats so we never publish the same bounds twice in a row.
+    if (m_hasLastLiveBounds
+        && qFuzzyCompare(m_lastLiveBounds.lowerbound, bounds.lowerbound)
+        && qFuzzyCompare(m_lastLiveBounds.upperbound, bounds.upperbound))
+    {
+        return;
+    }
+
+    m_pendingLiveBounds    = bounds;
+    m_hasPendingLiveBounds = true;
+
+    if (!m_liveEmitTimer.isValid())
+    {
+        flushPendingLiveBounds();
+        m_liveEmitTimer.start();
+        return;
+    }
+
+    const qint64 elapsed = m_liveEmitTimer.elapsed();
+    if (elapsed >= LIVE_EMIT_THROTTLE_MS)
+    {
+        flushPendingLiveBounds();
+        m_liveEmitTimer.restart();
+        return;
+    }
+
+    if (!m_liveFlushTimer.isActive())
+    {
+        m_liveFlushTimer.start(static_cast<int>(LIVE_EMIT_THROTTLE_MS - elapsed));
+    }
+}
+
+void ZoomPanel::flushPendingLiveBounds()
+{
+    if (!m_hasPendingLiveBounds)
+        return;
+    m_hasPendingLiveBounds = false;
+    m_lastLiveBounds       = m_pendingLiveBounds;
+    m_hasLastLiveBounds    = true;
+    emit valueChanging(m_pendingLiveBounds);
+}
+
+void ZoomPanel::onLiveFlushTick()
+{
+    flushPendingLiveBounds();
+    m_liveEmitTimer.restart();
 }
 
 void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
@@ -524,10 +591,8 @@ void ZoomPanel::updateValueFromMousePosition(const QPoint &currentPos)
         // Update display labels to show current selected range (dynamic values)
         updateDisplayLabels();
 
-        // Emit current actual bounds
-        ZoomBounds bounds = calculateInterpolatedBounds();
-        DEBUG_OUT() << "ZoomPanel: Emitting valueChanged signal (drag) - Lower:" << bounds.lowerbound << "Upper:" << bounds.upperbound;
-        emit valueChanged(bounds);
+        // Live, throttled emit during drag. Final commit happens in mouseReleaseEvent.
+        emitLiveBounds(calculateInterpolatedBounds());
     }
 }
 
@@ -696,10 +761,8 @@ void ZoomPanel::updateExtentFromMousePosition(const QPoint &currentPos)
     // Update display labels to show current selected range (dynamic values)
     updateDisplayLabels();
 
-    // Update bounds calculation and emit signal
-    ZoomBounds bounds = calculateInterpolatedBounds();
-    DEBUG_OUT() << "ZoomPanel: Emitting valueChanged signal (extend) - Lower:" << bounds.lowerbound << "Upper:" << bounds.upperbound;
-    emit valueChanged(bounds);
+    // Live, throttled emit during extend. Final commit happens in mouseReleaseEvent.
+    emitLiveBounds(calculateInterpolatedBounds());
 }
 
 void ZoomPanel::updateIndicatorToBounds()

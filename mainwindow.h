@@ -17,6 +17,7 @@
 #include "waterfallgraph.h"
 #include "zoompanel.h"
 #include "rtwsymboldrawing.h"
+#include "btwsymboldrawing.h"
 #include "scwwindow.h"
 #include "scwsimulator.h"
 #include <QMainWindow>
@@ -101,6 +102,7 @@ private:
     
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
+    QWidget* btwSymbolsTestWidget; ///< Widget for testing BTW symbols
     
     // Time selection history storage (max 5 selections)
     std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
@@ -123,6 +125,8 @@ private:
     void setBulkDataForAllGraphs();
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
+    void setupBTWSymbolsTest(); ///< Setup BTW symbols gallery tab
+    void testBTWSymbolsAPI();   ///< Place predefined BTW symbols on the live BTW graph
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
     void setupManoeuvreButton(); ///< Setup button to add manoeuvres
     void updateBTWLineModeButton(); ///< Update BTW line mode button text and style

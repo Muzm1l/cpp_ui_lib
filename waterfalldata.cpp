@@ -1,4 +1,5 @@
 #include "waterfalldata.h"
+#include "btwsymboldrawing.h"
 #include "debugutils.h"
 #include <algorithm>
 #include <limits>
@@ -384,26 +385,39 @@ void WaterfallData::addDataSeries(const QString& seriesLabel, const std::vector<
 
 void WaterfallData::addDataPointToSeries(const QString& seriesLabel, float yValue, const QDateTime& timestamp)
 {
+    CircularBuffer<float> &yBuffer = dataSeriesYData[seriesLabel];
+    const bool evictsOldest = yBuffer.full();
+
     // Store directly as float (no conversion needed)
-    dataSeriesYData[seriesLabel].push_back(yValue);
+    yBuffer.push_back(yValue);
     dataSeriesTimestamps[seriesLabel].push_back(timestamp);
     // Store epoch milliseconds in parallel (convert once, not in hot path)
     dataSeriesTimestampsEpoch[seriesLabel].push_back(timestamp.toMSecsSinceEpoch());
 
     validateDataSeriesConsistency(seriesLabel);
     
-    // Phase 1: Incrementally update min/max for this series
+    // Phase 1: Keep min/max cache correct even when circular buffers evict oldest values.
+    // If an element is evicted, incremental min/max updates are not sufficient.
+    if (evictsOldest)
+    {
+        updateSeriesMinMax(seriesLabel);
+        invalidateRangeCache();
+        return;
+    }
+
     auto minMaxIt = m_seriesMinMax.find(seriesLabel);
     if (minMaxIt != m_seriesMinMax.end()) {
-        // Update existing min/max
+        bool rangeChanged = false;
         if (yValue < minMaxIt->second.first) {
             minMaxIt->second.first = yValue;
-            invalidateRangeCache();
+            rangeChanged = true;
         }
         if (yValue > minMaxIt->second.second) {
             minMaxIt->second.second = yValue;
-            invalidateRangeCache();
+            rangeChanged = true;
         }
+        if (rangeChanged)
+            invalidateRangeCache();
     } else {
         // First point in series - initialize min/max
         updateSeriesMinMax(seriesLabel);
@@ -590,6 +604,55 @@ bool WaterfallData::findClosestDataPoint(const QString& seriesLabel, const QDate
     return false;
 }
 
+bool WaterfallData::interpolateSeriesRangeAtTime(const QString& seriesLabel, const QDateTime& targetTime, qreal& outRange) const
+{
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto tIt = dataSeriesTimestamps.find(seriesLabel);
+
+    if (yIt == dataSeriesYData.end() || tIt == dataSeriesTimestamps.end()) {
+        return false;
+    }
+
+    const std::vector<QDateTime> timestamps = tIt->second.toVector();
+    const std::vector<float> yData = yIt->second.toVector();
+
+    if (timestamps.empty() || timestamps.size() != yData.size()) {
+        return false;
+    }
+
+    auto it = std::lower_bound(timestamps.begin(), timestamps.end(), targetTime);
+
+    if (it == timestamps.begin()) {
+        outRange = static_cast<qreal>(yData.front());
+        return true;
+    }
+
+    if (it == timestamps.end()) {
+        outRange = static_cast<qreal>(yData.back());
+        return true;
+    }
+
+    const size_t idx = static_cast<size_t>(std::distance(timestamps.begin(), it));
+    if (*it == targetTime) {
+        outRange = static_cast<qreal>(yData[idx]);
+        return true;
+    }
+
+    const size_t prevIdx = idx - 1;
+    const qint64 t0 = timestamps[prevIdx].toMSecsSinceEpoch();
+    const qint64 t1 = timestamps[idx].toMSecsSinceEpoch();
+    const qint64 tt = targetTime.toMSecsSinceEpoch();
+
+    if (t1 == t0) {
+        outRange = static_cast<qreal>(yData[prevIdx]);
+        return true;
+    }
+
+    const qreal alpha = static_cast<qreal>(tt - t0) / static_cast<qreal>(t1 - t0);
+    outRange = (1.0 - alpha) * static_cast<qreal>(yData[prevIdx]) + alpha * static_cast<qreal>(yData[idx]);
+    return true;
+}
+
 std::vector<qreal> WaterfallData::getYDataSeries(const QString& seriesLabel) const
 {
     auto it = dataSeriesYData.find(seriesLabel);
@@ -687,6 +750,117 @@ void WaterfallData::populateTimestampsEpochSeries(const QString& seriesLabel, st
             output.push_back(buffer[i]);
         }
     }
+}
+
+bool WaterfallData::findVisibleEpochRange(const QString& seriesLabel, qint64 timeMinEpoch, qint64 timeMaxEpoch,
+                                          size_t& firstIdx, size_t& lastIdx) const
+{
+    firstIdx = 0;
+    lastIdx = 0;
+
+    auto epochIt = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (epochIt == dataSeriesTimestampsEpoch.end())
+    {
+        return false;
+    }
+
+    const CircularBuffer<qint64>& epochs = epochIt->second;
+    const size_t n = epochs.size();
+    if (n == 0)
+    {
+        return false;
+    }
+
+    // lower_bound on circular buffer logical indices (0 = oldest, n-1 = newest)
+    size_t lo = 0;
+    size_t hi = n;
+    while (lo < hi)
+    {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (epochs[mid] < timeMinEpoch)
+        {
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
+        }
+    }
+    firstIdx = lo;
+
+    // upper_bound on circular buffer logical indices
+    lo = firstIdx;
+    hi = n;
+    while (lo < hi)
+    {
+        const size_t mid = lo + (hi - lo) / 2;
+        if (epochs[mid] <= timeMaxEpoch)
+        {
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
+        }
+    }
+    lastIdx = lo;
+
+    return firstIdx < lastIdx;
+}
+
+void WaterfallData::populateSeriesRangeFloatEpoch(const QString& seriesLabel, size_t firstIdx, size_t lastIdx,
+                                                  std::vector<std::pair<float, qint64>>& output) const
+{
+    output.clear();
+
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto epochIt = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (yIt == dataSeriesYData.end() || epochIt == dataSeriesTimestampsEpoch.end())
+    {
+        return;
+    }
+
+    const CircularBuffer<float>& yBuffer = yIt->second;
+    const CircularBuffer<qint64>& epochBuffer = epochIt->second;
+    const size_t n = std::min(yBuffer.size(), epochBuffer.size());
+    if (n == 0 || firstIdx >= n)
+    {
+        return;
+    }
+
+    const size_t endIdx = std::min(lastIdx, n);
+    if (firstIdx >= endIdx)
+    {
+        return;
+    }
+
+    output.reserve(endIdx - firstIdx);
+    for (size_t i = firstIdx; i < endIdx; ++i)
+    {
+        output.push_back(std::make_pair(yBuffer[i], epochBuffer[i]));
+    }
+}
+
+bool WaterfallData::getSeriesPointAtIndexEpoch(const QString& seriesLabel, size_t index, float& yValue, qint64& timestampEpoch) const
+{
+    auto yIt = dataSeriesYData.find(seriesLabel);
+    auto epochIt = dataSeriesTimestampsEpoch.find(seriesLabel);
+    if (yIt == dataSeriesYData.end() || epochIt == dataSeriesTimestampsEpoch.end())
+    {
+        return false;
+    }
+
+    const CircularBuffer<float>& yBuffer = yIt->second;
+    const CircularBuffer<qint64>& epochBuffer = epochIt->second;
+    const size_t n = std::min(yBuffer.size(), epochBuffer.size());
+    if (index >= n)
+    {
+        return false;
+    }
+
+    yValue = yBuffer[index];
+    timestampEpoch = epochBuffer[index];
+    return true;
 }
 
 size_t WaterfallData::getDataSeriesSize(const QString& seriesLabel) const
@@ -1197,6 +1371,47 @@ void WaterfallData::clearBTWSymbols()
     DEBUG_OUT() << "WaterfallData: Cleared all BTW symbols";
 }
 
+namespace {
+
+bool btwSymbolNamesMatch(const QString &query, const QString &stored)
+{
+    if (query == stored)
+        return true;
+    const BTWSymbolDrawing::SymbolType queryType = BTWSymbolDrawing::symbolNameToType(query);
+    const BTWSymbolDrawing::SymbolType storedType = BTWSymbolDrawing::symbolNameToType(stored);
+    return queryType == storedType;
+}
+
+} // namespace
+
+bool WaterfallData::removeBTWSymbol(const QString& symbolName, const QDateTime& timestamp, float range, float toleranceMs, float rangeTolerance)
+{
+    bool found = false;
+    btwSymbols.erase_if([&](const BTWSymbolData& symbol) {
+        if (!btwSymbolNamesMatch(symbolName, symbol.symbolName))
+            return false;
+
+        const qint64 timeDiff = qAbs(symbol.timestamp.msecsTo(timestamp));
+        const float rangeDiff = qAbs(symbol.range - range);
+
+        if (timeDiff <= static_cast<qint64>(toleranceMs) && rangeDiff <= rangeTolerance)
+        {
+            found = true;
+            return true;
+        }
+        return false;
+    });
+
+    if (found)
+    {
+        DEBUG_OUT() << "WaterfallData: Removed BTW symbol" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+        return true;
+    }
+
+    DEBUG_OUT() << "WaterfallData: BTW symbol not found:" << symbolName << "at timestamp" << timestamp.toString() << "with range" << range;
+    return false;
+}
+
 std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
 {
     return btwSymbols.toVector();
@@ -1205,34 +1420,28 @@ std::vector<BTWSymbolData> WaterfallData::getBTWSymbols() const
 std::vector<BTWSymbolData> WaterfallData::getBTWSymbolsWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
 {
     std::vector<BTWSymbolData> result;
-    
+
     if (btwSymbols.empty()) {
         return result;
     }
-    
-    // Create a sorted copy for binary search (symbols may not be sorted)
-    // This is more efficient than sorting the original vector
-    std::vector<BTWSymbolData> sortedSymbols = btwSymbols.toVector();
-    std::sort(sortedSymbols.begin(), sortedSymbols.end(),
-        [](const BTWSymbolData& a, const BTWSymbolData& b) {
-            return a.timestamp < b.timestamp;
-        });
-    
-    // Use binary search to find the range of symbols within the time window
-    auto startIt = std::lower_bound(sortedSymbols.begin(), sortedSymbols.end(), startTime,
-        [](const BTWSymbolData& symbol, const QDateTime& time) {
-            return symbol.timestamp < time;
-        });
-    
-    auto endIt = std::upper_bound(sortedSymbols.begin(), sortedSymbols.end(), endTime,
-        [](const QDateTime& time, const BTWSymbolData& symbol) {
-            return time < symbol.timestamp;
-        });
-    
-    // Copy the range
-    result.reserve(std::distance(startIt, endIt));
-    result.assign(startIt, endIt);
-    
+
+    const qint64 startEpoch = startTime.isValid() ? startTime.toMSecsSinceEpoch() : std::numeric_limits<qint64>::min();
+    const qint64 endEpoch = endTime.isValid() ? endTime.toMSecsSinceEpoch() : std::numeric_limits<qint64>::max();
+    if (startEpoch > endEpoch)
+    {
+        return result;
+    }
+
+    result.reserve(btwSymbols.size());
+    for (size_t i = 0; i < btwSymbols.size(); ++i)
+    {
+        const BTWSymbolData &symbol = btwSymbols[i];
+        if (symbol.timestampEpoch >= startEpoch && symbol.timestampEpoch <= endEpoch)
+        {
+            result.push_back(symbol);
+        }
+    }
+
     return result;
 }
 
@@ -1245,6 +1454,25 @@ size_t WaterfallData::getBTWSymbolsCount() const
 
 void WaterfallData::addBTWMarker(const QDateTime& timestamp, float range, float delta)
 {
+    // Deduplication: when integrated in main system, the same automatic marker can be
+    // reported twice (e.g. once with delta 0 and once with the real delta). If a marker
+    // already exists at the same (timestamp, range) within tolerance, update its delta
+    // instead of appending a duplicate. Prefer non-zero delta when one is 0.
+    const qint64 timeToleranceMs = 500;
+    const float rangeTolerance = 0.5f;
+    for (size_t i = 0; i < btwMarkers.size(); ++i) {
+        const BTWMarkerData& existing = btwMarkers[i];
+        qint64 timeDiff = qAbs(existing.timestamp.msecsTo(timestamp));
+        float rangeDiff = qAbs(existing.range - range);
+        if (timeDiff <= timeToleranceMs && rangeDiff <= rangeTolerance) {
+            // Prefer non-zero delta: don't overwrite existing non-zero with 0
+            float newDelta = (existing.delta != 0.0f && delta == 0.0f) ? existing.delta : delta;
+            btwMarkers[i].delta = newDelta;
+            DEBUG_OUT() << "WaterfallData: Updated existing BTW marker at timestamp" << timestamp.toString() << "range" << range << "delta" << newDelta << "(deduplicated)";
+            return;
+        }
+    }
+
     BTWMarkerData markerData;
     markerData.timestamp = timestamp;
     markerData.range = range;
@@ -1295,34 +1523,27 @@ std::vector<BTWMarkerData> WaterfallData::getBTWMarkers() const
 std::vector<BTWMarkerData> WaterfallData::getBTWMarkersWithinTimeRange(const QDateTime& startTime, const QDateTime& endTime) const
 {
     std::vector<BTWMarkerData> result;
-    
+
     if (btwMarkers.empty()) {
         return result;
     }
-    
-    // Create a sorted copy for binary search (markers may not be sorted)
-    // This is more efficient than sorting the original vector
-    std::vector<BTWMarkerData> sortedMarkers = btwMarkers.toVector();
-    std::sort(sortedMarkers.begin(), sortedMarkers.end(),
-        [](const BTWMarkerData& a, const BTWMarkerData& b) {
-            return a.timestamp < b.timestamp;
-        });
-    
-    // Use binary search to find the range of markers within the time window
-    auto startIt = std::lower_bound(sortedMarkers.begin(), sortedMarkers.end(), startTime,
-        [](const BTWMarkerData& marker, const QDateTime& time) {
-            return marker.timestamp < time;
-        });
-    
-    auto endIt = std::upper_bound(sortedMarkers.begin(), sortedMarkers.end(), endTime,
-        [](const QDateTime& time, const BTWMarkerData& marker) {
-            return time < marker.timestamp;
-        });
-    
-    // Copy the range
-    result.reserve(std::distance(startIt, endIt));
-    result.assign(startIt, endIt);
-    
+
+    if (startTime.isValid() && endTime.isValid() && startTime > endTime)
+    {
+        return result;
+    }
+
+    result.reserve(btwMarkers.size());
+    for (size_t i = 0; i < btwMarkers.size(); ++i)
+    {
+        const BTWMarkerData &marker = btwMarkers[i];
+        if ((!startTime.isValid() || marker.timestamp >= startTime) &&
+            (!endTime.isValid() || marker.timestamp <= endTime))
+        {
+            result.push_back(marker);
+        }
+    }
+
     return result;
 }
 

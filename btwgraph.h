@@ -134,11 +134,19 @@ public:
     
     /**
      * @brief Add a BTW symbol to the graph
-     * @param symbolName Name of the symbol (e.g., "MagentaCircle")
+     * @param symbolName Name of the symbol (e.g., "MagentaCircle", "YellowCircle1", "WhiteCircle2")
      * @param timestamp Timestamp when the symbol should be displayed
      * @param range Range value (Y-axis position) where the symbol should be displayed
      */
     void addBTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
+
+    /**
+     * @brief Add a predefined BTW symbol by type (pixmap cache lookup)
+     * @param symbolType Registered BTWSymbolDrawing::SymbolType
+     * @param timestamp Timestamp when the symbol should be displayed
+     * @param range Bearing/range value (X-axis) where the symbol should be displayed
+     */
+    void addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, qreal range);
     
     /**
      * @brief Add a shaded region to the graph
@@ -252,6 +260,9 @@ public slots:
 protected:
     // Override the draw method to create scatterplots by default
     void draw() override;
+    void refreshOverlaysAfterVisibleTimeRangeChange() override;
+    void drawBTWSymbols() override;
+    void augmentOverlayPassAfterSymbols() override;
 
     // Override mouse event handlers to add interactive markers on click
     void onMouseClick(const QPointF &scenePos) override;
@@ -272,8 +283,6 @@ private:
     // BTW-specific properties and methods can be added here
     void drawBTWScatterplot();
     void drawCustomCircleMarkers();
-    void drawBTWSymbols();
-    BTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
     void addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue);
     
     // Interactive overlay setup
@@ -335,6 +344,13 @@ private:
     QSize m_cachedWindowSize;      // Cached window size
     qreal m_cachedMarkerRadius;    // Cached marker radius based on window size
     bool m_windowSizeCacheValid;   // Flag to track cache validity
+
+    /**
+     * Snap a manual marker to the visible series whose interpolated trace is horizontally
+     * nearest the click at the given time (clicked Y → timestamp).
+     */
+    bool snapManualMarkerToNearestSeriesAtTime(const QPointF &scenePos, const QDateTime &timestamp,
+                                               qreal &outRange, QString &outSeriesLabel) const;
     
     // Cache update function (Issue #3)
     void updateWindowSizeCache();

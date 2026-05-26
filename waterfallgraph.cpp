@@ -1,6 +1,8 @@
 #include "waterfallgraph.h"
 #include "waterfalldata.h"  // For BTWSymbolData
 #include "graphengine.h"
+#include "graphtype.h"
+#include "sharedcachestore.h"
 #include "debugutils.h"
 #include <QApplication>
 #include <QPointF>
@@ -48,6 +50,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_engine(nullptr),
     dataSource(nullptr), 
     isDragging(false), 
+    m_dispatchingOverlayMouseEvent(false),
     isDrawing(false),
     crosshairHorizontal(nullptr), 
     crosshairVertical(nullptr), 
@@ -61,6 +64,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     lastNotifiedCrosshairXPosition(-1.0),
     m_renderState(RenderState::FULL_REDRAW),
     m_rangeUpdateNeeded(false),
+    m_renderedTimeMin(QDateTime()),
+    m_renderedTimeMax(QDateTime()),
     m_fastTrackSwitchMode(false),  // Initialize fast track switch mode flag
     m_zeroAxisValue(0.0),
     m_cachedTimeIntervalMs(-1),  // Invalid initial value
@@ -187,7 +192,11 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     selectionRect = new QGraphicsRectItem();
     selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine));    // White dashed line
     selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
-    selectionRect->setZValue(1000);                             // Ensure it's drawn on top
+    // Below crosshair/time cursor and below BTW interactive markers (they use z >= 0 / 1001+);
+    // must not sit on top or itemAt() blocks marker clicks.
+    selectionRect->setZValue(-1);
+    selectionRect->setAcceptedMouseButtons(Qt::NoButton);
+    selectionRect->setAcceptHoverEvents(false);
     overlayScene->addItem(selectionRect);                       // Add to overlay scene
 
     // Setup crosshair
@@ -261,6 +270,11 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     cursorUpdateTimer->setInterval(16); // 60fps
     connect(cursorUpdateTimer, &QTimer::timeout, this, &WaterfallGraph::updateCursorLayer);
 
+    m_frameTickTimer = new QTimer(this);
+    m_frameTickTimer->setTimerType(Qt::PreciseTimer);
+    m_frameTickTimer->setInterval(16);
+    connect(m_frameTickTimer, &QTimer::timeout, this, &WaterfallGraph::onFrameTick);
+
     // Debug: Print initial state (commented out for performance)
     // DEBUG_OUT() << "WaterfallGraph constructor - mouseSelectionEnabled:" << mouseSelectionEnabled;
     // DEBUG_OUT() << "WaterfallGraph constructor - graphicsScene:" << graphicsScene;
@@ -276,6 +290,11 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
  */
 WaterfallGraph::~WaterfallGraph()
 {
+    if (m_frameTickTimer)
+        m_frameTickTimer->stop();
+
+    clearBTWSymbolOverlayItems();
+
     // Clean up waterfall buffer explicitly to free QImageData memory
     // This addresses the 11.6 MB QImageData::create leak identified by heaptrack
     m_waterfallBuffer = QPixmap(); // Clear QPixmap to free underlying QImageData
@@ -357,6 +376,8 @@ void WaterfallGraph::setDataSource(WaterfallData &dataSource)
 
     this->dataSource = &dataSource;
     // New data source requires full redraw (automatically marks all series dirty)
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
     setRenderState(RenderState::FULL_REDRAW);
     draw(); // Trigger redraw with new data source
     DEBUG_OUT() << "Data source set successfully";
@@ -402,45 +423,34 @@ void WaterfallGraph::attachEngine(GraphEngine *engine)
         // Connect engine signals
         connect(m_engine, &GraphEngine::dataAppended,
                 this, [this](const QString &seriesLabel) {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            markSeriesDirty(seriesLabel);
-            markRangeUpdateNeeded();
-            drawIncremental();
+            postCommand(DataAppend{seriesLabel});
         });
         
         connect(m_engine, &GraphEngine::dataRangeChanged, this, [this]() {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            markRangeUpdateNeeded();
             dataRangesValid = false;
-            drawIncremental();
+            postCommand(YRangeChange{});
         });
         
         connect(m_engine, &GraphEngine::symbolsChanged, this, [this]() {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            setRenderState(RenderState::INCREMENTAL_UPDATE);
-            drawIncremental();
+            postCommand(IncrementalRedrawAllSeries{});
         });
         
         connect(m_engine, &GraphEngine::markersChanged, this, [this]() {
-            // Skip updates if widget is not visible (optimization: avoid wasted CPU)
             if (!isVisible())
                 return;
-            setRenderState(RenderState::INCREMENTAL_UPDATE);
-            drawIncremental();
+            postCommand(IncrementalRedrawAllSeries{});
         });
         
         // Reset view state
         resetViewState();
         
-        // Force full redraw
-        setRenderState(RenderState::FULL_REDRAW);
-        draw();
+        forceFullRedraw(QStringLiteral("attach_engine"));
         
         DEBUG_OUT() << "WaterfallGraph: Attached engine for graph type" << static_cast<int>(m_engine->getGraphType());
     } else {
@@ -478,6 +488,7 @@ void WaterfallGraph::resetViewState()
 {
     // Clear cached data
     invalidateAllVisibleDataCache();
+    clearBTWSymbolOverlayItems();
     
     // Clear scatterplot item vectors first (before clearing scene items)
     for (auto& pair : m_seriesScatterplotItems) {
@@ -534,10 +545,9 @@ void WaterfallGraph::setData(const QString &seriesLabel, const std::vector<float
 
     DEBUG_OUT() << "Data set successfully. Size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
-
-    // Redraw the graph with the new data
+    postCommand(DataAppend{seriesLabel});
+    postCommand(YRangeChange{});
     draw();
 }
 
@@ -570,10 +580,6 @@ void WaterfallGraph::triggerIncrementalRedraw(const QString &seriesLabel)
     // Mark only this series as dirty (not all series)
     markSeriesDirty(seriesLabel);
     
-    // Clear range update flag to prevent range recalculation in interactive mode
-    // Interactive updates should skip expensive range calculations
-    m_rangeUpdateNeeded = false;
-    
     // Use incremental update state - this skips expensive operations:
     // - No range recalculation
     // - No cache clearing
@@ -604,19 +610,14 @@ void WaterfallGraph::setData(const WaterfallData &data)
     // Mark ranges as invalid so they'll be recalculated
     dataRangesValid = false;
 
-    // If data is empty, clear the graph properly to remove existing graphics
     if (dataSource->isEmpty())
     {
-        // Invalidate all cached visible data to ensure old data doesn't remain on screen
-        invalidateAllVisibleDataCache();
-        
-        // Force full redraw to clear all graphics items
-        setRenderState(RenderState::FULL_REDRAW);
-        
         DEBUG_OUT() << "Data is empty, clearing graph display";
+        forceFullRedraw(QStringLiteral("waterfalldata_empty"));
+        return;
     }
 
-    // Redraw the graph with the new data (or cleared if empty)
+    postCommand(StyleChange{});
     draw();
 }
 
@@ -634,16 +635,9 @@ void WaterfallGraph::clearData()
 
     dataSource->clearData();
 
-    // Invalidate all cached visible data to ensure old data doesn't remain on screen
-    invalidateAllVisibleDataCache();
-    
-    // Force full redraw to clear all graphics items
-    setRenderState(RenderState::FULL_REDRAW);
-
     DEBUG_OUT() << "Data cleared successfully";
 
-    // Redraw the graph
-    draw();
+    forceFullRedraw(QStringLiteral("clear_data"));
 }
 
 /**
@@ -664,17 +658,8 @@ void WaterfallGraph::addDataPoint(const QString &seriesLabel, float yValue, cons
 
     DEBUG_OUT() << "Data point added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark series as dirty and range update needed
-    markSeriesDirty(seriesLabel);
-    markRangeUpdateNeeded();
-    dataRangesValid = false;
-    
-    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when data ranges become invalid
-    // Y range will change, making cached mappings invalid
-    m_mapDataToScreenCache.clear();
-
-    // Use incremental draw instead of full redraw
-    drawIncremental();
+    postCommand(DataAppend{seriesLabel});
+    onFrameTick();
 }
 
 /**
@@ -695,17 +680,8 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
 
     DEBUG_OUT() << "Data points added. New size:" << dataSource->getDataSeriesSize(seriesLabel);
 
-    // Mark series as dirty and range update needed
-    markSeriesDirty(seriesLabel);
-    markRangeUpdateNeeded();
-    dataRangesValid = false;
-    
-    // OPTIMIZATION FIX #1: Clear mapDataToScreen cache when data ranges become invalid
-    // Y range will change, making cached mappings invalid
-    m_mapDataToScreenCache.clear();
-
-    // Use incremental draw instead of full redraw
-    drawIncremental();
+    postCommand(DataAppend{seriesLabel});
+    onFrameTick();
 }
 
 /**
@@ -745,12 +721,11 @@ std::vector<std::pair<qreal, QDateTime>> WaterfallGraph::getDataWithinTimeRange(
  *
  * @return const std::vector<qreal>&
  */
-const std::vector<qreal> &WaterfallGraph::getYData(const QString &seriesLabel) const
+std::vector<qreal> WaterfallGraph::getYData(const QString &seriesLabel) const
 {
-    static const std::vector<qreal> emptyVector;
     if (!dataSource)
     {
-        return emptyVector;
+        return {};
     }
     return dataSource->getYDataSeries(seriesLabel);
 }
@@ -760,12 +735,11 @@ const std::vector<qreal> &WaterfallGraph::getYData(const QString &seriesLabel) c
  *
  * @return const std::vector<QDateTime>&
  */
-const std::vector<QDateTime> &WaterfallGraph::getTimestamps(const QString &seriesLabel) const
+std::vector<QDateTime> WaterfallGraph::getTimestamps(const QString &seriesLabel) const
 {
-    static const std::vector<QDateTime> emptyVector;
     if (!dataSource)
     {
-        return emptyVector;
+        return {};
     }
     return dataSource->getTimestampsSeries(seriesLabel);
 }
@@ -822,15 +796,13 @@ void WaterfallGraph::setTimeInterval(TimeInterval interval)
         dataRangesValid = true;
     }
 
-    // Force redraw regardless of data presence to update grid and layout
-    // Only draw if graph is visible and initialized to avoid issues with non-visible graphs
     if (isVisible() && graphicsScene)
     {
-        // Time interval change requires full redraw since visible data window changes significantly
-        setRenderState(RenderState::FULL_REDRAW);
-        draw();
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        postCommand(StyleChange{});
+        drainRenderQueueSynchronously();
 
-        // Explicitly update the graphics view to ensure repaint
         if (graphicsView)
         {
             graphicsView->update();
@@ -871,8 +843,10 @@ void WaterfallGraph::setGridEnabled(bool enabled)
     if (gridEnabled != enabled)
     {
         gridEnabled = enabled;
-        setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
-        draw(); // Redraw to show/hide grid
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        postCommand(StyleChange{});
+        drainRenderQueueSynchronously();
         DEBUG_OUT() << "Grid" << (enabled ? "enabled" : "disabled");
     }
 }
@@ -882,8 +856,10 @@ void WaterfallGraph::setUseLineDrawing(bool useLines)
     if (m_useLineDrawing != useLines)
     {
         m_useLineDrawing = useLines;
-        setRenderState(RenderState::FULL_REDRAW); // Drawing mode change requires full redraw
-        draw(); // Redraw with new drawing mode
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        postCommand(StyleChange{});
+        drainRenderQueueSynchronously();
         DEBUG_OUT() << "Line drawing" << (useLines ? "enabled" : "disabled");
     }
 }
@@ -915,8 +891,10 @@ void WaterfallGraph::setGridDivisions(int divisions)
         gridDivisions = divisions;
         if (gridEnabled)
         {
-            setRenderState(RenderState::FULL_REDRAW); // Grid change requires full redraw
-            draw(); // Redraw to update grid divisions
+            m_renderedTimeMin = QDateTime();
+            m_renderedTimeMax = QDateTime();
+            postCommand(StyleChange{});
+            drainRenderQueueSynchronously();
         }
         DEBUG_OUT() << "Grid divisions set to:" << divisions;
     }
@@ -955,29 +933,279 @@ void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
  * @brief Draw the graph.
  *
  */
-void WaterfallGraph::draw()
+void WaterfallGraph::postCommand(RenderCommand cmd)
+{
+    m_commandQueue.push_back(std::move(cmd));
+    if (m_frameTickTimer && !m_frameTickTimer->isActive())
+    {
+        m_frameTickTimer->start();
+    }
+}
+
+void WaterfallGraph::processRenderCommandQueue()
 {
     if (!graphicsScene)
         return;
 
-    // Only set FULL_REDRAW if we're in CLEAN state (no pending updates)
-    // Otherwise respect the current state (INCREMENTAL_UPDATE, etc.) that was set
-    // by methods like setTimeRange() or addDataPoint()
-    if (m_renderState == RenderState::CLEAN)
-    {
-        setRenderState(RenderState::FULL_REDRAW);
-    }
-    // If state is already INCREMENTAL_UPDATE, RANGE_UPDATE_ONLY, or FULL_REDRAW,
-    // keep it - don't override incremental updates with full redraws
+    if (m_commandQueue.empty())
+        return;
 
-    // Use incremental draw which will handle the current state
-    drawIncremental();
+    RenderPath path = RenderPath::None;
+    std::set<QString> dataAppendDirty;
+    bool hasLastScope = false;
+    ScopeChange lastScope;
+    bool yRange = false;
+    QString fullReason;
+    bool sawForce = false;
+
+    while (!m_commandQueue.empty()) {
+        RenderCommand cmd = std::move(m_commandQueue.front());
+        m_commandQueue.pop_front();
+        switch (cmd.kind) {
+        case RenderCommand::Kind::DataAppend: {
+            const DataAppend &c = cmd.dataAppend;
+            dataAppendDirty.insert(c.seriesLabel);
+            dataRangesValid = false;
+            m_mapDataToScreenCache.clear();
+            path = maxRenderPath(path, RenderPath::Incremental);
+            break;
+        }
+        case RenderCommand::Kind::ScopeChange: {
+            const ScopeChange &c = cmd.scopeChange;
+            hasLastScope = true;
+            lastScope = c;
+            const bool within = scopeWithinRenderedExtent(c);
+            if (!within) {
+                invalidateAllVisibleDataCache();
+                m_renderedTimeMin = QDateTime();
+                m_renderedTimeMax = QDateTime();
+                if (fullReason.isEmpty())
+                    fullReason = QStringLiteral("scope_outside_rendered_extent");
+            }
+            path = maxRenderPath(path, within ? RenderPath::RangeOnly : RenderPath::Full);
+            break;
+        }
+        case RenderCommand::Kind::StyleChange:
+            path = maxRenderPath(path, RenderPath::Full);
+            if (fullReason.isEmpty())
+                fullReason = QStringLiteral("style_change");
+            break;
+        case RenderCommand::Kind::ForceInvalidate: {
+            const ForceInvalidate &c = cmd.forceInvalidate;
+            sawForce = true;
+            path = maxRenderPath(path, RenderPath::Full);
+            fullReason = c.reason;
+            break;
+        }
+        case RenderCommand::Kind::YRangeChange:
+            // A pure Y-axis rescale is item-preserving: every existing
+            // scatterplot/line item just needs its screen position
+            // recomputed against the new yMin/yMax. That is exactly what
+            // the RANGE_UPDATE_ONLY branch in drawIncremental() does via
+            // redrawDataLayerForVisibleTimeRange() + the position-only
+            // path inside drawScatterplot()/drawDataLine().
+            //
+            // Mapping to Incremental was wrong: INCREMENTAL_UPDATE only
+            // redraws series in m_dirtySeries, but YRangeChange does not
+            // mark anything dirty, so data points stayed pinned to their
+            // stale positions and only the overlay (BTW symbols) refreshed.
+            //
+            // maxRenderPath is monotonic, so a coincident DataAppend or
+            // FULL command still wins over RangeOnly.
+            yRange = true;
+            path = maxRenderPath(path, RenderPath::RangeOnly);
+            break;
+        case RenderCommand::Kind::IncrementalRedrawAllSeries:
+            if (dataSource && !dataSource->isEmpty()) {
+                for (const QString &lb : dataSource->getDataSeriesLabels())
+                    dataAppendDirty.insert(lb);
+            }
+            path = maxRenderPath(path, RenderPath::Incremental);
+            break;
+        }
+    }
+
+    if (hasLastScope && lastScope.min.isValid() && lastScope.max.isValid() && lastScope.min < lastScope.max) {
+        if (timeMin != lastScope.min || timeMax != lastScope.max)
+            applyScopeToModel(lastScope.min, lastScope.max);
+    }
+
+    if (yRange) {
+        m_rangeUpdateNeeded = true;
+        transitionToAppropriateState();
+    }
+
+    for (const QString &s : dataAppendDirty) {
+        markSeriesDirty(s);
+        m_rangeUpdateNeeded = true;
+    }
+    if (!dataAppendDirty.empty())
+        transitionToAppropriateState();
+
+    if (path == RenderPath::None)
+        return;
+
+    if (path == RenderPath::Full || sawForce) {
+        if (fullReason.isEmpty())
+            fullReason = QStringLiteral("full_redraw");
+        DEBUG_OUT() << "WaterfallGraph: FULL_REDRAW reason:" << fullReason;
+        invalidateAllVisibleDataCache();
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        setRenderState(RenderState::FULL_REDRAW);
+    } else if (path == RenderPath::RangeOnly) {
+        setRenderState(RenderState::RANGE_UPDATE_ONLY);
+    } else {
+        setRenderState(RenderState::INCREMENTAL_UPDATE);
+    }
+}
+
+void WaterfallGraph::onFrameTick()
+{
+    processRenderCommandQueue();
+    if (m_renderState != RenderState::CLEAN)
+        drawIncremental();
+    else if (m_commandQueue.empty() && m_frameTickTimer && m_frameTickTimer->isActive())
+        m_frameTickTimer->stop();
+}
+
+void WaterfallGraph::drainRenderQueueSynchronously()
+{
+    if (!graphicsScene)
+        return;
+    processRenderCommandQueue();
+    if (m_renderState != RenderState::CLEAN)
+        drawIncremental();
+}
+
+void WaterfallGraph::draw()
+{
+    if (!graphicsScene)
+        return;
+    processRenderCommandQueue();
+    if (m_renderState != RenderState::CLEAN)
+        drawIncremental();
+}
+
+bool WaterfallGraph::scopeWithinRenderedExtent(const ScopeChange &c) const
+{
+    if (!m_renderedTimeMin.isValid() || !m_renderedTimeMax.isValid() || m_renderedTimeMin >= m_renderedTimeMax)
+        return false;
+    return c.min >= m_renderedTimeMin && c.max <= m_renderedTimeMax;
+}
+
+void WaterfallGraph::applyScopeToModel(const QDateTime &tMin, const QDateTime &tMax)
+{
+    m_mapScreenToTimeCacheValid = false;
+    customTimeMin = tMin;
+    customTimeMax = tMax;
+    customTimeRangeEnabled = true;
+    timeMin = tMin;
+    timeMax = tMax;
+}
+
+bool WaterfallGraph::tryFillVisibleCacheFromSharedStore(const QString &seriesLabel)
+{
+    if (!m_sharedCacheStore || !m_engine)
+        return false;
+    if (!timeMin.isValid() || !timeMax.isValid() || timeMin >= timeMax)
+        return false;
+
+    const CacheKey key{m_engine->getGraphType(),
+                       timeMin.toMSecsSinceEpoch(),
+                       timeMax.toMSecsSinceEpoch(),
+                       m_sharedCacheStore->currentEpoch()};
+    const CachedProjection *proj = m_sharedCacheStore->get(key);
+    if (!proj)
+        return false;
+    const auto dataIt = proj->visibleData.find(seriesLabel);
+    if (dataIt == proj->visibleData.end())
+        return false;
+
+    m_cachedVisibleData[seriesLabel] = dataIt->second;
+    const auto teIt = proj->timeRangeEpoch.find(seriesLabel);
+    if (teIt != proj->timeRangeEpoch.end())
+        m_cachedTimeRangeEpoch[seriesLabel] = teIt->second;
+    const auto lpIt = proj->lastProcessedIndex.find(seriesLabel);
+    if (lpIt != proj->lastProcessedIndex.end())
+        m_lastProcessedIndex[seriesLabel] = lpIt->second;
+    const auto csIt = proj->cachedDataSize.find(seriesLabel);
+    if (csIt != proj->cachedDataSize.end())
+        m_cachedDataSize[seriesLabel] = csIt->second;
+    m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
+    if (dataSource)
+    {
+        m_cachedDataVersion[seriesLabel] = dataSource->getDataVersion();
+        m_cacheValidResult[seriesLabel] = true;
+    }
+    return true;
+}
+
+void WaterfallGraph::publishVisibleCacheToSharedStore(const QString & /*seriesLabel*/)
+{
+    if (!m_sharedCacheStore || !m_engine)
+        return;
+    if (!timeMin.isValid() || !timeMax.isValid() || timeMin >= timeMax)
+        return;
+
+    const CacheKey key{m_engine->getGraphType(),
+                       timeMin.toMSecsSinceEpoch(),
+                       timeMax.toMSecsSinceEpoch(),
+                       m_sharedCacheStore->currentEpoch()};
+    CachedProjection snap;
+    snap.visibleData = m_cachedVisibleData;
+    snap.timeRangeEpoch = m_cachedTimeRangeEpoch;
+    snap.lastProcessedIndex = m_lastProcessedIndex;
+    snap.cachedDataSize = m_cachedDataSize;
+    m_sharedCacheStore->put(key, std::move(snap));
 }
 
 /**
  * @brief Incremental draw method that only redraws dirty series.
  *
  */
+void WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange()
+{
+    drawBTWSymbols();
+}
+
+bool WaterfallGraph::shouldRenderSeriesAsLine(const QString &seriesLabel) const
+{
+    if (m_useLineDrawing)
+        return true;
+    return seriesLabel.compare(QStringLiteral("ADOPTED"), Qt::CaseInsensitive) == 0;
+}
+
+void WaterfallGraph::redrawDataLayerForVisibleTimeRange()
+{
+    if (!dataSource || dataSource->isEmpty() || !dataRangesValid)
+    {
+        m_scatterPoints.clear();
+        m_scatterColors.clear();
+        m_dataLinePaths.clear();
+        m_batchedLinePaths.clear();
+        m_dataLineColors.clear();
+        update();
+        return;
+    }
+    const std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+    for (const QString &seriesLabel : seriesLabels)
+    {
+        if (!isSeriesVisible(seriesLabel))
+            continue;
+        if (shouldRenderSeriesAsLine(seriesLabel))
+        {
+            drawDataLine(seriesLabel, false);
+            continue;
+        }
+        drawScatterplot(seriesLabel, getSeriesColor(seriesLabel), 4.0, Qt::black);
+    }
+}
+
+void WaterfallGraph::augmentOverlayPassAfterSymbols()
+{
+}
+
 void WaterfallGraph::drawIncremental()
 {
     // Skip updates if widget is not visible (optimization: avoid wasted CPU)
@@ -998,6 +1226,10 @@ void WaterfallGraph::drawIncremental()
             {
                 updateDataRanges();
             }
+            // Refilter series into paintEvent buffers; otherwise m_scatterPoints / paths stay stale when
+            // the visible window moves to a range with no data (leftover pixels until a full redraw).
+            redrawDataLayerForVisibleTimeRange();
+            refreshOverlaysAfterVisibleTimeRangeChange();
             m_rangeUpdateNeeded = false;
             m_renderState = RenderState::CLEAN;
             break;
@@ -1025,7 +1257,7 @@ void WaterfallGraph::drawIncremental()
                     if (isSeriesVisible(seriesLabel))
                     {
                         // Use line drawing if flag is set, otherwise use scatterplot
-                        if (m_useLineDrawing)
+                        if (shouldRenderSeriesAsLine(seriesLabel))
                         {
                             drawDataLine(seriesLabel, false);
                         }
@@ -1039,6 +1271,7 @@ void WaterfallGraph::drawIncremental()
 
             // Draw BTW symbols (magenta circles) after drawing data series
             drawBTWSymbols();
+            augmentOverlayPassAfterSymbols();
 
             m_dirtySeries.clear();
             m_renderState = RenderState::CLEAN;
@@ -1131,7 +1364,7 @@ void WaterfallGraph::drawIncremental()
                     if (isSeriesVisible(seriesLabel))
                     {
                         // Use line drawing if flag is set, otherwise use scatterplot
-                        if (m_useLineDrawing)
+                        if (shouldRenderSeriesAsLine(seriesLabel))
                         {
                             drawDataLine(seriesLabel, false);
                         }
@@ -1154,10 +1387,23 @@ void WaterfallGraph::drawIncremental()
 
             // Draw BTW symbols (magenta circles) after drawing data series
             drawBTWSymbols();
+            augmentOverlayPassAfterSymbols();
 
             // Reset fast track switch mode after rendering completes
             // Normal operation resumes - subsequent updates will work as usual
             m_fastTrackSwitchMode = false;
+            
+            // Record the extent that was fully rendered for range-only updates.
+            if (timeMin.isValid() && timeMax.isValid() && timeMin < timeMax)
+            {
+                m_renderedTimeMin = timeMin;
+                m_renderedTimeMax = timeMax;
+            }
+            else
+            {
+                m_renderedTimeMin = QDateTime();
+                m_renderedTimeMax = QDateTime();
+            }
 
             m_dirtySeries.clear();
             m_renderState = RenderState::CLEAN;
@@ -1197,96 +1443,88 @@ void WaterfallGraph::transitionToAppropriateState()
  */
 void WaterfallGraph::drawBTWSymbols()
 {
-    // Follow the same pattern as RTW symbols - read symbols from dataSource
-    // OPTIMIZATION: Use overlayScene instead of graphicsScene for symbols (interactive overlays)
+    // Use persistent QGraphicsPixmapItems for BTW symbols. Repositioning/hiding
+    // existing items is significantly cheaper than scanning/deleting/recreating
+    // overlay items every frame as history grows.
     if (!overlayScene || !dataSource)
     {
+        clearBTWSymbolOverlayItems();
         return;
     }
-    
-    // CRITICAL FIX: Always remove old BTW symbol items (magenta circles) before drawing new ones
-    // This prevents duplicates when drawBTWSymbols() is called multiple times
-    // Even during FULL_REDRAW, we need to clean up because overlayScene is not cleared
-    // (only graphicsScene is cleared during FULL_REDRAW)
-    QList<QGraphicsItem*> allItems = overlayScene->items();
-    QList<QGraphicsItem*> itemsToRemove;
-    for (QGraphicsItem* item : allItems)
+
+    const std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
+    const size_t requiredCount = btwSymbols.size();
+
+    // Grow pool on demand.
+    while (m_btwSymbolItems.size() < requiredCount)
     {
-        QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
-        if (pixmapItem && pixmapItem->zValue() == 1003)
+        QGraphicsPixmapItem *item = new QGraphicsPixmapItem();
+        item->setZValue(1003); // Above markers but below interactive items
+        overlayScene->addItem(item);
+        m_btwSymbolItems.push_back(item);
+    }
+
+    // Shrink pool if symbols were removed.
+    while (m_btwSymbolItems.size() > requiredCount)
+    {
+        QGraphicsPixmapItem *item = m_btwSymbolItems.back();
+        m_btwSymbolItems.pop_back();
+        if (item)
         {
-            itemsToRemove.append(pixmapItem);
-        }
-    }
-    // Remove items after iteration to avoid modifying list while iterating
-    for (QGraphicsItem* item : itemsToRemove)
-    {
-        overlayScene->removeItem(item);
-        delete item;
-    }
-    
-    // Get symbols from dataSource
-    std::vector<BTWSymbolData> btwSymbols = dataSource->getBTWSymbols();
-    
-    if (btwSymbols.empty())
-    {
-        return;
-    }
-    
-    // Filter symbols to only include those within the visible time range
-    std::vector<BTWSymbolData> visibleSymbols;
-    bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
-    
-    if (timeRangeValid)
-    {
-        for (const auto& symbolData : btwSymbols)
-        {
-            if (symbolData.timestamp >= timeMin && symbolData.timestamp <= timeMax)
+            if (item->scene() == overlayScene)
             {
-                visibleSymbols.push_back(symbolData);
+                overlayScene->removeItem(item);
             }
+            delete item;
         }
     }
-    else
+
+    const bool timeRangeValid = timeMin.isValid() && timeMax.isValid() && timeMin <= timeMax;
+    const qint64 timeMinEpoch = timeRangeValid ? timeMin.toMSecsSinceEpoch() : 0;
+    const qint64 timeMaxEpoch = timeRangeValid ? timeMax.toMSecsSinceEpoch() : 0;
+
+    for (size_t i = 0; i < requiredCount; ++i)
     {
-        // If time range is not valid, show all symbols (they might be needed for initialization)
-        visibleSymbols = btwSymbols;
-    }
-    
-    // Draw symbols using cached pixmap for better performance
-    // Use different pixmap based on sync state
-    for (const auto& symbolData : visibleSymbols)
-    {
-        // OPTIMIZATION: Use cached epoch milliseconds (stored in BTWSymbolData struct)
-        // This avoids repeated toMSecsSinceEpoch() calls and timezone conversions
-        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
-        
-        // Check if point is within visible area
-        if (!drawingArea.contains(screenPos))
+        QGraphicsPixmapItem *item = m_btwSymbolItems[i];
+        if (!item)
         {
             continue;
         }
-        
-        // Select pixmap based on sync state: synced = filled, not synced = hollow
-        BTWSymbolDrawing::SymbolType symbolType = symbolData.isSynced 
-            ? BTWSymbolDrawing::SymbolType::MagentaCircleSynced 
-            : BTWSymbolDrawing::SymbolType::MagentaCircle;
-        const QPixmap& symbolPixmap = m_btwSymbols.get(symbolType);
-        
+
+        if (item->scene() != overlayScene)
+        {
+            overlayScene->addItem(item);
+        }
+
+        const BTWSymbolData &symbolData = btwSymbols[i];
+        if (timeRangeValid && (symbolData.timestampEpoch < timeMinEpoch || symbolData.timestampEpoch > timeMaxEpoch))
+        {
+            item->setVisible(false);
+            continue;
+        }
+
+        const QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
+        if (!drawingArea.contains(screenPos))
+        {
+            item->setVisible(false);
+            continue;
+        }
+
+        const BTWSymbolDrawing::SymbolType symbolType =
+            BTWSymbolDrawing::resolveDisplayType(symbolData.symbolName, symbolData.isSynced);
+        const QPixmap &symbolPixmap = m_btwSymbols.get(symbolType);
         if (symbolPixmap.isNull())
         {
-            continue; // Skip if pixmap not available
+            item->setVisible(false);
+            continue;
         }
-        
-        // Create a graphics pixmap item using cached pixmap
-        QGraphicsPixmapItem* pixmapItem = new QGraphicsPixmapItem(symbolPixmap);
-        
-        // Center the symbol on the data point
-        pixmapItem->setPos(screenPos.x() - symbolPixmap.width()/2, screenPos.y() - symbolPixmap.height()/2);
-        pixmapItem->setZValue(1003); // Above markers but below interactive items
-        
-        // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
-        overlayScene->addItem(pixmapItem);
+
+        if (item->pixmap().cacheKey() != symbolPixmap.cacheKey())
+        {
+            item->setPixmap(symbolPixmap);
+        }
+        item->setPos(screenPos.x() - symbolPixmap.width() / 2.0, screenPos.y() - symbolPixmap.height() / 2.0);
+        item->setVisible(true);
     }
 
     // If only ranges need update
@@ -1298,6 +1536,23 @@ void WaterfallGraph::drawBTWSymbols()
 
     // Otherwise clean
     m_renderState = RenderState::CLEAN;
+}
+
+void WaterfallGraph::clearBTWSymbolOverlayItems()
+{
+    for (QGraphicsPixmapItem *item : m_btwSymbolItems)
+    {
+        if (!item)
+        {
+            continue;
+        }
+        if (overlayScene && item->scene() == overlayScene)
+        {
+            overlayScene->removeItem(item);
+        }
+        delete item;
+    }
+    m_btwSymbolItems.clear();
 }
 
 /**
@@ -1340,12 +1595,11 @@ void WaterfallGraph::setRenderState(RenderState newState)
  * Sets the render state to FULL_REDRAW and calls draw().
  * Use this when data changes significantly or after initial setup.
  */
-void WaterfallGraph::forceFullRedraw()
+void WaterfallGraph::forceFullRedraw(const QString &reason)
 {
-    // Invalidate all cached visible data to ensure old data doesn't remain on screen
-    invalidateAllVisibleDataCache();
-    setRenderState(RenderState::FULL_REDRAW);
-    draw();
+    const QString r = reason.isEmpty() ? QStringLiteral("unspecified") : reason;
+    postCommand(ForceInvalidate{r});
+    drainRenderQueueSynchronously();
 }
 
 /**
@@ -1380,14 +1634,12 @@ void WaterfallGraph::markTrackChanged()
     // The flag will be automatically reset after rendering completes
     m_fastTrackSwitchMode = true;
     
-    // Mark all series dirty and trigger visible-window-first render
-    markAllSeriesDirty();
-    setRenderState(RenderState::FULL_REDRAW);
-    
-    // Trigger immediate render - this will only build geometry for visible window
-    // due to m_fastTrackSwitchMode flag
-    draw();
-    
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
+
+    postCommand(ForceInvalidate{QStringLiteral("track_changed")});
+    drainRenderQueueSynchronously();
+
     DEBUG_OUT() << "Track change marked - fast track switch mode enabled";
 }
 
@@ -1446,6 +1698,7 @@ void WaterfallGraph::invalidateVisibleDataCache(const QString &seriesLabel)
     m_lastProcessedIndex.erase(seriesLabel);
     m_cachedDataSize.erase(seriesLabel);
     m_cachedTimeRange.erase(seriesLabel);
+    m_cachedTimeRangeEpoch.erase(seriesLabel);
     
     // Phase 1: Clear version-based cache for this series
     m_cachedDataVersion.erase(seriesLabel);
@@ -1463,6 +1716,7 @@ void WaterfallGraph::invalidateAllVisibleDataCache()
     m_lastProcessedIndex.clear();
     m_cachedDataSize.clear();
     m_cachedTimeRange.clear();
+    m_cachedTimeRangeEpoch.clear();
     
     // Phase 1: Clear version-based cache
     m_cachedDataVersion.clear();
@@ -1507,17 +1761,40 @@ bool WaterfallGraph::isVisibleDataCacheValid(const QString &seriesLabel) const
     }
     else
     {
-        // Check if time range matches
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt == m_cachedTimeRange.end())
+        // Check if epoch time range matches (more stable than QDateTime object equality)
+        qint64 currentTimeMinEpoch = m_cachedTimeMinEpoch;
+        qint64 currentTimeMaxEpoch = m_cachedTimeMaxEpoch;
+        if (currentTimeMinEpoch == 0 && timeMin.isValid())
+        {
+            currentTimeMinEpoch = timeMin.toMSecsSinceEpoch();
+        }
+        if (currentTimeMaxEpoch == 0 && timeMax.isValid())
+        {
+            currentTimeMaxEpoch = timeMax.toMSecsSinceEpoch();
+        }
+
+        auto epochRangeIt = m_cachedTimeRangeEpoch.find(seriesLabel);
+        if (epochRangeIt == m_cachedTimeRangeEpoch.end())
         {
             isValid = false;
         }
-        else if (rangeIt->second.first != timeMin || rangeIt->second.second != timeMax)
+        else if (epochRangeIt->second.first != currentTimeMinEpoch || epochRangeIt->second.second != currentTimeMaxEpoch)
         {
             isValid = false;
         }
         else
+        {
+            isValid = true;
+        }
+        // Keep QDateTime range map as a fallback/backward compatibility signal for old callers/debugging.
+        // It is no longer the primary invalidation key.
+        // Check if time range metadata exists
+        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
+        if (isValid && rangeIt == m_cachedTimeRange.end())
+        {
+            isValid = false;
+        }
+        else if (isValid)
         {
             // Check if data size matches (no new data added) - use cached size
             if (!dataSource)
@@ -1569,10 +1846,24 @@ void WaterfallGraph::ensureVisibleDataCacheValid(const QString &seriesLabel)
 {
     if (!isVisibleDataCacheValid(seriesLabel))
     {
-        // Check if we can do incremental update (same time range, just new data)
-        auto rangeIt = m_cachedTimeRange.find(seriesLabel);
-        if (rangeIt != m_cachedTimeRange.end() &&
-            rangeIt->second.first == timeMin && rangeIt->second.second == timeMax)
+        if (tryFillVisibleCacheFromSharedStore(seriesLabel) && isVisibleDataCacheValid(seriesLabel))
+            return;
+        qint64 currentTimeMinEpoch = m_cachedTimeMinEpoch;
+        qint64 currentTimeMaxEpoch = m_cachedTimeMaxEpoch;
+        if (currentTimeMinEpoch == 0 && timeMin.isValid())
+        {
+            currentTimeMinEpoch = timeMin.toMSecsSinceEpoch();
+        }
+        if (currentTimeMaxEpoch == 0 && timeMax.isValid())
+        {
+            currentTimeMaxEpoch = timeMax.toMSecsSinceEpoch();
+        }
+
+        // Check if we can do incremental update (same epoch window, just new data)
+        auto rangeEpochIt = m_cachedTimeRangeEpoch.find(seriesLabel);
+        if (rangeEpochIt != m_cachedTimeRangeEpoch.end() &&
+            rangeEpochIt->second.first == currentTimeMinEpoch &&
+            rangeEpochIt->second.second == currentTimeMaxEpoch)
         {
             updateVisibleDataCacheIncremental(seriesLabel);
         }
@@ -1583,24 +1874,11 @@ void WaterfallGraph::ensureVisibleDataCacheValid(const QString &seriesLabel)
     }
 }
 
-/**
- * @brief Get visible data vector from cache, handling copying if needed.
- * 
- * This helper method eliminates code duplication for copying from CircularBuffer to vector.
- * 
- * @param seriesLabel The series to get visible data for
- * @return Reference to the visible data vector
- */
-const std::vector<std::pair<float, qint64>>& WaterfallGraph::getVisibleDataVector(const QString &seriesLabel)
+const CircularBuffer<std::pair<float, qint64>>& WaterfallGraph::cachedVisibleBuffer(const QString &seriesLabel) const
 {
-    const CircularBuffer<std::pair<float, qint64>> &visibleDataBuffer = m_cachedVisibleData[seriesLabel];
-    m_reusableVisibleData.clear();
-    m_reusableVisibleData.reserve(visibleDataBuffer.size());
-    for (size_t i = 0; i < visibleDataBuffer.size(); ++i)
-    {
-        m_reusableVisibleData.push_back(visibleDataBuffer[i]);
-    }
-    return m_reusableVisibleData;
+    static const CircularBuffer<std::pair<float, qint64>> s_emptyVisibleCache;
+    auto it = m_cachedVisibleData.find(seriesLabel);
+    return (it != m_cachedVisibleData.end()) ? it->second : s_emptyVisibleCache;
 }
 
 /**
@@ -1672,20 +1950,17 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
         m_cachedVisibleData[seriesLabel].clear();
         return;
     }
-    
-    // Use reusable vectors to avoid toVector() allocations
-    // OPTIMIZATION: Use float version to eliminate float-to-double conversion overhead
-    dataSource->populateYDataSeriesFloat(seriesLabel, m_reusableYDataFloat);
-    dataSource->populateTimestampsEpochSeries(seriesLabel, m_reusableTimestampsEpoch);
-    const std::vector<float> &yData = m_reusableYDataFloat; // Use float, not qreal
-    const std::vector<qint64> &timestampsEpoch = m_reusableTimestampsEpoch; // Use epoch milliseconds
-    
-    if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
+
+    const size_t currentSize = dataSource->getDataSeriesSize(seriesLabel);
+    if (currentSize == 0)
     {
         m_cachedVisibleData[seriesLabel].clear();
         m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
-        m_cachedDataSize[seriesLabel] = yData.size();
-        m_lastProcessedIndex[seriesLabel] = yData.size();
+        m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(
+            timeMin.isValid() ? timeMin.toMSecsSinceEpoch() : 0,
+            timeMax.isValid() ? timeMax.toMSecsSinceEpoch() : 0);
+        m_cachedDataSize[seriesLabel] = 0;
+        m_lastProcessedIndex[seriesLabel] = 0;
         return;
     }
     
@@ -1694,31 +1969,34 @@ void WaterfallGraph::updateVisibleDataCacheFull(const QString &seriesLabel)
     qint64 timeMinEpoch = m_cachedTimeMinEpoch;
     qint64 timeMaxEpoch = m_cachedTimeMaxEpoch;
     
-    // Use binary search on epoch milliseconds (much faster than QDateTime comparison)
-    auto startIt = std::lower_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMinEpoch);
-    auto endIt = std::upper_bound(timestampsEpoch.begin(), timestampsEpoch.end(), timeMaxEpoch);
-    
-    size_t firstIdx = std::distance(timestampsEpoch.begin(), startIt);
-    size_t lastIdx = std::distance(timestampsEpoch.begin(), endIt);
+    size_t firstIdx = 0;
+    size_t lastIdx = 0;
+    const bool hasVisibleRange = dataSource->findVisibleEpochRange(seriesLabel, timeMinEpoch, timeMaxEpoch, firstIdx, lastIdx);
     
     // Build filtered visible data - NO QDateTime CONVERSION, NO FLOAT-TO-DOUBLE CONVERSION!
     CircularBuffer<std::pair<float, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     cache.clear();
+    const size_t visibleCount = hasVisibleRange ? (lastIdx - firstIdx) : 0;
     // Reserve capacity if not already set (circular buffer will handle capacity limits)
     if (cache.capacity() == 0)
     {
-        cache.reserve(lastIdx - firstIdx);
+        cache.reserve(visibleCount);
     }
-    
-    for (size_t i = firstIdx; i < lastIdx && i < yData.size(); ++i)
+
+    if (hasVisibleRange)
     {
-        cache.push_back(std::make_pair(yData[i], timestampsEpoch[i])); // Store as float, epoch ms
+        // Populate only the visible slice directly from circular buffers (no full-series copy).
+        dataSource->populateSeriesRangeFloatEpoch(seriesLabel, firstIdx, lastIdx, m_reusableVisibleData);
+        cache.push_back(m_reusableVisibleData);
     }
     
     // Update tracking
     m_cachedTimeRange[seriesLabel] = std::make_pair(timeMin, timeMax);
-    m_cachedDataSize[seriesLabel] = yData.size();
-    m_lastProcessedIndex[seriesLabel] = yData.size();
+    m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
+    m_cachedDataSize[seriesLabel] = currentSize;
+    m_lastProcessedIndex[seriesLabel] = currentSize;
+
+    publishVisibleCacheToSharedStore(seriesLabel);
 }
 
 /**
@@ -1740,15 +2018,12 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     // If we're here, the cache was valid (time range matched), so we can do incremental update
     // No need to re-check the time range here (redundant check removed)
     
-    // Use reusable vectors to avoid toVector() allocations
-    // OPTIMIZATION: Use float version to eliminate float-to-double conversion overhead
-    dataSource->populateYDataSeriesFloat(seriesLabel, m_reusableYDataFloat);
-    dataSource->populateTimestampsEpochSeries(seriesLabel, m_reusableTimestampsEpoch);
-    const std::vector<float> &yData = m_reusableYDataFloat; // Use float, not qreal
-    const std::vector<qint64> &timestampsEpoch = m_reusableTimestampsEpoch; // Use epoch milliseconds
-    
-    if (yData.empty() || timestampsEpoch.empty() || yData.size() != timestampsEpoch.size())
+    const size_t currentSize = dataSource->getDataSeriesSize(seriesLabel);
+    if (currentSize == 0)
     {
+        m_cachedVisibleData[seriesLabel].clear();
+        m_cachedDataSize[seriesLabel] = 0;
+        m_lastProcessedIndex[seriesLabel] = 0;
         return;
     }
     
@@ -1761,14 +2036,14 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     }
     
     // If data was cleared/reduced, do full refilter
-    if (yData.size() < lastProcessed)
+    if (currentSize < lastProcessed)
     {
         updateVisibleDataCacheFull(seriesLabel);
         return;
     }
     
     // If no new data, nothing to do
-    if (yData.size() == lastProcessed)
+    if (currentSize == lastProcessed)
     {
         return;
     }
@@ -1781,18 +2056,25 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
     // Process only new data points - NO QDateTime CONVERSION, NO FLOAT-TO-DOUBLE CONVERSION!
     CircularBuffer<std::pair<float, qint64>> &cache = m_cachedVisibleData[seriesLabel];
     
-    for (size_t i = lastProcessed; i < yData.size(); ++i)
+    for (size_t i = lastProcessed; i < currentSize; ++i)
     {
-        qint64 tsEpoch = timestampsEpoch[i];
+        float yValue = 0.0f;
+        qint64 tsEpoch = 0;
+        if (!dataSource->getSeriesPointAtIndexEpoch(seriesLabel, i, yValue, tsEpoch))
+        {
+            break;
+        }
+
         if (tsEpoch >= timeMinEpoch && tsEpoch <= timeMaxEpoch)
         {
-            cache.push_back(std::make_pair(yData[i], tsEpoch)); // Store as float, epoch ms
+            cache.push_back(std::make_pair(yValue, tsEpoch)); // Store as float, epoch ms
         }
     }
     
     // Update tracking
-    m_cachedDataSize[seriesLabel] = yData.size();
-    m_lastProcessedIndex[seriesLabel] = yData.size();
+    m_cachedTimeRangeEpoch[seriesLabel] = std::make_pair(timeMinEpoch, timeMaxEpoch);
+    m_cachedDataSize[seriesLabel] = currentSize;
+    m_lastProcessedIndex[seriesLabel] = currentSize;
 }
 
 // ============================================================================
@@ -1808,11 +2090,14 @@ void WaterfallGraph::updateVisibleDataCacheIncremental(const QString &seriesLabe
  */
 void WaterfallGraph::cleanupScatterplotItems(const QString &seriesLabel)
 {
+    m_scatterPoints.remove(seriesLabel);
+    m_scatterColors.remove(seriesLabel);
+
     if (!graphicsScene)
     {
         return;
     }
-    
+
     auto itemIt = m_seriesScatterplotItems.find(seriesLabel);
     if (itemIt != m_seriesScatterplotItems.end())
     {
@@ -1910,7 +2195,7 @@ void WaterfallGraph::cleanupSeriesItems(const QString &seriesLabel)
  * @param pointSize Size of points for positioning
  */
 void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
-                                                     const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                                     const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                                      qreal pointSize)
 {
     // CRITICAL FIX: Update m_scatterPoints for paintEvent() rendering
@@ -1924,8 +2209,9 @@ void WaterfallGraph::updateScatterplotItemPositions(const QString &seriesLabel,
         points.reserve(visibleData.size());
     }
     
-    for (const auto &dataPoint : visibleData)
+    for (size_t i = 0; i < visibleData.size(); ++i)
     {
+        const auto &dataPoint = visibleData[i];
         if (dataPoint.second == 0)
         {
             continue; // Skip invalid timestamps
@@ -2007,25 +2293,31 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
     {
         return;
     }
-    
-    // Convert circular buffer to reusable vector for iteration (avoid repeated allocations)
-    // Use helper method to get visible data vector (eliminates duplication)
-    const std::vector<std::pair<float, qint64>> &cachedData = getVisibleDataVector(seriesLabel); // epoch ms, float Y values
+
+    const CircularBuffer<std::pair<float, qint64>> &cachedData = cacheIt->second;
     std::vector<QGraphicsPixmapItem*> &items = itemIt->second;
     
     // Convert newTimeMin to epoch ONCE (not per iteration!)
     qint64 newTimeMinEpoch = newTimeMin.isValid() ? newTimeMin.toMSecsSinceEpoch() : 0;
     
-    // Use binary search to find first item that should be kept (>= newTimeMin)
+    // Binary search on chronological visible cache for first index with epoch >= newTimeMin
     size_t firstKeepIndex = 0;
-    for (size_t i = 0; i < cachedData.size(); ++i)
+    const size_t n = cachedData.size();
+    size_t lo = 0;
+    size_t hi = n;
+    while (lo < hi)
     {
-        if (cachedData[i].second >= newTimeMinEpoch) // Compare epoch ms, not QDateTime
+        const size_t mid = lo + (hi - lo) / 2;
+        if (cachedData[mid].second < newTimeMinEpoch)
         {
-            firstKeepIndex = i;
-            break;
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid;
         }
     }
+    firstKeepIndex = lo;
     
     // Remove items before firstKeepIndex
     for (size_t i = 0; i < firstKeepIndex && i < items.size(); ++i)
@@ -2082,7 +2374,7 @@ void WaterfallGraph::removeScatterplotItemsOutsideRange(const QString &seriesLab
  * @param pointSize Size of points
  */
 void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
-                                                 const std::vector<std::pair<float, qint64>> &visibleData, // epoch ms, float Y values
+                                                 const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                                  const QColor &pointColor, qreal pointSize)
 {
     // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
@@ -2104,8 +2396,9 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
         points.reserve(visibleData.size());
     }
     
-    for (const auto &dataPoint : visibleData)
+    for (size_t i = 0; i < visibleData.size(); ++i)
     {
+        const auto &dataPoint = visibleData[i];
         // dataPoint.second is now qint64 (epoch ms), not QDateTime - no isValid() check needed
         // Just check if it's non-zero (0 is invalid epoch)
         if (dataPoint.second == 0)
@@ -2143,7 +2436,7 @@ void WaterfallGraph::updateScatterplotItemsFull(const QString &seriesLabel,
  * @param pointSize Size of points
  */
 void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabel,
-                                                         const std::vector<std::pair<float, qint64>> &newVisibleData, // epoch ms, float Y values
+                                                         const CircularBuffer<std::pair<float, qint64>> &newVisibleData,
                                                          const QColor &pointColor, qreal pointSize)
 {
     // OPTIMIZATION: Use batched QVector<QPointF> instead of individual QGraphicsPixmapItem
@@ -2166,8 +2459,9 @@ void WaterfallGraph::updateScatterplotItemsIncremental(const QString &seriesLabe
         points.reserve(newVisibleData.size());
     }
     
-    for (const auto &dataPoint : newVisibleData)
+    for (size_t i = 0; i < newVisibleData.size(); ++i)
     {
+        const auto &dataPoint = newVisibleData[i];
         // dataPoint.second is now qint64 (epoch ms), not QDateTime
         if (dataPoint.second == 0)
         {
@@ -2354,11 +2648,15 @@ void WaterfallGraph::mousePressEvent(QMouseEvent *event)
                     sceneEvent.setModifiers(event->modifiers());
                     sceneEvent.setWidget(overlayView->viewport());
                     
-                    // Send event directly to the scene - the scene will dispatch to the item
-                    QApplication::sendEvent(overlayScene, &sceneEvent);
-                    
-                    if (sceneEvent.isAccepted()) {
-                        return; // Don't process further, the overlay item is handling it
+                    if (!m_dispatchingOverlayMouseEvent) {
+                        m_dispatchingOverlayMouseEvent = true;
+                        // Send event directly to the scene - the scene will dispatch to the item
+                        QApplication::sendEvent(overlayScene, &sceneEvent);
+                        m_dispatchingOverlayMouseEvent = false;
+                        
+                        if (sceneEvent.isAccepted()) {
+                            return; // Don't process further, the overlay item is handling it
+                        }
                     }
                 }
             }
@@ -2408,13 +2706,17 @@ void WaterfallGraph::mouseMoveEvent(QMouseEvent *event)
             sceneEvent.setModifiers(event->modifiers());
             sceneEvent.setWidget(overlayView->viewport());
             
-            // Send event to the scene
-            QApplication::sendEvent(overlayScene, &sceneEvent);
-            
-            if (sceneEvent.isAccepted()) {
-                // Update cursor position for crosshair
-                m_lastMousePos = event->pos();
-                return; // Don't process further, the overlay item is handling it
+            if (!m_dispatchingOverlayMouseEvent) {
+                m_dispatchingOverlayMouseEvent = true;
+                // Send event to the scene
+                QApplication::sendEvent(overlayScene, &sceneEvent);
+                m_dispatchingOverlayMouseEvent = false;
+                
+                if (sceneEvent.isAccepted()) {
+                    // Update cursor position for crosshair
+                    m_lastMousePos = event->pos();
+                    return; // Don't process further, the overlay item is handling it
+                }
             }
         }
     }
@@ -2567,8 +2869,12 @@ void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
             sceneEvent.setModifiers(event->modifiers());
             sceneEvent.setWidget(overlayView->viewport());
             
-            // Send event to the scene
-            QApplication::sendEvent(overlayScene, &sceneEvent);
+            if (!m_dispatchingOverlayMouseEvent) {
+                m_dispatchingOverlayMouseEvent = true;
+                // Send event to the scene
+                QApplication::sendEvent(overlayScene, &sceneEvent);
+                m_dispatchingOverlayMouseEvent = false;
+            }
         }
     }
 
@@ -3276,7 +3582,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
     // Removing these calls eliminates unnecessary populateYDataSeries/populateTimestampsSeries calls
     // Ensure cache is valid and get visible data
     ensureVisibleDataCacheValid(seriesLabel);
-    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
+    const CircularBuffer<std::pair<float, qint64>> &visibleData = cachedVisibleBuffer(seriesLabel);
 
     if (visibleData.empty())
     {
@@ -3653,7 +3959,7 @@ void WaterfallGraph::drawDataLine(const QString &seriesLabel, bool plotPoints)
  * @param seriesColor Color for the line
  */
 void WaterfallGraph::buildBatchedLinePaths(const QString &seriesLabel,
-                                            const std::vector<std::pair<float, qint64>> &visibleData, // Use float to eliminate conversions
+                                            const CircularBuffer<std::pair<float, qint64>> &visibleData,
                                             size_t lodStep,
                                             const QColor &/*seriesColor*/)
 {
@@ -3753,7 +4059,9 @@ void WaterfallGraph::startSelection(const QPointF &scenePos)
         selectionRect = new QGraphicsRectItem();
         selectionRect->setPen(QPen(Qt::white, 2, Qt::DashLine));    // White dashed line
         selectionRect->setBrush(QBrush(QColor(255, 255, 255, 50))); // Semi-transparent white
-        selectionRect->setZValue(1000);                             // Ensure it's drawn on top
+        selectionRect->setZValue(-1);
+        selectionRect->setAcceptedMouseButtons(Qt::NoButton);
+        selectionRect->setAcceptHoverEvents(false);
     }
 
     // Add to scene if not already added
@@ -3762,8 +4070,9 @@ void WaterfallGraph::startSelection(const QPointF &scenePos)
         overlayScene->addItem(selectionRect);
     }
 
-    // Initialize with a small rectangle at the start position
-    selectionRect->setRect(scenePos.x() - 1, scenePos.y() - 1, 2, 2);
+    // Time selection uses only Y → draw a full-width vertical band (not a 2D box in X).
+    const qreal y = qBound(drawingArea.top(), scenePos.y(), drawingArea.bottom());
+    selectionRect->setRect(drawingArea.left(), y - 1, drawingArea.width(), 2);
 
     DEBUG_OUT() << "Selection rectangle created and added to scene. Rect:" << selectionRect->rect();
     DEBUG_OUT() << "Selection started at:" << scenePos;
@@ -3776,14 +4085,11 @@ void WaterfallGraph::updateSelection(const QPointF &scenePos)
 
     selectionEndPos = scenePos;
 
-    // Update rectangle bounds
-    QRectF rect;
-    rect.setLeft(qMin(selectionStartPos.x(), selectionEndPos.x()));
-    rect.setRight(qMax(selectionStartPos.x(), selectionEndPos.x()));
-    rect.setTop(qMin(selectionStartPos.y(), selectionEndPos.y()));
-    rect.setBottom(qMax(selectionStartPos.y(), selectionEndPos.y()));
-
-    // Clamp to drawing area
+    // Time span is Y-only (see endSelection). Keep the preview as a full-width band so
+    // dragging does not imply an X / value-range selection.
+    const qreal minY = qMin(selectionStartPos.y(), selectionEndPos.y());
+    const qreal maxY = qMax(selectionStartPos.y(), selectionEndPos.y());
+    QRectF rect(drawingArea.left(), minY, drawingArea.width(), qMax(1.0, maxY - minY));
     rect = rect.intersected(drawingArea);
 
     // Additional validation: ensure selection is within valid time range
@@ -3944,7 +4250,8 @@ void WaterfallGraph::setRangeLimitingEnabled(bool enabled)
         if (dataSource && !dataSource->isEmpty())
         {
             updateDataRanges();
-            draw();
+            postCommand(YRangeChange{});
+            drainRenderQueueSynchronously();
         }
 
         DEBUG_OUT() << "Range limiting" << (enabled ? "enabled" : "disabled");
@@ -3976,9 +4283,7 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
         return;
     }
 
-    // Check if range changed significantly (more than 10% difference)
-    bool significantChange = (qAbs(customYMin - yMin) > (customYMax - customYMin) * 0.1) ||
-                             (qAbs(customYMax - yMax) > (customYMax - customYMin) * 0.1);
+    const bool firstSet = (customYMin == 0.0 && customYMax == 0.0);
 
     customYMin = yMin;
     customYMax = yMax;
@@ -3986,20 +4291,42 @@ void WaterfallGraph::setCustomYRange(const qreal yMin, const qreal yMax)
     // Always update Y range immediately when custom range is set
     updateYRange();
 
-    // Y range change significantly requires full redraw, otherwise just range update
-    if (significantChange)
+    // Initial application requires a structural redraw (no scene built yet);
+    // subsequent applications are pure rescales and stay on the cheap path.
+    if (firstSet)
     {
-        setRenderState(RenderState::FULL_REDRAW);
+        m_renderedTimeMin = QDateTime();
+        m_renderedTimeMax = QDateTime();
+        postCommand(StyleChange{});
     }
     else
     {
-        markRangeUpdateNeeded();
+        postCommand(YRangeChange{});
     }
 
-    // Force redraw to show new range
-    draw();
+    drainRenderQueueSynchronously();
 
     DEBUG_OUT() << "Custom Y range set to:" << yMin << "to" << yMax;
+}
+
+void WaterfallGraph::setCustomYRangeLive(const qreal yMin, const qreal yMax)
+{
+    if (yMin >= yMax)
+        return;
+
+    if (customYMin == yMin && customYMax == yMax)
+        return;
+
+    customYMin = yMin;
+    customYMax = yMax;
+
+    // Recompute yMin/yMax (display range) cheaply; updateYRange() picks the
+    // right source (custom vs data) without touching scene items.
+    updateYRange();
+
+    // Single command, no synchronous drain. The frame timer pulls it through
+    // RANGE_UPDATE_ONLY -> updateDataRanges() + position-only rescale.
+    postCommand(YRangeChange{});
 }
 
 /**
@@ -4038,8 +4365,8 @@ void WaterfallGraph::updateTimeRange()
         updateDataRanges();
     }
 
-    // Force redraw to show only data within the new time range
-    draw();
+    postCommand(YRangeChange{});
+    drainRenderQueueSynchronously();
 }
 
 /**
@@ -4055,7 +4382,8 @@ void WaterfallGraph::unsetCustomYRange()
     if (rangeLimitingEnabled && dataSource && !dataSource->isEmpty())
     {
         updateDataRanges();
-        draw();
+        postCommand(YRangeChange{});
+        drainRenderQueueSynchronously();
     }
 
     DEBUG_OUT() << "Custom Y range unset, reverting to data range";
@@ -4250,13 +4578,14 @@ void WaterfallGraph::drawScatterplot(const QString &seriesLabel, const QColor &p
     // Removing these calls eliminates 555K+ unnecessary populateYDataSeries/populateTimestampsSeries calls
     // Ensure cache is valid and get visible data
     ensureVisibleDataCacheValid(seriesLabel);
-    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
+    const CircularBuffer<std::pair<float, qint64>> &visibleData = cachedVisibleBuffer(seriesLabel);
 
     if (visibleData.empty())
     {
         // No visible data - cleanup items if they exist
         cleanupScatterplotItems(seriesLabel);
         DEBUG_OUT() << "No data points within current time range for default scatterplot";
+        update();
         return;
     }
 
@@ -4421,11 +4750,13 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
     // Removing these calls eliminates unnecessary populateYDataSeries/populateTimestampsSeries calls
     // Ensure cache is valid and get visible data
     ensureVisibleDataCacheValid(seriesLabel);
-    const std::vector<std::pair<float, qint64>> &visibleData = getVisibleDataVector(seriesLabel);
+    const CircularBuffer<std::pair<float, qint64>> &visibleData = cachedVisibleBuffer(seriesLabel);
 
     if (visibleData.empty())
     {
         // No visible data - cleanup items if they exist
+        m_scatterPoints.remove(seriesLabel);
+        m_scatterColors.remove(seriesLabel);
         auto pathIt = m_seriesPathItems.find(seriesLabel);
         if (pathIt != m_seriesPathItems.end() && pathIt->second)
         {
@@ -4454,6 +4785,7 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
             }
             pointIt->second.clear();
         }
+        update();
         return;
     }
 
@@ -4682,8 +5014,9 @@ void WaterfallGraph::drawDataSeries(const QString &seriesLabel)
         scatterPoints.reserve(visibleData.size());
     }
     
-    for (const auto &dataPoint : visibleData)
+    for (size_t i = 0; i < visibleData.size(); ++i)
     {
+        const auto &dataPoint = visibleData[i];
         if (dataPoint.second == 0)
             continue; // Skip invalid timestamps
         
@@ -4727,6 +5060,12 @@ void WaterfallGraph::setSeriesColor(const QString &seriesLabel, const QColor &co
  */
 QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 {
+
+    // adopted color is red
+    if (seriesLabel == "adopted")
+    {
+        return Qt::red;
+    }
     // OPTIMIZATION FIX #3: Check explicit color map first
     auto it = seriesColors.find(seriesLabel);
     if (it != seriesColors.end())
@@ -4743,7 +5082,8 @@ QColor WaterfallGraph::getSeriesColor(const QString &seriesLabel) const
 
     // Return a default color based on series index
     static const QColor defaultColors[] = {
-        Qt::green, Qt::red, Qt::blue, Qt::yellow, Qt::cyan, Qt::magenta, Qt::white};
+        // set all default colors to yellow
+        Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow, Qt::yellow};
 
     // Generate a consistent color based on the series label hash
     uint hash = qHash(seriesLabel);
@@ -4818,7 +5158,8 @@ void WaterfallGraph::setAutoUpdateYRange(bool enabled)
     if (dataSource && !dataSource->isEmpty())
     {
         updateYRange();
-        draw();
+        postCommand(YRangeChange{});
+        drainRenderQueueSynchronously();
     }
 
     DEBUG_OUT() << "Auto-update Y range" << (enabled ? "enabled" : "disabled");
@@ -4854,7 +5195,8 @@ void WaterfallGraph::forceRangeUpdate()
 {
     dataRangesValid = false;
     updateDataRanges();
-    draw();
+    postCommand(YRangeChange{});
+    drainRenderQueueSynchronously();
     DEBUG_OUT() << "Forced range update - Y:" << yMin << "to" << yMax;
 }
 
@@ -4965,45 +5307,18 @@ void WaterfallGraph::updateYRangeFromCustom()
  */
 void WaterfallGraph::setTimeRange(const QDateTime &timeMin, const QDateTime &timeMax)
 {
-    // Validate the range
     if (timeMin >= timeMax)
     {
         DEBUG_OUT() << "Error: Invalid time range - min must be before max";
         return;
     }
 
-    // Check if range actually changed
     bool rangeChanged = (this->timeMin != timeMin || this->timeMax != timeMax);
-    
     if (!rangeChanged)
-    {
-        // No change - skip update entirely
         return;
-    }
 
-    // Only invalidate visible data cache if the effective time range actually changes.
-    // This avoids unnecessary full refilters when callers repeat the same range.
-    invalidateAllVisibleDataCache();
-
-    // Invalidate mapScreenToTime cache when time range changes
-    m_mapScreenToTimeCacheValid = false;
-
-    customTimeMin = timeMin;
-    customTimeMax = timeMax;
-    customTimeRangeEnabled = true;
-
-    // Update the current time range
-    this->timeMin = timeMin;
-    this->timeMax = timeMax;
-
-    // CRITICAL FIX: Time range change via slider requires FULL_REDRAW
-    // The visible data window completely changes, so we need to:
-    // - Clear all old graphics items (outside new time range)
-    // - Rebuild drawing area (recalculate coordinate mappings)
-    // - Redraw all series from scratch with new time range
-    // INCREMENTAL_UPDATE doesn't clear old items, which can cause stale data to remain visible
-    // setRenderState(FULL_REDRAW) automatically marks all series as dirty via markAllSeriesDirty()
-    setRenderState(RenderState::FULL_REDRAW);
+    applyScopeToModel(timeMin, timeMax);
+    postCommand(ScopeChange{timeMin, timeMax});
 
     DEBUG_OUT() << "Custom time range set to:" << timeMin.toString() << "to" << timeMax.toString();
 }
@@ -5324,8 +5639,8 @@ void WaterfallGraph::unsetCustomTimeRange()
     // Update time range based on data
     setTimeRangeFromData();
 
-    // Force redraw to show new time range
-    draw();
+    postCommand(StyleChange{});
+    drainRenderQueueSynchronously();
 
     DEBUG_OUT() << "Custom time range unset, reverting to data-based time range";
 }

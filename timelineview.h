@@ -14,6 +14,7 @@
 #include <QDateTime>
 #include <QList>
 #include <QObject>
+#include <QElapsedTimer>
 #include <QTimer>
 #include <QGraphicsScene>
 #include <QGraphicsView>
@@ -83,25 +84,30 @@ public:
     SliderState();
     
     // Position management
-    void setYPosition(int y, int widgetHeight, const QTime& interval, bool preserveTimeWindow = false);
+    void setYPosition(int y, int widgetHeight, const QTime& interval, bool preserveTimeWindow = false,
+                      const QDateTime& timelineEnd = QDateTime());
     int getYPosition() const;
     
     // Time window management
     TimeSelectionSpan getTimeWindow() const;
     /** rangeStart: when valid (e.g. application start), Y is computed over [rangeStart, now]; else 12-hour range. Prevents "recent past" windows from mapping to Y≈0. */
-    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval, const QDateTime& rangeStart = QDateTime());
+    void setTimeWindow(const TimeSelectionSpan& window, int widgetHeight, const QTime& interval, const QDateTime& rangeStart = QDateTime(),
+                       const QDateTime& timelineEnd = QDateTime());
     
     // Drag state management
     void startDrag(const QPoint& mousePos);
-    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime);
-    void endDrag(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime);
+    void updateDrag(const QPoint& mousePos, int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime,
+                    const QDateTime& timelineEnd = QDateTime());
+    void endDrag(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime,
+                 const QDateTime& timelineEnd = QDateTime());
     bool isDragging() const;
     
     // Validation and synchronization
     void clampToBounds(int widgetHeight, const QTime& interval);
-    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime = QDateTime(), bool isDragging = false);
-    /** rangeStart: when valid, use [rangeStart, now] for Y mapping; else 12-hour range. */
-    void syncPositionFromTimeWindow(int widgetHeight, const QDateTime& rangeStart = QDateTime());
+    void syncTimeWindowFromPosition(int widgetHeight, const QTime& interval, const QDateTime& applicationStartTime = QDateTime(), bool isDragging = false,
+                                    const QDateTime& timelineEnd = QDateTime());
+    /** rangeStart: when valid, use [rangeStart, timeline end] for Y mapping; else 12-hour range. */
+    void syncPositionFromTimeWindow(int widgetHeight, const QDateTime& rangeStart = QDateTime(), const QDateTime& timelineEnd = QDateTime());
     
 private:
     int m_yPosition = 0;              // Current pixel position (source of truth)
@@ -162,6 +168,12 @@ public:
 
     // Get application start time
     QDateTime getApplicationStartTime() const { return m_applicationStartTime; }
+
+    /** Wall-clock "now" or sync override (replay / paused end). */
+    QDateTime effectiveTimelineEnd() const;
+
+    /** Set session/system start; updates follow-mode window when in FOLLOW_MODE. Sync state is updated by GraphLayout before calling this. */
+    void setSystemStartTime(const QDateTime &t);
     
     // Crosshair timestamp label methods
     void updateCrosshairTimestamp(const QDateTime &timestamp, qreal yPosition);
@@ -288,10 +300,18 @@ private:
     void createSliderIndicator();
     void updateSliderIndicator();
     void updateSliderFromMousePosition(const QPoint& currentPos);
-    void emitTimeScopeChanged();
+    void emitTimeScopeChanged(bool forceEmit = false);
+
+    // Emission dedupe/throttle state (Phase 1 optimization)
+    TimeSelectionSpan m_lastEmittedTimeWindow;
+    bool m_hasLastEmittedTimeWindow = false;
+    QElapsedTimer m_timeScopeEmitTimer;
+    static constexpr qint64 DRAG_EMIT_THROTTLE_MS = 33; // ~30 Hz while dragging
 
 signals:
     void visibleTimeWindowChanged(const TimeSelectionSpan& selection);
+    /** Emitted once when slider drag ends (final window). */
+    void timeScopeCommitted(const TimeSelectionSpan &selection);
     void timelineViewModeChanged(TimelineViewMode mode);
 
 };
@@ -380,6 +400,9 @@ public:
     
     // Get application start time
     QDateTime getApplicationStartTime() const;
+
+    /** Session/system start time (shared via GraphLayout::setSystemStartTime). */
+    void setSystemStartTime(const QDateTime &t);
     
     // Optional rendering control
     void setSliderVisible(bool visible);
@@ -400,6 +423,7 @@ signals:
     void TimeIntervalChanged(TimeInterval currentInterval);
     /** selection: visible time window; fromFrozenUserDrag: true if source timeline is frozen (user just dragged), so other timelines should force-sync; false if from follow-mode (e.g. timer), so frozen timelines should not be overwritten. */
     void TimeScopeChanged(const TimeSelectionSpan& selection, bool fromFrozenUserDrag);
+    void TimeScopeCommitted(const TimeSelectionSpan &selection);
     void GraphContainerInFollowModeChanged(bool isInFollowMode);
     void AbsoluteTimeModeChanged(bool isAbsoluteTime);
 

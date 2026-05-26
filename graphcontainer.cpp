@@ -2,6 +2,7 @@
 #include "graphlayout.h"
 #include "graphengine.h"
 #include "btwinteractiveoverlay.h"
+#include "sharedcachestore.h"
 #include "debugutils.h"
 #include <QDebug>
 #include <QTimer>
@@ -16,12 +17,10 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_graphViewSize(226, 300), 
     m_seriesColorsMap(seriesColorsMap), 
     currentDataOption(GraphType::BDW), 
-    m_updatingTimeInterval(false),
     m_sharedCursorTime(QDateTime()),
     m_hasSharedCursorTime(false),
     m_isInFollowMode(true),
-    m_syncState(syncState),
-    m_hasLastSyncedTimeScope(false)
+    m_syncState(syncState)
 {
     // Set size policy to expand both horizontally and vertically
     setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
@@ -134,6 +133,24 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     updateTotalContainerSize();
 }
 
+void GraphContainer::applySharedSystemStartTimeFromSync()
+{
+    QDateTime start;
+    if (m_syncState && m_syncState->hasApplicationStartTime && m_syncState->applicationStartTime.isValid())
+        start = m_syncState->applicationStartTime;
+    else
+        start = QDateTime::currentDateTime();
+
+    if (m_timelineView)
+        m_timelineView->setSystemStartTime(start);
+
+    for (auto &pair : m_waterfallGraphs)
+    {
+        if (pair.second)
+            pair.second->setApplicationStartTime(start);
+    }
+}
+
 void GraphContainer::setupTimer()
 {
     // If no timer provided, create a default 1-second timer
@@ -203,8 +220,8 @@ void GraphContainer::onTimerTick()
         auto timeRange = m_currentWaterfallGraph->getTimeRange();
         if (timeRange.first.isValid() && timeRange.second.isValid())
         {
-            QDateTime currentDateTime = QDateTime::currentDateTime();
-            qint64 timeDiffMs = timeRange.second.msecsTo(currentDateTime);
+            QDateTime timelineEnd = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
+            qint64 timeDiffMs = timeRange.second.msecsTo(timelineEnd);
             
             // If showing recent data (within 1 minute), check for new data
             if (timeDiffMs >= 0 && timeDiffMs < 60000)
@@ -238,6 +255,15 @@ void GraphContainer::onTimerTick()
     } //------------syed-----------------------------------
 
     // DEBUG_OUT() << "GraphContainer: Timer tick - updated current time to" << currentTime.toString();
+}
+
+void GraphContainer::attachSharedCacheStore(SharedCacheStore *store)
+{
+    for (auto &pair : m_waterfallGraphs)
+    {
+        if (pair.second)
+            pair.second->setSharedCacheStore(store);
+    }
 }
 
 GraphContainer::~GraphContainer()
@@ -487,21 +513,14 @@ std::pair<qreal, qreal> GraphContainer::getYRange() const
 void GraphContainer::redrawWaterfallGraph()
 {
     if (m_currentWaterfallGraph)
-    {
-        // Force full redraw which should handle cache invalidation
-        m_currentWaterfallGraph->forceFullRedraw();
-    }
+        m_currentWaterfallGraph->forceFullRedraw(QStringLiteral("graphcontainer_redraw_current"));
 }
 
 void GraphContainer::redrawWaterfallGraph(GraphType graphType)
 {
-    // Redraw a specific graph type, even if it's not currently displayed
     auto it = m_waterfallGraphs.find(graphType);
     if (it != m_waterfallGraphs.end() && it->second)
-    {
-        // Force full redraw which should handle cache invalidation
-        it->second->forceFullRedraw();
-    }
+        it->second->forceFullRedraw(QStringLiteral("graphcontainer_redraw_type"));
 }
 
 WaterfallGraph* GraphContainer::getCurrentWaterfallGraph() const
@@ -682,17 +701,17 @@ void GraphContainer::setupEventConnections()
 {
     // Connect ComboBox data source selection
     connect(m_comboBox, &QComboBox::currentTextChanged,
-            this, &GraphContainer::onDataOptionChanged);
+            this, &GraphContainer::onDataOptionChanged, Qt::UniqueConnection);
 
     // Connect WaterfallGraph selection events for all graphs
     for (auto &pair : m_waterfallGraphs)
     {
         connect(pair.second, &WaterfallGraph::SelectionCreated,
-                this, &GraphContainer::onSelectionCreated);
+                this, &GraphContainer::onSelectionCreated, Qt::UniqueConnection);
         
         // Connect marker timestamp and value changes
         connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
-                this, &GraphContainer::markerTimestampValueChanged);
+                this, &GraphContainer::markerTimestampValueChanged, Qt::UniqueConnection);
         
         // Connect crosshair position changes to update zoompanel label
         pair.second->setCrosshairPositionChangedCallback([this](qreal xPosition) {
@@ -712,58 +731,51 @@ void GraphContainer::setupEventConnections()
         });
     }
 
-    // Connect ZoomPanel value changes
+    // Connect ZoomPanel value changes:
+    //   valueChanging -> live throttled rescale (cheap, frame-timer driven)
+    //   valueChanged  -> final commit on release (synchronous, full overlay sync)
+    connect(m_zoomPanel, &ZoomPanel::valueChanging,
+            this, &GraphContainer::onZoomValueChanging, Qt::UniqueConnection);
     connect(m_zoomPanel, &ZoomPanel::valueChanged,
-            this, &GraphContainer::onZoomValueChanged);
+            this, &GraphContainer::onZoomValueChanged, Qt::UniqueConnection);
 
     // Connect TimelineView interval changes (if timeline view exists)
     if (m_timelineView)
     {
         connect(m_timelineView, &TimelineView::TimeIntervalChanged,
-                this, &GraphContainer::onTimeIntervalChanged);
-        
-        connect(m_timelineView, QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
-                this, QOverload<const TimeSelectionSpan &, bool>::of(&GraphContainer::onTimeScopeChanged));
-        
+                this, &GraphContainer::onTimeIntervalChanged, Qt::UniqueConnection);
+
+        // Time-scope intents (live drag + commit) are published into TimeScopeBus;
+        // the bus then broadcasts a single Snapshot back to every container.
+        connect(m_timelineView,
+                QOverload<const TimeSelectionSpan &, bool>::of(&TimelineView::TimeScopeChanged),
+                this, &GraphContainer::onTimelineScopePending,
+                Qt::UniqueConnection);
+
+        connect(m_timelineView, &TimelineView::TimeScopeCommitted,
+                this, &GraphContainer::onTimelineScopeCommitted,
+                Qt::UniqueConnection);
+
         connect(m_timelineView, &TimelineView::GraphContainerInFollowModeChanged,
-                this, &GraphContainer::onGraphContainerInFollowModeChanged);
+                this, &GraphContainer::onGraphContainerInFollowModeChanged, Qt::UniqueConnection);
     }
 
     // Connect TimeSelectionVisualizer clear button events
     if (m_timelineSelectionView)
     {
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionsCleared,
-                this, &GraphContainer::onClearTimeSelectionsButtonClicked);
+                this, &GraphContainer::onClearTimeSelectionsButtonClicked, Qt::UniqueConnection);
         
         // Connect TimeSelectionVisualizer time selection made events
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionMade,
-                this, &GraphContainer::onTimeSelectionMade);
+                this, &GraphContainer::onTimeSelectionMade, Qt::UniqueConnection);
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::timeSelectionModified,
                 this, [this](int index, const TimeSelectionSpan &newSpan) { emit TimeSelectionModified(index, newSpan); });
         connect(m_timelineSelectionView, &TimeSelectionVisualizer::fullSelectionRequested,
-                this, &GraphContainer::onHistoryFullSelectionRequested);
+                this, &GraphContainer::onHistoryFullSelectionRequested, Qt::UniqueConnection);
     }
 
     DEBUG_OUT() << "GraphContainer: All event connections established";
-}
-
-void GraphContainer::setupEventConnectionsForWaterfallGraph()
-{
-    if (!m_currentWaterfallGraph)
-    {
-        qWarning() << "GraphContainer: Cannot setup event connections - no waterfall graph";
-        return;
-    }
-
-    // Connect WaterfallGraph selection events
-    connect(m_currentWaterfallGraph, &WaterfallGraph::SelectionCreated,
-            this, &GraphContainer::onSelectionCreated);
-    
-    // Connect marker timestamp and value changes
-    connect(m_currentWaterfallGraph, &WaterfallGraph::markerTimestampValueChanged,
-            this, &GraphContainer::markerTimestampValueChanged);
-
-    DEBUG_OUT() << "GraphContainer: Event connections established for waterfall graph";
 }
 
 WaterfallGraph *GraphContainer::createWaterfallGraph(GraphType graphType)
@@ -821,17 +833,6 @@ void GraphContainer::createAllWaterfallGraphs()
                 graph->hide();
             }
         }
-    }
-    
-    // Connect events for all graphs
-    for (auto &pair : m_waterfallGraphs)
-    {
-        connect(pair.second, &WaterfallGraph::SelectionCreated,
-                this, &GraphContainer::onSelectionCreated);
-        
-        // Connect marker timestamp and value changes
-        connect(pair.second, &WaterfallGraph::markerTimestampValueChanged,
-                this, &GraphContainer::markerTimestampValueChanged);
     }
     
     DEBUG_OUT() << "GraphContainer: Created all waterfall graph instances";
@@ -905,7 +906,6 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         graph->setAutoUpdateYRange(true);
     }
     
-    // Enable mouse selection for the waterfall graph
     graph->setMouseSelectionEnabled(false);
     
     // Enable range limiting for the waterfall graph
@@ -1196,13 +1196,9 @@ void GraphContainer::onGraphContainerInFollowModeChanged(bool isInFollowMode)
 
 void GraphContainer::updateTimeInterval(TimeInterval interval)
 {
-    // Set flag to prevent TimeScopeChanged from interfering
-    m_updatingTimeInterval = true;
-
-    // Update ALL waterfall graphs' time interval (not just current one)
-    // This ensures all graphs have the correct interval when switching between them
-    // setTimeInterval() updates the interval, recalculates time ranges, and triggers a redraw
-    // Note: setTimeInterval() now only draws if graph is visible, so it's safe to call on all graphs
+    // Update ALL waterfall graphs' time interval (not just current one) so the
+    // correct interval is in place when switching between them. setTimeInterval()
+    // updates the interval, recalculates time ranges, and triggers a redraw if visible.
     for (auto &pair : m_waterfallGraphs)
     {
         if (pair.second)
@@ -1211,36 +1207,24 @@ void GraphContainer::updateTimeInterval(TimeInterval interval)
         }
     }
 
-    // Explicitly redraw the current waterfall graph with full redraw
-    // Time interval change requires full redraw since visible data changes significantly
+    // Time interval change requires full redraw since visible data changes significantly.
     if (m_currentWaterfallGraph)
-    {
-        m_currentWaterfallGraph->forceFullRedraw();
-    }
+        m_currentWaterfallGraph->forceFullRedraw(QStringLiteral("graphcontainer_time_interval"));
 
-    // Update the time selection visualizer time interval
     if (m_timelineSelectionView)
     {
         m_timelineSelectionView->setTimeLineLength(interval);
     }
 
-    // Update the timeline view time interval
     if (m_timelineView)
     {
         m_timelineView->setTimeLineLength(interval);
     }
 
-    // Ensure timer is still running after interval change to keep animation active
     if (m_timer && !m_timer->isActive())
     {
         m_timer->start();
     }
-
-    // Reset flag after a short delay to allow signals to propagate
-    // Use QTimer::singleShot to reset the flag after the current event loop
-    QTimer::singleShot(0, this, [this]() {
-        m_updatingTimeInterval = false;
-    });
 }
 
 void GraphContainer::setTimeInterval(TimeInterval interval)
@@ -1273,96 +1257,111 @@ void GraphContainer::onTimeSelectionMade(const TimeSelectionSpan &selection)
     emit TimeSelectionCreated(selection);
 }
 
-void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection)
+// ===== TimeScopeBus integration =====
+
+void GraphContainer::attachScopeBus(TimeScopeBus *bus)
 {
-    onTimeScopeChanged(selection, false);
+    if (m_scopeBus == bus)
+        return;
+
+    if (m_scopeBus && m_scopeBusToken >= 0)
+        m_scopeBus->unsubscribe(m_scopeBusToken);
+
+    m_scopeBus = bus;
+    m_scopeBusToken = -1;
+    m_lastAppliedScopeGen = 0;
+
+    if (!m_scopeBus)
+        return;
+
+    m_scopeBusToken = m_scopeBus->subscribe(
+        [this](const TimeScopeBus::Snapshot &snap) { applyScopeFromBus(snap); });
+
+    // If the bus already has a current scope (e.g. layout switched and a new
+    // container was attached late), prime this container with it.
+    if (m_scopeBus->hasScope())
+    {
+        TimeScopeBus::Snapshot s;
+        s.span           = m_scopeBus->currentScope();
+        s.origin         = TimeScopeBus::Origin::InitialState;
+        s.phase          = TimeScopeBus::Phase::Committed;
+        s.isFrozenSource = false;
+        s.generation     = m_scopeBus->currentGeneration();
+        applyScopeFromBus(s);
+    }
 }
 
-void GraphContainer::onTimeScopeChanged(const TimeSelectionSpan &selection, bool fromFrozenUserDrag)
+void GraphContainer::onTimelineScopePending(const TimeSelectionSpan &span,
+                                            bool fromFrozenUserDrag)
 {
-    // Skip processing if we're in the middle of updating the time interval
-    // This prevents TimeScopeChanged (which is emitted as a side effect of interval changes)
-    // from interfering with the proper time range setup during interval updates
-    if (m_updatingTimeInterval)
-    {
+    if (!m_scopeBus)
         return;
-    }
-
-    if (!m_currentWaterfallGraph)
-    {
-        return;
-    }
-
-    // When we're frozen, only apply scope from a frozen user drag (own or other timeline).
-    // Ignore scope from follow-mode timelines (live window) so they don't overwrite our frozen graph.
-    if (!m_isInFollowMode && !fromFrozenUserDrag)
-        return;
-
-    // NOTE: This handler receives signals from the user's own timeline slider (drag + release).
-    // It must ALWAYS be processed regardless of follow/frozen mode.
-    // The frozen-mode guard lives in setTimeScope() (the external sync path from GraphLayout),
-    // NOT here. Blocking here would prevent the user's drag-release from reaching the graph,
-    // because mouseReleaseEvent transitions to FROZEN_MODE before emitting the final scope.
-
-    // Update the waterfall graph's time range to match the visible scope
-    // setTimeRange() no longer auto-draws - it sets INCREMENTAL_UPDATE state
-    m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
-    
-    // Trigger incremental redraw - this will use the state machine to efficiently
-    // update only what changed rather than clearing and recreating everything
-    m_currentWaterfallGraph->draw();
-
-    // Update shared sync state so other containers can be synchronized
-    if (m_syncState)
-    {
-        m_syncState->currentTimeScope = selection;
-        m_syncState->hasTimeScope = true;
-        m_lastSyncedTimeScope = selection;
-        m_hasLastSyncedTimeScope = true;
-    }
-
-    // Emit the signal so GraphLayout hub can propagate to other containers
-    emit TimeScopeChanged(selection);
+    m_scopeBus->publishPending(span,
+                               TimeScopeBus::Origin::Local,
+                               fromFrozenUserDrag,
+                               this);
 }
 
-void GraphContainer::setTimeScope(const TimeSelectionSpan &selection)
+void GraphContainer::onTimelineScopeCommitted(const TimeSelectionSpan &span)
 {
-    // This method is called by GraphLayout hub to update time scope without triggering signals.
-    // When frozen, the user has selected a specific time range via the slider.
-    // External sync from other containers must NOT overwrite it.
-    if (!m_isInFollowMode)
-    {
+    if (!m_scopeBus)
         return;
-    }
+    const bool fromFrozen =
+        m_timelineView &&
+        m_timelineView->getTimelineViewMode() == TimelineViewMode::FROZEN_MODE;
+    m_scopeBus->publishCommitted(span,
+                                 TimeScopeBus::Origin::Local,
+                                 fromFrozen,
+                                 this);
+}
 
-    // Skip processing if we're in the middle of updating the time interval
-    if (m_updatingTimeInterval)
-    {
+void GraphContainer::applyScopeFromBus(const TimeScopeBus::Snapshot &snap)
+{
+    // Drop stale snapshots (revision guard).
+    if (snap.generation <= m_lastAppliedScopeGen)
         return;
-    }
+    m_lastAppliedScopeGen = snap.generation;
 
-    if (!m_currentWaterfallGraph)
-    {
-        return;
-    }
-
-    // Update the waterfall graph's time range to match the visible scope
-    // setTimeRange() no longer auto-draws - it sets INCREMENTAL_UPDATE state
-    m_currentWaterfallGraph->setTimeRange(selection.startTime, selection.endTime);
-    
-    // Trigger incremental redraw - this will use the state machine to efficiently
-    // update only what changed rather than clearing and recreating everything
-    m_currentWaterfallGraph->draw();
-
-    // Update timeline view slider position to match the time scope
+    // Mirror the prior peer-vs-frozen semantics:
+    //   - If source is frozen (user drag in another container's timeline), peers
+    //     force-sync their slider AND switch into FROZEN themselves.
+    //   - Otherwise, peers update silently (frozen peers ignore inside the helper).
     if (m_timelineView)
     {
-        m_timelineView->setTimeWindowSilent(selection);
+        const bool externalFrozenSource =
+            snap.isFrozenSource && snap.source != static_cast<QObject*>(this);
+        if (externalFrozenSource)
+        {
+            m_timelineView->setVisibleTimeWindowFromSync(snap.span);
+            if (m_timelineView->getTimelineViewMode() != TimelineViewMode::FROZEN_MODE)
+                m_timelineView->setTimelineViewMode(TimelineViewMode::FROZEN_MODE);
+        }
+        else
+        {
+            m_timelineView->setTimeWindowSilent(snap.span);
+        }
     }
 
-    // Update local tracking
-    m_lastSyncedTimeScope = selection;
-    m_hasLastSyncedTimeScope = true;
+    // Frozen-mode guard for the graph itself: do NOT overwrite a locally frozen
+    // view from a non-frozen (live) source.
+    if (!m_isInFollowMode && !snap.isFrozenSource)
+        return;
+
+    if (!m_currentWaterfallGraph)
+        return;
+
+    if (snap.phase == TimeScopeBus::Phase::Pending)
+    {
+        // Live drag: enqueue, let the per-graph frame timer pick it up.
+        m_currentWaterfallGraph->postCommand(
+            ScopeChange{ snap.span.startTime, snap.span.endTime });
+    }
+    else
+    {
+        // Committed: apply synchronously so the released frame is final.
+        m_currentWaterfallGraph->setTimeRange(snap.span.startTime, snap.span.endTime);
+        m_currentWaterfallGraph->drainRenderQueueSynchronously();
+    }
 }
 
 void GraphContainer::setMouseSelectionEnabled(bool enabled)
@@ -1596,8 +1595,8 @@ void GraphContainer::onDataChanged(GraphType graphType)
             {
                 // Only auto-advance time range when in follow mode. When frozen, keep the user's range.
                 // Graph has a valid time range - check if we need to update it for new data
-                QDateTime currentTime = QDateTime::currentDateTime();
-                qint64 timeDiffMs = timeRange.second.msecsTo(currentTime);
+                QDateTime timelineEnd = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
+                qint64 timeDiffMs = timeRange.second.msecsTo(timelineEnd);
                 
                 // If timeMax is within 1 minute of current time, we're showing recent data
                 // Update the time range to include new data points
@@ -1702,6 +1701,34 @@ void GraphContainer::onDataChangedInteractive(GraphType graphType, const QString
     }
 }
 
+void GraphContainer::onZoomValueChanging(ZoomBounds bounds)
+{
+    // Live drag/extend: cheap, non-draining path. Y-axis zoom does not change
+    // the visible time window, so we deliberately do NOT call updateTimeRange().
+    if (!m_currentWaterfallGraph)
+        return;
+
+    m_currentWaterfallGraph->setCustomYRangeLive(bounds.lowerbound, bounds.upperbound);
+
+    if (m_zoomPanel)
+    {
+        m_currentWaterfallGraph->setZeroAxisValue(m_zoomPanel->getCenterLabelValue());
+    }
+
+    // BTW markers are positioned via mapDataToScreen, which depends on the new
+    // customYMin/Max we just set. Their sync is cheap (small marker list) and
+    // keeps them visually anchored during the drag.
+    auto it = m_waterfallGraphs.find(GraphType::BTW);
+    if (it != m_waterfallGraphs.end())
+    {
+        if (BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second))
+        {
+            if (BTWInteractiveOverlay *overlay = btwGraph->getInteractiveOverlay())
+                overlay->syncMarkersWithTimeline();
+        }
+    }
+}
+
 void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
 {
     if (!m_currentWaterfallGraph)
@@ -1710,43 +1737,32 @@ void GraphContainer::onZoomValueChanged(ZoomBounds bounds)
         return;
     }
 
-    DEBUG_OUT() << "GraphContainer: Received interpolated zoom bounds - Lower:" << bounds.lowerbound
+    DEBUG_OUT() << "GraphContainer: Committing zoom bounds - Lower:" << bounds.lowerbound
         << "Upper:" << bounds.upperbound;
 
-    // The bounds are already interpolated by the zoom panel, so use them directly
-    // No additional conversion needed - bounds.lowerbound and bounds.upperbound
-    // are already in the correct data value range
-
-    // Set the custom Y range directly from interpolated bounds
+    // Final commit: synchronous so the released frame is final.
+    // Note: we deliberately do NOT call updateTimeRange() here. Y-axis zoom
+    // does not change the visible time window; the time range is already
+    // owned by TimeScopeBus and is unaffected by Y bounds.
     m_currentWaterfallGraph->setCustomYRange(bounds.lowerbound, bounds.upperbound);
 
-    // Update the time range to ensure only relevant data points are rendered
-    m_currentWaterfallGraph->updateTimeRange();
-
-    // Update zero axis value for BDW, BRW, FDW graphs (use center sticker value from zoom panel)
     if (m_zoomPanel)
     {
-        qreal centerStickerValue = m_zoomPanel->getCenterLabelValue();
-        m_currentWaterfallGraph->setZeroAxisValue(centerStickerValue);
+        m_currentWaterfallGraph->setZeroAxisValue(m_zoomPanel->getCenterLabelValue());
     }
 
-    // Sync BTW markers with the new zoom range
     auto it = m_waterfallGraphs.find(GraphType::BTW);
     if (it != m_waterfallGraphs.end())
     {
-        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second);
-        if (btwGraph)
+        if (BTWGraph *btwGraph = qobject_cast<BTWGraph*>(it->second))
         {
-            BTWInteractiveOverlay *overlay = btwGraph->getInteractiveOverlay();
-            if (overlay)
+            if (BTWInteractiveOverlay *overlay = btwGraph->getInteractiveOverlay())
             {
                 overlay->syncMarkersWithTimeline();
                 DEBUG_OUT() << "GraphContainer: Synced BTW markers with zoom panel";
             }
         }
     }
-
-    DEBUG_OUT() << "GraphContainer: Custom Y range set directly from interpolated bounds and time range updated";
 }
 
 void GraphContainer::onClearTimeSelectionsButtonClicked()
@@ -1762,7 +1778,7 @@ void GraphContainer::onHistoryFullSelectionRequested()
     BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwBase);
     QDateTime lineTime = btwGraph ? btwGraph->getLatestHorizontalLineTimestamp() : QDateTime();
     if (lineTime.isValid() && m_timelineSelectionView) {
-        QDateTime now = QDateTime::currentDateTime();
+        QDateTime now = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
         TimeSelectionSpan span(lineTime < now ? lineTime : now, lineTime < now ? now : lineTime);
         m_timelineSelectionView->addTimeSelection(span);
         emit TimeSelectionCreated(span);

@@ -106,6 +106,29 @@ public:
     QDateTime applicationStartTime;
     bool hasApplicationStartTime = false;
 
+    /** When set, timeline slider "now" edge uses this instead of wall clock (e.g. replay paused at T). */
+    QDateTime timelineEndOverride;
+    bool hasTimelineEndOverride = false;
+
+    QDateTime effectiveTimelineEnd() const
+    {
+        if (hasTimelineEndOverride && timelineEndOverride.isValid())
+            return timelineEndOverride;
+        return QDateTime::currentDateTime();
+    }
+
+    void setTimelineEndOverride(const QDateTime &t)
+    {
+        timelineEndOverride = t;
+        hasTimelineEndOverride = t.isValid();
+    }
+
+    void clearTimelineEndOverride()
+    {
+        hasTimelineEndOverride = false;
+        timelineEndOverride = QDateTime();
+    }
+
     // Absolute/Relative time mode synchronization
     bool isAbsoluteTime = true;
     bool hasAbsoluteTime = false;
