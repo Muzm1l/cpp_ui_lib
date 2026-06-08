@@ -685,6 +685,27 @@ void WaterfallGraph::addDataPoints(const QString &seriesLabel, const std::vector
 }
 
 /**
+ * @brief Get a copy of the data for a single series as a WaterfallData object.
+ *
+ * @param seriesLabel The series to extract.
+ * @return WaterfallData containing only the requested series (empty if not present).
+ */
+WaterfallData WaterfallGraph::getData(const QString &seriesLabel) const
+{
+    WaterfallData result;
+    if (!dataSource || !dataSource->hasDataSeries(seriesLabel))
+    {
+        return result;
+    }
+
+    std::vector<float> yData;
+    dataSource->populateYDataSeriesFloat(seriesLabel, yData);
+    std::vector<QDateTime> timestamps = dataSource->getTimestampsSeries(seriesLabel);
+    result.addDataSeries(seriesLabel, yData, timestamps);
+    return result;
+}
+
+/**
  * @brief Get data within specified y extents.
  *
  * @param yMin

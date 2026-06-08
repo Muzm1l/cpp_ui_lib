@@ -510,6 +510,40 @@ std::pair<qreal, qreal> GraphContainer::getYRange() const
     return waterfallData.getYRange();
 }
 
+std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinYExtents(qreal yMin, qreal yMax) const
+{
+    std::vector<std::pair<qreal, QDateTime>> result;
+    for (const QString &seriesLabel : waterfallData.getDataSeriesLabels())
+    {
+        std::vector<std::pair<qreal, QDateTime>> seriesData =
+            waterfallData.getDataSeriesWithinYExtents(seriesLabel, yMin, yMax);
+        result.insert(result.end(), seriesData.begin(), seriesData.end());
+    }
+    return result;
+}
+
+std::vector<std::pair<qreal, QDateTime>> GraphContainer::getDataWithinTimeRange(const QDateTime &startTime, const QDateTime &endTime) const
+{
+    std::vector<std::pair<qreal, QDateTime>> result;
+    for (const QString &seriesLabel : waterfallData.getDataSeriesLabels())
+    {
+        std::vector<std::pair<qreal, QDateTime>> seriesData =
+            waterfallData.getDataSeriesWithinTimeRange(seriesLabel, startTime, endTime);
+        result.insert(result.end(), seriesData.begin(), seriesData.end());
+    }
+    return result;
+}
+
+qreal GraphContainer::getMinY() const
+{
+    return waterfallData.getMinY();
+}
+
+qreal GraphContainer::getMaxY() const
+{
+    return waterfallData.getMaxY();
+}
+
 void GraphContainer::redrawWaterfallGraph()
 {
     if (m_currentWaterfallGraph)
