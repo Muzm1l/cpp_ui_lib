@@ -11,6 +11,7 @@
 #include <QFont>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#include <QGridLayout>
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -588,6 +589,17 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup manoeuvre button
     setupManoeuvreButton();
 
+    // Setup widget that lists the graphs currently shown on screen
+    setupVisibleGraphsWidget();
+
+    // Add a dedicated Controls tab with a spread-out duplicate of the controls
+    setupControlsTab();
+
+    // Auto-refresh the on-screen graph names whenever the displayed graphs change
+    // (graph-type switch in any container, or a layout change).
+    connect(graphgrid, &GraphLayout::VisibleGraphsChanged,
+            this, &MainWindow::updateVisibleGraphsWidget);
+
     // Add a test RTW symbol to the graph layout
     QDateTime testSymbolTime = QDateTime::currentDateTime().addSecs(-120); // 2 minutes ago
     graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
@@ -621,21 +633,37 @@ void MainWindow::setupManoeuvreButton()
         qWarning() << "Controls widget not found, creating new one";
         controlsWidget = new QWidget(ui->originalTab);
         controlsWidget->setObjectName("controlsWidget");
-        controlsWidget->setGeometry(QRect(1100, 70, 300, 400));
+        // Wider but shorter panel: two columns of buttons keep the height small
+        // enough to fit on smaller laptop screens.
+        controlsWidget->setGeometry(QRect(1100, 70, 340, 340));
+        // Opaque background so the graph zoom-panel bars behind don't bleed through
+        // and the buttons stay clearly visible.
+        controlsWidget->setAutoFillBackground(true);
+        controlsWidget->setStyleSheet("QWidget#controlsWidget { background-color: #f0f0f0; }");
     }
     
-    // Get or create the vertical layout
-    QVBoxLayout* controlsLayout = qobject_cast<QVBoxLayout*>(controlsWidget->layout());
+    // Get or create the grid layout (two columns of buttons, side by side).
+    QGridLayout* controlsLayout = qobject_cast<QGridLayout*>(controlsWidget->layout());
     if (!controlsLayout) {
-        controlsLayout = new QVBoxLayout(controlsWidget);
-        controlsLayout->setContentsMargins(0, 0, 0, 0);
-        controlsLayout->setSpacing(10);
+        controlsLayout = new QGridLayout(controlsWidget);
+        controlsLayout->setContentsMargins(6, 6, 6, 6);
+        controlsLayout->setHorizontalSpacing(6);
+        controlsLayout->setVerticalSpacing(6);
+        // Both columns share the width evenly.
+        controlsLayout->setColumnStretch(0, 1);
+        controlsLayout->setColumnStretch(1, 1);
     }
+
+    // Helper: uniform sizing so the two columns line up neatly.
+    auto styleGridButton = [](QPushButton *btn) {
+        btn->setFixedHeight(30);
+        btn->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    };
     
     // Create button to add manoeuvres
     addManoeuvreButton = new QPushButton("Add Manoeuvre", controlsWidget);
     addManoeuvreButton->setObjectName("addManoeuvreButton");
-    addManoeuvreButton->setFixedSize(150, 30);
+    styleGridButton(addManoeuvreButton);
     
     // Connect button click to slot
     connect(addManoeuvreButton, &QPushButton::clicked, this, &MainWindow::onAddManoeuvreButtonClicked);
@@ -643,7 +671,7 @@ void MainWindow::setupManoeuvreButton()
     // Create button to clear manoeuvres
     clearManoeuvresButton = new QPushButton("Clear Manoeuvres", controlsWidget);
     clearManoeuvresButton->setObjectName("clearManoeuvresButton");
-    clearManoeuvresButton->setFixedSize(150, 30);
+    styleGridButton(clearManoeuvresButton);
     
     // Connect button click to slot
     connect(clearManoeuvresButton, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
@@ -651,7 +679,7 @@ void MainWindow::setupManoeuvreButton()
     // Create button to start manoeuvre drawing (new API)
     startManoeuvreButton = new QPushButton("Start Manoeuvre", controlsWidget);
     startManoeuvreButton->setObjectName("startManoeuvreButton");
-    startManoeuvreButton->setFixedSize(150, 30);
+    styleGridButton(startManoeuvreButton);
     startManoeuvreButton->setStyleSheet("QPushButton { background-color: #28a745; color: white; font-weight: bold; }");
     
     // Connect button click to slot
@@ -660,7 +688,7 @@ void MainWindow::setupManoeuvreButton()
     // Create button to end manoeuvre drawing (new API)
     endManoeuvreButton = new QPushButton("End Manoeuvre", controlsWidget);
     endManoeuvreButton->setObjectName("endManoeuvreButton");
-    endManoeuvreButton->setFixedSize(150, 30);
+    styleGridButton(endManoeuvreButton);
     endManoeuvreButton->setStyleSheet("QPushButton { background-color: #dc3545; color: white; font-weight: bold; }");
     
     // Connect button click to slot
@@ -669,7 +697,8 @@ void MainWindow::setupManoeuvreButton()
     // Create button to toggle BTW horizontal line mode
     btwLineModeButton = new QPushButton("BTW Mode: Normal", controlsWidget);
     btwLineModeButton->setObjectName("btwLineModeButton");
-    btwLineModeButton->setFixedSize(200, 30);
+    styleGridButton(btwLineModeButton);
+    m_btwLineModeButtons.append(btwLineModeButton);
     updateBTWLineModeButton();
     
     // Connect button click to slot
@@ -678,19 +707,185 @@ void MainWindow::setupManoeuvreButton()
     // Test button to show timeframe of history selections
     showHistorySelectionsButton = new QPushButton("Show history selections", controlsWidget);
     showHistorySelectionsButton->setObjectName("showHistorySelectionsButton");
-    showHistorySelectionsButton->setFixedSize(180, 28);
+    styleGridButton(showHistorySelectionsButton);
     connect(showHistorySelectionsButton, &QPushButton::clicked, this, &MainWindow::onShowHistorySelectionsButtonClicked);
     
-    // Add buttons to the layout (vertically, one by one)
-    controlsLayout->addWidget(addManoeuvreButton);
-    controlsLayout->addWidget(clearManoeuvresButton);
-    controlsLayout->addWidget(startManoeuvreButton);
-    controlsLayout->addWidget(endManoeuvreButton);
-    controlsLayout->addWidget(btwLineModeButton);
-    controlsLayout->addWidget(showHistorySelectionsButton);
-    controlsLayout->addStretch(); // Add stretch to push everything to the top
+    // Add buttons to the grid: two per row, side by side.
+    controlsLayout->addWidget(addManoeuvreButton,        0, 0);
+    controlsLayout->addWidget(clearManoeuvresButton,     0, 1);
+    controlsLayout->addWidget(startManoeuvreButton,      1, 0);
+    controlsLayout->addWidget(endManoeuvreButton,        1, 1);
+    controlsLayout->addWidget(btwLineModeButton,         2, 0);
+    controlsLayout->addWidget(showHistorySelectionsButton, 2, 1);
     
-    DEBUG_OUT() << "Manoeuvre buttons created and connected in vertical layout below combo box";
+    DEBUG_OUT() << "Manoeuvre buttons created and connected in two-column grid below combo box";
+}
+
+void MainWindow::setupVisibleGraphsWidget()
+{
+    // Reuse the same controls panel that hosts the manoeuvre/BTW buttons.
+    QWidget* controlsWidget = ui->originalTab->findChild<QWidget*>("controlsWidget");
+    if (!controlsWidget) {
+        qWarning() << "Controls widget not found, cannot add visible-graphs widget";
+        return;
+    }
+
+    QGridLayout* controlsLayout = qobject_cast<QGridLayout*>(controlsWidget->layout());
+    if (!controlsLayout) {
+        controlsLayout = new QGridLayout(controlsWidget);
+        controlsLayout->setColumnStretch(0, 1);
+        controlsLayout->setColumnStretch(1, 1);
+    }
+
+    // Place the graphs section below the button rows, spanning both columns.
+    int row = controlsLayout->rowCount();
+
+    // Title for the on-screen graphs panel.
+    QLabel* graphsTitle = new QLabel("Graphs on screen:", controlsWidget);
+    graphsTitle->setStyleSheet("QLabel { font-weight: bold; }");
+
+    // Label that displays the names returned by the API.
+    visibleGraphsLabel = new QLabel(controlsWidget);
+    visibleGraphsLabel->setObjectName("visibleGraphsLabel");
+    visibleGraphsLabel->setWordWrap(true);
+    visibleGraphsLabel->setMinimumHeight(70);
+    visibleGraphsLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    visibleGraphsLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #00d0ff; border: 1px solid #444; padding: 6px; }");
+    m_visibleGraphsLabels.append(visibleGraphsLabel);
+
+    // Button to refresh the list on demand (demonstrates the API being called live).
+    refreshVisibleGraphsButton = new QPushButton("Refresh graph names", controlsWidget);
+    refreshVisibleGraphsButton->setObjectName("refreshVisibleGraphsButton");
+    refreshVisibleGraphsButton->setFixedHeight(28);
+    connect(refreshVisibleGraphsButton, &QPushButton::clicked, this, &MainWindow::updateVisibleGraphsWidget);
+
+    controlsLayout->addWidget(graphsTitle,                row,     0, 1, 2);
+    controlsLayout->addWidget(visibleGraphsLabel,         row + 1, 0, 1, 2);
+    controlsLayout->addWidget(refreshVisibleGraphsButton, row + 2, 0, 1, 2);
+    // Absorb any extra vertical space at the bottom so controls stay top-aligned.
+    controlsLayout->setRowStretch(row + 3, 1);
+
+    // Populate it once with the current state.
+    updateVisibleGraphsWidget();
+}
+
+void MainWindow::updateVisibleGraphsWidget()
+{
+    if (!graphgrid) {
+        return;
+    }
+
+    // Call the new GraphLayout API to fetch the names of the graphs on screen.
+    std::vector<QString> names = graphgrid->getVisibleGraphNames();
+
+    QStringList lines;
+    for (size_t i = 0; i < names.size(); ++i) {
+        lines << QString("%1. %2").arg(i + 1).arg(names[i]);
+    }
+
+    const QString text = lines.isEmpty() ? QStringLiteral("(none)") : lines.join("\n");
+
+    // Update every "graphs on screen" label (Original View panel + Controls tab duplicate).
+    for (QLabel* label : m_visibleGraphsLabels)
+    {
+        if (label)
+        {
+            label->setText(text);
+        }
+    }
+
+    DEBUG_OUT() << "MainWindow: Visible graphs on screen:" << lines;
+}
+
+void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spread)
+{
+    // "spread" => bigger buttons and more generous gaps for the dedicated tab.
+    const int btnHeight = spread ? 48 : 30;
+
+    layout->setColumnStretch(0, 1);
+    layout->setColumnStretch(1, 1);
+
+    auto makeButton = [&](const QString& text, const QString& style) -> QPushButton* {
+        QPushButton* b = new QPushButton(text, host);
+        b->setFixedHeight(btnHeight);
+        b->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        if (!style.isEmpty()) {
+            b->setStyleSheet(style);
+        }
+        return b;
+    };
+
+    QPushButton* addBtn = makeButton("Add Manoeuvre", QString());
+    connect(addBtn, &QPushButton::clicked, this, &MainWindow::onAddManoeuvreButtonClicked);
+
+    QPushButton* clearBtn = makeButton("Clear Manoeuvres", QString());
+    connect(clearBtn, &QPushButton::clicked, this, &MainWindow::onClearManoeuvresButtonClicked);
+
+    QPushButton* startBtn = makeButton("Start Manoeuvre",
+        "QPushButton { background-color: #28a745; color: white; font-weight: bold; }");
+    connect(startBtn, &QPushButton::clicked, this, &MainWindow::onStartManoeuvreButtonClicked);
+
+    QPushButton* endBtn = makeButton("End Manoeuvre",
+        "QPushButton { background-color: #dc3545; color: white; font-weight: bold; }");
+    connect(endBtn, &QPushButton::clicked, this, &MainWindow::onEndManoeuvreButtonClicked);
+
+    QPushButton* btwBtn = makeButton("BTW Mode: Normal", QString());
+    connect(btwBtn, &QPushButton::clicked, this, &MainWindow::onBTWLineModeButtonClicked);
+    m_btwLineModeButtons.append(btwBtn);  // keep in sync with the other BTW-mode button
+
+    QPushButton* historyBtn = makeButton("Show history selections", QString());
+    connect(historyBtn, &QPushButton::clicked, this, &MainWindow::onShowHistorySelectionsButtonClicked);
+
+    layout->addWidget(addBtn,     0, 0);
+    layout->addWidget(clearBtn,   0, 1);
+    layout->addWidget(startBtn,   1, 0);
+    layout->addWidget(endBtn,     1, 1);
+    layout->addWidget(btwBtn,     2, 0);
+    layout->addWidget(historyBtn, 2, 1);
+
+    // Graphs-on-screen section (spans both columns).
+    QLabel* title = new QLabel("Graphs on screen:", host);
+    title->setStyleSheet("QLabel { font-weight: bold; }");
+
+    QLabel* graphsLabel = new QLabel(host);
+    graphsLabel->setWordWrap(true);
+    graphsLabel->setMinimumHeight(spread ? 140 : 70);
+    graphsLabel->setAlignment(Qt::AlignTop | Qt::AlignLeft);
+    graphsLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #00d0ff; border: 1px solid #444; padding: 6px; }");
+    m_visibleGraphsLabels.append(graphsLabel);  // keep in sync with the other label
+
+    QPushButton* refreshBtn = makeButton("Refresh graph names", QString());
+    connect(refreshBtn, &QPushButton::clicked, this, &MainWindow::updateVisibleGraphsWidget);
+
+    layout->addWidget(title,      3, 0, 1, 2);
+    layout->addWidget(graphsLabel,4, 0, 1, 2);
+    layout->addWidget(refreshBtn, 5, 0, 1, 2);
+    layout->setRowStretch(6, 1);
+}
+
+void MainWindow::setupControlsTab()
+{
+    // Dedicated tab hosting a more spread-out duplicate of the Original View controls.
+    QWidget* controlsTabPage = new QWidget();
+    controlsTabPage->setObjectName("controlsTabPage");
+
+    QGridLayout* grid = new QGridLayout(controlsTabPage);
+    // Generous margins + spacing so the buttons are well spread apart.
+    grid->setContentsMargins(60, 40, 60, 40);
+    grid->setHorizontalSpacing(48);
+    grid->setVerticalSpacing(28);
+
+    buildControlsInto(controlsTabPage, grid, /*spread*/ true);
+
+    ui->tabWidget->addTab(controlsTabPage, "Controls");
+
+    // Make sure the freshly created duplicates reflect current state.
+    updateBTWLineModeButton();
+    updateVisibleGraphsWidget();
+
+    DEBUG_OUT() << "MainWindow: Controls tab created with spread-out duplicate controls";
 }
 
 void MainWindow::onAddManoeuvreButtonClicked()
@@ -838,9 +1033,6 @@ void MainWindow::onBTWLineModeButtonClicked()
 
 void MainWindow::updateBTWLineModeButton()
 {
-    if (!btwLineModeButton)
-        return;
-    
     QString buttonText;
     QString buttonStyle;
     
@@ -860,8 +1052,15 @@ void MainWindow::updateBTWLineModeButton()
             break;
     }
     
-    btwLineModeButton->setText(buttonText);
-    btwLineModeButton->setStyleSheet(buttonStyle);
+    // Update every BTW-mode button (Original View panel + Controls tab duplicate).
+    for (QPushButton* button : m_btwLineModeButtons)
+    {
+        if (button)
+        {
+            button->setText(buttonText);
+            button->setStyleSheet(buttonStyle);
+        }
+    }
 }
 
 MainWindow::~MainWindow()
@@ -998,6 +1197,9 @@ void MainWindow::onLayoutTypeChanged(int index)
 {
     LayoutType layoutType = static_cast<LayoutType>(ui->layoutSelectionComboBox->itemData(index).toInt());
     graphgrid->setLayoutType(layoutType);
+
+    // Layout change can show/hide containers, so refresh the on-screen graph names.
+    updateVisibleGraphsWidget();
 }
 
 /**

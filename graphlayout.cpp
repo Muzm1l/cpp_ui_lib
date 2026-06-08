@@ -311,7 +311,14 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::onShadedRegionSyncRemoved, Qt::UniqueConnection);
         connect(container, &GraphContainer::ShadedRegionsSyncCleared,
                 this, &GraphLayout::onShadedRegionsSyncCleared, Qt::UniqueConnection);
+
+        // Relay per-container graph changes so the UI can refresh the on-screen graph list.
+        connect(container, &GraphContainer::CurrentGraphChanged,
+                this, &GraphLayout::VisibleGraphsChanged, Qt::UniqueConnection);
     }
+
+    // The visible set of containers may have changed with this layout.
+    emit VisibleGraphsChanged();
 }
 
 LayoutType GraphLayout::getLayoutType() const
@@ -422,6 +429,10 @@ void GraphLayout::initializeContainers()
         connect(container, &GraphContainer::IntervalChanged,
                 this, &GraphLayout::onContainerIntervalChanged, Qt::UniqueConnection);
         // Time-scope propagation is handled by TimeScopeBus, not by container signals.
+
+        // Relay per-container graph changes so the UI can refresh the on-screen graph list.
+        connect(container, &GraphContainer::CurrentGraphChanged,
+                this, &GraphLayout::VisibleGraphsChanged, Qt::UniqueConnection);
 
         container->attachSharedCacheStore(&m_sharedRenderCache);
         
@@ -1187,6 +1198,23 @@ std::vector<QString> GraphLayout::getContainerLabels() const
 bool GraphLayout::hasContainer(const GraphType &graphType) const
 {
     return std::find(m_containerLabels.begin(), m_containerLabels.end(), graphTypeToString(graphType)) != m_containerLabels.end();
+}
+
+std::vector<QString> GraphLayout::getVisibleGraphNames() const
+{
+    std::vector<QString> names;
+    for (GraphContainer *container : m_graphContainers)
+    {
+        // Use !isHidden() rather than isVisible(): a container belongs to the active
+        // layout unless it was explicitly hidden by setLayoutType(). isVisible() would
+        // also report false whenever the Original View tab isn't the current tab,
+        // which would make the query return nothing when called from another tab.
+        if (container && !container->isHidden())
+        {
+            names.push_back(graphTypeToString(container->getCurrentDataOption()));
+        }
+    }
+    return names;
 }
 
 int GraphLayout::getContainerIndex(const QString &containerLabel) const

@@ -107,6 +107,17 @@ public:
     std::vector<QString> getContainerLabels() const;
     bool hasContainer(const GraphType &graphType) const;
 
+    /**
+     * @brief Get the names of the graphs currently shown on screen.
+     *
+     * Returns the graph-type name (e.g. "BTW", "BDW") of each container that is
+     * currently visible in the active layout, in container order. Hidden
+     * containers (for layouts that show fewer than 4 graphs) are excluded.
+     *
+     * @return Names of the currently displayed graphs.
+     */
+    std::vector<QString> getVisibleGraphNames() const;
+
     // Set the current time
     void setCurrentTime(const QTime &time);
     void deleteInteractiveMarkers();
@@ -483,6 +494,13 @@ private:
     int m_currentManoeuvreDepth; ///< Depth of the manoeuvre being drawn
 
 signals:
+    /**
+     * @brief Emitted whenever the set of graphs shown on screen may have changed
+     * (a container's current graph changed, or the layout changed).
+     * Listeners can call getVisibleGraphNames() to read the new state.
+     */
+    void VisibleGraphsChanged();
+
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void TimeSelectionsCleared();

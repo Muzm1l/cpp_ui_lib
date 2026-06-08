@@ -249,6 +249,12 @@ private:
     void onHistoryFullSelectionRequested();
 
 signals:
+    /**
+     * @brief Emitted whenever this container's current graph (data option) changes.
+     * @param graphType The graph type now shown by this container.
+     */
+    void CurrentGraphChanged(GraphType graphType);
+
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void DeltaTimeSelectionChanged(qreal deltaTime);

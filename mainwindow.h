@@ -24,6 +24,8 @@
 #include <QTimer>
 #include <QPaintEvent>
 #include <QPushButton>
+#include <QLabel>
+#include <QList>
 #include <vector>
 #include <cstdlib>
 #include <ctime>
@@ -34,6 +36,8 @@ namespace Ui
     class MainWindow;
 }
 QT_END_NAMESPACE
+
+class QGridLayout;
 
 class MainWindow : public QMainWindow
 {
@@ -95,6 +99,13 @@ private:
     QPushButton* testEmptyDataButton; ///< Button to test setDataToDataSource with empty data for FTW and FDW
     QPushButton* clearFTWFDWButton; ///< Button to test clearGraph API for FTW and FDW
     QPushButton* showHistorySelectionsButton; ///< Test button to show timeframe of history selections
+    QPushButton* refreshVisibleGraphsButton = nullptr; ///< Button to refresh the on-screen graph names list
+    QLabel* visibleGraphsLabel = nullptr; ///< Label showing names of graphs currently shown on screen
+
+    // Controls are duplicated across the Original View panel and a dedicated "Controls"
+    // tab. These lists let the shared updaters keep every copy in sync.
+    QList<QPushButton*> m_btwLineModeButtons;   ///< All BTW-mode toggle buttons (kept in sync)
+    QList<QLabel*> m_visibleGraphsLabels;       ///< All "graphs on screen" labels (kept in sync)
     
     // BTW horizontal line mode state
     BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
@@ -130,6 +141,10 @@ private:
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
     void setupManoeuvreButton(); ///< Setup button to add manoeuvres
     void updateBTWLineModeButton(); ///< Update BTW line mode button text and style
+    void setupVisibleGraphsWidget(); ///< Setup widget showing names of graphs currently on screen
+    void updateVisibleGraphsWidget(); ///< Refresh the on-screen graph names via GraphLayout::getVisibleGraphNames()
+    void setupControlsTab(); ///< Create a dedicated "Controls" tab with a spread-out duplicate of the controls
+    void buildControlsInto(QWidget* host, QGridLayout* layout, bool spread); ///< Build the control buttons + graphs panel into a grid
 
     long simTick;
 

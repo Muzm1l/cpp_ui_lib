@@ -669,6 +669,9 @@ void GraphContainer::setCurrentDataOption(const GraphType graphType)
     initializeZoomPanelLimits();
 
     DEBUG_OUT() << "Set current data option to:" << title;
+
+    // Notify listeners (e.g. the layout / UI) that the displayed graph changed.
+    emit CurrentGraphChanged(currentDataOption);
 }
 
 GraphType GraphContainer::getCurrentDataOption() const

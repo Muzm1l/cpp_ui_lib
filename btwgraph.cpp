@@ -27,6 +27,9 @@ BTWGraph::BTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInte
     , m_interactiveOverlay(nullptr)
     , symbols(40)  // Initialize BTW symbol cache
     , m_nextRegionId(1)
+    , m_lineDragActive(false)
+    , m_lineDragMoved(false)
+    , m_lineDragStartY(0.0)
     , m_horizontalLineMode(HorizontalLineMode::Normal)
     , m_cachedWindowSize(QSize())
     , m_cachedMarkerRadius(0.0)
@@ -287,34 +290,23 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         }
     }
     
-    // Horizontal line mode: draw line at clicked Y position (time)
-    // Note: In BTW graphs, a "horizontal line" means constant time (horizontal on screen)
+    // If the press lands on an existing horizontal line, begin a move-drag.
+    // Whether this turns into an actual move or a plain click (delete in line
+    // modes) is decided on mouse release in mouseReleaseEvent().
+    // Note: In BTW graphs, a "horizontal line" means constant time (horizontal on screen).
+    int lineHitIndex = hitTestHorizontalLine(scenePos.y());
+    if (lineHitIndex >= 0) {
+        m_draggingLineId = m_horizontalLines[lineHitIndex].id;
+        m_lineDragActive = true;
+        m_lineDragMoved = false;
+        m_lineDragStartY = scenePos.y();
+        DEBUG_OUT() << "BTWGraph: Press on horizontal line ID:" << m_draggingLineId.toString() << "- candidate for move";
+        return;
+    }
+
+    // Horizontal line mode: draw line at clicked Y position (time) on empty space
     // We use the Y position to determine the time, then draw a line spanning full width
     if (m_horizontalLineMode != HorizontalLineMode::Normal) {
-        // Check if click is on an existing horizontal line (click-to-delete)
-        // Use cached lineItem for efficient hit detection
-        const qreal hitThreshold = 5.0; // pixels - click within 5px of line to delete
-        qreal clickedY = scenePos.y();
-        
-        for (int i = 0; i < m_horizontalLines.size(); ++i) {
-            if (m_horizontalLines[i].lineItem) {
-                // Get line Y position directly from cached graphics item
-                qreal lineY = m_horizontalLines[i].lineItem->line().y1();
-                if (qAbs(clickedY - lineY) <= hitThreshold) {
-                    // Click is on existing line - delete it
-                    QUuid lineId = m_horizontalLines[i].id;
-                    QDateTime timestamp = m_horizontalLines[i].timestamp; // Get timestamp before removal
-                    removeHorizontalLine(lineId);
-                    emit horizontalLineRemoved(lineId, timestamp);
-                    DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString() << "at" << timestamp.toString();
-                    
-                    // Redraw to remove the line
-                    draw();
-                    return;
-                }
-            }
-        }
-        
         // No existing line at click position
         if (m_horizontalLineMode == HorizontalLineMode::DeleteLine) {
             // In delete mode, only delete lines - don't add new ones
@@ -392,8 +384,62 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
  */
 void BTWGraph::onMouseDrag(const QPointF &scenePos)
 {
+    // If we are dragging a horizontal line, reposition it instead of the default behaviour.
+    if (m_lineDragActive) {
+        // Require a small movement before treating the gesture as a drag (vs a click).
+        if (!m_lineDragMoved && qAbs(scenePos.y() - m_lineDragStartY) > 2.0) {
+            m_lineDragMoved = true;
+        }
+        if (m_lineDragMoved) {
+            moveHorizontalLineTo(m_draggingLineId, scenePos.y());
+        }
+        return;
+    }
+
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
+}
+
+/**
+ * @brief Finalize horizontal-line interaction on mouse release.
+ *
+ * A press-then-release without movement on a line behaves as a click
+ * (delete in DrawLine/DeleteLine modes). A press-drag-release moves the line
+ * to its new time and emits horizontalLineMoved().
+ */
+void BTWGraph::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (event->button() == Qt::LeftButton && m_lineDragActive) {
+        const QUuid lineId = m_draggingLineId;
+        const bool moved = m_lineDragMoved;
+
+        // Reset drag state before doing any work that might re-enter.
+        m_lineDragActive = false;
+        m_lineDragMoved = false;
+        m_draggingLineId = QUuid();
+
+        if (moved) {
+            // The line was dragged to a new position: report its new timestamp.
+            QDateTime newTimestamp = getHorizontalLineTimestamp(lineId);
+            DEBUG_OUT() << "BTWGraph: Moved horizontal line ID:" << lineId.toString()
+                        << "to" << newTimestamp.toString();
+            emit horizontalLineMoved(lineId, newTimestamp);
+        } else if (m_horizontalLineMode != HorizontalLineMode::Normal) {
+            // No movement and in a line-editing mode: treat as a click-to-delete.
+            QDateTime timestamp = getHorizontalLineTimestamp(lineId);
+            removeHorizontalLine(lineId);
+            emit horizontalLineRemoved(lineId, timestamp);
+            DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString()
+                        << "at" << timestamp.toString();
+            draw();
+        }
+
+        // Let the base class clear its own drag bookkeeping (isDragging, etc.).
+        WaterfallGraph::mouseReleaseEvent(event);
+        return;
+    }
+
+    WaterfallGraph::mouseReleaseEvent(event);
 }
 
 /**
@@ -1484,6 +1530,49 @@ void BTWGraph::clearHorizontalLines()
     
     m_horizontalLines.clear();
     DEBUG_OUT() << "BTWGraph: Cleared all horizontal lines";
+}
+
+int BTWGraph::hitTestHorizontalLine(qreal sceneY) const
+{
+    const qreal hitThreshold = 5.0; // pixels - press within 5px of a line grabs it
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].lineItem) {
+            // Use the cached graphics item's Y for accurate, zoom-independent hit testing.
+            qreal lineY = m_horizontalLines[i].lineItem->line().y1();
+            if (qAbs(sceneY - lineY) <= hitThreshold) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+void BTWGraph::moveHorizontalLineTo(const QUuid &lineId, qreal sceneY)
+{
+    if (drawingArea.isEmpty()) {
+        return;
+    }
+
+    // Clamp to the drawing area so the line cannot leave the visible plot.
+    qreal clampedY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), sceneY));
+    QDateTime newTimestamp = mapScreenToTime(clampedY);
+
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].id == lineId) {
+            if (newTimestamp.isValid()) {
+                m_horizontalLines[i].timestamp = newTimestamp;
+            }
+            if (m_horizontalLines[i].lineItem) {
+                m_horizontalLines[i].lineItem->setLine(drawingArea.left(), clampedY,
+                                                       drawingArea.right(), clampedY);
+                // Make sure the item is still part of the overlay scene.
+                if (overlayScene && !overlayScene->items().contains(m_horizontalLines[i].lineItem)) {
+                    overlayScene->addItem(m_horizontalLines[i].lineItem);
+                }
+            }
+            break;
+        }
+    }
 }
 
 void BTWGraph::drawHorizontalLines()

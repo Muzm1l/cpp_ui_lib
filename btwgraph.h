@@ -268,6 +268,9 @@ protected:
     void onMouseClick(const QPointF &scenePos) override;
     void onMouseDrag(const QPointF &scenePos) override;
 
+    // Override mouse release to finalize horizontal-line drag/click
+    void mouseReleaseEvent(QMouseEvent *event) override;
+
     // Override resize event to update overlay
     void resizeEvent(QResizeEvent *event) override;
 
@@ -322,6 +325,19 @@ private:
     
     // Method to draw horizontal lines (cached)
     void drawHorizontalLines();
+
+    // ---- Horizontal line drag-to-move support ----
+    /** Return the index of a horizontal line whose cached item is within the hit
+     *  threshold of the given scene Y, or -1 if none. */
+    int hitTestHorizontalLine(qreal sceneY) const;
+    /** Reposition a horizontal line to a new scene Y (clamped to the drawing area),
+     *  updating both its timestamp and its cached graphics item. */
+    void moveHorizontalLineTo(const QUuid &lineId, qreal sceneY);
+
+    QUuid m_draggingLineId;       // Id of the line currently being dragged (if any)
+    bool m_lineDragActive;        // True between press-on-line and release
+    bool m_lineDragMoved;         // True once the press has turned into an actual drag
+    qreal m_lineDragStartY;       // Scene Y at press, to distinguish click vs drag
     
     // Horizontal line storage structure
     struct HorizontalLineItem
@@ -432,6 +448,13 @@ signals:
      * @param timestamp The timestamp of the removed line
      */
     void horizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+
+    /**
+     * @brief Emitted when a horizontal line is moved (dragged) to a new time
+     * @param lineId The unique identifier of the moved line
+     * @param timestamp The new timestamp of the line after the move
+     */
+    void horizontalLineMoved(const QUuid &lineId, const QDateTime &timestamp);
 };
 
 #endif // BTWGRAPH_H
