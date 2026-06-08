@@ -100,7 +100,7 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent* /*event*/)
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 }
 
-void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
+bool TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
 {
     // Normalize order
     if (span.startTime > span.endTime) {
@@ -112,7 +112,7 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
         span = clampToValidRange(span);
         // If clamped becomes invalid (end before start), ignore
         if (span.endTime < span.startTime) {
-            return;
+            return false;
         }
     }
 
@@ -134,7 +134,7 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
         merged = clampToValidRange(merged);
         // If merged becomes invalid after clamping, ignore
         if (merged.endTime < merged.startTime) {
-            return;
+            return false;
         }
     }
 
@@ -146,11 +146,12 @@ void TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
 
     // Stop adding new selections once we reach the maximum (instead of FIFO)
     if (m_timeSelections.size() >= MAX_TIME_SELECTIONS) {
-        return;
+        return false;
     }
 
     m_timeSelections.append(merged);
     updateVisualization();
+    return true;
 }
 
 void TimeVisualizerWidget::setTimeSelection(int index, const TimeSelectionSpan& span)

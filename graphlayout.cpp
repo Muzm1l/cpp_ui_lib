@@ -1217,6 +1217,41 @@ std::vector<QString> GraphLayout::getVisibleGraphNames() const
     return names;
 }
 
+bool GraphLayout::highlightHistorySelectionRegion(const QDateTime &startTime, const QDateTime &endTime)
+{
+    if (!startTime.isValid() || !endTime.isValid())
+    {
+        DEBUG_OUT() << "GraphLayout: highlightHistorySelectionRegion ignored - invalid timestamps";
+        return false;
+    }
+
+    TimeSelectionSpan span(startTime, endTime);
+
+    bool anyAdded = false;
+    for (GraphContainer *container : m_graphContainers)
+    {
+        if (container && container->addTimeSelection(span))
+        {
+            anyAdded = true;
+        }
+    }
+
+    if (!anyAdded)
+    {
+        DEBUG_OUT() << "GraphLayout: highlightHistorySelectionRegion - no container accepted selection"
+                    << "(limit reached or clamped to invalid range)";
+        return false;
+    }
+
+    // Keep sync state and external listeners aligned with user-driven selections.
+    m_syncState.timeSelections.push_back(span);
+    emit TimeSelectionCreated(span);
+
+    DEBUG_OUT() << "GraphLayout: Highlighted history selection region from"
+                << span.startTime.toString() << "to" << span.endTime.toString();
+    return true;
+}
+
 int GraphLayout::getContainerIndex(const QString &containerLabel) const
 {
     auto it = std::find(m_containerLabels.begin(), m_containerLabels.end(), containerLabel);

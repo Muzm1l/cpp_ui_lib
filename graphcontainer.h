@@ -120,7 +120,7 @@ public:
     void applySharedTimeAxisCursor(const QDateTime &time);
 
     // Selection management methods
-    void addTimeSelection(const TimeSelectionSpan &selection);
+    bool addTimeSelection(const TimeSelectionSpan &selection);
     void setTimeSelection(int index, const TimeSelectionSpan &selection);  // replace at index (for sync from GraphLayout)
     void clearTimeSelections();
     void clearTimeSelectionsSilent(); // Clears without emitting signal

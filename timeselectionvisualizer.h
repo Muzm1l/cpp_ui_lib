@@ -36,7 +36,7 @@ public:
     explicit TimeVisualizerWidget(QWidget* parent = nullptr);
 
     // Time selection management
-    void addTimeSelection(TimeSelectionSpan span);
+    bool addTimeSelection(TimeSelectionSpan span);
     void setTimeSelection(int index, const TimeSelectionSpan& span);  // replace at index (for sync from other containers)
     void clearTimeSelections();
     bool hasTimeSelections() const { return !m_timeSelections.isEmpty(); }
@@ -106,7 +106,7 @@ public:
     ~TimeSelectionVisualizer();
 
     // Delegate methods to the visualizer widget
-    void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
+    bool addTimeSelection(TimeSelectionSpan span) { return m_visualizerWidget->addTimeSelection(span); }
     void setTimeSelection(int index, const TimeSelectionSpan& span) { m_visualizerWidget->setTimeSelection(index, span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
     void createFullSelection() { m_visualizerWidget->createFullSelection(); }

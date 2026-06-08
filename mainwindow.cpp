@@ -12,6 +12,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QGridLayout>
+#include <QDateTimeEdit>
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -862,7 +863,60 @@ void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spre
     layout->addWidget(title,      3, 0, 1, 2);
     layout->addWidget(graphsLabel,4, 0, 1, 2);
     layout->addWidget(refreshBtn, 5, 0, 1, 2);
-    layout->setRowStretch(6, 1);
+
+    int nextRow = 6;
+    if (spread) {
+        // History selection highlight API test (Controls tab only).
+        QLabel* hlTitle = new QLabel("History selection highlight (API test):", host);
+        hlTitle->setStyleSheet("QLabel { font-weight: bold; }");
+        layout->addWidget(hlTitle, nextRow++, 0, 1, 2);
+
+        const QDateTime now = QDateTime::currentDateTime();
+
+        QLabel* startLabel = new QLabel("Start time:", host);
+        QDateTimeEdit* startEdit = new QDateTimeEdit(now.addSecs(-30 * 60), host);
+        startEdit->setDisplayFormat("yyyy-MM-dd hh:mm:ss");
+        startEdit->setCalendarPopup(true);
+        layout->addWidget(startLabel, nextRow, 0);
+        layout->addWidget(startEdit, nextRow++, 1);
+
+        QLabel* endLabel = new QLabel("End time:", host);
+        QDateTimeEdit* endEdit = new QDateTimeEdit(now.addSecs(-15 * 60), host);
+        endEdit->setDisplayFormat("yyyy-MM-dd hh:mm:ss");
+        endEdit->setCalendarPopup(true);
+        layout->addWidget(endLabel, nextRow, 0);
+        layout->addWidget(endEdit, nextRow++, 1);
+
+        QLabel* hlStatus = new QLabel(host);
+        hlStatus->setWordWrap(true);
+        hlStatus->setStyleSheet("QLabel { color: #333; }");
+
+        QPushButton* highlightBtn = makeButton("Highlight region", QString());
+        highlightBtn->setStyleSheet(
+            "QPushButton { background-color: #6f42c1; color: white; font-weight: bold; }");
+        connect(highlightBtn, &QPushButton::clicked, this, [this, startEdit, endEdit, hlStatus]() {
+            if (!graphgrid) {
+                hlStatus->setText("Error: GraphLayout not available.");
+                return;
+            }
+            const QDateTime start = startEdit->dateTime();
+            const QDateTime end = endEdit->dateTime();
+            const bool ok = graphgrid->highlightHistorySelectionRegion(start, end);
+            if (ok) {
+                hlStatus->setText(QString("OK — highlighted %1 to %2")
+                    .arg(start.toString("yyyy-MM-dd hh:mm:ss"))
+                    .arg(end.toString("yyyy-MM-dd hh:mm:ss")));
+            } else {
+                hlStatus->setText("Failed — invalid times, limit reached (max 5), or clamped to invalid range.");
+            }
+            DEBUG_OUT() << "MainWindow: highlightHistorySelectionRegion test:" << ok
+                        << start.toString() << end.toString();
+        });
+        layout->addWidget(highlightBtn, nextRow++, 0, 1, 2);
+        layout->addWidget(hlStatus, nextRow++, 0, 1, 2);
+    }
+
+    layout->setRowStretch(nextRow, 1);
 }
 
 void MainWindow::setupControlsTab()

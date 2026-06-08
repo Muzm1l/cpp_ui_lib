@@ -118,6 +118,25 @@ public:
      */
     std::vector<QString> getVisibleGraphNames() const;
 
+    /**
+     * @brief Highlight a time region in the history selection bar on all containers.
+     *
+     * Pass two timestamps to draw a highlighted band between them in each
+     * container's history selection visualizer (the narrow bar beside the timeline).
+     * Timestamps may be passed in any order; they are normalized internally.
+     *
+     * Uses the existing addTimeSelection() path: overlapping selections are merged,
+     * spans are clamped to the valid data range, and each container keeps at most
+     * MAX_TIME_SELECTIONS (5). If a container already has 5 selections, the new
+     * region is silently ignored for that container.
+     *
+     * @param startTime One boundary of the region.
+     * @param endTime   The other boundary of the region.
+     * @return true if at least one container accepted the selection; false if both
+     *         timestamps are invalid or every container was already at the limit.
+     */
+    bool highlightHistorySelectionRegion(const QDateTime &startTime, const QDateTime &endTime);
+
     // Set the current time
     void setCurrentTime(const QTime &time);
     void deleteInteractiveMarkers();

@@ -1462,19 +1462,19 @@ void GraphContainer::applySharedTimeAxisCursor(const QDateTime &time)
     }
 }
 
-void GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
+bool GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
 {
     DEBUG_OUT() << "GraphContainer: Adding time selection from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     if (m_timelineSelectionView)
     {
-        m_timelineSelectionView->addTimeSelection(selection);
-        DEBUG_OUT() << "GraphContainer: Time selection added to timeline selection view";
+        bool added = m_timelineSelectionView->addTimeSelection(selection);
+        DEBUG_OUT() << "GraphContainer: Time selection added to timeline selection view:" << added;
+        return added;
     }
-    else
-    {
-        qWarning() << "GraphContainer: Timeline selection view is null - cannot add selection";
-    }
+
+    qWarning() << "GraphContainer: Timeline selection view is null - cannot add selection";
+    return false;
 }
 
 void GraphContainer::setTimeSelection(int index, const TimeSelectionSpan &selection)
