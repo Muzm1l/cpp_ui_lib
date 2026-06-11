@@ -1050,6 +1050,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(rtwGraph, &RTWGraph::rtwSymbolTimestampCaptured,
                 this, &GraphContainer::onRTWSymbolTimestampCaptured);
         DEBUG_OUT() << "GraphContainer: Connected RTW symbol timestamp signal";
+
+        // Connect RTW ruler selection signal
+        connect(rtwGraph, &RTWGraph::rulerSelected,
+                this, &GraphContainer::onRtwRulerSelected);
+        DEBUG_OUT() << "GraphContainer: Connected RTW ruler selection signal";
     }
 }
 
@@ -1835,9 +1840,16 @@ void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, c
 
 void GraphContainer::onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName)
 {
-    DEBUG_OUT() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") 
+    DEBUG_OUT() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz")
              << "symbol:" << symbolName;
     emit RTWSymbolTimestampCaptured(timestamp, position, symbolName);
+}
+
+void GraphContainer::onRtwRulerSelected(int index, const QDateTime &timestamp, qreal range)
+{
+    DEBUG_OUT() << "GraphContainer: RTW ruler selected - index:" << index
+             << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit RtwRulerSelected(index, timestamp, range);
 }
 
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)

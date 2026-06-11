@@ -65,6 +65,10 @@ void RTWSymbolDrawing::generateAll()
     cache[SymbolType::YellowCircle2] = makeYellowCircle2();
     cache[SymbolType::YellowCircle3] = makeYellowCircle3();
     cache[SymbolType::YellowCircle4] = makeYellowCircle4();
+    cache[SymbolType::WhiteCircle1] = makeNumberedCircle(1, Qt::white, Qt::black);
+    cache[SymbolType::WhiteCircle2] = makeNumberedCircle(2, Qt::white, Qt::black);
+    cache[SymbolType::WhiteCircle3] = makeNumberedCircle(3, Qt::white, Qt::black);
+    cache[SymbolType::WhiteCircle4] = makeNumberedCircle(4, Qt::white, Qt::black);
     cache[SymbolType::MaxSymbol] = makeMaxSymbol();
     cache[SymbolType::MinSymbol] = makeMinSymbol();
 }
@@ -533,6 +537,28 @@ QPixmap RTWSymbolDrawing::BOTD(){
 }
 
 // Yellow solid circle with white number 1
+// Parameterized numbered circle: solid fill with a centered digit.
+// Used for ruler indicators (yellow = selected, white = active/unselected).
+QPixmap RTWSymbolDrawing::makeNumberedCircle(int digit, const QColor &fill, const QColor &textColor)
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    QRectF circleRect(3, 3, size-6, size-6);
+
+    p.setPen(Qt::NoPen);
+    p.setBrush(fill);
+    p.drawEllipse(circleRect);
+
+    p.setPen(textColor);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, QString::number(digit));
+
+    return pix;
+}
+
 QPixmap RTWSymbolDrawing::makeYellowCircle1()
 {
     QPixmap pix = blank();
@@ -540,12 +566,12 @@ QPixmap RTWSymbolDrawing::makeYellowCircle1()
     p.setRenderHint(QPainter::Antialiasing);
 
     QRectF circleRect(3, 3, size-6, size-6);
-    
+
     // Draw solid yellow circle
     p.setPen(Qt::NoPen);
     p.setBrush(Qt::yellow);
     p.drawEllipse(circleRect);
-    
+
     // Draw white number 1 in center
     p.setPen(Qt::white);
     p.setBrush(Qt::NoBrush);

@@ -248,6 +248,15 @@ public:
     bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     
+    // ========== RTW Ruler indicator API ==========
+    // The main system owns up to 4 rulers (index 0..3). These forward to the
+    // RTW graph view(s); state lives in RTWGraph. At most one ruler is selected.
+    void setRtwRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearRtwRuler(int index);
+    void clearAllRtwRulers();
+    void setSelectedRtwRuler(int index);
+    int selectedRtwRuler() const;
+
     // Clear markers and symbols for specific graph type
     void clearRTWSymbols(const GraphType &graphType);
     void clearBTWSymbols(const GraphType &graphType);
@@ -539,6 +548,14 @@ signals:
      * @param symbolName The name of the clicked symbol
      */
     void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+
+    /**
+     * @brief Emitted when an RTW ruler indicator is clicked (and thereby selected).
+     * @param index The 0-based ruler index (0..3)
+     * @param timestamp The ruler's time-axis position
+     * @param range The ruler's range-axis position
+     */
+    void RtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
     
     /**
      * @brief Emitted when a BTW manual marker is placed

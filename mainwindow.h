@@ -87,6 +87,7 @@ private:
     QLabel* markerTimestampLabel; ///< Label to display marker timestamp in first tab
     QLabel* rtwSymbolTimestampLabel; ///< Label to display RTW symbol timestamp when clicked
     QLabel* rtwRMarkerTimestampLabel; ///< Label to display RTW R marker timestamp when clicked
+    QLabel* rtwRulerStatusLabel = nullptr; ///< Label showing RTW ruler test / selection state
 
     // Manoeuvre management buttons
     QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout
@@ -101,11 +102,14 @@ private:
     QPushButton* showHistorySelectionsButton; ///< Test button to show timeframe of history selections
     QPushButton* refreshVisibleGraphsButton = nullptr; ///< Button to refresh the on-screen graph names list
     QLabel* visibleGraphsLabel = nullptr; ///< Label showing names of graphs currently shown on screen
+    QPushButton* testRtwRulersButton = nullptr; ///< Button to exercise the RTW ruler API
+    QPushButton* clearRtwRulersButton = nullptr; ///< Button to clear all RTW rulers
 
     // Controls are duplicated across the Original View panel and a dedicated "Controls"
     // tab. These lists let the shared updaters keep every copy in sync.
     QList<QPushButton*> m_btwLineModeButtons;   ///< All BTW-mode toggle buttons (kept in sync)
     QList<QLabel*> m_visibleGraphsLabels;       ///< All "graphs on screen" labels (kept in sync)
+    QList<QLabel*> m_rtwRulerStatusLabels;     ///< All RTW ruler status labels (kept in sync)
     
     // BTW horizontal line mode state
     BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
@@ -143,6 +147,8 @@ private:
     void updateBTWLineModeButton(); ///< Update BTW line mode button text and style
     void setupVisibleGraphsWidget(); ///< Setup widget showing names of graphs currently on screen
     void updateVisibleGraphsWidget(); ///< Refresh the on-screen graph names via GraphLayout::getVisibleGraphNames()
+    void setupRtwRulersTest(); ///< Add RTW ruler API test controls to the Original View panel
+    void updateRtwRulerStatusLabel(const QString &text); ///< Update all RTW ruler status labels
     void setupControlsTab(); ///< Create a dedicated "Controls" tab with a spread-out duplicate of the controls
     void buildControlsInto(QWidget* host, QGridLayout* layout, bool spread); ///< Build the control buttons + graphs panel into a grid
 
@@ -245,6 +251,12 @@ private slots:
      * Cycles through Normal -> DrawLine -> DeleteLine -> Normal
      */
     void onBTWLineModeButtonClicked();
+
+    /** @brief Activate sample RTW rulers via GraphLayout API. */
+    void onTestRtwRulersButtonClicked();
+
+    /** @brief Clear all RTW rulers via GraphLayout API. */
+    void onClearRtwRulersButtonClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

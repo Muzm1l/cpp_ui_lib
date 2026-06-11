@@ -1,6 +1,7 @@
 #include "graphlayout.h"
 #include "navtimeutils.h"
 #include "btwgraph.h"
+#include "rtwgraph.h"
 #include "btwinteractiveoverlay.h"
 #include "debugutils.h"
 #include <QDebug>
@@ -279,6 +280,8 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
                 this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RtwRulerSelected,
+                this, &GraphLayout::RtwRulerSelected, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
@@ -441,6 +444,8 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
                 this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RtwRulerSelected,
+                this, &GraphLayout::RtwRulerSelected, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
@@ -2363,6 +2368,66 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     {
         DEBUG_OUT() << "GraphLayout: Cannot add RTW symbol - engine not found for graph type" << static_cast<int>(graphType);
     }
+}
+
+// ========== RTW Ruler indicator API Implementation ==========
+// State is view-local on RTWGraph; these forward to every RTW graph view, mirroring
+// the BTW horizontal-line API (iterate containers -> getWaterfallGraph -> cast -> forward).
+
+void GraphLayout::setRtwRulerActive(int index, const QDateTime &timestamp, qreal range)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->setRulerActive(index, timestamp, range);
+    }
+}
+
+void GraphLayout::clearRtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->clearRuler(index);
+    }
+}
+
+void GraphLayout::clearAllRtwRulers()
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->clearAllRulers();
+    }
+}
+
+void GraphLayout::setSelectedRtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->setSelectedRuler(index);
+    }
+}
+
+int GraphLayout::selectedRtwRuler() const
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            return rtwGraph->selectedRuler();
+    }
+    return -1;
 }
 
 bool GraphLayout::removeBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)

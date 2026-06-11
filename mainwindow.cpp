@@ -135,6 +135,17 @@ MainWindow::MainWindow(QWidget *parent)
     // Add label to layout
     controlsLayout->addWidget(rtwRMarkerTimestampLabel);
     
+    // Connect RTW ruler selection signal from graphgrid to update status label
+    connect(graphgrid, &GraphLayout::RtwRulerSelected,
+            [this](int index, const QDateTime &timestamp, qreal range) {
+                const QString text = QString("Ruler %1 selected | %2 | range %3")
+                    .arg(index + 1)
+                    .arg(timestamp.toString("yyyy-MM-dd hh:mm:ss"))
+                    .arg(range, 0, 'f', 1);
+                updateRtwRulerStatusLabel(text);
+                DEBUG_OUT() << "RTW Ruler selected:" << index << timestamp << range;
+            });
+
     // Connect RTW R marker timestamp signal from graphgrid to update label
     connect(graphgrid, &GraphLayout::RTWRMarkerTimestampCaptured,
             [this](const QDateTime &timestamp, const QPointF &position) {
@@ -593,6 +604,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup widget that lists the graphs currently shown on screen
     setupVisibleGraphsWidget();
 
+    // RTW ruler API test buttons (Original View controls panel)
+    setupRtwRulersTest();
+
     // Add a dedicated Controls tab with a spread-out duplicate of the controls
     setupControlsTab();
 
@@ -799,6 +813,99 @@ void MainWindow::updateVisibleGraphsWidget()
     DEBUG_OUT() << "MainWindow: Visible graphs on screen:" << lines;
 }
 
+void MainWindow::updateRtwRulerStatusLabel(const QString &text)
+{
+    for (QLabel *label : m_rtwRulerStatusLabels) {
+        if (label) {
+            label->setText(text);
+        }
+    }
+}
+
+void MainWindow::setupRtwRulersTest()
+{
+    QWidget *controlsWidget = ui->originalTab->findChild<QWidget *>("controlsWidget");
+    if (!controlsWidget) {
+        qWarning() << "Controls widget not found, cannot add RTW ruler test controls";
+        return;
+    }
+
+    QGridLayout *controlsLayout = qobject_cast<QGridLayout *>(controlsWidget->layout());
+    if (!controlsLayout) {
+        return;
+    }
+
+    const int row = controlsLayout->rowCount();
+
+    QLabel *title = new QLabel("RTW Rulers (API test):", controlsWidget);
+    title->setStyleSheet("QLabel { font-weight: bold; }");
+
+    rtwRulerStatusLabel = new QLabel("RTW Rulers: --", controlsWidget);
+    rtwRulerStatusLabel->setObjectName("rtwRulerStatusLabel");
+    rtwRulerStatusLabel->setWordWrap(true);
+    rtwRulerStatusLabel->setMinimumHeight(40);
+    rtwRulerStatusLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #ffd700; border: 1px solid #444; padding: 6px; }");
+    m_rtwRulerStatusLabels.append(rtwRulerStatusLabel);
+
+    testRtwRulersButton = new QPushButton("Test RTW Rulers", controlsWidget);
+    testRtwRulersButton->setObjectName("testRtwRulersButton");
+    testRtwRulersButton->setFixedHeight(30);
+    testRtwRulersButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    testRtwRulersButton->setStyleSheet(
+        "QPushButton { background-color: #ffc107; color: black; font-weight: bold; }");
+    connect(testRtwRulersButton, &QPushButton::clicked,
+            this, &MainWindow::onTestRtwRulersButtonClicked);
+
+    clearRtwRulersButton = new QPushButton("Clear RTW Rulers", controlsWidget);
+    clearRtwRulersButton->setObjectName("clearRtwRulersButton");
+    clearRtwRulersButton->setFixedHeight(30);
+    clearRtwRulersButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(clearRtwRulersButton, &QPushButton::clicked,
+            this, &MainWindow::onClearRtwRulersButtonClicked);
+
+    controlsLayout->addWidget(title, row, 0, 1, 2);
+    controlsLayout->addWidget(rtwRulerStatusLabel, row + 1, 0, 1, 2);
+    controlsLayout->addWidget(testRtwRulersButton, row + 2, 0);
+    controlsLayout->addWidget(clearRtwRulersButton, row + 2, 1);
+    controlsLayout->setRowStretch(row + 3, 1);
+
+    DEBUG_OUT() << "MainWindow: RTW ruler test controls added to Original View panel";
+}
+
+void MainWindow::onTestRtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        updateRtwRulerStatusLabel("Error: GraphLayout not available.");
+        return;
+    }
+
+    const QDateTime now = QDateTime::currentDateTime();
+
+    graphgrid->clearAllRtwRulers();
+    graphgrid->setRtwRulerActive(0, now.addSecs(-120), 8.0);   // white "1"
+    graphgrid->setRtwRulerActive(1, now.addSecs(-60), 15.0);   // will be selected (yellow "2")
+    graphgrid->setRtwRulerActive(2, now.addSecs(-30), 20.0);   // white "3"
+    graphgrid->setRtwRulerActive(3, now.addSecs(-10), 22.0);   // white "4"
+    graphgrid->setSelectedRtwRuler(1);
+
+    updateRtwRulerStatusLabel(
+        QString("Test: rulers 1-4 active, ruler 2 selected (yellow). Click a circle on the RTW graph."));
+    DEBUG_OUT() << "MainWindow: RTW ruler API test — activated 4 rulers, selected index 1";
+}
+
+void MainWindow::onClearRtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        updateRtwRulerStatusLabel("Error: GraphLayout not available.");
+        return;
+    }
+
+    graphgrid->clearAllRtwRulers();
+    updateRtwRulerStatusLabel("All RTW rulers cleared.");
+    DEBUG_OUT() << "MainWindow: Cleared all RTW rulers via GraphLayout API";
+}
+
 void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spread)
 {
     // "spread" => bigger buttons and more generous gaps for the dedicated tab.
@@ -914,6 +1021,29 @@ void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spre
         });
         layout->addWidget(highlightBtn, nextRow++, 0, 1, 2);
         layout->addWidget(hlStatus, nextRow++, 0, 1, 2);
+
+        // RTW ruler API test (Controls tab).
+        QLabel *rulerTitle = new QLabel("RTW Rulers (API test):", host);
+        rulerTitle->setStyleSheet("QLabel { font-weight: bold; }");
+        layout->addWidget(rulerTitle, nextRow++, 0, 1, 2);
+
+        QLabel *rulerStatus = new QLabel("RTW Rulers: --", host);
+        rulerStatus->setWordWrap(true);
+        rulerStatus->setMinimumHeight(50);
+        rulerStatus->setStyleSheet(
+            "QLabel { background-color: #1e1e1e; color: #ffd700; border: 1px solid #444; padding: 6px; }");
+        m_rtwRulerStatusLabels.append(rulerStatus);
+        layout->addWidget(rulerStatus, nextRow++, 0, 1, 2);
+
+        QPushButton *testRulersBtn = makeButton("Test RTW Rulers",
+            "QPushButton { background-color: #ffc107; color: black; font-weight: bold; }");
+        connect(testRulersBtn, &QPushButton::clicked, this, &MainWindow::onTestRtwRulersButtonClicked);
+
+        QPushButton *clearRulersBtn = makeButton("Clear RTW Rulers", QString());
+        connect(clearRulersBtn, &QPushButton::clicked, this, &MainWindow::onClearRtwRulersButtonClicked);
+
+        layout->addWidget(testRulersBtn, nextRow, 0);
+        layout->addWidget(clearRulersBtn, nextRow++, 1);
     }
 
     layout->setRowStretch(nextRow, 1);

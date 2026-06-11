@@ -30,6 +30,10 @@ public:
         YellowCircle2,
         YellowCircle3,
         YellowCircle4,
+        WhiteCircle1,   // Active (unselected) ruler 1
+        WhiteCircle2,   // Active (unselected) ruler 2
+        WhiteCircle3,   // Active (unselected) ruler 3
+        WhiteCircle4,   // Active (unselected) ruler 4
         MaxSymbol,    // Yellow vertical line with 4 cyan dot lines behind
         MinSymbol     // Yellow vertical line with 4 cyan dot lines in front
     };
@@ -70,6 +74,8 @@ private:
     QPixmap makeYellowCircle2();
     QPixmap makeYellowCircle3();
     QPixmap makeYellowCircle4();
+    // Parameterized numbered-circle generator (used for ruler indicators)
+    QPixmap makeNumberedCircle(int digit, const QColor &fill, const QColor &textColor);
     QPixmap makeMaxSymbol();
     QPixmap makeMinSymbol();
 
