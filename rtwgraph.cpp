@@ -17,7 +17,7 @@
  * @param timeInterval Time interval for the waterfall display
  */
 RTWGraph::RTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval), symbols(40)
+    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
     // Set hard limits for RTW graph: 0 to 25
     setCustomYRange(0.0, 25.0);

@@ -9,6 +9,8 @@
 #include <cmath>
 
 static const int RTW_SYMBOL_FONT_SIZE = 10;
+// Match BTW numbered-circle glyph size (small circle centered in the pixmap canvas).
+static const qreal RTW_NUMBERED_CIRCLE_SIZE = 14.0;
 
 RTWSymbolDrawing::RTWSymbolDrawing(int baseSize)
     : size(baseSize)
@@ -545,7 +547,8 @@ QPixmap RTWSymbolDrawing::makeNumberedCircle(int digit, const QColor &fill, cons
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF circleRect(3, 3, size-6, size-6);
+    const qreal offset = (size - RTW_NUMBERED_CIRCLE_SIZE) / 2.0;
+    const QRectF circleRect(offset, offset, RTW_NUMBERED_CIRCLE_SIZE, RTW_NUMBERED_CIRCLE_SIZE);
 
     p.setPen(Qt::NoPen);
     p.setBrush(fill);
@@ -561,93 +564,22 @@ QPixmap RTWSymbolDrawing::makeNumberedCircle(int digit, const QColor &fill, cons
 
 QPixmap RTWSymbolDrawing::makeYellowCircle1()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-
-    // Draw white number 1 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "1");
-
-    return pix;
+    return makeNumberedCircle(1, Qt::yellow, Qt::white);
 }
 
-// Yellow solid circle with white number 2
 QPixmap RTWSymbolDrawing::makeYellowCircle2()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 2 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "2");
-
-    return pix;
+    return makeNumberedCircle(2, Qt::yellow, Qt::white);
 }
 
-// Yellow solid circle with white number 3
 QPixmap RTWSymbolDrawing::makeYellowCircle3()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 3 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "3");
-
-    return pix;
+    return makeNumberedCircle(3, Qt::yellow, Qt::white);
 }
 
-// Yellow solid circle with white number 4
 QPixmap RTWSymbolDrawing::makeYellowCircle4()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 4 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "4");
-
-    return pix;
+    return makeNumberedCircle(4, Qt::yellow, Qt::white);
 }
 
 // Max symbol: Yellow vertical line with 4 lines made of 4 cyan dots each behind it
