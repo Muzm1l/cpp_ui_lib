@@ -257,6 +257,13 @@ public:
     void setSelectedRtwRuler(int index);
     int selectedRtwRuler() const;
 
+    // ========== BTW Ruler indicator API ==========
+    void setBtwRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearBtwRuler(int index);
+    void clearAllBtwRulers();
+    void setSelectedBtwRuler(int index);
+    int selectedBtwRuler() const;
+
     // Clear markers and symbols for specific graph type
     void clearRTWSymbols(const GraphType &graphType);
     void clearBTWSymbols(const GraphType &graphType);
@@ -556,6 +563,11 @@ signals:
      * @param range The ruler's range-axis position
      */
     void RtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+
+    /**
+     * @brief Emitted when a BTW ruler indicator is clicked (and thereby selected).
+     */
+    void BtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
     
     /**
      * @brief Emitted when a BTW manual marker is placed

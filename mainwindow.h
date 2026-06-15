@@ -118,6 +118,7 @@ private:
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
     QWidget* btwSymbolsTestWidget; ///< Widget for testing BTW symbols
+    QLabel* btwRulerApiStatusLabel = nullptr; ///< Status label on the BTW Rulers API tab
     
     // Time selection history storage (max 5 selections)
     std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
@@ -141,6 +142,7 @@ private:
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
     void setupBTWSymbolsTest(); ///< Setup BTW symbols gallery tab
+    void setupBtwRulersApiTestTab(); ///< Dedicated tab to exercise BTW ruler (numbered circle) API
     void testBTWSymbolsAPI();   ///< Place predefined BTW symbols on the live BTW graph
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
     void setupManoeuvreButton(); ///< Setup button to add manoeuvres
@@ -257,6 +259,12 @@ private slots:
 
     /** @brief Clear all RTW rulers via GraphLayout API. */
     void onClearRtwRulersButtonClicked();
+
+    /** @brief Activate sample BTW rulers via GraphLayout API. */
+    void onTestBtwRulersButtonClicked();
+
+    /** @brief Clear all BTW rulers via GraphLayout API. */
+    void onClearBtwRulersButtonClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

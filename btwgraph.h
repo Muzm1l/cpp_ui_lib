@@ -4,6 +4,7 @@
 #include "waterfallgraph.h"
 #include "btwsymboldrawing.h"
 #include "waterfalldata.h"  // For BTWSymbolData
+#include "rulerstate.h"
 #include <QPushButton>
 #include <QCheckBox>
 #include <QVBoxLayout>
@@ -15,6 +16,7 @@
 #include <QUuid>
 #include <QGraphicsPolygonItem>
 #include <vector>
+#include <array>
 #include <mutex>
 
 // Forward declarations to avoid circular dependency
@@ -147,6 +149,17 @@ public:
      * @param range Bearing/range value (X-axis) where the symbol should be displayed
      */
     void addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, qreal range);
+
+    // ========== Ruler indicator API ==========
+    // Up to 4 numbered circles; at most one selected at a time (yellow = selected).
+    static constexpr int RulerCount = 4;
+
+    void setRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearRuler(int index);
+    void clearAllRulers();
+    void setSelectedRuler(int index);
+    int selectedRuler() const { return m_selectedRuler; }
+    bool isRulerActive(int index) const;
     
     /**
      * @brief Add a shaded region to the graph
@@ -287,6 +300,11 @@ private:
     void drawBTWScatterplot();
     void drawCustomCircleMarkers();
     void addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue);
+
+    // Ruler rendering and helpers
+    void drawRulers();
+    void removeRulerItems();
+    BTWSymbolDrawing::SymbolType rulerSymbolType(int index, bool selected) const;
     
     // Interactive overlay setup
     void setupInteractiveOverlay();
@@ -296,6 +314,10 @@ private:
     
     // BTW symbol drawing utility (symbols are stored in WaterfallData)
     BTWSymbolDrawing symbols;
+
+    // Ruler indicator state (view-local; driven via GraphLayout)
+    std::array<RulerState, RulerCount> m_rulers{};
+    int m_selectedRuler = -1;
     
     // Store timestamps from automatic markers
     std::vector<QDateTime> m_automaticMarkerTimestamps;
@@ -455,6 +477,14 @@ signals:
      * @param timestamp The new timestamp of the line after the move
      */
     void horizontalLineMoved(const QUuid &lineId, const QDateTime &timestamp);
+
+    /**
+     * @brief Emitted when a ruler indicator is clicked (and thereby selected).
+     * @param index The 0-based ruler index (0..3)
+     * @param timestamp The ruler's time-axis position
+     * @param range The ruler's range/bearing-axis position
+     */
+    void rulerSelected(int index, const QDateTime &timestamp, qreal range);
 };
 
 #endif // BTWGRAPH_H

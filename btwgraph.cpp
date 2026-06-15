@@ -11,6 +11,7 @@
 #include <QRandomGenerator>
 #include <QPainter>
 #include <QPixmap>
+#include <QGraphicsPixmapItem>
 #include <limits>
 #include <mutex>
 
@@ -189,6 +190,10 @@ void BTWGraph::draw()
         
         // Draw horizontal lines
         drawHorizontalLines();
+
+        // Draw ruler indicators (numbered circles)
+        drawRulers();
+
         if (m_interactiveOverlay)
             m_interactiveOverlay->syncMarkersWithTimeline();
     }
@@ -215,6 +220,7 @@ void BTWGraph::augmentOverlayPassAfterSymbols()
     drawCustomCircleMarkers();
     drawHorizontalLines();
     drawShadedRegions();
+    drawRulers();
     if (m_interactiveOverlay)
         m_interactiveOverlay->syncMarkersWithTimeline();
 }
@@ -274,6 +280,36 @@ bool BTWGraph::snapManualMarkerToNearestSeriesAtTime(const QPointF &scenePos, co
  */
 void BTWGraph::onMouseClick(const QPointF &scenePos)
 {
+    // Ruler indicator click (overlayScene, tagged pixmap items)
+    if (overlayScene) {
+        QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
+        if (!itemAtPos) {
+            const qreal searchRadius = 10.0;
+            QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
+                              searchRadius * 2, searchRadius * 2);
+            const QList<QGraphicsItem *> itemsInArea =
+                overlayScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
+            for (QGraphicsItem *item : itemsInArea) {
+                auto *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem *>(item);
+                if (pixmapItem && pixmapItem->data(1).toString() == QStringLiteral("RULER")) {
+                    itemAtPos = item;
+                    break;
+                }
+            }
+        }
+
+        auto *rulerCandidate = qgraphicsitem_cast<QGraphicsPixmapItem *>(itemAtPos);
+        if (rulerCandidate && rulerCandidate->data(1).toString() == QStringLiteral("RULER")) {
+            const int rulerIndex = rulerCandidate->data(3).toInt();
+            if (rulerIndex >= 0 && rulerIndex < RulerCount && m_rulers[rulerIndex].active) {
+                setSelectedRuler(rulerIndex);
+                DEBUG_OUT() << "BTW RULER SELECTED - index:" << rulerIndex;
+                emit rulerSelected(rulerIndex, m_rulers[rulerIndex].timestamp, m_rulers[rulerIndex].range);
+            }
+            return;
+        }
+    }
+
     // Check if we clicked on an existing interactive marker in the overlay scene
     // The overlay scene and graphics scene share the same coordinate system
     if (m_interactiveOverlay && m_interactiveOverlay->getOverlayScene()) {
@@ -1621,5 +1657,138 @@ void BTWGraph::drawHorizontalLines()
                 overlayScene->addItem(line.lineItem);
             }
         }
+    }
+}
+
+/* ----------------- Ruler indicators ----------------- */
+
+bool BTWGraph::isRulerActive(int index) const
+{
+    if (index < 0 || index >= RulerCount)
+        return false;
+    return m_rulers[index].active;
+}
+
+void BTWGraph::setRulerActive(int index, const QDateTime &timestamp, qreal range)
+{
+    if (index < 0 || index >= RulerCount) {
+        DEBUG_OUT() << "BTW: setRulerActive - invalid index" << index;
+        return;
+    }
+
+    m_rulers[index].active = true;
+    m_rulers[index].timestamp = timestamp;
+    m_rulers[index].range = range;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+void BTWGraph::clearRuler(int index)
+{
+    if (index < 0 || index >= RulerCount)
+        return;
+
+    m_rulers[index].active = false;
+    if (m_selectedRuler == index)
+        m_selectedRuler = -1;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+void BTWGraph::clearAllRulers()
+{
+    for (auto &ruler : m_rulers)
+        ruler.active = false;
+    m_selectedRuler = -1;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+void BTWGraph::setSelectedRuler(int index)
+{
+    if (index >= 0 && index < RulerCount && !m_rulers[index].active) {
+        DEBUG_OUT() << "BTW: setSelectedRuler - ruler" << index << "is not active, ignoring";
+        return;
+    }
+
+    m_selectedRuler = (index >= 0 && index < RulerCount) ? index : -1;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+BTWSymbolDrawing::SymbolType BTWGraph::rulerSymbolType(int index, bool selected) const
+{
+    if (selected) {
+        switch (index) {
+        case 0: return BTWSymbolDrawing::SymbolType::YellowCircle1;
+        case 1: return BTWSymbolDrawing::SymbolType::YellowCircle2;
+        case 2: return BTWSymbolDrawing::SymbolType::YellowCircle3;
+        default: return BTWSymbolDrawing::SymbolType::YellowCircle4;
+        }
+    }
+
+    switch (index) {
+    case 0: return BTWSymbolDrawing::SymbolType::WhiteCircle1;
+    case 1: return BTWSymbolDrawing::SymbolType::WhiteCircle2;
+    case 2: return BTWSymbolDrawing::SymbolType::WhiteCircle3;
+    default: return BTWSymbolDrawing::SymbolType::WhiteCircle4;
+    }
+}
+
+void BTWGraph::removeRulerItems()
+{
+    if (!overlayScene)
+        return;
+
+    QList<QGraphicsItem *> itemsToRemove;
+    for (QGraphicsItem *item : overlayScene->items()) {
+        auto *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem *>(item);
+        if (pixmapItem && pixmapItem->data(1).toString() == QStringLiteral("RULER"))
+            itemsToRemove.append(pixmapItem);
+    }
+
+    for (QGraphicsItem *item : itemsToRemove) {
+        overlayScene->removeItem(item);
+        delete item;
+    }
+}
+
+void BTWGraph::drawRulers()
+{
+    if (!overlayScene)
+        return;
+
+    removeRulerItems();
+
+    for (int i = 0; i < RulerCount; ++i) {
+        const RulerState &ruler = m_rulers[i];
+        if (!ruler.active)
+            continue;
+
+        const bool selected = (m_selectedRuler == i);
+        const BTWSymbolDrawing::SymbolType type = rulerSymbolType(i, selected);
+        const QPixmap &rulerPixmap = symbols.get(type);
+        if (rulerPixmap.isNull() || rulerPixmap.width() <= 0 || rulerPixmap.height() <= 0)
+            continue;
+
+        const QPointF screenPos = mapDataToScreen(ruler.range, ruler.timestamp);
+        if (!drawingArea.contains(screenPos))
+            continue;
+
+        auto *item = new QGraphicsPixmapItem(rulerPixmap);
+        const QRectF pixmapRect = item->boundingRect();
+        item->setPos(screenPos.x() - pixmapRect.width() / 2,
+                     screenPos.y() - pixmapRect.height() / 2);
+        // Above BTW data symbols (z=1003)
+        item->setZValue(1004);
+        item->setData(1, QStringLiteral("RULER"));
+        item->setData(3, i);
+        item->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
+        item->setAcceptHoverEvents(true);
+        overlayScene->addItem(item);
     }
 }

@@ -559,6 +559,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup BTW Symbols gallery tab
     setupBTWSymbolsTest();
 
+    // Dedicated tab for BTW ruler (numbered circle) API testing
+    setupBtwRulersApiTestTab();
+
     // Place BTW symbols on the live graph once data/time window is ready
     QTimer::singleShot(5000, this, &MainWindow::testBTWSymbolsAPI);
 
@@ -620,13 +623,13 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
     DEBUG_OUT() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 
-    // Quick BTW symbol API smoke test (GraphLayout typed + string overloads)
-    graphgrid->addBTWSymbol(GraphType::BTW, BTWSymbolDrawing::SymbolType::YellowCircle1,
-                            testSymbolTime, 18.0f);
-    graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("WhiteCircle1"),
-                            testSymbolTime.addSecs(10), 24.0f);
-    DEBUG_OUT() << "MainWindow: Added test BTW symbols YellowCircle1 + WhiteCircle1 at"
-                << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
+    // // Quick BTW symbol API smoke test (GraphLayout typed + string overloads)
+    // graphgrid->addBTWSymbol(GraphType::BTW, BTWSymbolDrawing::SymbolType::YellowCircle1,
+    //                         testSymbolTime, 18.0f);
+    // graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("WhiteCircle1"),
+    //                         testSymbolTime.addSecs(10), 24.0f);
+    // DEBUG_OUT() << "MainWindow: Added test BTW symbols YellowCircle1 + WhiteCircle1 at"
+    //             << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -2260,6 +2263,133 @@ void MainWindow::setupBTWSymbolsTest()
                 << BTWSymbolDrawing::registeredSymbolNames();
 }
 
+void MainWindow::setupBtwRulersApiTestTab()
+{
+    QWidget *tab = new QWidget();
+    tab->setObjectName("btwRulersApiTab");
+    ui->tabWidget->addTab(tab, QStringLiteral("BTW Rulers API"));
+
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(16);
+
+    auto *intro = new QLabel(
+        QStringLiteral(
+            "BTW Ruler API test\n\n"
+            "Up to 4 numbered circles on the BTW graph (Original View, top-left panel).\n"
+            "• White circle + digit = active, unselected\n"
+            "• Yellow circle + digit = selected\n"
+            "• At most one ruler selected at a time\n\n"
+            "Use the buttons below, then click a circle on the BTW graph to change selection."),
+        tab);
+    intro->setWordWrap(true);
+    intro->setStyleSheet(
+        "QLabel { font-size: 13px; padding: 12px; background-color: #f5f5f5; "
+        "border: 1px solid #ccc; border-radius: 4px; }");
+    layout->addWidget(intro);
+
+    btwRulerApiStatusLabel = new QLabel(QStringLiteral("BTW Rulers: --"), tab);
+    btwRulerApiStatusLabel->setObjectName("btwRulerApiStatusLabel");
+    btwRulerApiStatusLabel->setWordWrap(true);
+    btwRulerApiStatusLabel->setMinimumHeight(48);
+    btwRulerApiStatusLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #00d0ff; border: 1px solid #444; "
+        "padding: 8px; font-weight: bold; }");
+    layout->addWidget(btwRulerApiStatusLabel);
+
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->setSpacing(12);
+
+    auto *testBtn = new QPushButton(QStringLiteral("Test BTW Rulers"), tab);
+    testBtn->setFixedHeight(40);
+    testBtn->setStyleSheet(
+        "QPushButton { background-color: #17a2b8; color: white; font-weight: bold; "
+        "padding: 8px 16px; }");
+    connect(testBtn, &QPushButton::clicked, this, &MainWindow::onTestBtwRulersButtonClicked);
+
+    auto *clearBtn = new QPushButton(QStringLiteral("Clear BTW Rulers"), tab);
+    clearBtn->setFixedHeight(40);
+    connect(clearBtn, &QPushButton::clicked, this, &MainWindow::onClearBtwRulersButtonClicked);
+
+    auto *selectBtn = new QPushButton(QStringLiteral("Select ruler 3"), tab);
+    selectBtn->setFixedHeight(40);
+    connect(selectBtn, &QPushButton::clicked, this, [this]() {
+        if (!graphgrid) {
+            if (btwRulerApiStatusLabel)
+                btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+            return;
+        }
+        graphgrid->setSelectedBtwRuler(2);
+        if (btwRulerApiStatusLabel)
+            btwRulerApiStatusLabel->setText(
+                QStringLiteral("Programmatic selection: ruler 3 (index 2) via setSelectedBtwRuler(2)."));
+    });
+
+    buttonRow->addWidget(testBtn);
+    buttonRow->addWidget(clearBtn);
+    buttonRow->addWidget(selectBtn);
+    buttonRow->addStretch();
+    layout->addLayout(buttonRow);
+
+    layout->addStretch();
+
+    connect(graphgrid, &GraphLayout::BtwRulerSelected,
+            this, [this](int index, const QDateTime &timestamp, qreal range) {
+                if (!btwRulerApiStatusLabel)
+                    return;
+                btwRulerApiStatusLabel->setText(
+                    QString("Ruler %1 selected | %2 | bearing %3")
+                        .arg(index + 1)
+                        .arg(timestamp.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
+                        .arg(range, 0, 'f', 1));
+                DEBUG_OUT() << "BTW Ruler selected (API tab):" << index << timestamp << range;
+            });
+
+    DEBUG_OUT() << "MainWindow: BTW Rulers API test tab created";
+}
+
+void MainWindow::onTestBtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        if (btwRulerApiStatusLabel)
+            btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    const QDateTime now = QDateTime::currentDateTime();
+
+    // Clear data symbols so numbered circles from testBTWSymbolsAPI are not confused with rulers
+    graphgrid->clearBTWSymbols(GraphType::BTW);
+    graphgrid->clearAllBtwRulers();
+    // Bearings must fall within BTW hard limits (5.0–75.0); off-screen rulers are not drawn
+    graphgrid->setBtwRulerActive(0, now.addSecs(-120), 12.0);
+    graphgrid->setBtwRulerActive(1, now.addSecs(-60), 30.0);
+    graphgrid->setBtwRulerActive(2, now.addSecs(-30), 50.0);
+    graphgrid->setBtwRulerActive(3, now.addSecs(-10), 68.0);
+    graphgrid->setSelectedBtwRuler(1);
+
+    if (btwRulerApiStatusLabel) {
+        btwRulerApiStatusLabel->setText(
+            QStringLiteral("Test: rulers 1–4 active at bearings 12/30/50/68, ruler 2 selected (yellow). "
+                             "Click a circle on the BTW graph to change selection."));
+    }
+    DEBUG_OUT() << "MainWindow: BTW ruler API test — activated 4 rulers, selected index 1";
+}
+
+void MainWindow::onClearBtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        if (btwRulerApiStatusLabel)
+            btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    graphgrid->clearAllBtwRulers();
+    if (btwRulerApiStatusLabel)
+        btwRulerApiStatusLabel->setText(QStringLiteral("All BTW rulers cleared."));
+    DEBUG_OUT() << "MainWindow: Cleared all BTW rulers via GraphLayout API";
+}
+
 void MainWindow::testBTWSymbolsAPI()
 {
     if (!graphgrid) {
@@ -2271,31 +2401,31 @@ void MainWindow::testBTWSymbolsAPI()
 
     const QDateTime now = QDateTime::currentDateTime();
 
-    // GraphLayout API — typed enum overload (all predefined symbol types)
-    const struct {
-        BTWSymbolDrawing::SymbolType type;
-        float bearing;
-        int offsetSecs;
-    } placements[] = {
-        { BTWSymbolDrawing::SymbolType::MagentaCircle, 12.0f, -180 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle1, 42.0f, -150 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle2, 44.0f, -120 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle3, 46.0f, -90 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle4, 48.0f, -60 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle1, 50.0f, -45 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle2, 52.0f, -30 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle3, 54.0f, -25 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle4, 56.0f, -22 },
-    };
+    // // GraphLayout API — typed enum overload (all predefined symbol types)
+    // const struct {
+    //     BTWSymbolDrawing::SymbolType type;
+    //     float bearing;
+    //     int offsetSecs;
+    // } placements[] = {
+    //     { BTWSymbolDrawing::SymbolType::MagentaCircle, 12.0f, -180 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle1, 42.0f, -150 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle2, 44.0f, -120 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle3, 46.0f, -90 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle4, 48.0f, -60 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle1, 50.0f, -45 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle2, 52.0f, -30 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle3, 54.0f, -25 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle4, 56.0f, -22 },
+    // };
 
-    for (const auto& p : placements) {
-        const QDateTime ts = now.addSecs(p.offsetSecs);
-        graphgrid->addBTWSymbol(GraphType::BTW, p.type, ts, p.bearing);
-        DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - GraphLayout typed:"
-                    << BTWSymbolDrawing::symbolTypeToName(p.type)
-                    << "@" << ts.toString("yyyy-MM-dd hh:mm:ss")
-                    << "bearing" << p.bearing;
-    }
+    // for (const auto& p : placements) {
+    //     const QDateTime ts = now.addSecs(p.offsetSecs);
+    //     graphgrid->addBTWSymbol(GraphType::BTW, p.type, ts, p.bearing);
+    //     DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - GraphLayout typed:"
+    //                 << BTWSymbolDrawing::symbolTypeToName(p.type)
+    //                 << "@" << ts.toString("yyyy-MM-dd hh:mm:ss")
+    //                 << "bearing" << p.bearing;
+    // }
 
     // GraphLayout API — string name overload
     graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("MagentaCircleSynced"),

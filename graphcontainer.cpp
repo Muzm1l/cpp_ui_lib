@@ -1036,6 +1036,9 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::ShadedRegionSyncRemoved);
         connect(btwGraph, &BTWGraph::shadedRegionsCleared,
                 this, &GraphContainer::ShadedRegionsSyncCleared);
+
+        connect(btwGraph, &BTWGraph::rulerSelected,
+                this, &GraphContainer::onBtwRulerSelected);
         
         DEBUG_OUT() << "GraphContainer: Connected BTW marker and shaded region sync signals";
     }
@@ -1850,6 +1853,13 @@ void GraphContainer::onRtwRulerSelected(int index, const QDateTime &timestamp, q
     DEBUG_OUT() << "GraphContainer: RTW ruler selected - index:" << index
              << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit RtwRulerSelected(index, timestamp, range);
+}
+
+void GraphContainer::onBtwRulerSelected(int index, const QDateTime &timestamp, qreal range)
+{
+    DEBUG_OUT() << "GraphContainer: BTW ruler selected - index:" << index
+             << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BtwRulerSelected(index, timestamp, range);
 }
 
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)

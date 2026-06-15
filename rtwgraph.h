@@ -4,22 +4,10 @@
 #include "waterfallgraph.h"
 #include "rtwsymboldrawing.h"
 #include "waterfalldata.h"  // For RTWSymbolData
+#include "rulerstate.h"
 #include <QDateTime>
 #include <vector>
 #include <array>
-
-/**
- * @brief State of a single RTW ruler indicator.
- *
- * A ruler is drawn on the RTW graph as a numbered circle: yellow when selected,
- * white when active but unselected. Inactive rulers are not drawn.
- */
-struct RulerState
-{
-    bool active = false;        ///< Whether the ruler is shown on the graph
-    QDateTime timestamp;        ///< Time-axis position of the ruler
-    qreal range = 0.0;          ///< Range-axis position of the ruler
-};
 
 /**
  * @brief RTW Graph component that inherits from waterfallgraph
