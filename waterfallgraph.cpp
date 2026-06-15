@@ -1188,6 +1188,7 @@ void WaterfallGraph::publishVisibleCacheToSharedStore(const QString & /*seriesLa
 void WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 {
     drawBTWSymbols();
+    drawHorizontalLines();
 }
 
 bool WaterfallGraph::shouldRenderSeriesAsLine(const QString &seriesLabel) const
@@ -1225,6 +1226,7 @@ void WaterfallGraph::redrawDataLayerForVisibleTimeRange()
 
 void WaterfallGraph::augmentOverlayPassAfterSymbols()
 {
+    drawHorizontalLines();
 }
 
 void WaterfallGraph::drawIncremental()
@@ -6269,5 +6271,253 @@ void WaterfallGraph::reserveAllRenderingCachesCapacity(size_t scatterCapacity, s
     }
     
     reserveAllCachedVisibleDataCapacity(cachedDataCapacity);
+}
+
+// ========== Synced horizontal time lines ==========
+
+void WaterfallGraph::invalidateHorizontalLineGraphicsItems()
+{
+    for (auto &line : m_horizontalLines) {
+        if (line.lineItem) {
+            if (overlayScene && overlayScene->items().contains(line.lineItem)) {
+                overlayScene->removeItem(line.lineItem);
+            }
+            delete line.lineItem;
+            line.lineItem = nullptr;
+        }
+    }
+}
+
+QUuid WaterfallGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width,
+                                        const QUuid &syncId)
+{
+    HorizontalLineItem lineItem(timestamp, color, width, syncId);
+    m_horizontalLines.append(lineItem);
+    m_syncIdToLineId[lineItem.syncId] = lineItem.id;
+    return lineItem.id;
+}
+
+QDateTime WaterfallGraph::getHorizontalLineTimestamp(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines) {
+        if (line.id == lineId) {
+            return line.timestamp;
+        }
+    }
+    return QDateTime();
+}
+
+QDateTime WaterfallGraph::getFirstHorizontalLineTimestamp() const
+{
+    if (m_horizontalLines.isEmpty())
+        return QDateTime();
+    return m_horizontalLines.first().timestamp;
+}
+
+QDateTime WaterfallGraph::getLatestHorizontalLineTimestamp() const
+{
+    if (m_horizontalLines.isEmpty())
+        return QDateTime();
+    return m_horizontalLines.last().timestamp;
+}
+
+bool WaterfallGraph::removeHorizontalLine(const QUuid &lineId)
+{
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].id == lineId) {
+            const QUuid syncId = m_horizontalLines[i].syncId;
+            if (m_horizontalLines[i].lineItem) {
+                if (overlayScene) {
+                    overlayScene->removeItem(m_horizontalLines[i].lineItem);
+                }
+                delete m_horizontalLines[i].lineItem;
+            }
+            m_syncIdToLineId.remove(syncId);
+            m_horizontalLines.removeAt(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+int WaterfallGraph::removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs)
+{
+    int removedCount = 0;
+    const qint64 toleranceMicroseconds = static_cast<qint64>(toleranceMs * 1000.0);
+
+    for (int i = m_horizontalLines.size() - 1; i >= 0; --i) {
+        const qint64 timeDiff = qAbs(m_horizontalLines[i].timestamp.msecsTo(timestamp));
+        if (timeDiff <= toleranceMicroseconds) {
+            const QUuid syncId = m_horizontalLines[i].syncId;
+            if (m_horizontalLines[i].lineItem) {
+                if (overlayScene) {
+                    overlayScene->removeItem(m_horizontalLines[i].lineItem);
+                }
+                delete m_horizontalLines[i].lineItem;
+            }
+            m_syncIdToLineId.remove(syncId);
+            m_horizontalLines.removeAt(i);
+            ++removedCount;
+        }
+    }
+    return removedCount;
+}
+
+void WaterfallGraph::clearHorizontalLines()
+{
+    invalidateHorizontalLineGraphicsItems();
+    m_horizontalLines.clear();
+    m_syncIdToLineId.clear();
+}
+
+bool WaterfallGraph::hasHorizontalLineWithSyncId(const QUuid &syncId) const
+{
+    return m_syncIdToLineId.contains(syncId);
+}
+
+void WaterfallGraph::createHorizontalLineFromSyncData(const HorizontalLineSyncData &lineData)
+{
+    if (lineData.isDeleted || !lineData.timestamp.isValid() || lineData.syncId.isNull())
+        return;
+    if (hasHorizontalLineWithSyncId(lineData.syncId))
+        return;
+
+    m_applyingHorizontalLineSync = true;
+    addHorizontalLine(lineData.timestamp, lineData.color, lineData.width, lineData.syncId);
+    m_applyingHorizontalLineSync = false;
+    drawHorizontalLines();
+}
+
+void WaterfallGraph::updateHorizontalLineFromSyncData(const HorizontalLineSyncData &lineData)
+{
+    if (lineData.isDeleted || lineData.syncId.isNull())
+        return;
+
+    const auto it = m_syncIdToLineId.constFind(lineData.syncId);
+    if (it == m_syncIdToLineId.constEnd())
+        return;
+
+    m_applyingHorizontalLineSync = true;
+    for (auto &line : m_horizontalLines) {
+        if (line.id == it.value()) {
+            line.timestamp = lineData.timestamp;
+            line.color = lineData.color;
+            line.width = lineData.width;
+            if (line.lineItem) {
+                const qreal screenY = mapTimeToY(line.timestamp);
+                if (screenY >= drawingArea.top() && screenY <= drawingArea.bottom()) {
+                    line.lineItem->setLine(drawingArea.left(), screenY, drawingArea.right(), screenY);
+                    line.lineItem->setPen(QPen(line.color, line.width));
+                }
+            }
+            break;
+        }
+    }
+    m_applyingHorizontalLineSync = false;
+}
+
+bool WaterfallGraph::deleteHorizontalLineBySyncId(const QUuid &syncId)
+{
+    const auto it = m_syncIdToLineId.constFind(syncId);
+    if (it == m_syncIdToLineId.constEnd())
+        return false;
+
+    m_applyingHorizontalLineSync = true;
+    const bool removed = removeHorizontalLine(it.value());
+    m_applyingHorizontalLineSync = false;
+    return removed;
+}
+
+QUuid WaterfallGraph::getHorizontalLineSyncId(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines) {
+        if (line.id == lineId) {
+            return line.syncId;
+        }
+    }
+    return QUuid();
+}
+
+HorizontalLineSyncData WaterfallGraph::horizontalLineSyncDataForId(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines) {
+        if (line.id == lineId) {
+            HorizontalLineSyncData data(line.timestamp, line.color, line.width);
+            data.syncId = line.syncId;
+            return data;
+        }
+    }
+    return HorizontalLineSyncData();
+}
+
+int WaterfallGraph::hitTestHorizontalLine(qreal sceneY) const
+{
+    const qreal hitThreshold = 5.0;
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].lineItem) {
+            const qreal lineY = m_horizontalLines[i].lineItem->line().y1();
+            if (qAbs(sceneY - lineY) <= hitThreshold) {
+                return i;
+            }
+        }
+    }
+    return -1;
+}
+
+void WaterfallGraph::moveHorizontalLineTo(const QUuid &lineId, qreal sceneY)
+{
+    if (drawingArea.isEmpty())
+        return;
+
+    const qreal clampedY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), sceneY));
+    const QDateTime newTimestamp = mapScreenToTime(clampedY);
+
+    for (auto &line : m_horizontalLines) {
+        if (line.id == lineId) {
+            if (newTimestamp.isValid()) {
+                line.timestamp = newTimestamp;
+            }
+            if (line.lineItem) {
+                line.lineItem->setLine(drawingArea.left(), clampedY, drawingArea.right(), clampedY);
+                if (overlayScene && !overlayScene->items().contains(line.lineItem)) {
+                    overlayScene->addItem(line.lineItem);
+                }
+            }
+            break;
+        }
+    }
+}
+
+void WaterfallGraph::drawHorizontalLines()
+{
+    if (!overlayScene || !dataRangesValid || drawingArea.isEmpty()) {
+        return;
+    }
+
+    for (auto &line : m_horizontalLines) {
+        const qreal screenY = mapTimeToY(line.timestamp);
+
+        if (screenY < 0 || screenY < drawingArea.top() || screenY > drawingArea.bottom()) {
+            if (line.lineItem && overlayScene && overlayScene->items().contains(line.lineItem)) {
+                overlayScene->removeItem(line.lineItem);
+            }
+            continue;
+        }
+
+        const qreal clampedY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), screenY));
+
+        if (line.lineItem) {
+            line.lineItem->setLine(drawingArea.left(), clampedY, drawingArea.right(), clampedY);
+            line.lineItem->setPen(QPen(line.color, line.width));
+            if (!overlayScene->items().contains(line.lineItem)) {
+                overlayScene->addItem(line.lineItem);
+            }
+        } else {
+            line.lineItem = new QGraphicsLineItem(drawingArea.left(), clampedY, drawingArea.right(), clampedY);
+            line.lineItem->setPen(QPen(line.color, line.width));
+            line.lineItem->setZValue(1000);
+            overlayScene->addItem(line.lineItem);
+        }
+    }
 }
 

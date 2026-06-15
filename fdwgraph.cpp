@@ -153,6 +153,7 @@ void FDWGraph::draw()
     if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
     {
         drawBTWSymbols();
+        augmentOverlayPassAfterSymbols();
     }
     
     // Reset render state to clean after drawing
@@ -242,6 +243,6 @@ void FDWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 
 void FDWGraph::augmentOverlayPassAfterSymbols()
 {
-    // Hit by INCREMENTAL_UPDATE / FULL_REDRAW branches after BTW symbols.
     drawZeroAxis();
+    WaterfallGraph::augmentOverlayPassAfterSymbols();
 }

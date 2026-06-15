@@ -292,11 +292,15 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
         
-        // Connect BTW horizontal line signals
-        connect(container, &GraphContainer::BTWHorizontalLinePlaced,
-                this, &GraphLayout::onBTWHorizontalLinePlaced, Qt::UniqueConnection);
-        connect(container, &GraphContainer::BTWHorizontalLineRemoved,
-                this, &GraphLayout::onBTWHorizontalLineRemoved, Qt::UniqueConnection);
+        // Connect BTW horizontal line sync signals
+        connect(container, &GraphContainer::HorizontalLineSyncAdded,
+                this, &GraphLayout::onHorizontalLineSyncAdded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncUpdated,
+                this, &GraphLayout::onHorizontalLineSyncUpdated, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncRemoved,
+                this, &GraphLayout::onHorizontalLineSyncRemoved, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLinesSyncCleared,
+                this, &GraphLayout::onHorizontalLinesSyncCleared, Qt::UniqueConnection);
         
         connect(container, &GraphContainer::markerTimestampValueChanged,
                 this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
@@ -458,11 +462,15 @@ void GraphLayout::initializeContainers()
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
         
-        // Connect BTW horizontal line signals
-        connect(container, &GraphContainer::BTWHorizontalLinePlaced,
-                this, &GraphLayout::onBTWHorizontalLinePlaced, Qt::UniqueConnection);
-        connect(container, &GraphContainer::BTWHorizontalLineRemoved,
-                this, &GraphLayout::onBTWHorizontalLineRemoved, Qt::UniqueConnection);
+        // Connect BTW horizontal line sync signals
+        connect(container, &GraphContainer::HorizontalLineSyncAdded,
+                this, &GraphLayout::onHorizontalLineSyncAdded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncUpdated,
+                this, &GraphLayout::onHorizontalLineSyncUpdated, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncRemoved,
+                this, &GraphLayout::onHorizontalLineSyncRemoved, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLinesSyncCleared,
+                this, &GraphLayout::onHorizontalLinesSyncCleared, Qt::UniqueConnection);
         
         connect(container, &GraphContainer::markerTimestampValueChanged,
                 this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
@@ -1770,77 +1778,56 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
     addBTWSymbolToAllGraphs(timestamp, 0.0); // Range parameter is ignored, we find it from data points
 }
 
-void GraphLayout::onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp)
+void GraphLayout::onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData)
 {
-    // Get the source container that emitted the signal
-    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
-    
-    DEBUG_OUT() << "GraphLayout: BTW horizontal line placed:" << lineId.toString() << "at" << timestamp.toString();
-    
-    // Propagate to all other containers (skip the source to avoid infinite loop)
-    for (auto *container : m_graphContainers)
-    {
-        if (!container) continue;
-        
-        // Skip the source container to avoid infinite loop
-        if (container == sourceContainer) continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                // Add the horizontal line to this BTW graph
-                // Use the same timestamp, color, and width as the source
-                // Note: We need to get the color and width from the source line
-                // For now, use default values (white, 2.0) - we could enhance this later
-                btwGraph->addHorizontalLine(timestamp, Qt::white, 2.0);
-                DEBUG_OUT() << "GraphLayout: Added horizontal line to container at" << timestamp.toString();
-            }
-        }
+    m_syncState.addOrUpdateHorizontalLine(lineData);
+
+    for (auto *container : m_graphContainers) {
+        if (!container)
+            continue;
+        container->onHorizontalLineSyncAdded(lineData);
     }
+
+    redrawAllGraphs();
 }
 
-void GraphLayout::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp)
+void GraphLayout::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData)
 {
-    // Get the source container that emitted the signal
-    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
-    
-    DEBUG_OUT() << "GraphLayout: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString();
-    
-    if (!timestamp.isValid())
-    {
-        DEBUG_OUT() << "GraphLayout: Invalid timestamp for line removal, skipping sync";
-        return;
+    m_syncState.addOrUpdateHorizontalLine(lineData);
+
+    for (auto *container : m_graphContainers) {
+        if (!container)
+            continue;
+        container->onHorizontalLineSyncUpdated(lineData);
     }
-    
-    // Remove lines with matching timestamp from all other containers
-    for (auto *container : m_graphContainers)
-    {
-        if (!container) continue;
-        
-        // Skip the source container to avoid infinite loop
-        if (container == sourceContainer) continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                // Remove lines with matching timestamp (1ms tolerance)
-                const qreal timeTolerance = 0.001; // 1ms tolerance
-                int removed = btwGraph->removeHorizontalLineByTimestamp(timestamp, timeTolerance);
-                if (removed > 0)
-                {
-                    DEBUG_OUT() << "GraphLayout: Removed" << removed << "horizontal line(s) from container at" << timestamp.toString();
-                }
-            }
-        }
+
+    redrawAllGraphs();
+}
+
+void GraphLayout::onHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    m_syncState.removeHorizontalLine(syncId);
+
+    for (auto *container : m_graphContainers) {
+        if (!container)
+            continue;
+        container->onHorizontalLineSyncRemoved(syncId);
     }
+
+    redrawAllGraphs();
+}
+
+void GraphLayout::onHorizontalLinesSyncCleared()
+{
+    m_syncState.clearHorizontalLines();
+
+    for (auto *container : m_graphContainers) {
+        if (!container)
+            continue;
+        container->onHorizontalLinesSyncCleared();
+    }
+
+    redrawAllGraphs();
 }
 
 void GraphLayout::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
@@ -2793,69 +2780,46 @@ QUuid GraphLayout::addBTWHorizontalLine(const GraphType &graphType, const QDateT
         qWarning() << "GraphLayout: addBTWHorizontalLine called for non-BTW graph type";
         return QUuid();
     }
-    
-    DEBUG_OUT() << "GraphLayout: Adding BTW horizontal line at time" << timestamp.toString();
-    
-    QUuid lineId;
-    bool lineAdded = false;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                lineId = btwGraph->addHorizontalLine(timestamp, color, width);
-                lineAdded = true;
-            }
-        }
+
+    DEBUG_OUT() << "GraphLayout: Adding synced horizontal line at time" << timestamp.toString();
+
+    HorizontalLineSyncData data(timestamp, color, width);
+    m_syncState.addOrUpdateHorizontalLine(data);
+
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncAdded(data);
     }
-    
-    if (lineAdded) {
-        // Redraw all graphs to show the line
-        redrawAllGraphs();
-    }
-    
-    return lineId;
+
+    redrawAllGraphs();
+    return data.syncId;
 }
 
 QDateTime GraphLayout::getBTWHorizontalLineTimestamp(const GraphType &graphType, const QUuid &lineId) const
 {
-    if (graphType != GraphType::BTW) {
-        qWarning() << "GraphLayout: getBTWHorizontalLineTimestamp called for non-BTW graph type";
-        return QDateTime();
-    }
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
+    Q_UNUSED(graphType);
+
+    for (auto *container : m_graphContainers) {
         if (!container)
             continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                QDateTime timestamp = btwGraph->getHorizontalLineTimestamp(lineId);
-                if (timestamp.isValid())
-                {
-                    return timestamp;
+        for (const GraphType gt : {GraphType::BTW, GraphType::BDW, GraphType::RTW, GraphType::FTW,
+                                   GraphType::FDW, GraphType::BRW, GraphType::LTW}) {
+            WaterfallGraph *graph = container->getWaterfallGraph(gt);
+            if (!graph)
+                continue;
+            QDateTime ts = graph->getHorizontalLineTimestamp(lineId);
+            if (ts.isValid())
+                return ts;
+            if (graph->hasHorizontalLineWithSyncId(lineId)) {
+                for (const auto &syncLine : m_syncState.getActiveHorizontalLines()) {
+                    if (syncLine.syncId == lineId)
+                        return syncLine.timestamp;
                 }
             }
         }
     }
-    
-    return QDateTime(); // Return invalid QDateTime if not found
+
+    return QDateTime();
 }
 
 bool GraphLayout::removeBTWHorizontalLine(const GraphType &graphType, const QUuid &lineId)
@@ -2864,37 +2828,10 @@ bool GraphLayout::removeBTWHorizontalLine(const GraphType &graphType, const QUui
         qWarning() << "GraphLayout: removeBTWHorizontalLine called for non-BTW graph type";
         return false;
     }
-    
-    DEBUG_OUT() << "GraphLayout: Removing BTW horizontal line ID" << lineId.toString();
-    
-    bool lineRemoved = false;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                if (btwGraph->removeHorizontalLine(lineId)) {
-                    lineRemoved = true;
-                }
-            }
-        }
-    }
-    
-    if (lineRemoved) {
-        // Redraw all graphs
-        redrawAllGraphs();
-    }
-    
-    return lineRemoved;
+
+    DEBUG_OUT() << "GraphLayout: Removing synced horizontal line ID" << lineId.toString();
+    onHorizontalLineSyncRemoved(lineId);
+    return true;
 }
 
 void GraphLayout::clearBTWHorizontalLines(const GraphType &graphType)
@@ -2903,34 +2840,9 @@ void GraphLayout::clearBTWHorizontalLines(const GraphType &graphType)
         qWarning() << "GraphLayout: clearBTWHorizontalLines called for non-BTW graph type";
         return;
     }
-    
-    DEBUG_OUT() << "GraphLayout: Clearing all BTW horizontal lines";
-    
-    int linesCleared = 0;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                btwGraph->clearHorizontalLines();
-                linesCleared++;
-            }
-        }
-    }
-    
-    // Redraw all graphs
-    redrawAllGraphs();
-    
-    DEBUG_OUT() << "GraphLayout: Cleared BTW horizontal lines from" << linesCleared << "graph(s)";
+
+    DEBUG_OUT() << "GraphLayout: Clearing all synced horizontal lines";
+    onHorizontalLinesSyncCleared();
 }
 
 // ========== Shaded Region API Implementation ==========

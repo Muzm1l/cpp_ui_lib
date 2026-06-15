@@ -88,20 +88,7 @@ void BTWGraph::draw()
         }
         
         // Clear horizontal line items from scene before clearing
-        // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
-        // Note: graphicsScene->clear() will delete all items, so we need to null out pointers
-        // and recreate them in drawHorizontalLines()
-        for (auto &line : m_horizontalLines) {
-            if (line.lineItem) {
-                // Remove from overlayScene before clear() deletes it
-                if (overlayScene && overlayScene->items().contains(line.lineItem)) {
-                    overlayScene->removeItem(line.lineItem);
-                }
-                // Delete the item since clear() will delete it anyway
-                delete line.lineItem;
-                line.lineItem = nullptr;  // Will be recreated in drawHorizontalLines()
-            }
-        }
+        invalidateHorizontalLineGraphicsItems();
         
         // Clear all item pointers since clear() will delete them
         // This prevents use-after-free in cleanup functions
@@ -188,10 +175,8 @@ void BTWGraph::draw()
         // Draw shaded regions
         drawShadedRegions();
         
-        // Draw horizontal lines
-        drawHorizontalLines();
-
-        // Draw ruler indicators (numbered circles)
+        // Draw horizontal lines + ruler indicators
+        WaterfallGraph::augmentOverlayPassAfterSymbols();
         drawRulers();
 
         if (m_interactiveOverlay)
@@ -218,7 +203,7 @@ void BTWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 void BTWGraph::augmentOverlayPassAfterSymbols()
 {
     drawCustomCircleMarkers();
-    drawHorizontalLines();
+    WaterfallGraph::augmentOverlayPassAfterSymbols();
     drawShadedRegions();
     drawRulers();
     if (m_interactiveOverlay)
@@ -357,10 +342,10 @@ void BTWGraph::onMouseClick(const QPointF &scenePos)
         }
         
         // Add horizontal line at this timestamp
-        QUuid lineId = addHorizontalLine(timestamp);
+        const QUuid lineId = addHorizontalLine(timestamp);
         
-        // Emit signal for horizontal line placement
         emit horizontalLinePlaced(lineId, timestamp);
+        emitHorizontalLineSyncAdded(lineId);
         
         // Force full redraw to show the new line
         forceFullRedraw();
@@ -428,6 +413,7 @@ void BTWGraph::onMouseDrag(const QPointF &scenePos)
         }
         if (m_lineDragMoved) {
             moveHorizontalLineTo(m_draggingLineId, scenePos.y());
+            emitHorizontalLineSyncUpdated(m_draggingLineId);
         }
         return;
     }
@@ -455,16 +441,18 @@ void BTWGraph::mouseReleaseEvent(QMouseEvent *event)
         m_draggingLineId = QUuid();
 
         if (moved) {
-            // The line was dragged to a new position: report its new timestamp.
-            QDateTime newTimestamp = getHorizontalLineTimestamp(lineId);
+            const QDateTime newTimestamp = getHorizontalLineTimestamp(lineId);
             DEBUG_OUT() << "BTWGraph: Moved horizontal line ID:" << lineId.toString()
                         << "to" << newTimestamp.toString();
             emit horizontalLineMoved(lineId, newTimestamp);
+            emitHorizontalLineSyncUpdated(lineId);
         } else if (m_horizontalLineMode != HorizontalLineMode::Normal) {
-            // No movement and in a line-editing mode: treat as a click-to-delete.
-            QDateTime timestamp = getHorizontalLineTimestamp(lineId);
+            const QDateTime timestamp = getHorizontalLineTimestamp(lineId);
+            const QUuid syncId = getHorizontalLineSyncId(lineId);
             removeHorizontalLine(lineId);
             emit horizontalLineRemoved(lineId, timestamp);
+            if (!syncId.isNull())
+                emit horizontalLineSyncRemoved(syncId);
             DEBUG_OUT() << "BTWGraph: Deleted horizontal line by click, ID:" << lineId.toString()
                         << "at" << timestamp.toString();
             draw();
@@ -1463,201 +1451,34 @@ bool BTWGraph::isHorizontalLineMode() const
 
 QUuid BTWGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width)
 {
-    HorizontalLineItem lineItem(timestamp, color, width);
-    m_horizontalLines.append(lineItem);
-    
-    DEBUG_OUT() << "BTWGraph: Added horizontal line at time:" << timestamp.toString() << "ID:" << lineItem.id.toString();
-    
-    // New line doesn't have a cached item yet - will be created in next draw()
-    // No need to invalidate existing cached items
-    
-    return lineItem.id;
+    const QUuid lineId = WaterfallGraph::addHorizontalLine(timestamp, color, width);
+    drawHorizontalLines();
+    return lineId;
 }
 
-QDateTime BTWGraph::getHorizontalLineTimestamp(const QUuid &lineId) const
+void BTWGraph::emitHorizontalLineSyncAdded(const QUuid &lineId)
 {
-    for (const auto &line : m_horizontalLines)
-    {
-        if (line.id == lineId)
-        {
-            return line.timestamp;
-        }
-    }
-    
-    return QDateTime(); // Return invalid QDateTime if not found
-}
-
-QDateTime BTWGraph::getFirstHorizontalLineTimestamp() const
-{
-    if (m_horizontalLines.isEmpty())
-        return QDateTime();
-    return m_horizontalLines.first().timestamp;
-}
-
-QDateTime BTWGraph::getLatestHorizontalLineTimestamp() const
-{
-    if (m_horizontalLines.isEmpty())
-        return QDateTime();
-    return m_horizontalLines.last().timestamp;
-}
-
-bool BTWGraph::removeHorizontalLine(const QUuid &lineId)
-{
-    for (int i = 0; i < m_horizontalLines.size(); ++i) {
-        if (m_horizontalLines[i].id == lineId) {
-            // Remove graphics item if it exists
-            if (m_horizontalLines[i].lineItem) {
-                if (graphicsScene) {
-                    graphicsScene->removeItem(m_horizontalLines[i].lineItem);
-                }
-                delete m_horizontalLines[i].lineItem;
-            }
-            
-            m_horizontalLines.removeAt(i);
-            DEBUG_OUT() << "BTWGraph: Removed horizontal line ID:" << lineId.toString();
-            return true;
-        }
-    }
-    
-    return false;
-}
-
-int BTWGraph::removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs)
-{
-    int removedCount = 0;
-    qint64 toleranceMicroseconds = static_cast<qint64>(toleranceMs * 1000.0);
-    
-    // Iterate backwards to safely remove items
-    for (int i = m_horizontalLines.size() - 1; i >= 0; --i) {
-        qint64 timeDiff = qAbs(m_horizontalLines[i].timestamp.msecsTo(timestamp));
-        if (timeDiff <= toleranceMicroseconds) {
-            QUuid lineId = m_horizontalLines[i].id;
-            
-            // Remove graphics item if it exists
-            if (m_horizontalLines[i].lineItem) {
-                if (graphicsScene) {
-                    graphicsScene->removeItem(m_horizontalLines[i].lineItem);
-                }
-                delete m_horizontalLines[i].lineItem;
-            }
-            
-            m_horizontalLines.removeAt(i);
-            removedCount++;
-            DEBUG_OUT() << "BTWGraph: Removed horizontal line by timestamp:" << timestamp.toString() << "ID:" << lineId.toString();
-        }
-    }
-    
-    return removedCount;
-}
-
-void BTWGraph::clearHorizontalLines()
-{
-    // Remove all graphics items
-    // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
-    for (auto &line : m_horizontalLines) {
-        if (line.lineItem) {
-            if (overlayScene) {
-                overlayScene->removeItem(line.lineItem);
-            }
-            delete line.lineItem;
-            line.lineItem = nullptr;
-        }
-    }
-    
-    m_horizontalLines.clear();
-    DEBUG_OUT() << "BTWGraph: Cleared all horizontal lines";
-}
-
-int BTWGraph::hitTestHorizontalLine(qreal sceneY) const
-{
-    const qreal hitThreshold = 5.0; // pixels - press within 5px of a line grabs it
-    for (int i = 0; i < m_horizontalLines.size(); ++i) {
-        if (m_horizontalLines[i].lineItem) {
-            // Use the cached graphics item's Y for accurate, zoom-independent hit testing.
-            qreal lineY = m_horizontalLines[i].lineItem->line().y1();
-            if (qAbs(sceneY - lineY) <= hitThreshold) {
-                return i;
-            }
-        }
-    }
-    return -1;
-}
-
-void BTWGraph::moveHorizontalLineTo(const QUuid &lineId, qreal sceneY)
-{
-    if (drawingArea.isEmpty()) {
+    if (m_applyingHorizontalLineSync)
         return;
-    }
-
-    // Clamp to the drawing area so the line cannot leave the visible plot.
-    qreal clampedY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), sceneY));
-    QDateTime newTimestamp = mapScreenToTime(clampedY);
-
-    for (int i = 0; i < m_horizontalLines.size(); ++i) {
-        if (m_horizontalLines[i].id == lineId) {
-            if (newTimestamp.isValid()) {
-                m_horizontalLines[i].timestamp = newTimestamp;
-            }
-            if (m_horizontalLines[i].lineItem) {
-                m_horizontalLines[i].lineItem->setLine(drawingArea.left(), clampedY,
-                                                       drawingArea.right(), clampedY);
-                // Make sure the item is still part of the overlay scene.
-                if (overlayScene && !overlayScene->items().contains(m_horizontalLines[i].lineItem)) {
-                    overlayScene->addItem(m_horizontalLines[i].lineItem);
-                }
-            }
-            break;
-        }
-    }
+    const HorizontalLineSyncData data = horizontalLineSyncDataForId(lineId);
+    if (!data.syncId.isNull())
+        emit horizontalLineSyncAdded(data);
 }
 
-void BTWGraph::drawHorizontalLines()
+void BTWGraph::emitHorizontalLineSyncUpdated(const QUuid &lineId)
 {
-    // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
-    if (!overlayScene || !dataRangesValid || drawingArea.isEmpty()) {
+    if (m_applyingHorizontalLineSync)
         return;
-    }
-    
-    // Update or create cached line items
-    for (auto &line : m_horizontalLines) {
-        // Calculate screen Y position from timestamp (horizontal line = constant time)
-        qreal screenY = mapTimeToY(line.timestamp);
-        
-        // Skip if timestamp is outside visible range
-        if (screenY < 0 || screenY < drawingArea.top() || screenY > drawingArea.bottom()) {
-            // Line is outside visible range, but keep the cached item
-            // Just hide it or remove it from scene
-            // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
-            if (line.lineItem && overlayScene && overlayScene->items().contains(line.lineItem)) {
-                overlayScene->removeItem(line.lineItem);
-            }
-            continue;
-        }
-        
-        // Clamp to drawing area
-        screenY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), screenY));
-        
-        if (line.lineItem) {
-            // Update existing cached line - just update position
-            line.lineItem->setLine(drawingArea.left(), screenY, drawingArea.right(), screenY);
-            
-            // Re-add to overlayScene if it was removed
-            // OPTIMIZATION: Horizontal lines are now in overlayScene (interactive overlays)
-            if (overlayScene && !overlayScene->items().contains(line.lineItem)) {
-                overlayScene->addItem(line.lineItem);
-            }
-        } else {
-            // Create new cached line item (horizontal line spanning full width)
-            line.lineItem = new QGraphicsLineItem(drawingArea.left(), screenY, drawingArea.right(), screenY);
-            line.lineItem->setPen(QPen(line.color, line.width));
-            line.lineItem->setZValue(1000);  // Above data, below markers
-            
-            // OPTIMIZATION: Add to overlayScene (interactive overlay) instead of graphicsScene (data rendering)
-            if (overlayScene) {
-                overlayScene->addItem(line.lineItem);
-            }
-        }
-    }
+    const HorizontalLineSyncData data = horizontalLineSyncDataForId(lineId);
+    if (!data.syncId.isNull())
+        emit horizontalLineSyncUpdated(data);
+}
+
+void BTWGraph::emitHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    if (m_applyingHorizontalLineSync || syncId.isNull())
+        return;
+    emit horizontalLineSyncRemoved(syncId);
 }
 
 /* ----------------- Ruler indicators ----------------- */

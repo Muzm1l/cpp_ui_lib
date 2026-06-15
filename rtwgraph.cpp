@@ -172,7 +172,7 @@ void RTWGraph::draw()
         // Draw BTW symbols (magenta circles from BTW graph markers) (will remove old ones if not full clear)
         drawBTWSymbols();
 
-        // Draw ruler indicators (numbered circles) above symbols
+        WaterfallGraph::augmentOverlayPassAfterSymbols();
         drawRulers();
     }
     
@@ -192,6 +192,7 @@ void RTWGraph::augmentOverlayPassAfterSymbols()
 {
     drawCustomRMarkers();
     drawRTWSymbols();
+    WaterfallGraph::augmentOverlayPassAfterSymbols();
     drawRulers();
 }
 

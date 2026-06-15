@@ -453,9 +453,11 @@ public slots:
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     
-    // BTW Horizontal line sync slots - propagate lines to all containers
-    void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    // BTW Horizontal line sync slots - propagate lines to all graphs/containers
+    void onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncRemoved(const QUuid &syncId);
+    void onHorizontalLinesSyncCleared();
     
     // BTW Marker sync slots - propagate markers to all containers
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);

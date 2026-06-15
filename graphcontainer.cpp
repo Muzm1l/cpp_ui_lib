@@ -1018,6 +1018,14 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::onBTWHorizontalLinePlaced);
         connect(btwGraph, &BTWGraph::horizontalLineRemoved,
                 this, &GraphContainer::onBTWHorizontalLineRemoved);
+        connect(btwGraph, &BTWGraph::horizontalLineSyncAdded,
+                this, &GraphContainer::HorizontalLineSyncAdded);
+        connect(btwGraph, &BTWGraph::horizontalLineSyncUpdated,
+                this, &GraphContainer::HorizontalLineSyncUpdated);
+        connect(btwGraph, &BTWGraph::horizontalLineSyncRemoved,
+                this, &GraphContainer::HorizontalLineSyncRemoved);
+        connect(btwGraph, &BTWGraph::horizontalLinesSyncCleared,
+                this, &GraphContainer::HorizontalLinesSyncCleared);
         
         // Connect comprehensive marker click signal (forwards timestamp, range, and bearing rate)
         connect(btwGraph, &BTWGraph::markerClickedWithData,
@@ -1884,6 +1892,43 @@ void GraphContainer::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDate
 {
     DEBUG_OUT() << "GraphContainer: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWHorizontalLineRemoved(lineId, timestamp);
+}
+
+void GraphContainer::onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (!pair.second)
+            continue;
+        if (pair.second->hasHorizontalLineWithSyncId(lineData.syncId)) {
+            pair.second->updateHorizontalLineFromSyncData(lineData);
+        } else {
+            pair.second->createHorizontalLineFromSyncData(lineData);
+        }
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->updateHorizontalLineFromSyncData(lineData);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->deleteHorizontalLineBySyncId(syncId);
+    }
+}
+
+void GraphContainer::onHorizontalLinesSyncCleared()
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->clearHorizontalLines();
+    }
 }
 
 void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)
