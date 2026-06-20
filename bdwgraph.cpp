@@ -139,6 +139,7 @@ void BDWGraph::draw()
     if (needsFullClear || m_renderState == RenderState::RANGE_UPDATE_ONLY || m_renderState == RenderState::INCREMENTAL_UPDATE)
     {
         drawBTWSymbols();
+        augmentOverlayPassAfterSymbols();
     }
     
     // Reset render state to clean after drawing
@@ -232,10 +233,8 @@ void BDWGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 
 void BDWGraph::augmentOverlayPassAfterSymbols()
 {
-    // Called by drawIncremental() after drawBTWSymbols() in both
-    // INCREMENTAL_UPDATE and FULL_REDRAW branches, so the middle line stays
-    // correct whenever fresh data arrives or the scene is fully rebuilt.
     drawZeroAxis();
+    WaterfallGraph::augmentOverlayPassAfterSymbols();
 }
 
 // drawDataLine() override removed - now uses base class which draws solid lines for ADOPTED

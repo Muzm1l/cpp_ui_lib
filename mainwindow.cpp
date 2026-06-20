@@ -21,7 +21,7 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this)),
-      m_currentBTWLineMode(BTWGraph::HorizontalLineMode::Normal)
+      m_currentHorizontalLineMode(HorizontalLineMode::Normal)
 {
     ui->setupUi(this);
     
@@ -561,6 +561,9 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Dedicated tab for BTW ruler (numbered circle) API testing
     setupBtwRulersApiTestTab();
+
+    // Dedicated tab for drawing horizontal lines from the BRW graph
+    setupBrwHorizontalLineApiTestTab();
 
     // Place BTW symbols on the live graph once data/time window is ready
     QTimer::singleShot(5000, this, &MainWindow::testBTWSymbolsAPI);
@@ -1194,24 +1197,23 @@ void MainWindow::onShowHistorySelectionsButtonClicked()
 void MainWindow::onBTWLineModeButtonClicked()
 {
     // Cycle through the 3 modes: Normal -> DrawLine -> DeleteLine -> Normal
-    switch (m_currentBTWLineMode)
+    switch (m_currentHorizontalLineMode)
     {
-        case BTWGraph::HorizontalLineMode::Normal:
-            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::DrawLine;
+        case HorizontalLineMode::Normal:
+            m_currentHorizontalLineMode = HorizontalLineMode::DrawLine;
             break;
-        case BTWGraph::HorizontalLineMode::DrawLine:
-            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::DeleteLine;
+        case HorizontalLineMode::DrawLine:
+            m_currentHorizontalLineMode = HorizontalLineMode::DeleteLine;
             break;
-        case BTWGraph::HorizontalLineMode::DeleteLine:
-            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::Normal;
+        case HorizontalLineMode::DeleteLine:
+            m_currentHorizontalLineMode = HorizontalLineMode::Normal;
             break;
     }
     
-    // Apply the mode to GraphLayout
     if (graphgrid)
     {
-        graphgrid->setBTWHorizontalLineMode(GraphType::BTW, m_currentBTWLineMode);
-        DEBUG_OUT() << "MainWindow: BTW line mode changed to" << static_cast<int>(m_currentBTWLineMode);
+        graphgrid->setHorizontalLineMode(m_currentHorizontalLineMode);
+        DEBUG_OUT() << "MainWindow: Horizontal line mode changed to" << static_cast<int>(m_currentHorizontalLineMode);
     }
     
     // Update button text and style
@@ -1223,18 +1225,18 @@ void MainWindow::updateBTWLineModeButton()
     QString buttonText;
     QString buttonStyle;
     
-    switch (m_currentBTWLineMode)
+    switch (m_currentHorizontalLineMode)
     {
-        case BTWGraph::HorizontalLineMode::Normal:
-            buttonText = "BTW Mode: Normal";
+        case HorizontalLineMode::Normal:
+            buttonText = "Line Mode: Normal";
             buttonStyle = "QPushButton { background-color: #6c757d; color: white; font-weight: bold; }";
             break;
-        case BTWGraph::HorizontalLineMode::DrawLine:
-            buttonText = "BTW Mode: Draw Line";
+        case HorizontalLineMode::DrawLine:
+            buttonText = "Line Mode: Draw Line";
             buttonStyle = "QPushButton { background-color: #007bff; color: white; font-weight: bold; }";
             break;
-        case BTWGraph::HorizontalLineMode::DeleteLine:
-            buttonText = "BTW Mode: Delete Line";
+        case HorizontalLineMode::DeleteLine:
+            buttonText = "Line Mode: Delete Line";
             buttonStyle = "QPushButton { background-color: #dc3545; color: white; font-weight: bold; }";
             break;
     }
@@ -2388,6 +2390,135 @@ void MainWindow::onClearBtwRulersButtonClicked()
     if (btwRulerApiStatusLabel)
         btwRulerApiStatusLabel->setText(QStringLiteral("All BTW rulers cleared."));
     DEBUG_OUT() << "MainWindow: Cleared all BTW rulers via GraphLayout API";
+}
+
+void MainWindow::setupBrwHorizontalLineApiTestTab()
+{
+    QWidget *tab = new QWidget();
+    tab->setObjectName("brwHorizontalLineApiTab");
+    ui->tabWidget->addTab(tab, QStringLiteral("BRW Horizontal Line"));
+
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(16);
+
+    auto *intro = new QLabel(
+        QStringLiteral(
+            "BRW Horizontal Line API test\n\n"
+            "Horizontal lines drawn on any waterfall graph sync to all panels.\n"
+            "• Top-right container is switched to BRW for this test\n"
+            "• Draw Line mode lets you click on the BRW graph to place a line\n"
+            "• The same line should appear on BTW, RTW, FTW, and other visible graphs\n\n"
+            "Use \"Prepare BRW draw test\", then click the BRW panel in Original View."),
+        tab);
+    intro->setWordWrap(true);
+    intro->setStyleSheet(
+        "QLabel { font-size: 13px; padding: 12px; background-color: #f5f5f5; "
+        "border: 1px solid #ccc; border-radius: 4px; }");
+    layout->addWidget(intro);
+
+    brwLineApiStatusLabel = new QLabel(QStringLiteral("BRW lines: --"), tab);
+    brwLineApiStatusLabel->setObjectName("brwLineApiStatusLabel");
+    brwLineApiStatusLabel->setWordWrap(true);
+    brwLineApiStatusLabel->setMinimumHeight(48);
+    brwLineApiStatusLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #7fff7f; border: 1px solid #444; "
+        "padding: 8px; font-weight: bold; }");
+    layout->addWidget(brwLineApiStatusLabel);
+
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->setSpacing(12);
+
+    auto *prepareBtn = new QPushButton(QStringLiteral("Prepare BRW draw test"), tab);
+    prepareBtn->setFixedHeight(40);
+    prepareBtn->setStyleSheet(
+        "QPushButton { background-color: #28a745; color: white; font-weight: bold; "
+        "padding: 8px 16px; }");
+    connect(prepareBtn, &QPushButton::clicked, this, &MainWindow::onPrepareBrwLineDrawTestClicked);
+
+    auto *clearBtn = new QPushButton(QStringLiteral("Clear horizontal lines"), tab);
+    clearBtn->setFixedHeight(40);
+    connect(clearBtn, &QPushButton::clicked, this, &MainWindow::onClearBrwHorizontalLinesClicked);
+
+    auto *showBtn = new QPushButton(QStringLiteral("Show active lines"), tab);
+    showBtn->setFixedHeight(40);
+    connect(showBtn, &QPushButton::clicked, this, &MainWindow::onShowActiveHorizontalLinesClicked);
+
+    buttonRow->addWidget(prepareBtn);
+    buttonRow->addWidget(clearBtn);
+    buttonRow->addWidget(showBtn);
+    buttonRow->addStretch();
+    layout->addLayout(buttonRow);
+
+    layout->addStretch();
+
+    DEBUG_OUT() << "MainWindow: BRW Horizontal Line API test tab created";
+}
+
+void MainWindow::onPrepareBrwLineDrawTestClicked()
+{
+    if (!graphgrid) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    graphgrid->setContainerGraphType(1, GraphType::BRW);
+    graphgrid->clearHorizontalLines();
+    m_currentHorizontalLineMode = HorizontalLineMode::DrawLine;
+    graphgrid->setHorizontalLineMode(m_currentHorizontalLineMode);
+    updateBTWLineModeButton();
+    updateVisibleGraphsWidget();
+
+    if (brwLineApiStatusLabel) {
+        brwLineApiStatusLabel->setText(
+            QStringLiteral("Ready: top-right panel is BRW, Draw Line mode active. "
+                             "Click the BRW graph in Original View to place a line — "
+                             "it should sync to all panels."));
+    }
+    DEBUG_OUT() << "MainWindow: BRW horizontal line draw test prepared — container 1 = BRW, DrawLine mode";
+}
+
+void MainWindow::onClearBrwHorizontalLinesClicked()
+{
+    if (!graphgrid) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    graphgrid->clearHorizontalLines();
+    if (brwLineApiStatusLabel)
+        brwLineApiStatusLabel->setText(QStringLiteral("All horizontal lines cleared."));
+    DEBUG_OUT() << "MainWindow: Cleared all horizontal lines via GraphLayout API";
+}
+
+void MainWindow::onShowActiveHorizontalLinesClicked()
+{
+    if (!graphgrid) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    const std::vector<HorizontalLineSyncData> lines = graphgrid->getActiveHorizontalLines();
+    if (lines.empty()) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("No active horizontal lines."));
+        return;
+    }
+
+    QStringList parts;
+    for (const auto &line : lines) {
+        parts << QStringLiteral("%1 @ %2")
+                     .arg(line.timestamp.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
+                     .arg(line.syncId.toString(QUuid::WithoutBraces).left(8));
+    }
+    if (brwLineApiStatusLabel) {
+        brwLineApiStatusLabel->setText(
+            QStringLiteral("Active lines (%1): %2").arg(lines.size()).arg(parts.join(QStringLiteral("; "))));
+    }
+    DEBUG_OUT() << "MainWindow: Active horizontal lines:" << lines.size();
 }
 
 void MainWindow::testBTWSymbolsAPI()

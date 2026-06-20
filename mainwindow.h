@@ -3,11 +3,12 @@
 
 #include "bdwgraph.h"
 #include "brwgraph.h"
-#include "btwgraph.h"  // For BTWGraph::HorizontalLineMode enum
+#include "btwgraph.h"
 #include "fdwgraph.h"
 #include "ftwgraph.h"
 #include "graphcontainer.h"
 #include "graphlayout.h"
+#include "sharedsyncstate.h"
 #include "ltwgraph.h"
 #include "rtwgraph.h"
 #include "simulator.h"
@@ -112,13 +113,14 @@ private:
     QList<QLabel*> m_rtwRulerStatusLabels;     ///< All RTW ruler status labels (kept in sync)
     
     // BTW horizontal line mode state
-    BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
+    HorizontalLineMode m_currentHorizontalLineMode; ///< Current horizontal line interaction mode
 
     
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
     QWidget* btwSymbolsTestWidget; ///< Widget for testing BTW symbols
     QLabel* btwRulerApiStatusLabel = nullptr; ///< Status label on the BTW Rulers API tab
+    QLabel* brwLineApiStatusLabel = nullptr; ///< Status label on the BRW Horizontal Line API tab
     
     // Time selection history storage (max 5 selections)
     std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
@@ -143,6 +145,7 @@ private:
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
     void setupBTWSymbolsTest(); ///< Setup BTW symbols gallery tab
     void setupBtwRulersApiTestTab(); ///< Dedicated tab to exercise BTW ruler (numbered circle) API
+    void setupBrwHorizontalLineApiTestTab(); ///< Dedicated tab to exercise drawing horizontal lines from BRW
     void testBTWSymbolsAPI();   ///< Place predefined BTW symbols on the live BTW graph
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
     void setupManoeuvreButton(); ///< Setup button to add manoeuvres
@@ -265,6 +268,15 @@ private slots:
 
     /** @brief Clear all BTW rulers via GraphLayout API. */
     void onClearBtwRulersButtonClicked();
+
+    /** @brief Switch top-right panel to BRW and enable Draw Line mode for interactive test. */
+    void onPrepareBrwLineDrawTestClicked();
+
+    /** @brief Clear all synced horizontal lines via GraphLayout API. */
+    void onClearBrwHorizontalLinesClicked();
+
+    /** @brief Refresh the BRW line test tab with the current active line count. */
+    void onShowActiveHorizontalLinesClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

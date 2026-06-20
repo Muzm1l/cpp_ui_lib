@@ -938,16 +938,14 @@ int WaterfallGraph::getGridDivisions() const
  */
 void WaterfallGraph::onMouseClick(const QPointF &scenePos)
 {
-    // DEBUG_OUT() << "Mouse clicked at scene position:" << scenePos;  // Commented for performance
-    Q_UNUSED(scenePos);
-    // This is a virtual function that can be overridden in derived classes
+    if (handleHorizontalLinePress(scenePos))
+        return;
 }
 
 void WaterfallGraph::onMouseDrag(const QPointF &scenePos)
 {
-    // DEBUG_OUT() << "Mouse dragged to scene position:" << scenePos;  // Commented for performance
-    Q_UNUSED(scenePos);
-    // This is a virtual function that can be overridden in derived classes
+    if (handleHorizontalLineDrag(scenePos))
+        return;
 }
 
 /**
@@ -1188,6 +1186,7 @@ void WaterfallGraph::publishVisibleCacheToSharedStore(const QString & /*seriesLa
 void WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 {
     drawBTWSymbols();
+    drawHorizontalLines();
 }
 
 bool WaterfallGraph::shouldRenderSeriesAsLine(const QString &seriesLabel) const
@@ -1225,6 +1224,7 @@ void WaterfallGraph::redrawDataLayerForVisibleTimeRange()
 
 void WaterfallGraph::augmentOverlayPassAfterSymbols()
 {
+    drawHorizontalLines();
 }
 
 void WaterfallGraph::drawIncremental()
@@ -2901,6 +2901,11 @@ void WaterfallGraph::mouseReleaseEvent(QMouseEvent *event)
 
     if (event->button() == Qt::LeftButton)
     {
+        if (handleHorizontalLineRelease(event->button())) {
+            QWidget::mouseReleaseEvent(event);
+            return;
+        }
+
         // End selection if mouse selection is enabled
         if (mouseSelectionEnabled)
         {
@@ -6269,5 +6274,325 @@ void WaterfallGraph::reserveAllRenderingCachesCapacity(size_t scatterCapacity, s
     }
     
     reserveAllCachedVisibleDataCapacity(cachedDataCapacity);
+}
+
+// ========== Synchronized horizontal time lines ==========
+
+void WaterfallGraph::setHorizontalLineMode(HorizontalLineMode mode)
+{
+    m_horizontalLineMode = mode;
+}
+
+HorizontalLineMode WaterfallGraph::getHorizontalLineMode() const
+{
+    return m_horizontalLineMode;
+}
+
+void WaterfallGraph::invalidateHorizontalLineGraphicsItems()
+{
+    for (auto &line : m_horizontalLines) {
+        if (line.lineItem) {
+            if (overlayScene && overlayScene->items().contains(line.lineItem))
+                overlayScene->removeItem(line.lineItem);
+            delete line.lineItem;
+            line.lineItem = nullptr;
+        }
+    }
+}
+
+QUuid WaterfallGraph::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width,
+                                        const QUuid &syncId)
+{
+    HorizontalLineItem lineItem(timestamp, color, width, syncId);
+    m_horizontalLines.append(lineItem);
+    m_syncIdToLineId[lineItem.syncId] = lineItem.id;
+    return lineItem.id;
+}
+
+QDateTime WaterfallGraph::getHorizontalLineTimestamp(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines) {
+        if (line.id == lineId)
+            return line.timestamp;
+    }
+    return QDateTime();
+}
+
+QDateTime WaterfallGraph::getFirstHorizontalLineTimestamp() const
+{
+    return m_horizontalLines.isEmpty() ? QDateTime() : m_horizontalLines.first().timestamp;
+}
+
+QDateTime WaterfallGraph::getLatestHorizontalLineTimestamp() const
+{
+    return m_horizontalLines.isEmpty() ? QDateTime() : m_horizontalLines.last().timestamp;
+}
+
+bool WaterfallGraph::removeHorizontalLine(const QUuid &lineId)
+{
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (m_horizontalLines[i].id == lineId) {
+            const QUuid syncId = m_horizontalLines[i].syncId;
+            if (m_horizontalLines[i].lineItem) {
+                if (overlayScene)
+                    overlayScene->removeItem(m_horizontalLines[i].lineItem);
+                delete m_horizontalLines[i].lineItem;
+            }
+            m_syncIdToLineId.remove(syncId);
+            m_horizontalLines.removeAt(i);
+            return true;
+        }
+    }
+    return false;
+}
+
+void WaterfallGraph::clearHorizontalLines()
+{
+    invalidateHorizontalLineGraphicsItems();
+    m_horizontalLines.clear();
+    m_syncIdToLineId.clear();
+}
+
+bool WaterfallGraph::hasHorizontalLineWithSyncId(const QUuid &syncId) const
+{
+    return m_syncIdToLineId.contains(syncId);
+}
+
+void WaterfallGraph::createHorizontalLineFromSyncData(const HorizontalLineSyncData &lineData)
+{
+    if (lineData.isDeleted || !lineData.timestamp.isValid() || lineData.syncId.isNull())
+        return;
+    if (hasHorizontalLineWithSyncId(lineData.syncId))
+        return;
+
+    m_applyingHorizontalLineSync = true;
+    addHorizontalLine(lineData.timestamp, lineData.color, lineData.width, lineData.syncId);
+    m_applyingHorizontalLineSync = false;
+    drawHorizontalLines();
+}
+
+void WaterfallGraph::updateHorizontalLineFromSyncData(const HorizontalLineSyncData &lineData)
+{
+    if (lineData.isDeleted || lineData.syncId.isNull())
+        return;
+
+    const auto it = m_syncIdToLineId.constFind(lineData.syncId);
+    if (it == m_syncIdToLineId.constEnd())
+        return;
+
+    m_applyingHorizontalLineSync = true;
+    for (auto &line : m_horizontalLines) {
+        if (line.id != it.value())
+            continue;
+        line.timestamp = lineData.timestamp;
+        line.color = lineData.color;
+        line.width = lineData.width;
+        break;
+    }
+    m_applyingHorizontalLineSync = false;
+    drawHorizontalLines();
+}
+
+bool WaterfallGraph::deleteHorizontalLineBySyncId(const QUuid &syncId)
+{
+    const auto it = m_syncIdToLineId.constFind(syncId);
+    if (it == m_syncIdToLineId.constEnd())
+        return false;
+
+    m_applyingHorizontalLineSync = true;
+    const bool removed = removeHorizontalLine(it.value());
+    m_applyingHorizontalLineSync = false;
+    return removed;
+}
+
+QUuid WaterfallGraph::getHorizontalLineSyncId(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines) {
+        if (line.id == lineId)
+            return line.syncId;
+    }
+    return QUuid();
+}
+
+HorizontalLineSyncData WaterfallGraph::horizontalLineSyncDataForId(const QUuid &lineId) const
+{
+    for (const auto &line : m_horizontalLines) {
+        if (line.id == lineId) {
+            HorizontalLineSyncData data(line.timestamp, line.color, line.width);
+            data.syncId = line.syncId;
+            return data;
+        }
+    }
+    return HorizontalLineSyncData();
+}
+
+void WaterfallGraph::refreshHorizontalLineVisuals()
+{
+    drawHorizontalLines();
+}
+
+int WaterfallGraph::hitTestHorizontalLine(qreal sceneY) const
+{
+    const qreal hitThreshold = 5.0;
+    for (int i = 0; i < m_horizontalLines.size(); ++i) {
+        if (!m_horizontalLines[i].lineItem)
+            continue;
+        const qreal lineY = m_horizontalLines[i].lineItem->line().y1();
+        if (qAbs(sceneY - lineY) <= hitThreshold)
+            return i;
+    }
+    return -1;
+}
+
+void WaterfallGraph::moveHorizontalLineTo(const QUuid &lineId, qreal sceneY)
+{
+    if (drawingArea.isEmpty())
+        return;
+
+    const qreal clampedY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), sceneY));
+    const QDateTime newTimestamp = mapScreenToTime(clampedY);
+
+    for (auto &line : m_horizontalLines) {
+        if (line.id != lineId)
+            continue;
+        if (newTimestamp.isValid())
+            line.timestamp = newTimestamp;
+        if (line.lineItem) {
+            line.lineItem->setLine(drawingArea.left(), clampedY, drawingArea.right(), clampedY);
+            if (overlayScene && !overlayScene->items().contains(line.lineItem))
+                overlayScene->addItem(line.lineItem);
+        }
+        break;
+    }
+}
+
+void WaterfallGraph::drawHorizontalLines()
+{
+    if (!overlayScene || !dataRangesValid || drawingArea.isEmpty())
+        return;
+
+    const QUuid dragId = (m_cursorSyncState && !m_cursorSyncState->draggingLineSyncId.isNull())
+        ? m_cursorSyncState->draggingLineSyncId
+        : QUuid();
+
+    for (auto &line : m_horizontalLines) {
+        const qreal screenY = mapTimeToY(line.timestamp);
+
+        if (screenY < 0 || screenY < drawingArea.top() || screenY > drawingArea.bottom()) {
+            if (line.lineItem && overlayScene->items().contains(line.lineItem))
+                overlayScene->removeItem(line.lineItem);
+            continue;
+        }
+
+        const qreal clampedY = qMax(drawingArea.top(), qMin(drawingArea.bottom(), screenY));
+        const QColor penColor = (!dragId.isNull() && line.syncId == dragId) ? Qt::yellow : line.color;
+
+        if (line.lineItem) {
+            line.lineItem->setLine(drawingArea.left(), clampedY, drawingArea.right(), clampedY);
+            line.lineItem->setPen(QPen(penColor, line.width));
+            if (!overlayScene->items().contains(line.lineItem))
+                overlayScene->addItem(line.lineItem);
+        } else {
+            line.lineItem = new QGraphicsLineItem(drawingArea.left(), clampedY, drawingArea.right(), clampedY);
+            line.lineItem->setPen(QPen(penColor, line.width));
+            line.lineItem->setZValue(1000);
+            overlayScene->addItem(line.lineItem);
+        }
+    }
+}
+
+bool WaterfallGraph::handleHorizontalLinePress(const QPointF &scenePos)
+{
+    const int lineHitIndex = hitTestHorizontalLine(scenePos.y());
+    if (lineHitIndex >= 0) {
+        m_draggingLineId = m_horizontalLines[lineHitIndex].id;
+        m_draggingLineSyncId = m_horizontalLines[lineHitIndex].syncId;
+        m_lineDragActive = true;
+        m_lineDragMoved = false;
+        m_lineDragStartY = scenePos.y();
+        if (!m_draggingLineSyncId.isNull())
+            emit horizontalLineSyncDragStarted(m_draggingLineSyncId);
+        return true;
+    }
+
+    if (m_horizontalLineMode == HorizontalLineMode::Normal)
+        return false;
+
+    if (m_horizontalLineMode == HorizontalLineMode::DeleteLine)
+        return false;
+
+    QDateTime timestamp = mapScreenToTime(scenePos.y());
+    if (!timestamp.isValid())
+        timestamp = QDateTime::currentDateTime();
+
+    const QUuid lineId = addHorizontalLine(timestamp);
+    drawHorizontalLines();
+    emitHorizontalLineSyncAdded(lineId);
+    return true;
+}
+
+bool WaterfallGraph::handleHorizontalLineDrag(const QPointF &scenePos)
+{
+    if (!m_lineDragActive)
+        return false;
+
+    if (!m_lineDragMoved && qAbs(scenePos.y() - m_lineDragStartY) > 2.0)
+        m_lineDragMoved = true;
+
+    if (m_lineDragMoved) {
+        moveHorizontalLineTo(m_draggingLineId, scenePos.y());
+        emitHorizontalLineSyncUpdated(m_draggingLineId);
+    }
+    return true;
+}
+
+bool WaterfallGraph::handleHorizontalLineRelease(Qt::MouseButton button)
+{
+    if (button != Qt::LeftButton || !m_lineDragActive)
+        return false;
+
+    const QUuid lineId = m_draggingLineId;
+    const QUuid syncId = m_draggingLineSyncId;
+    const bool moved = m_lineDragMoved;
+
+    m_lineDragActive = false;
+    m_lineDragMoved = false;
+    m_draggingLineId = QUuid();
+    m_draggingLineSyncId = QUuid();
+    emit horizontalLineSyncDragEnded();
+
+    if (moved) {
+        emitHorizontalLineSyncUpdated(lineId);
+    } else if (m_horizontalLineMode != HorizontalLineMode::Normal) {
+        removeHorizontalLine(lineId);
+        drawHorizontalLines();
+        emitHorizontalLineSyncRemoved(syncId);
+    }
+    return true;
+}
+
+void WaterfallGraph::emitHorizontalLineSyncAdded(const QUuid &lineId)
+{
+    if (m_applyingHorizontalLineSync)
+        return;
+    const HorizontalLineSyncData data = horizontalLineSyncDataForId(lineId);
+    if (!data.syncId.isNull())
+        emit horizontalLineSyncAdded(data);
+}
+
+void WaterfallGraph::emitHorizontalLineSyncUpdated(const QUuid &lineId)
+{
+    if (m_applyingHorizontalLineSync)
+        return;
+    const HorizontalLineSyncData data = horizontalLineSyncDataForId(lineId);
+    if (!data.syncId.isNull())
+        emit horizontalLineSyncUpdated(data);
+}
+
+void WaterfallGraph::emitHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    if (m_applyingHorizontalLineSync || syncId.isNull())
+        return;
+    emit horizontalLineSyncRemoved(syncId);
 }
 

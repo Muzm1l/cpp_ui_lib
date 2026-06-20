@@ -282,52 +282,22 @@ public:
      */
     bool addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate = 0.0f);
     
-    // ========== BTW Horizontal Line Management ==========
-    
-    /**
-     * @brief Set horizontal line mode for BTW graphs
-     * @param graphType The graph type (should be BTW)
-     * @param mode The mode to set (Normal, DrawLine, or DeleteLine)
-     */
-    void setBTWHorizontalLineMode(const GraphType &graphType, BTWGraph::HorizontalLineMode mode);
-    
-    /**
-     * @brief Set horizontal line mode for BTW graphs (legacy boolean interface)
-     * @param graphType The graph type (should be BTW)
-     * @param enabled True to enable draw line mode, false for normal mode
-     */
+    // ========== Horizontal time line management (all graph types) ==========
+
+    void setHorizontalLineMode(HorizontalLineMode mode);
+    HorizontalLineMode horizontalLineMode() const;
+    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
+    QDateTime getHorizontalLineTimestamp(const QUuid &syncId) const;
+    bool removeHorizontalLine(const QUuid &syncId);
+    void clearHorizontalLines();
+    std::vector<HorizontalLineSyncData> getActiveHorizontalLines() const;
+
+    /** @deprecated Use setHorizontalLineMode() — graphType is ignored. */
+    void setBTWHorizontalLineMode(const GraphType &graphType, HorizontalLineMode mode);
     void setBTWHorizontalLineMode(const GraphType &graphType, bool enabled);
-    
-    /**
-     * @brief Add a horizontal line to a BTW graph at a specific time
-     * @param graphType The graph type (should be BTW)
-     * @param timestamp The time when the line should be drawn
-     * @param color The color of the line (default: yellow)
-     * @param width The width of the line (default: 2.0)
-     * @return Unique identifier for the line
-     */
     QUuid addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
-    
-    /**
-     * @brief Get the timestamp of a horizontal line by its ID
-     * @param graphType The graph type (should be BTW)
-     * @param lineId The unique identifier of the line
-     * @return The timestamp of the line, or invalid QDateTime if not found
-     */
     QDateTime getBTWHorizontalLineTimestamp(const GraphType &graphType, const QUuid &lineId) const;
-    
-    /**
-     * @brief Remove a horizontal line from a BTW graph by its ID
-     * @param graphType The graph type (should be BTW)
-     * @param lineId The unique identifier of the line to remove
-     * @return True if the line was found and removed
-     */
     bool removeBTWHorizontalLine(const GraphType &graphType, const QUuid &lineId);
-    
-    /**
-     * @brief Clear all horizontal lines from a BTW graph
-     * @param graphType The graph type (should be BTW)
-     */
     void clearBTWHorizontalLines(const GraphType &graphType);
     
     // ========== Shaded Region API ==========
@@ -453,9 +423,12 @@ public slots:
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     
-    // BTW Horizontal line sync slots - propagate lines to all containers
-    void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    void onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncRemoved(const QUuid &syncId);
+    void onHorizontalLineSyncDragStarted(const QUuid &syncId);
+    void onHorizontalLineSyncDragEnded();
+    void onHorizontalLinesSyncCleared();
     
     // BTW Marker sync slots - propagate markers to all containers
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
@@ -470,6 +443,14 @@ public slots:
     void onContainerIntervalChanged(TimeInterval interval);
 
 private:
+    void applyHorizontalLineModeToAllGraphs();
+    void applyHorizontalLineSyncToAllContainers(const HorizontalLineSyncData &lineData);
+    void refreshAllHorizontalLineVisuals();
+    QElapsedTimer m_horizontalLineDragThrottle;
+    QUuid m_pendingHorizontalLineDragSyncId;
+    HorizontalLineSyncData m_pendingHorizontalLineDragData;
+    bool m_hasPendingHorizontalLineDrag = false;
+
     LayoutType m_layoutType;
     QTimer *m_timer;
     std::vector<GraphContainer *> m_graphContainers;

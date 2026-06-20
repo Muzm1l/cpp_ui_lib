@@ -1001,6 +1001,26 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         }
     });
 
+    // Connect horizontal line sync signals (all waterfall graph types)
+    connect(graph, &WaterfallGraph::horizontalLineSyncAdded,
+            this, &GraphContainer::HorizontalLineSyncAdded);
+    connect(graph, &WaterfallGraph::horizontalLineSyncUpdated,
+            this, &GraphContainer::HorizontalLineSyncUpdated);
+    connect(graph, &WaterfallGraph::horizontalLineSyncRemoved,
+            this, &GraphContainer::HorizontalLineSyncRemoved);
+    connect(graph, &WaterfallGraph::horizontalLineSyncDragStarted,
+            this, &GraphContainer::HorizontalLineSyncDragStarted);
+    connect(graph, &WaterfallGraph::horizontalLineSyncDragEnded,
+            this, &GraphContainer::HorizontalLineSyncDragEnded);
+    connect(graph, &WaterfallGraph::horizontalLinesSyncCleared,
+            this, &GraphContainer::HorizontalLinesSyncCleared);
+
+    if (m_syncState) {
+        graph->setHorizontalLineMode(m_syncState->horizontalLineMode);
+        for (const auto &line : m_syncState->getActiveHorizontalLines())
+            graph->createHorizontalLineFromSyncData(line);
+    }
+
     // Connect DeleteInteractiveMarkers signal to BTWGraph
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {
         connect(this, &GraphContainer::DeleteInteractiveMarkers,
@@ -1151,6 +1171,15 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
         m_waterfallLayout->addWidget(targetGraph, 1);
         targetGraph->setVisible(true);
         applyCursorTimeToGraph(targetGraph);
+
+        if (m_syncState) {
+            targetGraph->setHorizontalLineMode(m_syncState->horizontalLineMode);
+            for (const auto &line : m_syncState->getActiveHorizontalLines()) {
+                if (!targetGraph->hasHorizontalLineWithSyncId(line.syncId))
+                    targetGraph->createHorizontalLineFromSyncData(line);
+            }
+            targetGraph->refreshHorizontalLineVisuals();
+        }
         
         DEBUG_OUT() << "GraphContainer: Switched to waterfall graph type:" << graphTypeToString(graphType);
     }
@@ -1820,8 +1849,15 @@ void GraphContainer::onHistoryFullSelectionRequested()
 {
     // When user clicks H button with no selections: use "real time to BTW horizontal line" if a line exists, else full range
     WaterfallGraph *btwBase = getWaterfallGraph(GraphType::BTW);
-    BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwBase);
-    QDateTime lineTime = btwGraph ? btwGraph->getLatestHorizontalLineTimestamp() : QDateTime();
+    Q_UNUSED(btwBase);
+    QDateTime lineTime;
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second) {
+            lineTime = pair.second->getLatestHorizontalLineTimestamp();
+            if (lineTime.isValid())
+                break;
+        }
+    }
     if (lineTime.isValid() && m_timelineSelectionView) {
         QDateTime now = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
         TimeSelectionSpan span(lineTime < now ? lineTime : now, lineTime < now ? now : lineTime);
@@ -1884,6 +1920,62 @@ void GraphContainer::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDate
 {
     DEBUG_OUT() << "GraphContainer: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWHorizontalLineRemoved(lineId, timestamp);
+}
+
+void GraphContainer::onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (!pair.second)
+            continue;
+        if (pair.second->hasHorizontalLineWithSyncId(lineData.syncId))
+            pair.second->updateHorizontalLineFromSyncData(lineData);
+        else
+            pair.second->createHorizontalLineFromSyncData(lineData);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->updateHorizontalLineFromSyncData(lineData);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->deleteHorizontalLineBySyncId(syncId);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncDragStarted(const QUuid &syncId)
+{
+    if (m_syncState)
+        m_syncState->draggingLineSyncId = syncId;
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->refreshHorizontalLineVisuals();
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncDragEnded()
+{
+    if (m_syncState)
+        m_syncState->draggingLineSyncId = QUuid();
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->refreshHorizontalLineVisuals();
+    }
+}
+
+void GraphContainer::onHorizontalLinesSyncCleared()
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->clearHorizontalLines();
+    }
 }
 
 void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)

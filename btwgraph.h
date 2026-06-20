@@ -183,90 +183,6 @@ public:
      */
     void clearShadedRegions();
 
-    // ========== Horizontal Line Management ==========
-    
-    /**
-     * @brief Enum for horizontal line interaction modes
-     */
-    enum class HorizontalLineMode {
-        Normal,      // Normal marker mode (default)
-        DrawLine,    // Draw lines mode: clicking adds lines, clicking on existing line deletes it
-        DeleteLine   // Delete mode: clicking only deletes lines, doesn't add new ones
-    };
-    
-    /**
-     * @brief Set horizontal line mode
-     * @param mode The mode to set (Normal, DrawLine, or DeleteLine)
-     */
-    void setHorizontalLineMode(HorizontalLineMode mode);
-    
-    /**
-     * @brief Set horizontal line mode (legacy boolean interface for backward compatibility)
-     * @param enabled True to enable draw line mode, false for normal mode
-     */
-    void setHorizontalLineMode(bool enabled);
-    
-    /**
-     * @brief Get current horizontal line mode
-     * @return Current mode
-     */
-    HorizontalLineMode getHorizontalLineMode() const;
-    
-    /**
-     * @brief Check if horizontal line mode is enabled (legacy method)
-     * @return True if in DrawLine or DeleteLine mode
-     */
-    bool isHorizontalLineMode() const;
-    
-    /**
-     * @brief Add a horizontal line at a specific time
-     * @param timestamp The time when the line should be drawn (horizontal line = constant time)
-     * @param color The color of the line (default: white)
-     * @param width The width of the line (default: 2.0)
-     * @return Unique identifier for the line
-     */
-    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
-    
-    /**
-     * @brief Get the timestamp of a horizontal line by its ID
-     * @param lineId The unique identifier of the line
-     * @return The timestamp of the line, or invalid QDateTime if not found
-     */
-    QDateTime getHorizontalLineTimestamp(const QUuid &lineId) const;
-    
-    /**
-     * @brief Get the timestamp of the first horizontal line (if any).
-     * @return The timestamp of the first line, or invalid QDateTime if none
-     */
-    QDateTime getFirstHorizontalLineTimestamp() const;
-    
-    /**
-     * @brief Get the timestamp of the latest horizontal line (most recently added).
-     * Used e.g. to define history selection from real time to BTW line.
-     * @return The timestamp of the last line, or invalid QDateTime if none
-     */
-    QDateTime getLatestHorizontalLineTimestamp() const;
-    
-    /**
-     * @brief Remove a horizontal line by its ID
-     * @param lineId The unique identifier of the line to remove
-     * @return True if the line was found and removed
-     */
-    bool removeHorizontalLine(const QUuid &lineId);
-    
-    /**
-     * @brief Remove horizontal lines by timestamp (for syncing)
-     * @param timestamp The timestamp to match
-     * @param toleranceMs Time tolerance in milliseconds (default: 1ms)
-     * @return Number of lines removed
-     */
-    int removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs = 0.001);
-    
-    /**
-     * @brief Clear all horizontal lines
-     */
-    void clearHorizontalLines();
-
 public slots:
     void deleteInteractiveMarkers();
 
@@ -280,9 +196,6 @@ protected:
     // Override mouse event handlers to add interactive markers on click
     void onMouseClick(const QPointF &scenePos) override;
     void onMouseDrag(const QPointF &scenePos) override;
-
-    // Override mouse release to finalize horizontal-line drag/click
-    void mouseReleaseEvent(QMouseEvent *event) override;
 
     // Override resize event to update overlay
     void resizeEvent(QResizeEvent *event) override;
@@ -344,39 +257,6 @@ private:
     
     // Static cached hatch brush for shaded regions (shared across all instances)
     static QBrush getCachedHatchBrush();
-    
-    // Method to draw horizontal lines (cached)
-    void drawHorizontalLines();
-
-    // ---- Horizontal line drag-to-move support ----
-    /** Return the index of a horizontal line whose cached item is within the hit
-     *  threshold of the given scene Y, or -1 if none. */
-    int hitTestHorizontalLine(qreal sceneY) const;
-    /** Reposition a horizontal line to a new scene Y (clamped to the drawing area),
-     *  updating both its timestamp and its cached graphics item. */
-    void moveHorizontalLineTo(const QUuid &lineId, qreal sceneY);
-
-    QUuid m_draggingLineId;       // Id of the line currently being dragged (if any)
-    bool m_lineDragActive;        // True between press-on-line and release
-    bool m_lineDragMoved;         // True once the press has turned into an actual drag
-    qreal m_lineDragStartY;       // Scene Y at press, to distinguish click vs drag
-    
-    // Horizontal line storage structure
-    struct HorizontalLineItem
-    {
-        QDateTime timestamp;  // Time when the line should be drawn (horizontal line = constant time)
-        QColor color;  // Line color
-        qreal width;   // Line width
-        QUuid id;      // Unique identifier
-        QGraphicsLineItem *lineItem;  // Cached graphics item
-        
-        HorizontalLineItem() : color(Qt::white), width(2.0), lineItem(nullptr) {}
-        HorizontalLineItem(const QDateTime &ts, const QColor &c, qreal w) 
-            : timestamp(ts), color(c), width(w), id(QUuid::createUuid()), lineItem(nullptr) {}
-    };
-    
-    QList<HorizontalLineItem> m_horizontalLines;  // Store horizontal lines
-    HorizontalLineMode m_horizontalLineMode;  // Current horizontal line interaction mode
     
     // Window size cache (Issue #3: Performance optimization)
     QSize m_cachedWindowSize;      // Cached window size
@@ -455,27 +335,9 @@ signals:
      */
     void shadedRegionsCleared();
     
-    // ========== Horizontal Line Signals ==========
-    
-    /**
-     * @brief Emitted when a horizontal line is placed
-     * @param lineId The unique identifier of the line
-     * @param timestamp The time when the line was placed
-     */
+    // Legacy horizontal line signals (still emitted via WaterfallGraph sync path)
     void horizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    
-    /**
-     * @brief Emitted when a horizontal line is removed
-     * @param lineId The unique identifier of the removed line
-     * @param timestamp The timestamp of the removed line
-     */
     void horizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
-
-    /**
-     * @brief Emitted when a horizontal line is moved (dragged) to a new time
-     * @param lineId The unique identifier of the moved line
-     * @param timestamp The new timestamp of the line after the move
-     */
     void horizontalLineMoved(const QUuid &lineId, const QDateTime &timestamp);
 
     /**
