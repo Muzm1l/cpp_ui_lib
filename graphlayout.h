@@ -590,6 +590,12 @@ signals:
      * @param bearingRate The bearing rate value (from the box display)
      */
     void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+
+    /** @brief Emitted when the user draws a horizontal line (click in DrawLine mode). Not emitted by addHorizontalLine(). */
+    void HorizontalLineAdded(const QUuid &syncId, const QDateTime &timestamp);
+
+    /** @brief Emitted when the user removes a horizontal line (click in DrawLine/DeleteLine mode). Not emitted by removeHorizontalLine(). */
+    void HorizontalLineRemoved(const QUuid &syncId, const QDateTime &timestamp);
 };
 
 #endif // GRAPHLAYOUT_H

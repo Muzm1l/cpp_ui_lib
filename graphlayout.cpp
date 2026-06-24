@@ -1827,6 +1827,11 @@ void GraphLayout::onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineDa
         if (container)
             container->onHorizontalLineSyncAdded(lineData);
     }
+    // Main-system notification: user click/draw only (relayed from GraphContainer), not programmatic API.
+    if (qobject_cast<GraphContainer *>(sender())
+        && !lineData.syncId.isNull() && lineData.timestamp.isValid()) {
+        emit HorizontalLineAdded(lineData.syncId, lineData.timestamp);
+    }
 }
 
 void GraphLayout::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData)
@@ -1852,11 +1857,15 @@ void GraphLayout::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &line
 
 void GraphLayout::onHorizontalLineSyncRemoved(const QUuid &syncId)
 {
+    const QDateTime timestamp = getHorizontalLineTimestamp(syncId);
     m_syncState.removeHorizontalLine(syncId);
     for (auto *container : m_graphContainers) {
         if (container)
             container->onHorizontalLineSyncRemoved(syncId);
     }
+    // Main-system notification: user click/delete only (relayed from GraphContainer), not programmatic API.
+    if (qobject_cast<GraphContainer *>(sender()) && !syncId.isNull())
+        emit HorizontalLineRemoved(syncId, timestamp);
 }
 
 void GraphLayout::onHorizontalLineSyncDragStarted(const QUuid &syncId)
