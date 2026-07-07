@@ -19,6 +19,7 @@
 #define MAX_TIME_SELECTIONS 5
 #define RESIZE_EDGE_THRESHOLD 4   // pixels from top/bottom edge for resize vs center drag
 #define MIN_SELECTION_SECONDS 1   // minimum duration when resizing
+#define SELECTION_SIDE_INSET 3    // horizontal inset of the selection so its inner border sits inside the component's outer border
 
 #include <utility>
 

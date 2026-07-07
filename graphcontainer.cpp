@@ -95,7 +95,9 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     if (m_showTimelineView)
     {
         DEBUG_OUT() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
-        m_timelineView = new TimelineView(this, m_timer, m_syncState);
+        // Size the Abs/Rel and interval (dt) buttons to match the combobox and
+        // zoompanel rows so the timeline view aligns with the graph column.
+        m_timelineView = new TimelineView(this, m_timer, m_syncState, true, true, comboboxHeight, zoompanelHeight);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
@@ -290,7 +292,11 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     else
     {
         DEBUG_OUT() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
-        m_timelineView = new TimelineView(this, m_timer, m_syncState);
+        // Match the Abs/Rel and interval (dt) button heights to the combobox and
+        // zoompanel rows so the timeline view aligns with the graph column.
+        int comboboxHeight = m_comboBox ? m_comboBox->sizeHint().height() : (TIMELINE_VIEW_BUTTON_SIZE / 2);
+        int zoompanelHeight = m_zoomPanel ? m_zoomPanel->maximumHeight() : (TIMELINE_VIEW_BUTTON_SIZE / 2);
+        m_timelineView = new TimelineView(this, m_timer, m_syncState, true, true, comboboxHeight, zoompanelHeight);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         // Insert at position 0 (leftmost) to match the reversed layout order

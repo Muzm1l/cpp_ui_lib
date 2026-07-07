@@ -66,12 +66,17 @@ void TimeVisualizerWidget::drawSelection(QPainter& painter, const TimeSelectionS
         // Ensure the rectangle is at least 1 pixel high
         int rectHeight = qMax(1, bottomY - topY);
 
-        // Now draw the selection
-        painter.fillRect(0, topY, widgetWidth, rectHeight, QColor(255, 255, 255));
+        // Inset horizontally so the selection's own (inner) border sits inside the
+        // component's outer border, producing a double-border look on the sides.
+        int selX = SELECTION_SIDE_INSET;
+        int selW = qMax(1, widgetWidth - 2 * SELECTION_SIDE_INSET);
 
-        // Now draw the border
-        painter.setPen(QPen(QColor(150, 150, 150), 1));
-        painter.drawRect(0, topY, widgetWidth, rectHeight);
+        // The selection itself is white against the black component background.
+        painter.fillRect(selX, topY, selW, rectHeight, QColor(255, 255, 255));
+
+        // Inner border for the selection.
+        painter.setPen(QPen(QColor(120, 120, 120), 1));
+        painter.drawRect(selX, topY, selW - 1, rectHeight - 1);
     }
 }
 
@@ -80,8 +85,8 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent* /*event*/)
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing);
 
-    // Fill with light grey background
-    painter.fillRect(rect(), QColor(200, 200, 200));
+    // Fill with black background
+    painter.fillRect(rect(), QColor(0, 0, 0));
 
     // Draw time selection rectangles
     if (!m_timeSelections.isEmpty() && !m_timeLineLength.isNull() && !m_currentTime.isNull()) {
@@ -95,8 +100,9 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent* /*event*/)
         drawCurrentSelection(painter);
     }
 
-    // Draw a border to make it more visible
-    painter.setPen(QPen(QColor(150, 150, 150), 1));
+    // Draw the component's outer border (white) so the selection's inner border
+    // reads as a distinct double border on the sides.
+    painter.setPen(QPen(QColor(255, 255, 255), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 }
 
@@ -515,13 +521,18 @@ void TimeVisualizerWidget::drawCurrentSelection(QPainter& painter)
     int topY = qMin(startY, endY);
     int bottomY = qMax(startY, endY);
     int rectHeight = qMax(1, bottomY - topY);
-    
-    // Draw dark grey selection
-    painter.fillRect(0, topY, widgetWidth, rectHeight, QColor(100, 100, 100));
-    
-    // Draw border
-    painter.setPen(QPen(QColor(50, 50, 50), 1));
-    painter.drawRect(0, topY, widgetWidth, rectHeight);
+
+    // Inset horizontally to match the committed-selection double-border look.
+    int selX = SELECTION_SIDE_INSET;
+    int selW = qMax(1, widgetWidth - 2 * SELECTION_SIDE_INSET);
+
+    // Draw an in-progress selection as a lighter grey block so it is distinct
+    // from a committed (white) selection on the black background.
+    painter.fillRect(selX, topY, selW, rectHeight, QColor(180, 180, 180));
+
+    // Inner border
+    painter.setPen(QPen(QColor(120, 120, 120), 1));
+    painter.drawRect(selX, topY, selW - 1, rectHeight - 1);
 }
 
 QTime TimeVisualizerWidget::yCoordinateToTime(int y) const

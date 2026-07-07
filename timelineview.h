@@ -322,7 +322,7 @@ class TimelineView : public QWidget
     Q_OBJECT
 
 public:
-    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true);
+    explicit TimelineView(QWidget* parent = nullptr, QTimer* timer = nullptr, GraphContainerSyncState *syncState = nullptr, bool sliderVisible = true, bool chevronVisible = true, int timeModeButtonHeight = TIMELINE_VIEW_BUTTON_SIZE / 2, int intervalButtonHeight = TIMELINE_VIEW_BUTTON_SIZE / 2);
     ~TimelineView();
 
     // No time selection methods needed for TimelineView

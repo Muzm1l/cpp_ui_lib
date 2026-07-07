@@ -3236,6 +3236,20 @@ void WaterfallGraph::paintEvent(QPaintEvent *event)
         }
     }
     
+    // Draw a 1px border around the graph, consistent with the timeline strip.
+    // Drawn last so it frames the data; it occupies the outer 1px of the widget
+    // (the "reduce 1px" compensation) without changing the widget/layout size.
+    painter.setPen(QPen(QColor(150, 150, 150), 1));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+
+    // Draw a 1px border around the graph, consistent with the timeline strip.
+    // It is painted inside the widget's edge (adjusted -1) so it frames the graph
+    // without changing the widget/layout size; the outer 1px is the "reduction".
+    painter.setPen(QPen(QColor(150, 150, 150), 1));
+    painter.setBrush(Qt::NoBrush);
+    painter.drawRect(rect().adjusted(0, 0, -1, -1));
+
     // Note: Overlays (crosshair, markers, selection) are still rendered via QGraphicsView
     // which is layered on top of this widget
     Q_UNUSED(event); // Event parameter not used, but required by Qt signature
