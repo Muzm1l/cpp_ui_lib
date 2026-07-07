@@ -7,8 +7,8 @@ TimeVisualizerWidget::TimeVisualizerWidget(QWidget* parent)
     : QWidget(parent)
     , m_timeLineLength(QTime(0, 0, 0))
     , m_currentTime(QTime(0, 0, 0))
-    , m_validStartTime(QTime())
-    , m_validEndTime(QTime())
+    , m_validStartDateTime(QDateTime())
+    , m_validEndDateTime(QDateTime())
     , m_isSelecting(false)
     , m_selectionStartY(0)
     , m_selectionEndY(0)
@@ -149,6 +149,11 @@ bool TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
         return false;
     }
 
+    // Assign a stable identity on creation (preserved through resize/drag/sync)
+    // so the main system can address this exact selection later.
+    if (merged.id.isNull())
+        merged.id = QUuid::createUuid();
+
     m_timeSelections.append(merged);
     updateVisualization();
     return true;
@@ -178,9 +183,8 @@ void TimeVisualizerWidget::createFullSelection()
     TimeSelectionSpan span;
     
     if (hasValidRange()) {
-        // Convert QTime valid range to QDateTime
-        span.startTime = QDateTime(currentDate.date(), m_validStartTime);
-        span.endTime = QDateTime(currentDate.date(), m_validEndTime);
+        span.startTime = m_validStartDateTime;
+        span.endTime = m_validEndDateTime;
     } else {
         // Map the entire widget: bottom corresponds to oldest (height), top to current (0)
         const int bottomY = rect().height();
@@ -191,6 +195,32 @@ void TimeVisualizerWidget::createFullSelection()
         
         span.startTime = QDateTime(currentDate.date(), startTime);
         span.endTime = QDateTime(currentDate.date(), endTime);
+    }
+
+    addTimeSelection(span);
+    emit timeSelectionMade(span);
+    update();
+}
+
+void TimeVisualizerWidget::createIntervalSelection()
+{
+    // Anchor policy (no BTW line): span is exactly one timeline interval long,
+    // ending at the current time. Clamped to the valid data range if configured.
+    const int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    if (totalSeconds <= 0) {
+        // No usable interval configured; fall back to the full range behaviour.
+        createFullSelection();
+        return;
+    }
+
+    const QDateTime end = QDateTime::currentDateTime();
+    const QDateTime start = end.addSecs(-totalSeconds);
+
+    TimeSelectionSpan span(start, end);
+    if (hasValidRange()) {
+        span = clampToValidRange(span);
+        if (span.endTime < span.startTime)
+            return;
     }
 
     addTimeSelection(span);
@@ -388,6 +418,7 @@ void TimeVisualizerWidget::mouseMoveEvent(QMouseEvent* event)
     if (m_interactionMode == InteractionMode::Dragging && m_interactionSelectionIndex >= 0) {
         qint64 deltaSecs = timeAtY(m_dragStartY).secsTo(timeAtY(y));
         TimeSelectionSpan span;
+        span.id = m_dragStartSpan.id;
         span.startTime = m_dragStartSpan.startTime.addSecs(deltaSecs);
         span.endTime = m_dragStartSpan.endTime.addSecs(deltaSecs);
         if (hasValidRange()) span = clampToValidRange(span);
@@ -410,9 +441,17 @@ void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
         if (m_interactionSelectionIndex >= 0 && m_interactionSelectionIndex < m_timeSelections.size()) {
             TimeSelectionSpan newSpan = m_timeSelections.at(m_interactionSelectionIndex);
             if (hasValidRange()) newSpan = clampToValidRange(newSpan);
-            if (newSpan.endTime >= newSpan.startTime) {
+            // Idempotency guard: a press+release with no effective movement must
+            // leave the span unchanged and emit nothing, so repeated clicks on an
+            // existing selection cannot drift/grow it.
+            const bool unchanged = newSpan.startTime == m_dragStartSpan.startTime
+                                 && newSpan.endTime == m_dragStartSpan.endTime;
+            if (newSpan.endTime >= newSpan.startTime && !unchanged) {
                 m_timeSelections[m_interactionSelectionIndex] = newSpan;
                 emit timeSelectionModified(m_interactionSelectionIndex, newSpan);
+            } else if (unchanged) {
+                // Restore exactly, in case a sub-threshold move mutated the stored span.
+                m_timeSelections[m_interactionSelectionIndex] = m_dragStartSpan;
             }
         }
         m_interactionMode = InteractionMode::None;
@@ -442,9 +481,8 @@ void TimeVisualizerWidget::mouseDoubleClickEvent(QMouseEvent* event)
         TimeSelectionSpan span;
         
         if (hasValidRange()) {
-            // Convert QTime valid range to QDateTime
-            span.startTime = QDateTime(currentDate.date(), m_validStartTime);
-            span.endTime = QDateTime(currentDate.date(), m_validEndTime);
+            span.startTime = m_validStartDateTime;
+            span.endTime = m_validEndDateTime;
         } else {
             // Map the entire widget: bottom corresponds to oldest (height), top to current (0)
             const int bottomY = rect().height();
@@ -497,7 +535,13 @@ QTime TimeVisualizerWidget::yCoordinateToTime(int y) const
     if (totalSeconds <= 0 || widgetHeight <= 0) {
         return m_currentTime; // Return current time if invalid parameters
     }
-    
+
+    // Clamp Y to the visible strip. Dragging past the top/bottom edge must not
+    // extrapolate a time outside the visible history window (this is what caused
+    // selections to keep growing when dragged beyond the strip, especially in
+    // short 2-row layouts where each pixel maps to many seconds).
+    y = qBound(0, y, widgetHeight);
+
     // Calculate pixels per second
     double pixelsPerSecond = static_cast<double>(widgetHeight) / totalSeconds;
     
@@ -507,18 +551,15 @@ QTime TimeVisualizerWidget::yCoordinateToTime(int y) const
     // Calculate time at Y coordinate
     // Y=0 corresponds to currentTime, Y=height corresponds to currentTime-timespan
     int timeAtYSeconds = currentTimeSeconds - static_cast<int>(y / pixelsPerSecond);
-    
-    // Convert back to QTime
+
+    // Clamp to a valid time-of-day instead of wrapping across midnight. The old
+    // "hours = 24 + hours" wrap turned out-of-range values into large bogus times.
+    timeAtYSeconds = qBound(0, timeAtYSeconds, 24 * 3600 - 1);
+
     int hours = timeAtYSeconds / 3600;
     int minutes = (timeAtYSeconds % 3600) / 60;
     int seconds = timeAtYSeconds % 60;
-    
-    // Handle negative time values
-    if (timeAtYSeconds < 0) {
-        hours = 24 + hours;
-        if (hours >= 24) hours -= 24;
-    }
-    
+
     return QTime(hours, minutes, seconds);
 }
 
@@ -563,10 +604,18 @@ std::pair<int, SelectionHitZone> TimeVisualizerWidget::hitTest(int x, int y) con
         if (!r.contains(0, y)) continue;
         int topY = r.top();
         int bottomY = r.bottom();
-        if (y - topY <= RESIZE_EDGE_THRESHOLD)
-            return { i, SelectionHitZone::TopEdge };
-        if (bottomY - y <= RESIZE_EDGE_THRESHOLD)
-            return { i, SelectionHitZone::BottomEdge };
+        // Only offer edge-resize when the rendered rectangle is tall enough that
+        // the top and bottom edge zones do not overlap. For short selections
+        // (e.g. a 5-min span on a 15-min strip that renders only a few pixels
+        // tall) a plain click would otherwise be misread as a resize and the
+        // selection would balloon on every click. Treat those as a center drag.
+        const bool tallEnough = (bottomY - topY) > (2 * RESIZE_EDGE_THRESHOLD);
+        if (tallEnough) {
+            if (y - topY <= RESIZE_EDGE_THRESHOLD)
+                return { i, SelectionHitZone::TopEdge };
+            if (bottomY - y <= RESIZE_EDGE_THRESHOLD)
+                return { i, SelectionHitZone::BottomEdge };
+        }
         return { i, SelectionHitZone::Center };
     }
     return { -1, SelectionHitZone::None };
@@ -598,11 +647,22 @@ TimeSelectionSpan TimeVisualizerWidget::calculateSelectionSpan(int startY, int e
     return TimeSelectionSpan(startDateTime, endDateTime);
 }
 
+void TimeVisualizerWidget::setValidSelectionRange(const QDateTime& start, const QDateTime& end)
+{
+    m_validStartDateTime = start;
+    m_validEndDateTime = end;
+    updateVisualization();
+}
+
 void TimeVisualizerWidget::setValidSelectionRange(const QTime& start, const QTime& end)
 {
-    m_validStartTime = start;
-    m_validEndTime = end;
-    updateVisualization();
+    // Backward-compatible overload: compose the time-of-day with the current date.
+    if (start.isNull() || end.isNull()) {
+        setValidSelectionRange(QDateTime(), QDateTime());
+        return;
+    }
+    const QDate today = QDateTime::currentDateTime().date();
+    setValidSelectionRange(QDateTime(today, start), QDateTime(today, end));
 }
 
 TimeSelectionSpan TimeVisualizerWidget::clampToValidRange(const TimeSelectionSpan& span) const
@@ -610,20 +670,12 @@ TimeSelectionSpan TimeVisualizerWidget::clampToValidRange(const TimeSelectionSpa
     if (!hasValidRange()) return span;
 
     TimeSelectionSpan clamped = span;
-    
-    // Convert QTime valid range to QDateTime using current date for comparison
-    QDateTime currentDate = QDateTime::currentDateTime();
-    QDateTime validStartDateTime(currentDate.date(), m_validStartTime);
-    QDateTime validEndDateTime(currentDate.date(), m_validEndTime);
-    
-    // Handle potential day rollover: if validEndDateTime < validStartDateTime, it might span midnight
-    // For now, we'll assume same-day ranges
-    
-    if (clamped.startTime < validStartDateTime) {
-        clamped.startTime = validStartDateTime;
+
+    if (clamped.startTime < m_validStartDateTime) {
+        clamped.startTime = m_validStartDateTime;
     }
-    if (clamped.endTime > validEndDateTime) {
-        clamped.endTime = validEndDateTime;
+    if (clamped.endTime > m_validEndDateTime) {
+        clamped.endTime = m_validEndDateTime;
     }
     return clamped;
 }

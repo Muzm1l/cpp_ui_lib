@@ -1271,6 +1271,8 @@ bool GraphLayout::highlightHistorySelectionRegion(const QDateTime &startTime, co
     // Keep sync state and external listeners aligned with user-driven selections.
     m_syncState.timeSelections.push_back(span);
     emit TimeSelectionCreated(span);
+    emit TimeSelectionsChanged(m_syncState.timeSelections,
+                               static_cast<int>(m_syncState.timeSelections.size()) - 1);
 
     DEBUG_OUT() << "GraphLayout: Highlighted history selection region from"
                 << span.startTime.toString() << "to" << span.endTime.toString();
@@ -1597,8 +1599,10 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
         }
     }
     
-    // Emit the signal for external components
+    // Emit the signals for external components (deprecated single-span + preferred vector).
     emit TimeSelectionCreated(selection);
+    emit TimeSelectionsChanged(m_syncState.timeSelections,
+                               static_cast<int>(m_syncState.timeSelections.size()) - 1);
 }
 
 void GraphLayout::onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan)
@@ -1612,6 +1616,21 @@ void GraphLayout::onTimeSelectionModified(int index, const TimeSelectionSpan &ne
             container->setTimeSelection(index, newSpan);
     }
     emit TimeSelectionModified(index, newSpan);
+    emit TimeSelectionsChanged(m_syncState.timeSelections, index);
+}
+
+std::vector<TimeSelectionSpan> GraphLayout::getActiveTimeSelections() const
+{
+    return m_syncState.timeSelections;
+}
+
+void GraphLayout::setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+            container->setHistorySelectionReferenceSeries(graphType, seriesLabel);
+    }
 }
 
 void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
@@ -1720,8 +1739,9 @@ void GraphLayout::onTimeSelectionsCleared()
         }
     }
 
-    // Emit the signal for external consumers
+    // Emit the signals for external consumers (deprecated + preferred vector form).
     emit TimeSelectionsCleared();
+    emit TimeSelectionsChanged(m_syncState.timeSelections, -1);
 }
 
 void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)

@@ -125,6 +125,25 @@ public:
     void clearTimeSelections();
     void clearTimeSelectionsSilent(); // Clears without emitting signal
 
+    /**
+     * @brief Explicitly choose which graph + data series drives the history-selection
+     *        valid range and the H (interval/full) selection.
+     *
+     * By default the valid range is computed from the combined range of the current
+     * graph's data. When the main system has both a short "computed" series and a
+     * longer "measured" series, call this with the graph/series you want considered
+     * (e.g. GraphType::BTW, "ADOPTED") so H uses the measured extent.
+     *
+     * @param graphType   The graph whose WaterfallData holds the series.
+     * @param seriesLabel  The series label (e.g. "ADOPTED", "BTW-1"). Empty clears the override.
+     */
+    void setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel);
+    void clearHistorySelectionReferenceSeries();
+    /** Recompute the visualizer's valid range from the reference series (if set) or current data. */
+    void refreshHistorySelectionValidRange();
+    /** Valid range used for history selection: reference series if configured, else combined data range. */
+    std::pair<QDateTime, QDateTime> getHistorySelectionValidRange() const;
+
     // Test method
     void testSelectionRectangle();
     void deleteInteractiveMarkers();
@@ -371,6 +390,13 @@ private:
     // Data options management
     std::map<GraphType, WaterfallData *> dataOptions;
     GraphType currentDataOption;
+
+    // Explicit reference series for history-selection valid range / H selection.
+    // When m_hasSelectionReferenceSeries is true, the valid range is taken from
+    // this graph's series instead of the current graph's combined range.
+    bool m_hasSelectionReferenceSeries = false;
+    GraphType m_selectionReferenceGraphType = GraphType::BTW;
+    QString m_selectionReferenceSeriesLabel;
 
     // Range limits management
     std::map<GraphType, std::pair<qreal, qreal>> graphRangeLimits;

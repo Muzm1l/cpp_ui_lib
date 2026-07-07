@@ -1726,34 +1726,77 @@ void GraphContainer::onDataChanged(GraphType graphType)
         }
 
         // Update valid time range in TimeSelectionVisualizer from available data
-        if (m_timelineSelectionView)
+        refreshHistorySelectionValidRange();
+    }
+}
+
+std::pair<QDateTime, QDateTime> GraphContainer::getHistorySelectionValidRange() const
+{
+    // Explicit reference series (e.g. the longer "measured" series) takes priority
+    // so H / the valid range reflects that series' extent rather than whichever
+    // series happens to be shorter in the current graph's combined range.
+    if (m_hasSelectionReferenceSeries && !m_selectionReferenceSeriesLabel.isEmpty())
+    {
+        auto it = dataOptions.find(m_selectionReferenceGraphType);
+        if (it != dataOptions.end() && it->second &&
+            it->second->hasDataSeries(m_selectionReferenceSeriesLabel) &&
+            !it->second->isDataSeriesEmpty(m_selectionReferenceSeriesLabel))
         {
-            try
-            {
-                auto timeRange = getAvailableDataTimeRange();
-                if (timeRange.first.isValid() && timeRange.second.isValid())
-                {
-                    QTime startTime = timeRange.first.time();
-                    QTime endTime = timeRange.second.time();
-                    m_timelineSelectionView->setValidSelectionRange(startTime, endTime);
-                    DEBUG_OUT() << "GraphContainer: Updated TimeSelectionVisualizer valid range to" 
-                             << startTime.toString() << "to" << endTime.toString();
-                }
-                else
-                {
-                    // If time range is invalid, clear the valid range
-                    m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
-                    DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
-                }
-            }
-            catch (const std::runtime_error &e)
-            {
-                // If data is empty or not available, clear the valid range
-                m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
-                DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
-            }
+            return it->second->getTimeRangeSeries(m_selectionReferenceSeriesLabel);
+        }
+        // Fall through to combined range if the reference series isn't available yet.
+    }
+    return getAvailableDataTimeRange();
+}
+
+void GraphContainer::refreshHistorySelectionValidRange()
+{
+    if (!m_timelineSelectionView)
+        return;
+
+    try
+    {
+        auto timeRange = getHistorySelectionValidRange();
+        if (timeRange.first.isValid() && timeRange.second.isValid())
+        {
+            // Pass full QDateTime so a long measured range isn't truncated to time-of-day.
+            m_timelineSelectionView->setValidSelectionRange(timeRange.first, timeRange.second);
+            DEBUG_OUT() << "GraphContainer: Updated TimeSelectionVisualizer valid range to"
+                     << timeRange.first.toString() << "to" << timeRange.second.toString();
+        }
+        else
+        {
+            m_timelineSelectionView->setValidSelectionRange(QDateTime(), QDateTime());
+            DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
         }
     }
+    catch (const std::runtime_error &e)
+    {
+        m_timelineSelectionView->setValidSelectionRange(QDateTime(), QDateTime());
+        DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
+    }
+}
+
+void GraphContainer::setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel)
+{
+    if (seriesLabel.isEmpty())
+    {
+        clearHistorySelectionReferenceSeries();
+        return;
+    }
+    m_hasSelectionReferenceSeries = true;
+    m_selectionReferenceGraphType = graphType;
+    m_selectionReferenceSeriesLabel = seriesLabel;
+    DEBUG_OUT() << "GraphContainer: History-selection reference series set to"
+                << graphTypeToString(graphType) << "/" << seriesLabel;
+    refreshHistorySelectionValidRange();
+}
+
+void GraphContainer::clearHistorySelectionReferenceSeries()
+{
+    m_hasSelectionReferenceSeries = false;
+    m_selectionReferenceSeriesLabel.clear();
+    refreshHistorySelectionValidRange();
 }
 
 void GraphContainer::onDataChangedInteractive(GraphType graphType, const QString &seriesLabel)
@@ -1850,23 +1893,26 @@ void GraphContainer::onHistoryFullSelectionRequested()
     // When user clicks H button with no selections: use "real time to BTW horizontal line" if a line exists, else full range
     WaterfallGraph *btwBase = getWaterfallGraph(GraphType::BTW);
     Q_UNUSED(btwBase);
+    // If multiple horizontal lines exist, consider the latest (most recent in time).
     QDateTime lineTime;
     for (auto &pair : m_waterfallGraphs) {
-        if (pair.second) {
-            lineTime = pair.second->getLatestHorizontalLineTimestamp();
-            if (lineTime.isValid())
-                break;
-        }
+        if (!pair.second)
+            continue;
+        const QDateTime t = pair.second->getLatestHorizontalLineTimestamp();
+        if (t.isValid() && (!lineTime.isValid() || t > lineTime))
+            lineTime = t;
     }
     if (lineTime.isValid() && m_timelineSelectionView) {
+        // BTW line present: line becomes an endpoint, span runs line -> current time.
         QDateTime now = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
         TimeSelectionSpan span(lineTime < now ? lineTime : now, lineTime < now ? now : lineTime);
         m_timelineSelectionView->addTimeSelection(span);
         emit TimeSelectionCreated(span);
-        DEBUG_OUT() << "GraphContainer: History full selection from BTW line to real time:" << span.startTime.toString() << "to" << span.endTime.toString();
+        DEBUG_OUT() << "GraphContainer: History selection from BTW line to real time:" << span.startTime.toString() << "to" << span.endTime.toString();
     } else {
+        // No BTW line: select exactly one timeline interval ending at current time.
         if (m_timelineSelectionView)
-            m_timelineSelectionView->createFullSelection();
+            m_timelineSelectionView->createIntervalSelection();
     }
 }
 

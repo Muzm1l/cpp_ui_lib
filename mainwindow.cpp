@@ -60,7 +60,9 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap, systemStartTime);
     DEBUG_OUT() << "MainWindow: system start time (4h before now):" << systemStartTime.toString(Qt::ISODate);
     graphgrid->setObjectName("graphgrid");
-    graphgrid->setGeometry(QRect(100, 100, 900, 900));
+    // GPW4W layout is 548×900 after GraphLayout sizing; keep a small top/left margin so the
+    // 2×2 grid is not clipped by the tab area (was 100,100 which cut off the bottom row).
+    graphgrid->setGeometry(QRect(4, 4, 548, 900));
     
     // Test setContainerGraphType API - set different graph types for each container in 2x2 layout
     // Container indices: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right
@@ -633,6 +635,10 @@ MainWindow::MainWindow(QWidget *parent)
     //                         testSymbolTime.addSecs(10), 24.0f);
     // DEBUG_OUT() << "MainWindow: Added test BTW symbols YellowCircle1 + WhiteCircle1 at"
     //             << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
+
+    // Ensure the window is tall enough for the 900px graph grid plus tab chrome.
+    setMinimumSize(1200, 980);
+    resize(1500, 980);
 }
 
 void MainWindow::setupTimeSelectionHistory()

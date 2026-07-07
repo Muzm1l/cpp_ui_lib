@@ -137,6 +137,25 @@ public:
      */
     bool highlightHistorySelectionRegion(const QDateTime &startTime, const QDateTime &endTime);
 
+    /**
+     * @brief Snapshot of all active history selections (start/end + stable id).
+     *
+     * Use together with the TimeSelectionsChanged() signal: when a selection is
+     * created or a specific existing selection is updated, the main system gets
+     * the full current set and can recalculate the one whose id/index changed.
+     */
+    std::vector<TimeSelectionSpan> getActiveTimeSelections() const;
+
+    /**
+     * @brief Explicitly choose which graph + data series drives the history-selection
+     *        valid range and the H selection, across all containers.
+     *
+     * Example: setHistorySelectionReferenceSeries(GraphType::BTW, "ADOPTED") to
+     * anchor the range to the longer measured series instead of the computed one.
+     * Pass an empty seriesLabel to clear the override.
+     */
+    void setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel);
+
     // Set the current time
     void setCurrentTime(const QTime &time);
     void deleteInteractiveMarkers();
@@ -517,9 +536,23 @@ signals:
      */
     void VisibleGraphsChanged();
 
+    // @deprecated Prefer TimeSelectionsChanged (vector form). Kept for backward
+    // compatibility; will be removed once a stable version ships.
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void TimeSelectionsCleared();
+
+    /**
+     * @brief Emitted on any change to the history-selection set (create / modify / clear).
+     * @param selections  The full current set of active selections (with stable ids).
+     * @param changedIndex Index into @p selections of the created/modified selection,
+     *                     or -1 when the set was cleared.
+     *
+     * This is the preferred integration point: the main system always receives the
+     * complete vector plus which entry changed, so an updated selection can be
+     * recalculated by id or index without tracking deltas itself.
+     */
+    void TimeSelectionsChanged(const std::vector<TimeSelectionSpan> &selections, int changedIndex);
     
     // Marker timestamp signals for external integration
     /**
