@@ -34,8 +34,10 @@ public:
         WhiteCircle2,   // Active (unselected) ruler 2
         WhiteCircle3,   // Active (unselected) ruler 3
         WhiteCircle4,   // Active (unselected) ruler 4
-        MaxSymbol,    // Yellow vertical line with 4 cyan dot lines behind
-        MinSymbol     // Yellow vertical line with 4 cyan dot lines in front
+        MaxSymbol,    // Yellow spine (left) with horizontal branches + circle tips (right)
+        MinSymbol,    // Mirror of MaxSymbol: spine (right), branches + circle tips (left)
+        Dummy1,       // Former MaxSymbol: yellow vertical line with 4 cyan dot lines behind
+        Dummy2        // Former MinSymbol: yellow vertical line with 4 cyan dot lines in front
     };
 
     RTWSymbolDrawing(int baseSize = 20);  // size in pixels (reduced from 40)
@@ -78,6 +80,8 @@ private:
     QPixmap makeNumberedCircle(int digit, const QColor &fill, const QColor &textColor);
     QPixmap makeMaxSymbol();
     QPixmap makeMinSymbol();
+    QPixmap makeDummy1();
+    QPixmap makeDummy2();
 
     // helpers
     QPixmap blank();

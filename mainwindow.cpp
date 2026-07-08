@@ -2068,7 +2068,9 @@ protected:
             RTWSymbolDrawing::SymbolType::YellowCircle3,
             RTWSymbolDrawing::SymbolType::YellowCircle4,
             RTWSymbolDrawing::SymbolType::MaxSymbol,
-            RTWSymbolDrawing::SymbolType::MinSymbol
+            RTWSymbolDrawing::SymbolType::MinSymbol,
+            RTWSymbolDrawing::SymbolType::Dummy1,
+            RTWSymbolDrawing::SymbolType::Dummy2
             
         };
 
@@ -2099,7 +2101,9 @@ protected:
             "Yellow Circle 3",
             "Yellow Circle 4",
             "MAX Symbol",
-            "MIN Symbol"
+            "MIN Symbol",
+            "Dummy 1",
+            "Dummy 2"
         };
 
         for (int i = 0; i < symbolTypes.size(); ++i)
@@ -2159,8 +2163,10 @@ void MainWindow::setupRTWSymbolsTest()
         "• EKELUND Range - RectK\n"
         "• LATERAL Range - CircleRYellow\n"
         "• MIN/MAX Range - DoubleBarYellow\n"
-        "• MAX Symbol - Yellow line with cyan dots behind\n"
-        "• MIN Symbol - Yellow line with cyan dots in front\n\n"
+        "• MAX Symbol - Yellow line with 4 diagonal (45 deg CW) dotted lines\n"
+        "• MIN Symbol - Mirror of MAX (dotted lines slanted the other way)\n"
+        "• Dummy 1 - Yellow line with cyan dots behind (former MAX)\n"
+        "• Dummy 2 - Yellow line with cyan dots in front (former MIN)\n\n"
         "Adoption Types:\n"
         "• REAL TIME ADOPTION - RectA (Red)\n"
         "• PAST TIME ADOPTION - RectAPurple\n\n"
