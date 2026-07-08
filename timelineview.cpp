@@ -805,9 +805,10 @@ void TimelineVisualizerWidget::renderBackgroundToCache()
         }
     }
     
-    // Draw border
+    // Draw outer border and an inner border (double border), inset by 3px.
     painter.setPen(QPen(QColor(150, 150, 150), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    painter.drawRect(rect().adjusted(3, 3, -4, -4));
     
     // CRITICAL FIX: Slider is NOT drawn in background cache - it's drawn directly in paintEvent()
     // This ensures immediate updates during drag without expensive cache regeneration
@@ -915,8 +916,29 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
         QRect sliderRect = SliderGeometry::calculateSliderRect(
             rect().height(), rect().width(), m_timeLineLength,
             m_sliderState.getYPosition());
-        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
-        painter.fillRect(sliderRect, sliderColor);
+
+        // Make the slider 2px narrower (1px inset on each side).
+        sliderRect.adjust(1, 0, -1, 0);
+
+        // Semi-transparent white fill (50%) so the waterfall behind stays visible.
+        painter.fillRect(sliderRect, QColor(255, 255, 255, 128));
+
+        int leftX = sliderRect.left();
+        int rightX = sliderRect.right();
+        int topY = sliderRect.top();
+        int bottomY = sliderRect.bottom();
+
+        // Double horizontal lines on the top and bottom edges, separated by a 2px gap.
+        const int gap = 3; // 1px line + 2px gap
+        painter.setPen(QPen(QColor(255, 255, 255), 1));
+        painter.drawLine(leftX, topY, rightX, topY);
+        painter.drawLine(leftX, topY + gap, rightX, topY + gap);
+        painter.drawLine(leftX, bottomY, rightX, bottomY);
+        painter.drawLine(leftX, bottomY - gap, rightX, bottomY - gap);
+
+        // Thin single vertical lines on the sides.
+        painter.drawLine(leftX, topY, leftX, bottomY);
+        painter.drawLine(rightX, topY, rightX, bottomY);
     }
     
     // Draw only the crosshair timestamp label on top (lightweight, changes with mouse movement)
@@ -1641,8 +1663,8 @@ void TimelineVisualizerWidget::drawNavTimeLabels(QPainter& painter, const QRect&
     // Calculate which labels to show
     std::vector<QDateTime> labels = calculateNavTimeLabels(currentNavTime, m_timeInterval, m_timeLineLength);
     
-    // Set text color to white for visibility on dark background
-    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    // Set text color to yellow for the time interval labels
+    painter.setPen(QPen(QColor(255, 255, 0), 1));
     QFontMetrics fm(painter.font());
     
     for (const QDateTime& labelNavTime : labels)
@@ -1832,7 +1854,8 @@ void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, 
     }
     
     // Draw cached labels - fast path (no QDateTime operations)
-    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    // Yellow text color for the time interval labels
+    painter.setPen(QPen(QColor(255, 255, 0), 1));
     QFontMetrics fm(painter.font());
     int textHeight = fm.height();
     
