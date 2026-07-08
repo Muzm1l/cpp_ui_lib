@@ -300,6 +300,18 @@ public:
      * @return true if marker was created successfully
      */
     bool addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate = 0.0f);
+
+    /**
+     * @brief Bind click-placed manual markers on all BTW graphs to a specific series.
+     *
+     * When a user clicks to place a manual marker, the marker is positioned on the
+     * given series' interpolated range at the clicked time (the click's X position is
+     * ignored). Applies to every BTW graph across all containers. Pass an empty
+     * seriesLabel to clear the binding (markers then use the raw clicked X position).
+     *
+     * This replaces the old "snap to nearest visible series" behaviour.
+     */
+    void setBTWManualMarkerSeries(const QString &seriesLabel);
     
     // ========== Horizontal time line management (all graph types) ==========
 

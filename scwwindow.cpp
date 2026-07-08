@@ -418,7 +418,9 @@ void SCWWindow::setupLayout()
     m_mainLayout->setSpacing(5);
     
     // Create TimelineView with sync state
-    m_timelineView = new TimelineView(this, m_timer, m_syncState, false, false);
+    // showTimeModeButton = false: SCW has no Abs/Rel button in its timeline.
+    m_timelineView = new TimelineView(this, m_timer, m_syncState, false, false,
+                                      TIMELINE_VIEW_BUTTON_SIZE / 2, TIMELINE_VIEW_BUTTON_SIZE / 2, false);
     m_timelineView->setObjectName("scwTimelineView");
     
     // Set size policy for TimelineView - fixed width, expanding height
@@ -766,6 +768,34 @@ void SCWWindow::setupWaterfallGraphs()
         DEBUG_OUT() << "Created and connected WaterfallGraph for window 8, initial series:" << seriesLabelE;
     }
     
+    // SCW-specific graph appearance / behaviour applied uniformly to all 8 graphs:
+    //  - white frame border
+    //  - yellow crosshair; the horizontal line marks a time (shown on the timeline
+    //    strip), the vertical line has no value label
+    //  - mouse tracking so the crosshair follows the cursor on hover
+    for (int i = 0; i < 8; ++i)
+    {
+        WaterfallGraph *graph = m_waterfallGraphs[i];
+        if (!graph)
+            continue;
+
+        graph->setBorderColor(Qt::white);
+        graph->setCrosshairColor(Qt::yellow);
+        graph->setCrosshairEnabled(true);
+        graph->setCursorLayerEnabled(false);
+        graph->setMouseTracking(true);
+
+        // Horizontal crosshair line -> show the time on the shared SCW timeline strip.
+        graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal /*yPosition*/) {
+            if (!m_timelineView)
+                return;
+            if (time.isValid())
+                m_timelineView->updateCrosshairTimestampFromTime(time);
+            else
+                m_timelineView->clearCrosshairTimestamp();
+        });
+    }
+
     DEBUG_OUT() << "SCWWindow waterfall graphs setup completed";
 }
 
@@ -1160,26 +1190,50 @@ QString SCWWindow::getCurrentSeriesName(int windowIndex) const
 
 bool SCWWindow::eventFilter(QObject *obj, QEvent *event)
 {
-    // Check if this is a mouse press event on a WaterfallGraph
-    if (event->type() == QEvent::MouseButtonPress)
+    // Select / mark-hovered a window when the mouse enters its graph
+    // (selection is hover-based rather than click-based).
+    if (event->type() == QEvent::Enter)
     {
-        QMouseEvent *mouseEvent = static_cast<QMouseEvent*>(event);
-        if (mouseEvent->button() == Qt::LeftButton)
+        for (int i = 0; i < 8; ++i)
         {
-            // Find which WaterfallGraph was clicked
-            for (int i = 0; i < 8; ++i)
+            if (m_waterfallGraphs[i] && obj == m_waterfallGraphs[i])
             {
-                if (m_waterfallGraphs[i] && obj == m_waterfallGraphs[i])
+                if (m_hoveredWindowIndex != i)
                 {
-                    selectWindow(i);
-                    return true; // Event handled
+                    m_hoveredWindowIndex = i;
+                    emit windowHovered(i, getCurrentSeriesName(i));
                 }
+                selectWindow(i);
+                break; // Don't consume the event so the crosshair still works
+            }
+        }
+    }
+    // Clear the hovered window when the mouse leaves a graph.
+    else if (event->type() == QEvent::Leave)
+    {
+        for (int i = 0; i < 8; ++i)
+        {
+            if (m_waterfallGraphs[i] && obj == m_waterfallGraphs[i])
+            {
+                if (m_hoveredWindowIndex == i)
+                {
+                    m_hoveredWindowIndex = -1;
+                    emit windowHovered(-1, QString());
+                }
+                break;
             }
         }
     }
     
     // Let other events pass through
     return QWidget::eventFilter(obj, event);
+}
+
+QString SCWWindow::getHoveredSeriesName() const
+{
+    if (m_hoveredWindowIndex < 0 || m_hoveredWindowIndex >= 8)
+        return QString();
+    return getCurrentSeriesName(m_hoveredWindowIndex);
 }
 
 // Button click handlers for windows 1-5 (selection only)

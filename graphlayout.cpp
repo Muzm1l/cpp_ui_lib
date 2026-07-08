@@ -2794,6 +2794,33 @@ bool GraphLayout::addBTWManualMarker(const QDateTime &timestamp, float rangeValu
     return false;
 }
 
+void GraphLayout::setBTWManualMarkerSeries(const QString &seriesLabel)
+{
+    DEBUG_OUT() << "GraphLayout: Binding BTW manual markers to series:" << seriesLabel;
+
+    int graphsUpdated = 0;
+
+    // Apply to every BTW graph, even those not currently displayed.
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                btwGraph->setManualMarkerSeries(seriesLabel);
+                graphsUpdated++;
+            }
+        }
+    }
+
+    DEBUG_OUT() << "GraphLayout: Set BTW manual marker series on" << graphsUpdated << "graph(s)";
+}
+
 void GraphLayout::clearBTWManualMarkers()
 {
     DEBUG_OUT() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";

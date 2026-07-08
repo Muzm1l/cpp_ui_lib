@@ -448,6 +448,10 @@ protected:
     QGraphicsLineItem *crosshairVertical;
     bool crosshairEnabled;
 
+    // Configurable colours (defaults preserve prior behaviour)
+    QColor m_borderColor = QColor(150, 150, 150); // graph frame border
+    QColor m_crosshairColor = Qt::cyan;           // crosshair lines
+
     // Cursor callback helpers
     void notifyCursorTimeChanged(const QDateTime &time, qreal yPosition = -1.0);
     std::function<void(const QDateTime &, qreal)> cursorTimeChangedCallback;
@@ -552,6 +556,10 @@ public:
     // Crosshair control
     void setCrosshairEnabled(bool enabled);
     bool isCrosshairEnabled() const;
+
+    // Colour customization
+    void setBorderColor(const QColor &color);
+    void setCrosshairColor(const QColor &color);
     
     // Time axis cursor control
     void setTimeAxisCursor(const QDateTime &time);

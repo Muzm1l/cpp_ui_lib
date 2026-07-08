@@ -80,6 +80,19 @@ public:
      * @return Pointer to the created marker, or nullptr if creation failed
      */
     InteractiveGraphicsItem* addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate = 0.0);
+
+    /**
+     * @brief Choose which data series a click-placed manual marker binds to.
+     *
+     * When set to a non-empty, existing series label, clicking to place a manual
+     * marker uses that series' interpolated range at the clicked time (the click's
+     * X position is ignored). Pass an empty string to clear, in which case the
+     * marker is placed at the raw clicked X position.
+     *
+     * This replaces the previous "snap to nearest visible series" behaviour.
+     */
+    void setManualMarkerSeries(const QString &seriesLabel);
+    QString manualMarkerSeries() const;
     
     // ========== Marker Sync Methods ==========
     
@@ -263,12 +276,8 @@ private:
     qreal m_cachedMarkerRadius;    // Cached marker radius based on window size
     bool m_windowSizeCacheValid;   // Flag to track cache validity
 
-    /**
-     * Snap a manual marker to the visible series whose interpolated trace is horizontally
-     * nearest the click at the given time (clicked Y → timestamp).
-     */
-    bool snapManualMarkerToNearestSeriesAtTime(const QPointF &scenePos, const QDateTime &timestamp,
-                                               qreal &outRange, QString &outSeriesLabel) const;
+    // Series that click-placed manual markers bind to. Empty = use raw clicked X.
+    QString m_manualMarkerSeries;
     
     // Cache update function (Issue #3)
     void updateWindowSizeCache();

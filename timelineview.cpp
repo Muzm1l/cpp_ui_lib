@@ -1870,7 +1870,7 @@ void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, 
     }
 }
 
-TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible, int timeModeButtonHeight, int intervalButtonHeight)
+TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible, int timeModeButtonHeight, int intervalButtonHeight, bool showTimeModeButton)
     : QWidget(parent), 
     m_intervalChangeButton(nullptr), 
     m_timeModeChangeButton(nullptr), 
@@ -1912,25 +1912,28 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
         "    background-color: dimgrey;"
         "}");
 
-    // setup m_timeModeChangeButton
-    m_timeModeChangeButton = new QPushButton("Abs", this);
-    m_timeModeChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, timeModeButtonHeight);
-    m_timeModeChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
-    m_timeModeChangeButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: black;"
-        "    border: 2px solid white;"
-        "    color: white;"
-        "    font-weight: bold;"
-        "    margin: 0px;"
-        "    padding: 0px;"
-        "}"
-        "QPushButton:hover {"
-        "    background-color: darkgrey;"
-        "}"
-        "QPushButton:pressed {"
-        "    background-color: dimgrey;"
-        "}");
+    // setup m_timeModeChangeButton (Abs/Rel). Optional: some views (e.g. SCW) hide it.
+    if (showTimeModeButton)
+    {
+        m_timeModeChangeButton = new QPushButton("Abs", this);
+        m_timeModeChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, timeModeButtonHeight);
+        m_timeModeChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
+        m_timeModeChangeButton->setStyleSheet(
+            "QPushButton {"
+            "    background-color: black;"
+            "    border: 2px solid white;"
+            "    color: white;"
+            "    font-weight: bold;"
+            "    margin: 0px;"
+            "    padding: 0px;"
+            "}"
+            "QPushButton:hover {"
+            "    background-color: darkgrey;"
+            "}"
+            "QPushButton:pressed {"
+            "    background-color: dimgrey;"
+            "}");
+    }
 
     m_isAbsoluteTime = true;
     // updateTimeModeButtonText(m_isAbsoluteTime);
@@ -1939,12 +1942,14 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
     m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState, sliderVisible, chevronVisible);
 
     // Add widgets to layout
-    m_layout->addWidget(m_timeModeChangeButton);
+    if (m_timeModeChangeButton)
+        m_layout->addWidget(m_timeModeChangeButton);
     m_layout->addWidget(m_intervalChangeButton);
     m_layout->addWidget(m_visualizerWidget, 1); // Stretch factor of 1 to fill remaining space
 
     // Connect button click to internal handler
-    connect(m_timeModeChangeButton, &QPushButton::clicked, this, &TimelineView::onTimeModeButtonClicked);
+    if (m_timeModeChangeButton)
+        connect(m_timeModeChangeButton, &QPushButton::clicked, this, &TimelineView::onTimeModeButtonClicked);
     connect(m_intervalChangeButton, &QPushButton::clicked, this, &TimelineView::onIntervalButtonClicked);
 
     // Connect slider signal to emit TimeScopeChanged
@@ -2107,7 +2112,8 @@ void TimelineView::onTimeModeButtonClicked()
 void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
 {
     QString buttonText = isAbsoluteTime ? "Abs" : "Rel";
-    m_timeModeChangeButton->setText(buttonText);
+    if (m_timeModeChangeButton)
+        m_timeModeChangeButton->setText(buttonText);
 }
 
 void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection)
