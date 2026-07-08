@@ -400,32 +400,32 @@ void BTWGraph::drawCustomCircleMarkers()
         
         if (QGraphicsTextItem* textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item))
         {
-            // Text items with zValue 1002 and blue text color are blue marker labels
-            if (zVal == 1002 && textItem->defaultTextColor() == Qt::blue)
+            // Text items with zValue 1002 and magenta text color are automatic marker labels
+            if (zVal == 1002 && textItem->defaultTextColor() == Qt::magenta)
             {
                 isBlueMarker = true;
             }
         }
         else if (QGraphicsEllipseItem* ellipseItem = qgraphicsitem_cast<QGraphicsEllipseItem*>(item))
         {
-            // Circle items with zValue 1000 and blue pen are blue marker circles
-            if (zVal == 1000 && ellipseItem->pen().color() == Qt::blue)
+            // Circle items with zValue 1000 and magenta pen are automatic marker circles
+            if (zVal == 1000 && ellipseItem->pen().color() == Qt::magenta)
             {
                 isBlueMarker = true;
             }
         }
         else if (QGraphicsLineItem* lineItem = qgraphicsitem_cast<QGraphicsLineItem*>(item))
         {
-            // Line items with zValue 1001 and blue pen are blue marker lines
-            if (zVal == 1001 && lineItem->pen().color() == Qt::blue)
+            // Line items with zValue 1001 and magenta pen are automatic marker lines
+            if (zVal == 1001 && lineItem->pen().color() == Qt::magenta)
             {
                 isBlueMarker = true;
             }
         }
         else if (QGraphicsRectItem* rectItem = qgraphicsitem_cast<QGraphicsRectItem*>(item))
         {
-            // Rect items with zValue 1001 and blue pen are blue marker text outlines
-            if (zVal == 1001 && rectItem->pen().color() == Qt::blue)
+            // Rect items with zValue 1001 and magenta pen are automatic marker text outlines
+            if (zVal == 1001 && rectItem->pen().color() == Qt::magenta)
             {
                 isBlueMarker = true;
             }
@@ -489,7 +489,7 @@ void BTWGraph::drawCustomCircleMarkers()
             QGraphicsEllipseItem *circleOutline = new QGraphicsEllipseItem();
             circleOutline->setRect(screenPos.x() - markerRadius, screenPos.y() - markerRadius, 
                                  2 * markerRadius, 2 * markerRadius);
-            circleOutline->setPen(QPen(Qt::blue, 2));
+            circleOutline->setPen(QPen(Qt::magenta, 2));
             circleOutline->setBrush(QBrush(Qt::transparent));
             circleOutline->setZValue(1000);
             
@@ -512,7 +512,7 @@ void BTWGraph::drawCustomCircleMarkers()
             QGraphicsLineItem *angledLine = new QGraphicsLineItem();
             angledLine->setLine(screenPos.x() - deltaX, screenPos.y() - deltaY,
                               screenPos.x() + deltaX, screenPos.y() + deltaY);
-            angledLine->setPen(QPen(Qt::blue, 2));
+            angledLine->setPen(QPen(Qt::magenta, 2));
             angledLine->setZValue(1001);
             
             // CRITICAL FIX: Blue automatic markers are now in overlayScene (interactive overlay) instead of graphicsScene
@@ -526,7 +526,7 @@ void BTWGraph::drawCustomCircleMarkers()
             font.setPointSizeF(8.0);
             font.setBold(true);
             textLabel->setFont(font);
-            textLabel->setDefaultTextColor(Qt::blue);
+            textLabel->setDefaultTextColor(Qt::magenta);
             
             // Position text label to the left of the marker
             QRectF textRect = textLabel->boundingRect();
@@ -541,7 +541,7 @@ void BTWGraph::drawCustomCircleMarkers()
             QGraphicsRectItem *textOutline = new QGraphicsRectItem();
             textOutline->setRect(textLabel->pos().x() - 2, textLabel->pos().y() - 2,
                                textRect.width() + 4, textRect.height() + 4);
-            textOutline->setPen(QPen(Qt::blue, 1));
+            textOutline->setPen(QPen(Qt::magenta, 1));
             textOutline->setBrush(QBrush(Qt::transparent));
             textOutline->setZValue(1001);
             

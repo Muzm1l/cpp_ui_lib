@@ -533,7 +533,7 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
     // Determine prefix based on rotation direction (increasing = R, decreasing = L)
     QString prefix = "";
     if (normalizedRotation == 0) {
-        prefix = "";  // No prefix for 0 degrees
+        prefix = "R";  // Default to R at 0 degrees
     } else {
         // Check if we have a previous rotation value to compare
         if (m_previousRotation.contains(marker)) {
@@ -581,14 +581,13 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
                 if (m_previousPrefix.contains(marker)) {
                     prefix = m_previousPrefix[marker];  // Maintain previous prefix
                 } else {
-                    // First time with no change, default based on value
-                    prefix = (normalizedRotation > 0) ? "R" : "";
+                    // First time with no change (rotation 0): default to R
+                    prefix = "R";
                 }
             }
         } else {
-            // First time seeing this marker, default based on value
-            // Default to R for positive values (assuming clockwise start)
-            prefix = (normalizedRotation > 0) ? "R" : "";
+            // First time seeing this marker (rotation 0): default to R
+            prefix = "R";
         }
         
         // Store current rotation and prefix for next comparison
@@ -613,10 +612,10 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
         localDisplayValue = visibleSpan - 0.01;  // Keep below span for display
     }
     // Box value = start sticker + normalized offset (so A shows 0-360, B shows 330-360)
-    int boxDisplayInt = static_cast<int>(qRound(visibleMin + localDisplayValue));
+    qreal boxDisplayValue = visibleMin + localDisplayValue;
     
-    // Format the display value (sticker-scale: visibleMin to visibleMax, no decimal places)
-    QString displayValue = QString::number(boxDisplayInt);
+    // Format the display value to 2 decimals (sticker-scale: visibleMin to visibleMax)
+    QString displayValue = QString::number(boxDisplayValue, 'f', 2);
     QString bearingRateText = prefix + displayValue;
     
     // Get cached pixmap for this text (L0-L359, R0-R359, or 0)
@@ -658,7 +657,7 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
         // Create new outline
         textOutline = new QGraphicsRectItem();
         textOutline->setRect(textX - 2, textY + 1, textRect.width() + 6, textRect.height() + 4);
-        textOutline->setPen(QPen(Qt::green, 1));
+        textOutline->setPen(QPen(QColor(255, 182, 193), 1));
         textOutline->setBrush(QBrush(Qt::transparent));
         textOutline->setZValue(1001);
         m_overlayScene->addItem(textOutline);
@@ -698,7 +697,7 @@ QPixmap BTWInteractiveOverlay::getCachedTextPixmap(const QString &text)
     QPainter painter(&pixmap);
     painter.setRenderHint(QPainter::Antialiasing);
     painter.setFont(s_cachedFont);
-    painter.setPen(Qt::green);
+    painter.setPen(QColor(255, 182, 193));
     painter.drawText(2, textRect.height() + 2, text);
     painter.end();
     
