@@ -119,15 +119,18 @@ MainWindow::MainWindow(QWidget *parent)
     // Add label to layout
     controlsLayout->addWidget(rtwRMarkerTimestampLabel);
     
-    // Connect RTW ruler selection signal from graphgrid to update status label
-    connect(graphgrid, &GraphLayout::RtwRulerSelected,
-            [this](int index, const QDateTime &timestamp, qreal range) {
-                const QString text = QString("Ruler %1 selected | %2 | range %3")
+    // Connect ruler click signal from graphgrid to update status label
+    connect(graphgrid, &GraphLayout::RulerClicked,
+            [this](int index, const QDateTime &timestamp, qreal range, GraphType graphType) {
+                const QString graphName = (graphType == GraphType::BTW) ? QStringLiteral("BTW")
+                                                                        : QStringLiteral("RTW");
+                const QString text = QString("Ruler %1 clicked on %2 | %3 | range %4")
                     .arg(index + 1)
+                    .arg(graphName)
                     .arg(timestamp.toString("yyyy-MM-dd hh:mm:ss"))
                     .arg(range, 0, 'f', 1);
                 updateRtwRulerStatusLabel(text);
-                DEBUG_OUT() << "RTW Ruler selected:" << index << timestamp << range;
+                DEBUG_OUT() << "Ruler clicked:" << index << static_cast<int>(graphType) << timestamp << range;
             });
 
     // Connect RTW R marker timestamp signal from graphgrid to update label
@@ -875,16 +878,16 @@ void MainWindow::onTestRtwRulersButtonClicked()
 
     const QDateTime now = QDateTime::currentDateTime();
 
-    graphgrid->clearAllRtwRulers();
-    graphgrid->setRtwRulerActive(0, now.addSecs(-120), 8.0);   // white "1"
-    graphgrid->setRtwRulerActive(1, now.addSecs(-60), 15.0);   // will be selected (yellow "2")
-    graphgrid->setRtwRulerActive(2, now.addSecs(-30), 20.0);   // white "3"
-    graphgrid->setRtwRulerActive(3, now.addSecs(-10), 22.0);   // white "4"
-    graphgrid->setSelectedRtwRuler(1);
+    graphgrid->clearAllRulers();
+    graphgrid->setRulerActive(0, now.addSecs(-120), 12.0);
+    graphgrid->setRulerActive(1, now.addSecs(-60), 30.0);
+    graphgrid->setRulerActive(2, now.addSecs(-30), 50.0);
+    graphgrid->setRulerActive(3, now.addSecs(-10), 68.0);
+    graphgrid->setSelectedRuler(1);
 
     updateRtwRulerStatusLabel(
-        QString("Test: rulers 1-4 active, ruler 2 selected (yellow). Click a circle on the RTW graph."));
-    DEBUG_OUT() << "MainWindow: RTW ruler API test — activated 4 rulers, selected index 1";
+        QString("Test: rulers 1-4 active on BTW+RTW, ruler 2 selected (yellow). Click a circle to get its timestamp."));
+    DEBUG_OUT() << "MainWindow: Ruler API test — activated 4 rulers on BTW+RTW, selected index 1";
 }
 
 void MainWindow::onClearRtwRulersButtonClicked()
@@ -894,9 +897,9 @@ void MainWindow::onClearRtwRulersButtonClicked()
         return;
     }
 
-    graphgrid->clearAllRtwRulers();
-    updateRtwRulerStatusLabel("All RTW rulers cleared.");
-    DEBUG_OUT() << "MainWindow: Cleared all RTW rulers via GraphLayout API";
+    graphgrid->clearAllRulers();
+    updateRtwRulerStatusLabel("All rulers cleared (BTW + RTW).");
+    DEBUG_OUT() << "MainWindow: Cleared all rulers via GraphLayout API";
 }
 
 void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spread)
@@ -2269,12 +2272,12 @@ void MainWindow::setupBtwRulersApiTestTab()
 
     auto *intro = new QLabel(
         QStringLiteral(
-            "BTW Ruler API test\n\n"
-            "Up to 4 numbered circles on the BTW graph (Original View, top-left panel).\n"
+            "BTW + RTW Ruler API test\n\n"
+            "Up to 4 numbered circles on both BTW and RTW graphs (Original View).\n"
             "• White circle + digit = active, unselected\n"
-            "• Yellow circle + digit = selected\n"
+            "• Yellow circle + digit = selected (API-only via setSelectedRuler)\n"
             "• At most one ruler selected at a time\n\n"
-            "Use the buttons below, then click a circle on the BTW graph to change selection."),
+            "Use the buttons below, then click a circle to receive its timestamp."),
         tab);
     intro->setWordWrap(true);
     intro->setStyleSheet(
@@ -2313,10 +2316,10 @@ void MainWindow::setupBtwRulersApiTestTab()
                 btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
             return;
         }
-        graphgrid->setSelectedBtwRuler(2);
+        graphgrid->setSelectedRuler(2);
         if (btwRulerApiStatusLabel)
             btwRulerApiStatusLabel->setText(
-                QStringLiteral("Programmatic selection: ruler 3 (index 2) via setSelectedBtwRuler(2)."));
+                QStringLiteral("Programmatic selection: ruler 3 (index 2) via setSelectedRuler(2)."));
     });
 
     buttonRow->addWidget(testBtn);
@@ -2327,16 +2330,19 @@ void MainWindow::setupBtwRulersApiTestTab()
 
     layout->addStretch();
 
-    connect(graphgrid, &GraphLayout::BtwRulerSelected,
-            this, [this](int index, const QDateTime &timestamp, qreal range) {
+    connect(graphgrid, &GraphLayout::RulerClicked,
+            this, [this](int index, const QDateTime &timestamp, qreal range, GraphType graphType) {
                 if (!btwRulerApiStatusLabel)
                     return;
+                const QString graphName = (graphType == GraphType::BTW) ? QStringLiteral("BTW")
+                                                                        : QStringLiteral("RTW");
                 btwRulerApiStatusLabel->setText(
-                    QString("Ruler %1 selected | %2 | bearing %3")
+                    QString("Ruler %1 clicked on %2 | %3 | range %4")
                         .arg(index + 1)
+                        .arg(graphName)
                         .arg(timestamp.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
                         .arg(range, 0, 'f', 1));
-                DEBUG_OUT() << "BTW Ruler selected (API tab):" << index << timestamp << range;
+                DEBUG_OUT() << "Ruler clicked (API tab):" << index << static_cast<int>(graphType) << timestamp << range;
             });
 
     DEBUG_OUT() << "MainWindow: BTW Rulers API test tab created";
@@ -2354,20 +2360,19 @@ void MainWindow::onTestBtwRulersButtonClicked()
 
     // Clear data symbols so numbered circles from testBTWSymbolsAPI are not confused with rulers
     graphgrid->clearBTWSymbols(GraphType::BTW);
-    graphgrid->clearAllBtwRulers();
-    // Bearings must fall within BTW hard limits (5.0–75.0); off-screen rulers are not drawn
-    graphgrid->setBtwRulerActive(0, now.addSecs(-120), 12.0);
-    graphgrid->setBtwRulerActive(1, now.addSecs(-60), 30.0);
-    graphgrid->setBtwRulerActive(2, now.addSecs(-30), 50.0);
-    graphgrid->setBtwRulerActive(3, now.addSecs(-10), 68.0);
-    graphgrid->setSelectedBtwRuler(1);
+    graphgrid->clearAllRulers();
+    graphgrid->setRulerActive(0, now.addSecs(-120), 12.0);
+    graphgrid->setRulerActive(1, now.addSecs(-60), 30.0);
+    graphgrid->setRulerActive(2, now.addSecs(-30), 50.0);
+    graphgrid->setRulerActive(3, now.addSecs(-10), 68.0);
+    graphgrid->setSelectedRuler(1);
 
     if (btwRulerApiStatusLabel) {
         btwRulerApiStatusLabel->setText(
-            QStringLiteral("Test: rulers 1–4 active at bearings 12/30/50/68, ruler 2 selected (yellow). "
-                             "Click a circle on the BTW graph to change selection."));
+            QStringLiteral("Test: rulers 1–4 active on BTW+RTW at range 12/30/50/68, ruler 2 selected (yellow). "
+                             "Click a circle to receive its timestamp."));
     }
-    DEBUG_OUT() << "MainWindow: BTW ruler API test — activated 4 rulers, selected index 1";
+    DEBUG_OUT() << "MainWindow: Ruler API test — activated 4 rulers on BTW+RTW, selected index 1";
 }
 
 void MainWindow::onClearBtwRulersButtonClicked()
@@ -2378,7 +2383,7 @@ void MainWindow::onClearBtwRulersButtonClicked()
         return;
     }
 
-    graphgrid->clearAllBtwRulers();
+    graphgrid->clearAllRulers();
     if (btwRulerApiStatusLabel)
         btwRulerApiStatusLabel->setText(QStringLiteral("All BTW rulers cleared."));
     DEBUG_OUT() << "MainWindow: Cleared all BTW rulers via GraphLayout API";

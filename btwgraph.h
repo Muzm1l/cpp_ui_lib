@@ -350,12 +350,10 @@ signals:
     void horizontalLineMoved(const QUuid &lineId, const QDateTime &timestamp);
 
     /**
-     * @brief Emitted when a ruler indicator is clicked (and thereby selected).
-     * @param index The 0-based ruler index (0..3)
-     * @param timestamp The ruler's time-axis position
-     * @param range The ruler's range/bearing-axis position
+     * @brief Emitted when a ruler indicator is clicked.
+     * Does not change selection; use setSelectedRuler() via GraphLayout for that.
      */
-    void rulerSelected(int index, const QDateTime &timestamp, qreal range);
+    void rulerClicked(int index, const QDateTime &timestamp, qreal range);
 };
 
 #endif // BTWGRAPH_H

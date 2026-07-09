@@ -271,9 +271,9 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
             if (rulerCandidate && rulerCandidate->data(1).toString() == QStringLiteral("RULER")) {
                 int rulerIndex = rulerCandidate->data(3).toInt();
                 if (rulerIndex >= 0 && rulerIndex < RulerCount && m_rulers[rulerIndex].active) {
-                    setSelectedRuler(rulerIndex);
-                    DEBUG_OUT() << "RTW RULER SELECTED - index:" << rulerIndex;
-                    emit rulerSelected(rulerIndex, m_rulers[rulerIndex].timestamp, m_rulers[rulerIndex].range);
+                    DEBUG_OUT() << "RTW RULER CLICKED - index:" << rulerIndex
+                                << "timestamp:" << m_rulers[rulerIndex].timestamp;
+                    emit rulerClicked(rulerIndex, m_rulers[rulerIndex].timestamp, m_rulers[rulerIndex].range);
                 }
                 // Don't call parent - we've handled the ruler click
                 return;

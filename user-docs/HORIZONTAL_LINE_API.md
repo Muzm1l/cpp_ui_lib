@@ -340,8 +340,8 @@ struct HorizontalLineSyncData
 |---------|------------------|------------|-------------|
 | Axis | Time (Y) | Time + range | Time + range |
 | Sync | All graph types | RTW/BTW view-local | Stored in `WaterfallData` |
-| API | `setHorizontalLineMode` | `setBtwRulerActive` | `addBTWSymbol` |
-| Main-system signal location | `GraphLayout` hub slots | `GraphLayout::BtwRulerSelected` | `GraphLayout::BTWManualMarkerPlaced` |
+| API | `setHorizontalLineMode` | `setRulerActive` | `addBTWSymbol` |
+| Main-system signal location | `GraphLayout` hub slots | `GraphLayout::RulerClicked` | `GraphLayout::BTWManualMarkerPlaced` |
 
 ---
 

@@ -229,8 +229,7 @@ public slots:
     // Marker timestamp slots
     void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
     void onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
-    void onRtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
-    void onBtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+    void onRulerClicked(int index, const QDateTime &timestamp, qreal range, GraphType graphType);
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
@@ -292,8 +291,7 @@ signals:
     // Marker timestamp signals
     void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
     void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
-    void RtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
-    void BtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+    void RulerClicked(int index, const QDateTime &timestamp, qreal range, GraphType graphType);
     void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     

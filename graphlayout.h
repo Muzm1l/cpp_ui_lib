@@ -267,21 +267,14 @@ public:
     bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     
-    // ========== RTW Ruler indicator API ==========
-    // The main system owns up to 4 rulers (index 0..3). These forward to the
-    // RTW graph view(s); state lives in RTWGraph. At most one ruler is selected.
-    void setRtwRulerActive(int index, const QDateTime &timestamp, qreal range);
-    void clearRtwRuler(int index);
-    void clearAllRtwRulers();
-    void setSelectedRtwRuler(int index);
-    int selectedRtwRuler() const;
-
-    // ========== BTW Ruler indicator API ==========
-    void setBtwRulerActive(int index, const QDateTime &timestamp, qreal range);
-    void clearBtwRuler(int index);
-    void clearAllBtwRulers();
-    void setSelectedBtwRuler(int index);
-    int selectedBtwRuler() const;
+    // ========== Ruler indicator API (BTW + RTW unified) ==========
+    // The main system owns up to 4 rulers (index 0..3). One call positions the ruler
+    // on both BTW and RTW graphs. Selection (yellow highlight) is API-only.
+    void setRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearRuler(int index);
+    void clearAllRulers();
+    void setSelectedRuler(int index);
+    int selectedRuler() const;
 
     // Clear markers and symbols for specific graph type
     void clearRTWSymbols(const GraphType &graphType);
@@ -583,17 +576,10 @@ signals:
     void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
 
     /**
-     * @brief Emitted when an RTW ruler indicator is clicked (and thereby selected).
-     * @param index The 0-based ruler index (0..3)
-     * @param timestamp The ruler's time-axis position
-     * @param range The ruler's range-axis position
+     * @brief Emitted when a ruler indicator is clicked on BTW or RTW.
+     * Returns the ruler's timestamp (and index/range). Does not change selection.
      */
-    void RtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
-
-    /**
-     * @brief Emitted when a BTW ruler indicator is clicked (and thereby selected).
-     */
-    void BtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+    void RulerClicked(int index, const QDateTime &timestamp, qreal range, GraphType graphType);
     
     /**
      * @brief Emitted when a BTW manual marker is placed

@@ -30,7 +30,7 @@ This API path does **not** rewrite existing sample timestamps. Your backend must
 | `clearHorizontalLines()` | Removes synced horizontal lines. |
 | `clearAllShadedRegions()` | Removes synced shaded regions. |
 | `clearManoeuvres()` | Removes manoeuvre overlays. |
-| `clearAllBtwRulers()` / `clearAllRtwRulers()` | Removes ruler overlays. |
+| `clearAllRulers()` | Removes ruler overlays on BTW and RTW. |
 | `deleteInteractiveMarkers()` | Removes interactive markers on all containers. |
 | `GraphContainer::clearTimeSelections()` | Clears history-selection bands (call on each container). |
 | `setDataToDataSource(...)` / `addDataPointsToDataSource(...)` | Load new data after reset. |
@@ -96,8 +96,7 @@ void beginNewMission(GraphLayout *layout,
     layout->clearHorizontalLines();
     layout->clearAllShadedRegions();
     layout->clearManoeuvres();
-    layout->clearAllBtwRulers();
-    layout->clearAllRtwRulers();
+    layout->clearAllRulers();
     layout->deleteInteractiveMarkers();
 
     for (GraphContainer *container : layout->findChildren<GraphContainer *>())
@@ -208,7 +207,7 @@ For bulk historical load, prefer **`setDataToDataSource`**. For live streaming a
 | Horizontal lines | `clearHorizontalLines()` |
 | Shaded regions | `clearAllShadedRegions()` |
 | Manoeuvres | `clearManoeuvres()` |
-| BTW / RTW rulers | `clearAllBtwRulers()`, `clearAllRtwRulers()` |
+| BTW / RTW rulers | `clearAllRulers()` |
 | Interactive markers (non-engine) | `deleteInteractiveMarkers()` |
 | History time selections | `container->clearTimeSelections()` per container |
 
