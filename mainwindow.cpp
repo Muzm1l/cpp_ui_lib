@@ -24,24 +24,6 @@ MainWindow::MainWindow(QWidget *parent)
       m_currentHorizontalLineMode(HorizontalLineMode::Normal)
 {
     ui->setupUi(this);
-    
-    // Hide TSW (Tactical Solution View) tab and widget - DISABLED
-    int tacticalTabIndex = -1;
-    for (int i = 0; i < ui->tabWidget->count(); ++i) {
-        if (ui->tabWidget->tabText(i) == "Tactical View") {
-            tacticalTabIndex = i;
-            break;
-        }
-    }
-    if (tacticalTabIndex >= 0) {
-        ui->tabWidget->setTabVisible(tacticalTabIndex, false);
-    }
-    
-    // Hide and disable the TacticalSolutionView widget itself
-    if (ui->tsv) {
-        ui->tsv->setVisible(false);
-        ui->tsv->setEnabled(false);
-    }
 
     // Initialize series labels map
     std::map<GraphType, std::vector<QPair<QString, QColor>>> seriesLabelsMap;
@@ -529,19 +511,18 @@ MainWindow::MainWindow(QWidget *parent)
     // graphgrid->setHardRangeLimits(GraphType::FTW, 15.0, 45.0);  // Frequency Time Window
     graphgrid->setHardRangeLimits(GraphType::FTW, -40.0, 40.0);  // Frequency Time Window
 
-    // TSW (Tactical Solution View) disabled
-    // ui->tsv->setData(
-    //     this->currentShipSpeed,
-    //     this->currentOwnShipBearing,
-    //     this->currentSensorBearing,
-    //     this->currentAdoptedTrackRange,
-    //     this->currentAdoptedTrackSpeed,
-    //     this->currentAdoptedTrackBearing,
-    //     this->currentSelectedTrackRange,
-    //     this->currentSelectedTrackSpeed,
-    //     this->currentSelectedTrackBearing,
-    //     this->currentAdoptedTrackCourse,
-    //     this->currentSelectedTrackCourse);
+    ui->tsv->setData(
+        this->currentShipSpeed,
+        this->currentOwnShipBearing,
+        this->currentSensorBearing,
+        this->currentAdoptedTrackRange,
+        this->currentAdoptedTrackSpeed,
+        this->currentAdoptedTrackBearing,
+        this->currentSelectedTrackRange,
+        this->currentSelectedTrackSpeed,
+        this->currentSelectedTrackBearing,
+        this->currentAdoptedTrackCourse,
+        this->currentSelectedTrackCourse);
 
     // Configure layout selection combobox
     configureLayoutSelection();
@@ -1311,19 +1292,18 @@ void MainWindow::updateSimulation()
     this->currentAdoptedTrackCourse = fmod(this->currentAdoptedTrackCourse + 360.0, 360.0);
     this->currentSelectedTrackCourse = fmod(this->currentSelectedTrackCourse + 360.0, 360.0);
 
-    // Push updated values into TacticalSolutionView (DISABLED)
-    // ui->tsv->setData(
-    //     this->currentShipSpeed,
-    //     this->currentOwnShipBearing,
-    //     this->currentSensorBearing,
-    //     this->currentAdoptedTrackRange,
-    //     this->currentAdoptedTrackSpeed,
-    //     this->currentAdoptedTrackBearing,
-    //     this->currentSelectedTrackRange,
-    //     this->currentSelectedTrackSpeed,
-    //     this->currentSelectedTrackBearing,
-    //     this->currentAdoptedTrackCourse,
-    //     this->currentSelectedTrackCourse);
+    ui->tsv->setData(
+        this->currentShipSpeed,
+        this->currentOwnShipBearing,
+        this->currentSensorBearing,
+        this->currentAdoptedTrackRange,
+        this->currentAdoptedTrackSpeed,
+        this->currentAdoptedTrackBearing,
+        this->currentSelectedTrackRange,
+        this->currentSelectedTrackSpeed,
+        this->currentSelectedTrackBearing,
+        this->currentAdoptedTrackCourse,
+        this->currentSelectedTrackCourse);
 
     // set the current time to the system time
     graphgrid->setCurrentTime(QTime::currentTime());
