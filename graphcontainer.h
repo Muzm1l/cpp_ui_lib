@@ -122,6 +122,8 @@ public:
     // Selection management methods
     bool addTimeSelection(const TimeSelectionSpan &selection);
     void setTimeSelection(int index, const TimeSelectionSpan &selection);  // replace at index (for sync from GraphLayout)
+    void setTimeSelections(const std::vector<TimeSelectionSpan> &selections);
+    std::vector<TimeSelectionSpan> getTimeSelections() const;
     void clearTimeSelections();
     void clearTimeSelectionsSilent(); // Clears without emitting signal
 

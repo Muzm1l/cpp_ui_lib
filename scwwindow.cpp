@@ -653,8 +653,6 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[0]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[0]->setCrosshairEnabled(false);
         m_waterfallGraphs[0]->setCursorLayerEnabled(false);
-        m_waterfallGraphs[0]->setCustomYRange(-20.0, 20.0);
-        m_waterfallGraphs[0]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[0]->setDataSource(*adoptedDataSource);
         m_waterfallGraphs[0]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[0]->installEventFilter(this);
@@ -690,8 +688,6 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[windowIndex]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[windowIndex]->setCrosshairEnabled(false);
         m_waterfallGraphs[windowIndex]->setCursorLayerEnabled(false);
-        m_waterfallGraphs[windowIndex]->setCustomYRange(-20.0, 20.0);
-        m_waterfallGraphs[windowIndex]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[windowIndex]->setDataSource(*dataSource);
         m_waterfallGraphs[windowIndex]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[windowIndex]->installEventFilter(this);
@@ -713,8 +709,6 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[5]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[5]->setCrosshairEnabled(false);
         m_waterfallGraphs[5]->setCursorLayerEnabled(false);
-        m_waterfallGraphs[5]->setCustomYRange(-20.0, 20.0);
-        m_waterfallGraphs[5]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[5]->setDataSource(*dataSourceB);
         m_waterfallGraphs[5]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[5]->installEventFilter(this);
@@ -735,8 +729,6 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[6]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[6]->setCrosshairEnabled(false);
         m_waterfallGraphs[6]->setCursorLayerEnabled(false);
-        m_waterfallGraphs[6]->setCustomYRange(-20.0, 20.0);
-        m_waterfallGraphs[6]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[6]->setDataSource(*dataSourceA);
         m_waterfallGraphs[6]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[6]->installEventFilter(this);
@@ -757,8 +749,6 @@ void SCWWindow::setupWaterfallGraphs()
         m_waterfallGraphs[7]->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         m_waterfallGraphs[7]->setCrosshairEnabled(false);
         m_waterfallGraphs[7]->setCursorLayerEnabled(false);
-        m_waterfallGraphs[7]->setCustomYRange(-20.0, 20.0);
-        m_waterfallGraphs[7]->setRangeLimitingEnabled(true);
         m_waterfallGraphs[7]->setDataSource(*dataSourceE);
         m_waterfallGraphs[7]->setUseLineDrawing(true);  // Use line drawing instead of scatterplot
         m_waterfallGraphs[7]->installEventFilter(this);
@@ -769,21 +759,30 @@ void SCWWindow::setupWaterfallGraphs()
     }
     
     // SCW-specific graph appearance / behaviour applied uniformly to all 8 graphs:
+    //  - fixed Y range -20..20 (manual, not auto-scaled to data)
     //  - white frame border
     //  - yellow crosshair; the horizontal line marks a time (shown on the timeline
     //    strip), the vertical line has no value label
     //  - mouse tracking so the crosshair follows the cursor on hover
+    //  - dashed white middle line at Y=0 (same style as BDW zero axis)
+    static constexpr qreal kScwYMin = -20.0;
+    static constexpr qreal kScwYMax = 20.0;
     for (int i = 0; i < 8; ++i)
     {
         WaterfallGraph *graph = m_waterfallGraphs[i];
         if (!graph)
             continue;
 
+        graph->setAutoUpdateYRange(false);
+        graph->setRangeLimitingEnabled(true);
+        graph->setCustomYRange(kScwYMin, kScwYMax);
         graph->setBorderColor(Qt::white);
         graph->setCrosshairColor(Qt::yellow);
         graph->setCrosshairEnabled(true);
         graph->setCursorLayerEnabled(false);
         graph->setMouseTracking(true);
+        graph->setZeroAxisValue(0.0);
+        graph->setZeroAxisEnabled(true);
 
         // Horizontal crosshair line -> show the time on the shared SCW timeline strip.
         graph->setCursorTimeChangedCallback([this](const QDateTime &time, qreal /*yPosition*/) {

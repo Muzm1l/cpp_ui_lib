@@ -68,6 +68,8 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     m_renderedTimeMax(QDateTime()),
     m_fastTrackSwitchMode(false),  // Initialize fast track switch mode flag
     m_zeroAxisValue(0.0),
+    m_zeroAxisEnabled(false),
+    m_zeroAxisLineItem(nullptr),
     m_cachedTimeIntervalMs(-1),  // Invalid initial value
     m_cachedYRange(0.0),
     m_cachedYRangeReciprocal(0.0),
@@ -205,7 +207,7 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
     // Setup time axis cursor
     if (overlayScene) {
         timeAxisCursor = new QGraphicsLineItem();
-        timeAxisCursor->setPen(QPen(Qt::cyan, 1.5, Qt::SolidLine)); // Cyan line for time cursor
+        timeAxisCursor->setPen(QPen(m_crosshairColor, 1.5, Qt::SolidLine));
         timeAxisCursor->setZValue(999); // Just below crosshair but above other elements
         timeAxisCursor->setVisible(false);
         overlayScene->addItem(timeAxisCursor);
@@ -248,19 +250,19 @@ WaterfallGraph::WaterfallGraph(QWidget *parent, bool enableGrid, int gridDivisio
 
     // Create cursor graphics items
     cursorCrosshairHorizontal = new QGraphicsLineItem();
-    cursorCrosshairHorizontal->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Cyan solid line to match legacy crosshair
+    cursorCrosshairHorizontal->setPen(QPen(m_crosshairColor, 1.0, Qt::SolidLine));
     cursorCrosshairHorizontal->setZValue(2000); // Above overlay (overlay is 1000)
     cursorCrosshairHorizontal->setVisible(false);
     cursorScene->addItem(cursorCrosshairHorizontal);
 
     cursorCrosshairVertical = new QGraphicsLineItem();
-    cursorCrosshairVertical->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Cyan solid line to match legacy crosshair
+    cursorCrosshairVertical->setPen(QPen(m_crosshairColor, 1.0, Qt::SolidLine));
     cursorCrosshairVertical->setZValue(2000);
     cursorCrosshairVertical->setVisible(false);
     cursorScene->addItem(cursorCrosshairVertical);
 
     cursorTimeAxisLine = new QGraphicsLineItem();
-    cursorTimeAxisLine->setPen(QPen(Qt::cyan, 1.5, Qt::SolidLine));
+    cursorTimeAxisLine->setPen(QPen(m_crosshairColor, 1.5, Qt::SolidLine));
     cursorTimeAxisLine->setZValue(1999); // Just below crosshair but above overlay
     cursorTimeAxisLine->setVisible(false);
     cursorScene->addItem(cursorTimeAxisLine);
@@ -1186,6 +1188,8 @@ void WaterfallGraph::publishVisibleCacheToSharedStore(const QString & /*seriesLa
 void WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 {
     drawBTWSymbols();
+    if (m_zeroAxisEnabled)
+        drawZeroAxis();
     drawHorizontalLines();
 }
 
@@ -1224,6 +1228,8 @@ void WaterfallGraph::redrawDataLayerForVisibleTimeRange()
 
 void WaterfallGraph::augmentOverlayPassAfterSymbols()
 {
+    if (m_zeroAxisEnabled)
+        drawZeroAxis();
     drawHorizontalLines();
 }
 
@@ -1299,6 +1305,9 @@ void WaterfallGraph::drawIncremental()
             break;
 
         case RenderState::FULL_REDRAW:
+            if (m_zeroAxisEnabled)
+                clearZeroAxisLineItem();
+
             // CRITICAL FIX: Clear all visible data caches to prevent memory accumulation
             // This is especially important when switching tracks after long runtimes
             invalidateAllVisibleDataCache();
@@ -5206,11 +5215,73 @@ bool WaterfallGraph::getAutoUpdateYRange() const
 void WaterfallGraph::setZeroAxisValue(qreal value)
 {
     m_zeroAxisValue = value;
+    if (m_zeroAxisEnabled)
+        drawZeroAxis();
 }
 
 qreal WaterfallGraph::getZeroAxisValue() const
 {
     return m_zeroAxisValue;
+}
+
+void WaterfallGraph::setZeroAxisEnabled(bool enabled)
+{
+    if (m_zeroAxisEnabled == enabled)
+        return;
+
+    m_zeroAxisEnabled = enabled;
+    if (!enabled)
+    {
+        clearZeroAxisLineItem();
+        return;
+    }
+
+    postCommand(YRangeChange{});
+    drainRenderQueueSynchronously();
+}
+
+bool WaterfallGraph::getZeroAxisEnabled() const
+{
+    return m_zeroAxisEnabled;
+}
+
+void WaterfallGraph::clearZeroAxisLineItem()
+{
+    if (!m_zeroAxisLineItem)
+        return;
+
+    QGraphicsScene *itemScene = m_zeroAxisLineItem->scene();
+    if (itemScene && itemScene == overlayScene)
+        overlayScene->removeItem(m_zeroAxisLineItem);
+    delete m_zeroAxisLineItem;
+    m_zeroAxisLineItem = nullptr;
+}
+
+void WaterfallGraph::drawZeroAxis()
+{
+    if (!m_zeroAxisEnabled || !overlayScene)
+        return;
+
+    const QDateTime currentTime = QDateTime::currentDateTime();
+    const QPointF zeroPoint = mapDataToScreen(m_zeroAxisValue, currentTime);
+    const QLineF newLine(QPointF(zeroPoint.x(), drawingArea.top()),
+                         QPointF(zeroPoint.x(), drawingArea.bottom()));
+
+    if (m_zeroAxisLineItem && m_zeroAxisLineItem->scene() == overlayScene)
+    {
+        m_zeroAxisLineItem->setLine(newLine);
+        return;
+    }
+
+    if (m_zeroAxisLineItem)
+    {
+        delete m_zeroAxisLineItem;
+        m_zeroAxisLineItem = nullptr;
+    }
+
+    QPen zeroAxisPen(QColor(255, 255, 255), 1.0, Qt::DashLine);
+    zeroAxisPen.setDashPattern({8, 4});
+    m_zeroAxisLineItem = overlayScene->addLine(newLine, zeroAxisPen);
 }
 
 void WaterfallGraph::setApplicationStartTime(const QDateTime& time)
@@ -5721,7 +5792,7 @@ void WaterfallGraph::setupCrosshair()
 
     // Create horizontal crosshair line
     crosshairHorizontal = new QGraphicsLineItem();
-    crosshairHorizontal->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
+    crosshairHorizontal->setPen(QPen(m_crosshairColor, 1.0, Qt::SolidLine));
     crosshairHorizontal->setZValue(1000); // High z-value to appear on top
     crosshairHorizontal->setVisible(false);
     // Make crosshair not accept mouse events so it doesn't block marker selection or cause duplication
@@ -5731,7 +5802,7 @@ void WaterfallGraph::setupCrosshair()
     
     // Create vertical crosshair line
     crosshairVertical = new QGraphicsLineItem();
-    crosshairVertical->setPen(QPen(Qt::cyan, 1.0, Qt::SolidLine)); // Thin cyan line
+    crosshairVertical->setPen(QPen(m_crosshairColor, 1.0, Qt::SolidLine));
     crosshairVertical->setZValue(1000); // High z-value to appear on top
     crosshairVertical->setVisible(false);
     // Make crosshair not accept mouse events so it doesn't block marker selection or cause duplication
@@ -5833,15 +5904,19 @@ void WaterfallGraph::setCrosshairColor(const QColor &color)
 {
     m_crosshairColor = color;
 
-    // Update any existing crosshair line items (both legacy and cursor-layer).
+    // Update any existing crosshair and synced time-axis line items (legacy and cursor-layer).
     if (crosshairHorizontal)
         crosshairHorizontal->setPen(QPen(color, 1.0, Qt::SolidLine));
     if (crosshairVertical)
         crosshairVertical->setPen(QPen(color, 1.0, Qt::SolidLine));
+    if (timeAxisCursor)
+        timeAxisCursor->setPen(QPen(color, 1.5, Qt::SolidLine));
     if (cursorCrosshairHorizontal)
         cursorCrosshairHorizontal->setPen(QPen(color, 1.0, Qt::SolidLine));
     if (cursorCrosshairVertical)
         cursorCrosshairVertical->setPen(QPen(color, 1.0, Qt::SolidLine));
+    if (cursorTimeAxisLine)
+        cursorTimeAxisLine->setPen(QPen(color, 1.5, Qt::SolidLine));
 }
 
 void WaterfallGraph::setCrosshairEnabled(bool enabled)

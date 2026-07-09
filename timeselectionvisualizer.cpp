@@ -106,6 +106,45 @@ void TimeVisualizerWidget::paintEvent(QPaintEvent* /*event*/)
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
 }
 
+bool TimeVisualizerWidget::spansOverlapOrTouch(const TimeSelectionSpan &a, const TimeSelectionSpan &b)
+{
+    return !(a.endTime < b.startTime || b.endTime < a.startTime);
+}
+
+void TimeVisualizerWidget::mergeAllOverlappingSelections()
+{
+    if (m_timeSelections.size() < 2)
+        return;
+
+    std::sort(m_timeSelections.begin(), m_timeSelections.end(),
+              [](const TimeSelectionSpan &a, const TimeSelectionSpan &b) {
+                  return a.startTime < b.startTime;
+              });
+
+    QList<TimeSelectionSpan> merged;
+    merged.append(m_timeSelections.first());
+
+    for (int i = 1; i < m_timeSelections.size(); ++i)
+    {
+        TimeSelectionSpan current = m_timeSelections.at(i);
+        TimeSelectionSpan &last = merged.last();
+
+        if (spansOverlapOrTouch(last, current))
+        {
+            if (current.endTime > last.endTime)
+                last.endTime = current.endTime;
+            if (current.startTime < last.startTime)
+                last.startTime = current.startTime;
+        }
+        else
+        {
+            merged.append(current);
+        }
+    }
+
+    m_timeSelections = merged;
+}
+
 bool TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
 {
     // Normalize order
@@ -122,47 +161,53 @@ bool TimeVisualizerWidget::addTimeSelection(TimeSelectionSpan span)
         }
     }
 
-    // Merge with overlapping selections (compute union and remove overlaps)
-    TimeSelectionSpan merged = span;
-    QList<int> indicesToRemove;
-    for (int i = 0; i < m_timeSelections.size(); ++i) {
-        const TimeSelectionSpan &existing = m_timeSelections[i];
-        const bool overlaps = !(existing.endTime < merged.startTime || merged.endTime < existing.startTime);
-        if (overlaps) {
-            if (existing.startTime < merged.startTime) merged.startTime = existing.startTime;
-            if (existing.endTime > merged.endTime) merged.endTime = existing.endTime;
-            indicesToRemove.append(i);
-        }
-    }
-
-    // Clamp merged selection to valid range if configured
-    if (hasValidRange()) {
-        merged = clampToValidRange(merged);
-        // If merged becomes invalid after clamping, ignore
-        if (merged.endTime < merged.startTime) {
-            return false;
-        }
-    }
-
-    // Remove overlapped selections (from highest index down)
-    std::sort(indicesToRemove.begin(), indicesToRemove.end(), std::greater<int>());
-    for (int idx : indicesToRemove) {
-        m_timeSelections.removeAt(idx);
-    }
-
     // Stop adding new selections once we reach the maximum (instead of FIFO)
     if (m_timeSelections.size() >= MAX_TIME_SELECTIONS) {
         return false;
     }
 
     // Assign a stable identity on creation (preserved through resize/drag/sync)
-    // so the main system can address this exact selection later.
-    if (merged.id.isNull())
-        merged.id = QUuid::createUuid();
+    if (span.id.isNull())
+        span.id = QUuid::createUuid();
 
-    m_timeSelections.append(merged);
+    m_timeSelections.append(span);
+    mergeAllOverlappingSelections();
+
+    // Clamp merged results to valid range if configured
+    if (hasValidRange()) {
+        for (int i = m_timeSelections.size() - 1; i >= 0; --i) {
+            TimeSelectionSpan clamped = clampToValidRange(m_timeSelections.at(i));
+            if (clamped.endTime < clamped.startTime)
+                m_timeSelections.removeAt(i);
+            else
+                m_timeSelections[i] = clamped;
+        }
+        mergeAllOverlappingSelections();
+        if (m_timeSelections.isEmpty())
+            return false;
+    }
+
     updateVisualization();
     return true;
+}
+
+void TimeVisualizerWidget::setTimeSelections(const QList<TimeSelectionSpan> &spans)
+{
+    m_timeSelections.clear();
+    for (TimeSelectionSpan span : spans) {
+        if (span.startTime > span.endTime)
+            std::swap(span.startTime, span.endTime);
+        if (hasValidRange()) {
+            span = clampToValidRange(span);
+            if (span.endTime < span.startTime)
+                continue;
+        }
+        if (span.id.isNull())
+            span.id = QUuid::createUuid();
+        m_timeSelections.append(span);
+    }
+    mergeAllOverlappingSelections();
+    updateVisualization();
 }
 
 void TimeVisualizerWidget::setTimeSelection(int index, const TimeSelectionSpan& span)
@@ -454,7 +499,20 @@ void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
                                  && newSpan.endTime == m_dragStartSpan.endTime;
             if (newSpan.endTime >= newSpan.startTime && !unchanged) {
                 m_timeSelections[m_interactionSelectionIndex] = newSpan;
-                emit timeSelectionModified(m_interactionSelectionIndex, newSpan);
+                mergeAllOverlappingSelections();
+                // After merge the index may have shifted; emit the span that contains
+                // the modified selection (matched by id when possible).
+                int emitIndex = m_interactionSelectionIndex;
+                if (!newSpan.id.isNull()) {
+                    for (int i = 0; i < m_timeSelections.size(); ++i) {
+                        if (m_timeSelections.at(i).id == newSpan.id) {
+                            emitIndex = i;
+                            break;
+                        }
+                    }
+                }
+                if (emitIndex >= 0 && emitIndex < m_timeSelections.size())
+                    emit timeSelectionModified(emitIndex, m_timeSelections.at(emitIndex));
             } else if (unchanged) {
                 // Restore exactly, in case a sub-threshold move mutated the stored span.
                 m_timeSelections[m_interactionSelectionIndex] = m_dragStartSpan;

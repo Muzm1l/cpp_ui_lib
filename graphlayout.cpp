@@ -1249,11 +1249,14 @@ bool GraphLayout::highlightHistorySelectionRegion(const QDateTime &startTime, co
     TimeSelectionSpan span(startTime, endTime);
 
     bool anyAdded = false;
+    GraphContainer *firstAdded = nullptr;
     for (GraphContainer *container : m_graphContainers)
     {
         if (container && container->addTimeSelection(span))
         {
             anyAdded = true;
+            if (!firstAdded)
+                firstAdded = container;
         }
     }
 
@@ -1264,11 +1267,36 @@ bool GraphLayout::highlightHistorySelectionRegion(const QDateTime &startTime, co
         return false;
     }
 
-    // Keep sync state and external listeners aligned with user-driven selections.
-    m_syncState.timeSelections.push_back(span);
-    emit TimeSelectionCreated(span);
-    emit TimeSelectionsChanged(m_syncState.timeSelections,
-                               static_cast<int>(m_syncState.timeSelections.size()) - 1);
+    // Source of truth: merged list from the container that accepted the selection.
+    m_syncState.timeSelections = firstAdded ? firstAdded->getTimeSelections() : std::vector<TimeSelectionSpan>{span};
+    for (GraphContainer *container : m_graphContainers)
+    {
+        if (container && container != firstAdded)
+            container->setTimeSelections(m_syncState.timeSelections);
+    }
+
+    TimeSelectionSpan emitted = span;
+    for (const TimeSelectionSpan &s : m_syncState.timeSelections)
+    {
+        if (s.startTime <= span.endTime && s.endTime >= span.startTime)
+        {
+            emitted = s;
+            break;
+        }
+    }
+
+    int changedIndex = static_cast<int>(m_syncState.timeSelections.size()) - 1;
+    for (size_t i = 0; i < m_syncState.timeSelections.size(); ++i)
+    {
+        if (m_syncState.timeSelections[i].id == emitted.id)
+        {
+            changedIndex = static_cast<int>(i);
+            break;
+        }
+    }
+
+    emit TimeSelectionCreated(emitted);
+    emit TimeSelectionsChanged(m_syncState.timeSelections, changedIndex);
 
     DEBUG_OUT() << "GraphLayout: Highlighted history selection region from"
                 << span.startTime.toString() << "to" << span.endTime.toString();
@@ -1579,40 +1607,70 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
 {
     DEBUG_OUT() << "GraphLayout: Time selection created from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
-    // Add the selection to the sync state
-    m_syncState.timeSelections.push_back(selection);
-    
-    // Identify the source container to avoid duplicating selection there
     GraphContainer *source = qobject_cast<GraphContainer *>(sender());
-    
-    // Propagate the selection to all other visible containers
+
+    if (source)
+        m_syncState.timeSelections = source->getTimeSelections();
+    else
+        m_syncState.timeSelections.push_back(selection);
+
     for (auto *container : m_graphContainers)
     {
         if (container && container != source)
+            container->setTimeSelections(m_syncState.timeSelections);
+    }
+
+    TimeSelectionSpan emitted = selection;
+    int changedIndex = static_cast<int>(m_syncState.timeSelections.size()) - 1;
+    for (size_t i = 0; i < m_syncState.timeSelections.size(); ++i)
+    {
+        const TimeSelectionSpan &s = m_syncState.timeSelections[i];
+        if (s.startTime <= selection.endTime && s.endTime >= selection.startTime)
         {
-            container->addTimeSelection(selection);
-            DEBUG_OUT() << "GraphLayout: Selection added to container";
+            emitted = s;
+            changedIndex = static_cast<int>(i);
+            break;
         }
     }
-    
-    // Emit the signals for external components (deprecated single-span + preferred vector).
-    emit TimeSelectionCreated(selection);
-    emit TimeSelectionsChanged(m_syncState.timeSelections,
-                               static_cast<int>(m_syncState.timeSelections.size()) - 1);
+
+    emit TimeSelectionCreated(emitted);
+    emit TimeSelectionsChanged(m_syncState.timeSelections, changedIndex);
 }
 
 void GraphLayout::onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan)
 {
-    if (index < 0 || index >= static_cast<int>(m_syncState.timeSelections.size()))
-        return;
-    m_syncState.timeSelections[static_cast<size_t>(index)] = newSpan;
     GraphContainer *source = qobject_cast<GraphContainer *>(sender());
-    for (auto *container : m_graphContainers) {
+
+    if (source)
+        m_syncState.timeSelections = source->getTimeSelections();
+    else if (index >= 0 && index < static_cast<int>(m_syncState.timeSelections.size()))
+        m_syncState.timeSelections[static_cast<size_t>(index)] = newSpan;
+
+    for (auto *container : m_graphContainers)
+    {
         if (container && container != source)
-            container->setTimeSelection(index, newSpan);
+            container->setTimeSelections(m_syncState.timeSelections);
     }
-    emit TimeSelectionModified(index, newSpan);
-    emit TimeSelectionsChanged(m_syncState.timeSelections, index);
+
+    int resolvedIndex = index;
+    if (!newSpan.id.isNull())
+    {
+        for (size_t i = 0; i < m_syncState.timeSelections.size(); ++i)
+        {
+            if (m_syncState.timeSelections[i].id == newSpan.id)
+            {
+                resolvedIndex = static_cast<int>(i);
+                break;
+            }
+        }
+    }
+
+    if (resolvedIndex < 0 || resolvedIndex >= static_cast<int>(m_syncState.timeSelections.size()))
+        return;
+
+    const TimeSelectionSpan &resolvedSpan = m_syncState.timeSelections[static_cast<size_t>(resolvedIndex)];
+    emit TimeSelectionModified(resolvedIndex, resolvedSpan);
+    emit TimeSelectionsChanged(m_syncState.timeSelections, resolvedIndex);
 }
 
 std::vector<TimeSelectionSpan> GraphLayout::getActiveTimeSelections() const

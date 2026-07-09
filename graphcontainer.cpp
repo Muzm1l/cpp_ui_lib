@@ -1530,6 +1530,31 @@ void GraphContainer::setTimeSelection(int index, const TimeSelectionSpan &select
         m_timelineSelectionView->setTimeSelection(index, selection);
 }
 
+void GraphContainer::setTimeSelections(const std::vector<TimeSelectionSpan> &selections)
+{
+    if (!m_timelineSelectionView)
+        return;
+
+    QList<TimeSelectionSpan> list;
+    list.reserve(static_cast<int>(selections.size()));
+    for (const TimeSelectionSpan &span : selections)
+        list.append(span);
+    m_timelineSelectionView->setTimeSelections(list);
+}
+
+std::vector<TimeSelectionSpan> GraphContainer::getTimeSelections() const
+{
+    std::vector<TimeSelectionSpan> result;
+    if (!m_timelineSelectionView)
+        return result;
+
+    const QList<TimeSelectionSpan> list = m_timelineSelectionView->timeSelections();
+    result.reserve(static_cast<size_t>(list.size()));
+    for (const TimeSelectionSpan &span : list)
+        result.push_back(span);
+    return result;
+}
+
 void GraphContainer::clearTimeSelections()
 {
     DEBUG_OUT() << "GraphContainer: Clearing all time selections";

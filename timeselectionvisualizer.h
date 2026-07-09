@@ -39,6 +39,8 @@ public:
     // Time selection management
     bool addTimeSelection(TimeSelectionSpan span);
     void setTimeSelection(int index, const TimeSelectionSpan& span);  // replace at index (for sync from other containers)
+    void setTimeSelections(const QList<TimeSelectionSpan> &spans);    // replace all (for cross-container sync)
+    QList<TimeSelectionSpan> timeSelections() const { return m_timeSelections; }
     void clearTimeSelections();
     bool hasTimeSelections() const { return !m_timeSelections.isEmpty(); }
     void createFullSelection();
@@ -101,6 +103,8 @@ private:
     TimeSelectionSpan clampToValidRange(const TimeSelectionSpan& span) const;
     QRect getSelectionRect(int index) const;
     std::pair<int, SelectionHitZone> hitTest(int x, int y) const;
+    static bool spansOverlapOrTouch(const TimeSelectionSpan &a, const TimeSelectionSpan &b);
+    void mergeAllOverlappingSelections();
 };
 
 class TimeSelectionVisualizer : public QWidget
@@ -114,6 +118,8 @@ public:
     // Delegate methods to the visualizer widget
     bool addTimeSelection(TimeSelectionSpan span) { return m_visualizerWidget->addTimeSelection(span); }
     void setTimeSelection(int index, const TimeSelectionSpan& span) { m_visualizerWidget->setTimeSelection(index, span); }
+    void setTimeSelections(const QList<TimeSelectionSpan> &spans) { m_visualizerWidget->setTimeSelections(spans); }
+    QList<TimeSelectionSpan> timeSelections() const { return m_visualizerWidget->timeSelections(); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
     void createFullSelection() { m_visualizerWidget->createFullSelection(); }
     void createIntervalSelection() { m_visualizerWidget->createIntervalSelection(); }

@@ -109,9 +109,11 @@ public:
     void setAutoUpdateYRange(bool enabled);
     bool getAutoUpdateYRange() const;
 
-    // Zero axis value (for BDW, BRW, FDW graphs)
+    // Zero axis value (for BDW, BRW, FDW graphs; SCW uses setZeroAxisEnabled)
     void setZeroAxisValue(qreal value);
     qreal getZeroAxisValue() const;
+    void setZeroAxisEnabled(bool enabled);
+    bool getZeroAxisEnabled() const;
     
     // Application start time - timestamps before this should not be displayed
     void setApplicationStartTime(const QDateTime& time);
@@ -228,6 +230,9 @@ protected:
     /** BTW/RTW: extra overlay items after drawBTWSymbols() on FULL_REDRAW / INCREMENTAL_UPDATE (blue markers, R markers, etc.). */
     virtual void augmentOverlayPassAfterSymbols();
 
+    void drawZeroAxis();
+    void clearZeroAxisLineItem();
+
     void drawHorizontalLines();
     void invalidateHorizontalLineGraphicsItems();
 
@@ -322,8 +327,10 @@ protected:
     QDateTime timeMin, timeMax;
     bool dataRangesValid;
 
-    // Zero axis value (used for BDW, BRW, FDW graphs)
+    // Zero axis value (used for BDW, BRW, FDW graphs; SCW when zero axis enabled)
     qreal m_zeroAxisValue;
+    bool m_zeroAxisEnabled;
+    QGraphicsLineItem *m_zeroAxisLineItem;
 
     // Range limiting properties
     bool rangeLimitingEnabled;
@@ -448,9 +455,9 @@ protected:
     QGraphicsLineItem *crosshairVertical;
     bool crosshairEnabled;
 
-    // Configurable colours (defaults preserve prior behaviour)
+    // Configurable colours
     QColor m_borderColor = QColor(150, 150, 150); // graph frame border
-    QColor m_crosshairColor = Qt::cyan;           // crosshair lines
+    QColor m_crosshairColor = Qt::yellow;         // crosshair lines
 
     // Cursor callback helpers
     void notifyCursorTimeChanged(const QDateTime &time, qreal yPosition = -1.0);
