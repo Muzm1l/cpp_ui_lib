@@ -120,10 +120,29 @@ public:
     void applySharedTimeAxisCursor(const QDateTime &time);
 
     // Selection management methods
-    void addTimeSelection(const TimeSelectionSpan &selection);
+    bool addTimeSelection(const TimeSelectionSpan &selection);
     void setTimeSelection(int index, const TimeSelectionSpan &selection);  // replace at index (for sync from GraphLayout)
     void clearTimeSelections();
     void clearTimeSelectionsSilent(); // Clears without emitting signal
+
+    /**
+     * @brief Explicitly choose which graph + data series drives the history-selection
+     *        valid range and the H (interval/full) selection.
+     *
+     * By default the valid range is computed from the combined range of the current
+     * graph's data. When the main system has both a short "computed" series and a
+     * longer "measured" series, call this with the graph/series you want considered
+     * (e.g. GraphType::BTW, "ADOPTED") so H uses the measured extent.
+     *
+     * @param graphType   The graph whose WaterfallData holds the series.
+     * @param seriesLabel  The series label (e.g. "ADOPTED", "BTW-1"). Empty clears the override.
+     */
+    void setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel);
+    void clearHistorySelectionReferenceSeries();
+    /** Recompute the visualizer's valid range from the reference series (if set) or current data. */
+    void refreshHistorySelectionValidRange();
+    /** Valid range used for history selection: reference series if configured, else combined data range. */
+    std::pair<QDateTime, QDateTime> getHistorySelectionValidRange() const;
 
     // Test method
     void testSelectionRectangle();
@@ -210,6 +229,8 @@ public slots:
     // Marker timestamp slots
     void onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
     void onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+    void onRtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+    void onBtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void onBTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     void onGraphContainerInFollowModeChanged(bool isInFollowMode);
@@ -217,6 +238,12 @@ public slots:
     // BTW Horizontal line slots
     void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
     void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    void onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncRemoved(const QUuid &syncId);
+    void onHorizontalLineSyncDragStarted(const QUuid &syncId);
+    void onHorizontalLineSyncDragEnded();
+    void onHorizontalLinesSyncCleared();
     
     // BTW Marker sync slots (called when syncing markers from other containers)
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
@@ -265,12 +292,20 @@ signals:
     // Marker timestamp signals
     void RTWRMarkerTimestampCaptured(const QDateTime &timestamp, const QPointF &position);
     void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+    void RtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+    void BtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
     void BTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     void BTWManualMarkerClicked(const QDateTime &timestamp, const QPointF &position);
     
     // BTW Horizontal line signals
     void BTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
     void BTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    void HorizontalLineSyncAdded(const HorizontalLineSyncData &lineData);
+    void HorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData);
+    void HorizontalLineSyncRemoved(const QUuid &syncId);
+    void HorizontalLineSyncDragStarted(const QUuid &syncId);
+    void HorizontalLineSyncDragEnded();
+    void HorizontalLinesSyncCleared();
     /**
      * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)
      * @param timestamp The timestamp of the marker
@@ -355,6 +390,13 @@ private:
     // Data options management
     std::map<GraphType, WaterfallData *> dataOptions;
     GraphType currentDataOption;
+
+    // Explicit reference series for history-selection valid range / H selection.
+    // When m_hasSelectionReferenceSeries is true, the valid range is taken from
+    // this graph's series instead of the current graph's combined range.
+    bool m_hasSelectionReferenceSeries = false;
+    GraphType m_selectionReferenceGraphType = GraphType::BTW;
+    QString m_selectionReferenceSeriesLabel;
 
     // Range limits management
     std::map<GraphType, std::pair<qreal, qreal>> graphRangeLimits;

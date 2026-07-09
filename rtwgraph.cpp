@@ -17,7 +17,7 @@
  * @param timeInterval Time interval for the waterfall display
  */
 RTWGraph::RTWGraph(QWidget *parent, bool enableGrid, int gridDivisions, TimeInterval timeInterval)
-    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval), symbols(40)
+    : WaterfallGraph(parent, enableGrid, gridDivisions, timeInterval)
 {
     // Set hard limits for RTW graph: 0 to 25
     setCustomYRange(0.0, 25.0);
@@ -171,6 +171,9 @@ void RTWGraph::draw()
         
         // Draw BTW symbols (magenta circles from BTW graph markers) (will remove old ones if not full clear)
         drawBTWSymbols();
+
+        WaterfallGraph::augmentOverlayPassAfterSymbols();
+        drawRulers();
     }
     
     // Reset render state to clean after drawing
@@ -189,6 +192,8 @@ void RTWGraph::augmentOverlayPassAfterSymbols()
 {
     drawCustomRMarkers();
     drawRTWSymbols();
+    WaterfallGraph::augmentOverlayPassAfterSymbols();
+    drawRulers();
 }
 
 /**
@@ -261,6 +266,19 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                 }
             }
             
+            // Check if we clicked on a ruler indicator (tagged pixmap item)
+            QGraphicsPixmapItem *rulerCandidate = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
+            if (rulerCandidate && rulerCandidate->data(1).toString() == QStringLiteral("RULER")) {
+                int rulerIndex = rulerCandidate->data(3).toInt();
+                if (rulerIndex >= 0 && rulerIndex < RulerCount && m_rulers[rulerIndex].active) {
+                    setSelectedRuler(rulerIndex);
+                    DEBUG_OUT() << "RTW RULER SELECTED - index:" << rulerIndex;
+                    emit rulerSelected(rulerIndex, m_rulers[rulerIndex].timestamp, m_rulers[rulerIndex].range);
+                }
+                // Don't call parent - we've handled the ruler click
+                return;
+            }
+
             // Check if we clicked on an RTW symbol (QGraphicsPixmapItem) in overlayScene
             QGraphicsPixmapItem *pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
             if (pixmapItem) {
@@ -513,6 +531,8 @@ RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolNam
     if (name == "YELLOWCIRCLE4" || name == "YELLOW_CIRCLE_4" || name == "YC4") return RTWSymbolDrawing::SymbolType::YellowCircle4;
     if (name == "MAX" || name == "MAXSYMBOL" || name == "MAX_SYMBOL") return RTWSymbolDrawing::SymbolType::MaxSymbol;
     if (name == "MIN" || name == "MINSYMBOL" || name == "MIN_SYMBOL") return RTWSymbolDrawing::SymbolType::MinSymbol;
+    if (name == "DUMMY1" || name == "DUMMY_1") return RTWSymbolDrawing::SymbolType::Dummy1;
+    if (name == "DUMMY2" || name == "DUMMY_2") return RTWSymbolDrawing::SymbolType::Dummy2;
     
     // Default to R if symbol name is not recognized
     DEBUG_OUT() << "RTW: Unknown symbol name:" << symbolName << "- defaulting to R";
@@ -698,5 +718,158 @@ void RTWGraph::drawRTWSymbols()
     if (symbolsDrawn > 0)
     {
         DEBUG_OUT() << "RTW: Drew" << symbolsDrawn << "RTW symbols out of" << rtwSymbols.size() << "total";
+    }
+}
+
+/* ----------------- Ruler indicators ----------------- */
+
+bool RTWGraph::isRulerActive(int index) const
+{
+    if (index < 0 || index >= RulerCount)
+        return false;
+    return m_rulers[index].active;
+}
+
+void RTWGraph::setRulerActive(int index, const QDateTime &timestamp, qreal range)
+{
+    if (index < 0 || index >= RulerCount)
+    {
+        DEBUG_OUT() << "RTW: setRulerActive - invalid index" << index;
+        return;
+    }
+
+    m_rulers[index].active = true;
+    m_rulers[index].timestamp = timestamp;
+    m_rulers[index].range = range;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+void RTWGraph::clearRuler(int index)
+{
+    if (index < 0 || index >= RulerCount)
+        return;
+
+    m_rulers[index].active = false;
+    if (m_selectedRuler == index)
+        m_selectedRuler = -1;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+void RTWGraph::clearAllRulers()
+{
+    for (auto &ruler : m_rulers)
+        ruler.active = false;
+    m_selectedRuler = -1;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+void RTWGraph::setSelectedRuler(int index)
+{
+    // -1 clears the selection; otherwise only active rulers may be selected.
+    if (index >= 0 && index < RulerCount && !m_rulers[index].active)
+    {
+        DEBUG_OUT() << "RTW: setSelectedRuler - ruler" << index << "is not active, ignoring";
+        return;
+    }
+
+    m_selectedRuler = (index >= 0 && index < RulerCount) ? index : -1;
+
+    setRenderState(RenderState::FULL_REDRAW);
+    draw();
+}
+
+RTWSymbolDrawing::SymbolType RTWGraph::rulerSymbolType(int index, bool selected) const
+{
+    // index is 0-based (0..3)
+    if (selected)
+    {
+        switch (index)
+        {
+        case 0: return RTWSymbolDrawing::SymbolType::YellowCircle1;
+        case 1: return RTWSymbolDrawing::SymbolType::YellowCircle2;
+        case 2: return RTWSymbolDrawing::SymbolType::YellowCircle3;
+        default: return RTWSymbolDrawing::SymbolType::YellowCircle4;
+        }
+    }
+
+    switch (index)
+    {
+    case 0: return RTWSymbolDrawing::SymbolType::WhiteCircle1;
+    case 1: return RTWSymbolDrawing::SymbolType::WhiteCircle2;
+    case 2: return RTWSymbolDrawing::SymbolType::WhiteCircle3;
+    default: return RTWSymbolDrawing::SymbolType::WhiteCircle4;
+    }
+}
+
+void RTWGraph::removeRulerItems()
+{
+    if (!overlayScene)
+        return;
+
+    QList<QGraphicsItem*> allItems = overlayScene->items();
+    QList<QGraphicsItem*> itemsToRemove;
+    for (QGraphicsItem* item : allItems)
+    {
+        QGraphicsPixmapItem* pixmapItem = qgraphicsitem_cast<QGraphicsPixmapItem*>(item);
+        if (pixmapItem && pixmapItem->data(1).toString() == QStringLiteral("RULER"))
+            itemsToRemove.append(pixmapItem);
+    }
+
+    for (QGraphicsItem* item : itemsToRemove)
+    {
+        overlayScene->removeItem(item);
+        delete item;
+    }
+}
+
+void RTWGraph::drawRulers()
+{
+    if (!overlayScene)
+        return;
+
+    // Always remove old ruler items before redrawing to avoid duplicates
+    removeRulerItems();
+
+    for (int i = 0; i < RulerCount; ++i)
+    {
+        const RulerState &ruler = m_rulers[i];
+        if (!ruler.active)
+            continue;
+
+        const bool selected = (m_selectedRuler == i);
+        RTWSymbolDrawing::SymbolType type = rulerSymbolType(i, selected);
+
+        const QPixmap &rulerPixmap = symbols.get(type);
+        if (rulerPixmap.isNull() || rulerPixmap.width() <= 0 || rulerPixmap.height() <= 0)
+        {
+            DEBUG_OUT() << "RTW: Invalid pixmap for ruler" << i << "- skipping";
+            continue;
+        }
+
+        QPointF screenPos = mapDataToScreen(ruler.range, ruler.timestamp);
+        if (!drawingArea.contains(screenPos))
+            continue;
+
+        QGraphicsPixmapItem* item = new QGraphicsPixmapItem(rulerPixmap);
+        QRectF pixmapRect = item->boundingRect();
+        item->setPos(screenPos.x() - pixmapRect.width() / 2,
+                     screenPos.y() - pixmapRect.height() / 2);
+        // Above ordinary RTW symbols (z=1000) so rulers stay visible/clickable
+        item->setZValue(1001);
+
+        // Tag for click detection
+        item->setData(1, QStringLiteral("RULER"));
+        item->setData(3, i);
+
+        item->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
+        item->setAcceptHoverEvents(true);
+
+        overlayScene->addItem(item);
     }
 }

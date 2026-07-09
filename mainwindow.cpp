@@ -12,6 +12,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 #include <QGridLayout>
+#include <QDateTimeEdit>
 #include <QTimer>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -20,7 +21,7 @@
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent), ui(new Ui::MainWindow), timer(new QTimer(this)), timeUpdateTimer(new QTimer(this)),
-      m_currentBTWLineMode(BTWGraph::HorizontalLineMode::Normal)
+      m_currentHorizontalLineMode(HorizontalLineMode::Normal)
 {
     ui->setupUi(this);
     
@@ -59,7 +60,9 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid = new GraphLayout(ui->originalTab, LayoutType::GPW4W, timeUpdateTimer, seriesLabelsMap, systemStartTime);
     DEBUG_OUT() << "MainWindow: system start time (4h before now):" << systemStartTime.toString(Qt::ISODate);
     graphgrid->setObjectName("graphgrid");
-    graphgrid->setGeometry(QRect(100, 100, 900, 900));
+    // GPW4W layout is 548×900 after GraphLayout sizing; keep a small top/left margin so the
+    // 2×2 grid is not clipped by the tab area (was 100,100 which cut off the bottom row).
+    graphgrid->setGeometry(QRect(4, 4, 548, 900));
     
     // Test setContainerGraphType API - set different graph types for each container in 2x2 layout
     // Container indices: 0 = top-left, 1 = top-right, 2 = bottom-left, 3 = bottom-right
@@ -134,6 +137,17 @@ MainWindow::MainWindow(QWidget *parent)
     // Add label to layout
     controlsLayout->addWidget(rtwRMarkerTimestampLabel);
     
+    // Connect RTW ruler selection signal from graphgrid to update status label
+    connect(graphgrid, &GraphLayout::RtwRulerSelected,
+            [this](int index, const QDateTime &timestamp, qreal range) {
+                const QString text = QString("Ruler %1 selected | %2 | range %3")
+                    .arg(index + 1)
+                    .arg(timestamp.toString("yyyy-MM-dd hh:mm:ss"))
+                    .arg(range, 0, 'f', 1);
+                updateRtwRulerStatusLabel(text);
+                DEBUG_OUT() << "RTW Ruler selected:" << index << timestamp << range;
+            });
+
     // Connect RTW R marker timestamp signal from graphgrid to update label
     connect(graphgrid, &GraphLayout::RTWRMarkerTimestampCaptured,
             [this](const QDateTime &timestamp, const QPointF &position) {
@@ -547,6 +561,12 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup BTW Symbols gallery tab
     setupBTWSymbolsTest();
 
+    // Dedicated tab for BTW ruler (numbered circle) API testing
+    setupBtwRulersApiTestTab();
+
+    // Dedicated tab for drawing horizontal lines from the BRW graph
+    setupBrwHorizontalLineApiTestTab();
+
     // Place BTW symbols on the live graph once data/time window is ready
     QTimer::singleShot(5000, this, &MainWindow::testBTWSymbolsAPI);
 
@@ -592,6 +612,9 @@ MainWindow::MainWindow(QWidget *parent)
     // Setup widget that lists the graphs currently shown on screen
     setupVisibleGraphsWidget();
 
+    // RTW ruler API test buttons (Original View controls panel)
+    setupRtwRulersTest();
+
     // Add a dedicated Controls tab with a spread-out duplicate of the controls
     setupControlsTab();
 
@@ -605,13 +628,17 @@ MainWindow::MainWindow(QWidget *parent)
     graphgrid->addRTWSymbol(GraphType::RTW, "TM", testSymbolTime, 15.0);
     DEBUG_OUT() << "MainWindow: Added test RTW symbol 'TM' at timestamp:" << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
 
-    // Quick BTW symbol API smoke test (GraphLayout typed + string overloads)
-    graphgrid->addBTWSymbol(GraphType::BTW, BTWSymbolDrawing::SymbolType::YellowCircle1,
-                            testSymbolTime, 18.0f);
-    graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("WhiteCircle1"),
-                            testSymbolTime.addSecs(10), 24.0f);
-    DEBUG_OUT() << "MainWindow: Added test BTW symbols YellowCircle1 + WhiteCircle1 at"
-                << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
+    // // Quick BTW symbol API smoke test (GraphLayout typed + string overloads)
+    // graphgrid->addBTWSymbol(GraphType::BTW, BTWSymbolDrawing::SymbolType::YellowCircle1,
+    //                         testSymbolTime, 18.0f);
+    // graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("WhiteCircle1"),
+    //                         testSymbolTime.addSecs(10), 24.0f);
+    // DEBUG_OUT() << "MainWindow: Added test BTW symbols YellowCircle1 + WhiteCircle1 at"
+    //             << testSymbolTime.toString("yyyy-MM-dd hh:mm:ss");
+
+    // Ensure the window is tall enough for the 900px graph grid plus tab chrome.
+    setMinimumSize(1200, 980);
+    resize(1500, 980);
 }
 
 void MainWindow::setupTimeSelectionHistory()
@@ -798,6 +825,99 @@ void MainWindow::updateVisibleGraphsWidget()
     DEBUG_OUT() << "MainWindow: Visible graphs on screen:" << lines;
 }
 
+void MainWindow::updateRtwRulerStatusLabel(const QString &text)
+{
+    for (QLabel *label : m_rtwRulerStatusLabels) {
+        if (label) {
+            label->setText(text);
+        }
+    }
+}
+
+void MainWindow::setupRtwRulersTest()
+{
+    QWidget *controlsWidget = ui->originalTab->findChild<QWidget *>("controlsWidget");
+    if (!controlsWidget) {
+        qWarning() << "Controls widget not found, cannot add RTW ruler test controls";
+        return;
+    }
+
+    QGridLayout *controlsLayout = qobject_cast<QGridLayout *>(controlsWidget->layout());
+    if (!controlsLayout) {
+        return;
+    }
+
+    const int row = controlsLayout->rowCount();
+
+    QLabel *title = new QLabel("RTW Rulers (API test):", controlsWidget);
+    title->setStyleSheet("QLabel { font-weight: bold; }");
+
+    rtwRulerStatusLabel = new QLabel("RTW Rulers: --", controlsWidget);
+    rtwRulerStatusLabel->setObjectName("rtwRulerStatusLabel");
+    rtwRulerStatusLabel->setWordWrap(true);
+    rtwRulerStatusLabel->setMinimumHeight(40);
+    rtwRulerStatusLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #ffd700; border: 1px solid #444; padding: 6px; }");
+    m_rtwRulerStatusLabels.append(rtwRulerStatusLabel);
+
+    testRtwRulersButton = new QPushButton("Test RTW Rulers", controlsWidget);
+    testRtwRulersButton->setObjectName("testRtwRulersButton");
+    testRtwRulersButton->setFixedHeight(30);
+    testRtwRulersButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    testRtwRulersButton->setStyleSheet(
+        "QPushButton { background-color: #ffc107; color: black; font-weight: bold; }");
+    connect(testRtwRulersButton, &QPushButton::clicked,
+            this, &MainWindow::onTestRtwRulersButtonClicked);
+
+    clearRtwRulersButton = new QPushButton("Clear RTW Rulers", controlsWidget);
+    clearRtwRulersButton->setObjectName("clearRtwRulersButton");
+    clearRtwRulersButton->setFixedHeight(30);
+    clearRtwRulersButton->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    connect(clearRtwRulersButton, &QPushButton::clicked,
+            this, &MainWindow::onClearRtwRulersButtonClicked);
+
+    controlsLayout->addWidget(title, row, 0, 1, 2);
+    controlsLayout->addWidget(rtwRulerStatusLabel, row + 1, 0, 1, 2);
+    controlsLayout->addWidget(testRtwRulersButton, row + 2, 0);
+    controlsLayout->addWidget(clearRtwRulersButton, row + 2, 1);
+    controlsLayout->setRowStretch(row + 3, 1);
+
+    DEBUG_OUT() << "MainWindow: RTW ruler test controls added to Original View panel";
+}
+
+void MainWindow::onTestRtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        updateRtwRulerStatusLabel("Error: GraphLayout not available.");
+        return;
+    }
+
+    const QDateTime now = QDateTime::currentDateTime();
+
+    graphgrid->clearAllRtwRulers();
+    graphgrid->setRtwRulerActive(0, now.addSecs(-120), 8.0);   // white "1"
+    graphgrid->setRtwRulerActive(1, now.addSecs(-60), 15.0);   // will be selected (yellow "2")
+    graphgrid->setRtwRulerActive(2, now.addSecs(-30), 20.0);   // white "3"
+    graphgrid->setRtwRulerActive(3, now.addSecs(-10), 22.0);   // white "4"
+    graphgrid->setSelectedRtwRuler(1);
+
+    updateRtwRulerStatusLabel(
+        QString("Test: rulers 1-4 active, ruler 2 selected (yellow). Click a circle on the RTW graph."));
+    DEBUG_OUT() << "MainWindow: RTW ruler API test — activated 4 rulers, selected index 1";
+}
+
+void MainWindow::onClearRtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        updateRtwRulerStatusLabel("Error: GraphLayout not available.");
+        return;
+    }
+
+    graphgrid->clearAllRtwRulers();
+    updateRtwRulerStatusLabel("All RTW rulers cleared.");
+    DEBUG_OUT() << "MainWindow: Cleared all RTW rulers via GraphLayout API";
+}
+
 void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spread)
 {
     // "spread" => bigger buttons and more generous gaps for the dedicated tab.
@@ -862,7 +982,83 @@ void MainWindow::buildControlsInto(QWidget* host, QGridLayout* layout, bool spre
     layout->addWidget(title,      3, 0, 1, 2);
     layout->addWidget(graphsLabel,4, 0, 1, 2);
     layout->addWidget(refreshBtn, 5, 0, 1, 2);
-    layout->setRowStretch(6, 1);
+
+    int nextRow = 6;
+    if (spread) {
+        // History selection highlight API test (Controls tab only).
+        QLabel* hlTitle = new QLabel("History selection highlight (API test):", host);
+        hlTitle->setStyleSheet("QLabel { font-weight: bold; }");
+        layout->addWidget(hlTitle, nextRow++, 0, 1, 2);
+
+        const QDateTime now = QDateTime::currentDateTime();
+
+        QLabel* startLabel = new QLabel("Start time:", host);
+        QDateTimeEdit* startEdit = new QDateTimeEdit(now.addSecs(-30 * 60), host);
+        startEdit->setDisplayFormat("yyyy-MM-dd hh:mm:ss");
+        startEdit->setCalendarPopup(true);
+        layout->addWidget(startLabel, nextRow, 0);
+        layout->addWidget(startEdit, nextRow++, 1);
+
+        QLabel* endLabel = new QLabel("End time:", host);
+        QDateTimeEdit* endEdit = new QDateTimeEdit(now.addSecs(-15 * 60), host);
+        endEdit->setDisplayFormat("yyyy-MM-dd hh:mm:ss");
+        endEdit->setCalendarPopup(true);
+        layout->addWidget(endLabel, nextRow, 0);
+        layout->addWidget(endEdit, nextRow++, 1);
+
+        QLabel* hlStatus = new QLabel(host);
+        hlStatus->setWordWrap(true);
+        hlStatus->setStyleSheet("QLabel { color: #333; }");
+
+        QPushButton* highlightBtn = makeButton("Highlight region", QString());
+        highlightBtn->setStyleSheet(
+            "QPushButton { background-color: #6f42c1; color: white; font-weight: bold; }");
+        connect(highlightBtn, &QPushButton::clicked, this, [this, startEdit, endEdit, hlStatus]() {
+            if (!graphgrid) {
+                hlStatus->setText("Error: GraphLayout not available.");
+                return;
+            }
+            const QDateTime start = startEdit->dateTime();
+            const QDateTime end = endEdit->dateTime();
+            const bool ok = graphgrid->highlightHistorySelectionRegion(start, end);
+            if (ok) {
+                hlStatus->setText(QString("OK — highlighted %1 to %2")
+                    .arg(start.toString("yyyy-MM-dd hh:mm:ss"))
+                    .arg(end.toString("yyyy-MM-dd hh:mm:ss")));
+            } else {
+                hlStatus->setText("Failed — invalid times, limit reached (max 5), or clamped to invalid range.");
+            }
+            DEBUG_OUT() << "MainWindow: highlightHistorySelectionRegion test:" << ok
+                        << start.toString() << end.toString();
+        });
+        layout->addWidget(highlightBtn, nextRow++, 0, 1, 2);
+        layout->addWidget(hlStatus, nextRow++, 0, 1, 2);
+
+        // RTW ruler API test (Controls tab).
+        QLabel *rulerTitle = new QLabel("RTW Rulers (API test):", host);
+        rulerTitle->setStyleSheet("QLabel { font-weight: bold; }");
+        layout->addWidget(rulerTitle, nextRow++, 0, 1, 2);
+
+        QLabel *rulerStatus = new QLabel("RTW Rulers: --", host);
+        rulerStatus->setWordWrap(true);
+        rulerStatus->setMinimumHeight(50);
+        rulerStatus->setStyleSheet(
+            "QLabel { background-color: #1e1e1e; color: #ffd700; border: 1px solid #444; padding: 6px; }");
+        m_rtwRulerStatusLabels.append(rulerStatus);
+        layout->addWidget(rulerStatus, nextRow++, 0, 1, 2);
+
+        QPushButton *testRulersBtn = makeButton("Test RTW Rulers",
+            "QPushButton { background-color: #ffc107; color: black; font-weight: bold; }");
+        connect(testRulersBtn, &QPushButton::clicked, this, &MainWindow::onTestRtwRulersButtonClicked);
+
+        QPushButton *clearRulersBtn = makeButton("Clear RTW Rulers", QString());
+        connect(clearRulersBtn, &QPushButton::clicked, this, &MainWindow::onClearRtwRulersButtonClicked);
+
+        layout->addWidget(testRulersBtn, nextRow, 0);
+        layout->addWidget(clearRulersBtn, nextRow++, 1);
+    }
+
+    layout->setRowStretch(nextRow, 1);
 }
 
 void MainWindow::setupControlsTab()
@@ -1007,24 +1203,23 @@ void MainWindow::onShowHistorySelectionsButtonClicked()
 void MainWindow::onBTWLineModeButtonClicked()
 {
     // Cycle through the 3 modes: Normal -> DrawLine -> DeleteLine -> Normal
-    switch (m_currentBTWLineMode)
+    switch (m_currentHorizontalLineMode)
     {
-        case BTWGraph::HorizontalLineMode::Normal:
-            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::DrawLine;
+        case HorizontalLineMode::Normal:
+            m_currentHorizontalLineMode = HorizontalLineMode::DrawLine;
             break;
-        case BTWGraph::HorizontalLineMode::DrawLine:
-            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::DeleteLine;
+        case HorizontalLineMode::DrawLine:
+            m_currentHorizontalLineMode = HorizontalLineMode::DeleteLine;
             break;
-        case BTWGraph::HorizontalLineMode::DeleteLine:
-            m_currentBTWLineMode = BTWGraph::HorizontalLineMode::Normal;
+        case HorizontalLineMode::DeleteLine:
+            m_currentHorizontalLineMode = HorizontalLineMode::Normal;
             break;
     }
     
-    // Apply the mode to GraphLayout
     if (graphgrid)
     {
-        graphgrid->setBTWHorizontalLineMode(GraphType::BTW, m_currentBTWLineMode);
-        DEBUG_OUT() << "MainWindow: BTW line mode changed to" << static_cast<int>(m_currentBTWLineMode);
+        graphgrid->setHorizontalLineMode(m_currentHorizontalLineMode);
+        DEBUG_OUT() << "MainWindow: Horizontal line mode changed to" << static_cast<int>(m_currentHorizontalLineMode);
     }
     
     // Update button text and style
@@ -1036,18 +1231,18 @@ void MainWindow::updateBTWLineModeButton()
     QString buttonText;
     QString buttonStyle;
     
-    switch (m_currentBTWLineMode)
+    switch (m_currentHorizontalLineMode)
     {
-        case BTWGraph::HorizontalLineMode::Normal:
-            buttonText = "BTW Mode: Normal";
+        case HorizontalLineMode::Normal:
+            buttonText = "Line Mode: Normal";
             buttonStyle = "QPushButton { background-color: #6c757d; color: white; font-weight: bold; }";
             break;
-        case BTWGraph::HorizontalLineMode::DrawLine:
-            buttonText = "BTW Mode: Draw Line";
+        case HorizontalLineMode::DrawLine:
+            buttonText = "Line Mode: Draw Line";
             buttonStyle = "QPushButton { background-color: #007bff; color: white; font-weight: bold; }";
             break;
-        case BTWGraph::HorizontalLineMode::DeleteLine:
-            buttonText = "BTW Mode: Delete Line";
+        case HorizontalLineMode::DeleteLine:
+            buttonText = "Line Mode: Delete Line";
             buttonStyle = "QPushButton { background-color: #dc3545; color: white; font-weight: bold; }";
             break;
     }
@@ -1873,7 +2068,9 @@ protected:
             RTWSymbolDrawing::SymbolType::YellowCircle3,
             RTWSymbolDrawing::SymbolType::YellowCircle4,
             RTWSymbolDrawing::SymbolType::MaxSymbol,
-            RTWSymbolDrawing::SymbolType::MinSymbol
+            RTWSymbolDrawing::SymbolType::MinSymbol,
+            RTWSymbolDrawing::SymbolType::Dummy1,
+            RTWSymbolDrawing::SymbolType::Dummy2
             
         };
 
@@ -1904,7 +2101,9 @@ protected:
             "Yellow Circle 3",
             "Yellow Circle 4",
             "MAX Symbol",
-            "MIN Symbol"
+            "MIN Symbol",
+            "Dummy 1",
+            "Dummy 2"
         };
 
         for (int i = 0; i < symbolTypes.size(); ++i)
@@ -1964,8 +2163,10 @@ void MainWindow::setupRTWSymbolsTest()
         "• EKELUND Range - RectK\n"
         "• LATERAL Range - CircleRYellow\n"
         "• MIN/MAX Range - DoubleBarYellow\n"
-        "• MAX Symbol - Yellow line with cyan dots behind\n"
-        "• MIN Symbol - Yellow line with cyan dots in front\n\n"
+        "• MAX Symbol - Yellow line with 4 diagonal (45 deg CW) dotted lines\n"
+        "• MIN Symbol - Mirror of MAX (dotted lines slanted the other way)\n"
+        "• Dummy 1 - Yellow line with cyan dots behind (former MAX)\n"
+        "• Dummy 2 - Yellow line with cyan dots in front (former MIN)\n\n"
         "Adoption Types:\n"
         "• REAL TIME ADOPTION - RectA (Red)\n"
         "• PAST TIME ADOPTION - RectAPurple\n\n"
@@ -2076,6 +2277,262 @@ void MainWindow::setupBTWSymbolsTest()
                 << BTWSymbolDrawing::registeredSymbolNames();
 }
 
+void MainWindow::setupBtwRulersApiTestTab()
+{
+    QWidget *tab = new QWidget();
+    tab->setObjectName("btwRulersApiTab");
+    ui->tabWidget->addTab(tab, QStringLiteral("BTW Rulers API"));
+
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(16);
+
+    auto *intro = new QLabel(
+        QStringLiteral(
+            "BTW Ruler API test\n\n"
+            "Up to 4 numbered circles on the BTW graph (Original View, top-left panel).\n"
+            "• White circle + digit = active, unselected\n"
+            "• Yellow circle + digit = selected\n"
+            "• At most one ruler selected at a time\n\n"
+            "Use the buttons below, then click a circle on the BTW graph to change selection."),
+        tab);
+    intro->setWordWrap(true);
+    intro->setStyleSheet(
+        "QLabel { font-size: 13px; padding: 12px; background-color: #f5f5f5; "
+        "border: 1px solid #ccc; border-radius: 4px; }");
+    layout->addWidget(intro);
+
+    btwRulerApiStatusLabel = new QLabel(QStringLiteral("BTW Rulers: --"), tab);
+    btwRulerApiStatusLabel->setObjectName("btwRulerApiStatusLabel");
+    btwRulerApiStatusLabel->setWordWrap(true);
+    btwRulerApiStatusLabel->setMinimumHeight(48);
+    btwRulerApiStatusLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #00d0ff; border: 1px solid #444; "
+        "padding: 8px; font-weight: bold; }");
+    layout->addWidget(btwRulerApiStatusLabel);
+
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->setSpacing(12);
+
+    auto *testBtn = new QPushButton(QStringLiteral("Test BTW Rulers"), tab);
+    testBtn->setFixedHeight(40);
+    testBtn->setStyleSheet(
+        "QPushButton { background-color: #17a2b8; color: white; font-weight: bold; "
+        "padding: 8px 16px; }");
+    connect(testBtn, &QPushButton::clicked, this, &MainWindow::onTestBtwRulersButtonClicked);
+
+    auto *clearBtn = new QPushButton(QStringLiteral("Clear BTW Rulers"), tab);
+    clearBtn->setFixedHeight(40);
+    connect(clearBtn, &QPushButton::clicked, this, &MainWindow::onClearBtwRulersButtonClicked);
+
+    auto *selectBtn = new QPushButton(QStringLiteral("Select ruler 3"), tab);
+    selectBtn->setFixedHeight(40);
+    connect(selectBtn, &QPushButton::clicked, this, [this]() {
+        if (!graphgrid) {
+            if (btwRulerApiStatusLabel)
+                btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+            return;
+        }
+        graphgrid->setSelectedBtwRuler(2);
+        if (btwRulerApiStatusLabel)
+            btwRulerApiStatusLabel->setText(
+                QStringLiteral("Programmatic selection: ruler 3 (index 2) via setSelectedBtwRuler(2)."));
+    });
+
+    buttonRow->addWidget(testBtn);
+    buttonRow->addWidget(clearBtn);
+    buttonRow->addWidget(selectBtn);
+    buttonRow->addStretch();
+    layout->addLayout(buttonRow);
+
+    layout->addStretch();
+
+    connect(graphgrid, &GraphLayout::BtwRulerSelected,
+            this, [this](int index, const QDateTime &timestamp, qreal range) {
+                if (!btwRulerApiStatusLabel)
+                    return;
+                btwRulerApiStatusLabel->setText(
+                    QString("Ruler %1 selected | %2 | bearing %3")
+                        .arg(index + 1)
+                        .arg(timestamp.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
+                        .arg(range, 0, 'f', 1));
+                DEBUG_OUT() << "BTW Ruler selected (API tab):" << index << timestamp << range;
+            });
+
+    DEBUG_OUT() << "MainWindow: BTW Rulers API test tab created";
+}
+
+void MainWindow::onTestBtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        if (btwRulerApiStatusLabel)
+            btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    const QDateTime now = QDateTime::currentDateTime();
+
+    // Clear data symbols so numbered circles from testBTWSymbolsAPI are not confused with rulers
+    graphgrid->clearBTWSymbols(GraphType::BTW);
+    graphgrid->clearAllBtwRulers();
+    // Bearings must fall within BTW hard limits (5.0–75.0); off-screen rulers are not drawn
+    graphgrid->setBtwRulerActive(0, now.addSecs(-120), 12.0);
+    graphgrid->setBtwRulerActive(1, now.addSecs(-60), 30.0);
+    graphgrid->setBtwRulerActive(2, now.addSecs(-30), 50.0);
+    graphgrid->setBtwRulerActive(3, now.addSecs(-10), 68.0);
+    graphgrid->setSelectedBtwRuler(1);
+
+    if (btwRulerApiStatusLabel) {
+        btwRulerApiStatusLabel->setText(
+            QStringLiteral("Test: rulers 1–4 active at bearings 12/30/50/68, ruler 2 selected (yellow). "
+                             "Click a circle on the BTW graph to change selection."));
+    }
+    DEBUG_OUT() << "MainWindow: BTW ruler API test — activated 4 rulers, selected index 1";
+}
+
+void MainWindow::onClearBtwRulersButtonClicked()
+{
+    if (!graphgrid) {
+        if (btwRulerApiStatusLabel)
+            btwRulerApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    graphgrid->clearAllBtwRulers();
+    if (btwRulerApiStatusLabel)
+        btwRulerApiStatusLabel->setText(QStringLiteral("All BTW rulers cleared."));
+    DEBUG_OUT() << "MainWindow: Cleared all BTW rulers via GraphLayout API";
+}
+
+void MainWindow::setupBrwHorizontalLineApiTestTab()
+{
+    QWidget *tab = new QWidget();
+    tab->setObjectName("brwHorizontalLineApiTab");
+    ui->tabWidget->addTab(tab, QStringLiteral("BRW Horizontal Line"));
+
+    auto *layout = new QVBoxLayout(tab);
+    layout->setContentsMargins(24, 24, 24, 24);
+    layout->setSpacing(16);
+
+    auto *intro = new QLabel(
+        QStringLiteral(
+            "BRW Horizontal Line API test\n\n"
+            "Horizontal lines drawn on any waterfall graph sync to all panels.\n"
+            "• Top-right container is switched to BRW for this test\n"
+            "• Draw Line mode lets you click on the BRW graph to place a line\n"
+            "• The same line should appear on BTW, RTW, FTW, and other visible graphs\n\n"
+            "Use \"Prepare BRW draw test\", then click the BRW panel in Original View."),
+        tab);
+    intro->setWordWrap(true);
+    intro->setStyleSheet(
+        "QLabel { font-size: 13px; padding: 12px; background-color: #f5f5f5; "
+        "border: 1px solid #ccc; border-radius: 4px; }");
+    layout->addWidget(intro);
+
+    brwLineApiStatusLabel = new QLabel(QStringLiteral("BRW lines: --"), tab);
+    brwLineApiStatusLabel->setObjectName("brwLineApiStatusLabel");
+    brwLineApiStatusLabel->setWordWrap(true);
+    brwLineApiStatusLabel->setMinimumHeight(48);
+    brwLineApiStatusLabel->setStyleSheet(
+        "QLabel { background-color: #1e1e1e; color: #7fff7f; border: 1px solid #444; "
+        "padding: 8px; font-weight: bold; }");
+    layout->addWidget(brwLineApiStatusLabel);
+
+    auto *buttonRow = new QHBoxLayout();
+    buttonRow->setSpacing(12);
+
+    auto *prepareBtn = new QPushButton(QStringLiteral("Prepare BRW draw test"), tab);
+    prepareBtn->setFixedHeight(40);
+    prepareBtn->setStyleSheet(
+        "QPushButton { background-color: #28a745; color: white; font-weight: bold; "
+        "padding: 8px 16px; }");
+    connect(prepareBtn, &QPushButton::clicked, this, &MainWindow::onPrepareBrwLineDrawTestClicked);
+
+    auto *clearBtn = new QPushButton(QStringLiteral("Clear horizontal lines"), tab);
+    clearBtn->setFixedHeight(40);
+    connect(clearBtn, &QPushButton::clicked, this, &MainWindow::onClearBrwHorizontalLinesClicked);
+
+    auto *showBtn = new QPushButton(QStringLiteral("Show active lines"), tab);
+    showBtn->setFixedHeight(40);
+    connect(showBtn, &QPushButton::clicked, this, &MainWindow::onShowActiveHorizontalLinesClicked);
+
+    buttonRow->addWidget(prepareBtn);
+    buttonRow->addWidget(clearBtn);
+    buttonRow->addWidget(showBtn);
+    buttonRow->addStretch();
+    layout->addLayout(buttonRow);
+
+    layout->addStretch();
+
+    DEBUG_OUT() << "MainWindow: BRW Horizontal Line API test tab created";
+}
+
+void MainWindow::onPrepareBrwLineDrawTestClicked()
+{
+    if (!graphgrid) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    graphgrid->setContainerGraphType(1, GraphType::BRW);
+    graphgrid->clearHorizontalLines();
+    m_currentHorizontalLineMode = HorizontalLineMode::DrawLine;
+    graphgrid->setHorizontalLineMode(m_currentHorizontalLineMode);
+    updateBTWLineModeButton();
+    updateVisibleGraphsWidget();
+
+    if (brwLineApiStatusLabel) {
+        brwLineApiStatusLabel->setText(
+            QStringLiteral("Ready: top-right panel is BRW, Draw Line mode active. "
+                             "Click the BRW graph in Original View to place a line — "
+                             "it should sync to all panels."));
+    }
+    DEBUG_OUT() << "MainWindow: BRW horizontal line draw test prepared — container 1 = BRW, DrawLine mode";
+}
+
+void MainWindow::onClearBrwHorizontalLinesClicked()
+{
+    if (!graphgrid) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    graphgrid->clearHorizontalLines();
+    if (brwLineApiStatusLabel)
+        brwLineApiStatusLabel->setText(QStringLiteral("All horizontal lines cleared."));
+    DEBUG_OUT() << "MainWindow: Cleared all horizontal lines via GraphLayout API";
+}
+
+void MainWindow::onShowActiveHorizontalLinesClicked()
+{
+    if (!graphgrid) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("Error: GraphLayout not available."));
+        return;
+    }
+
+    const std::vector<HorizontalLineSyncData> lines = graphgrid->getActiveHorizontalLines();
+    if (lines.empty()) {
+        if (brwLineApiStatusLabel)
+            brwLineApiStatusLabel->setText(QStringLiteral("No active horizontal lines."));
+        return;
+    }
+
+    QStringList parts;
+    for (const auto &line : lines) {
+        parts << QStringLiteral("%1 @ %2")
+                     .arg(line.timestamp.toString(QStringLiteral("yyyy-MM-dd hh:mm:ss")))
+                     .arg(line.syncId.toString(QUuid::WithoutBraces).left(8));
+    }
+    if (brwLineApiStatusLabel) {
+        brwLineApiStatusLabel->setText(
+            QStringLiteral("Active lines (%1): %2").arg(lines.size()).arg(parts.join(QStringLiteral("; "))));
+    }
+    DEBUG_OUT() << "MainWindow: Active horizontal lines:" << lines.size();
+}
+
 void MainWindow::testBTWSymbolsAPI()
 {
     if (!graphgrid) {
@@ -2087,31 +2544,31 @@ void MainWindow::testBTWSymbolsAPI()
 
     const QDateTime now = QDateTime::currentDateTime();
 
-    // GraphLayout API — typed enum overload (all predefined symbol types)
-    const struct {
-        BTWSymbolDrawing::SymbolType type;
-        float bearing;
-        int offsetSecs;
-    } placements[] = {
-        { BTWSymbolDrawing::SymbolType::MagentaCircle, 12.0f, -180 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle1, 42.0f, -150 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle2, 44.0f, -120 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle3, 46.0f, -90 },
-        { BTWSymbolDrawing::SymbolType::YellowCircle4, 48.0f, -60 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle1, 50.0f, -45 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle2, 52.0f, -30 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle3, 54.0f, -25 },
-        { BTWSymbolDrawing::SymbolType::WhiteCircle4, 56.0f, -22 },
-    };
+    // // GraphLayout API — typed enum overload (all predefined symbol types)
+    // const struct {
+    //     BTWSymbolDrawing::SymbolType type;
+    //     float bearing;
+    //     int offsetSecs;
+    // } placements[] = {
+    //     { BTWSymbolDrawing::SymbolType::MagentaCircle, 12.0f, -180 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle1, 42.0f, -150 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle2, 44.0f, -120 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle3, 46.0f, -90 },
+    //     { BTWSymbolDrawing::SymbolType::YellowCircle4, 48.0f, -60 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle1, 50.0f, -45 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle2, 52.0f, -30 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle3, 54.0f, -25 },
+    //     { BTWSymbolDrawing::SymbolType::WhiteCircle4, 56.0f, -22 },
+    // };
 
-    for (const auto& p : placements) {
-        const QDateTime ts = now.addSecs(p.offsetSecs);
-        graphgrid->addBTWSymbol(GraphType::BTW, p.type, ts, p.bearing);
-        DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - GraphLayout typed:"
-                    << BTWSymbolDrawing::symbolTypeToName(p.type)
-                    << "@" << ts.toString("yyyy-MM-dd hh:mm:ss")
-                    << "bearing" << p.bearing;
-    }
+    // for (const auto& p : placements) {
+    //     const QDateTime ts = now.addSecs(p.offsetSecs);
+    //     graphgrid->addBTWSymbol(GraphType::BTW, p.type, ts, p.bearing);
+    //     DEBUG_OUT() << "MainWindow::testBTWSymbolsAPI - GraphLayout typed:"
+    //                 << BTWSymbolDrawing::symbolTypeToName(p.type)
+    //                 << "@" << ts.toString("yyyy-MM-dd hh:mm:ss")
+    //                 << "bearing" << p.bearing;
+    // }
 
     // GraphLayout API — string name overload
     graphgrid->addBTWSymbol(GraphType::BTW, QStringLiteral("MagentaCircleSynced"),

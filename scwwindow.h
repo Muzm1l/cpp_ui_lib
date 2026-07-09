@@ -95,8 +95,18 @@ public:
     // Add BTW symbol (magenta circle) to all SCW graphs at a timestamp
     void addBTWSymbolToAllGraphs(const QDateTime &timestamp);
 
+    // Hover query API: which SCW window (0-7) the mouse is currently over,
+    // or -1 if the mouse is not over any graph. getHoveredSeriesName() returns
+    // the resolved series name for that window ("" when none is hovered).
+    int getHoveredWindowIndex() const { return m_hoveredWindowIndex; }
+    QString getHoveredSeriesName() const;
+
 signals:
     void seriesSelected(const QString &seriesName);
+
+    // Emitted whenever the hovered SCW window changes. windowIndex is 0-7, or
+    // -1 when the mouse leaves all graphs (seriesName is "" in that case).
+    void windowHovered(int windowIndex, const QString &seriesName);
 
 private:
     // Layout components
@@ -111,6 +121,9 @@ private:
     
     // Currently selected window index (-1 if none selected)
     int m_selectedWindowIndex = -1;
+
+    // Currently hovered window index (-1 if the mouse is not over any graph)
+    int m_hoveredWindowIndex = -1;
 
     // 8 WaterfallData data sources keyed by SCW_SERIES
     QMap<SCW_SERIES_ADOPTED, WaterfallData *> m_dataSourcesAdopted;

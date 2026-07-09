@@ -4,8 +4,10 @@
 #include "waterfallgraph.h"
 #include "rtwsymboldrawing.h"
 #include "waterfalldata.h"  // For RTWSymbolData
+#include "rulerstate.h"
 #include <QDateTime>
 #include <vector>
+#include <array>
 
 /**
  * @brief RTW Graph component that inherits from waterfallgraph
@@ -30,6 +32,38 @@ public:
      */
     void addRTWSymbol(const QString &symbolName, const QDateTime &timestamp, qreal range);
 
+    // ========== Ruler indicator API ==========
+    // The main system owns up to 4 rulers (1-4). Each active ruler is drawn as a
+    // numbered circle; at most one ruler may be selected at a time.
+    static constexpr int RulerCount = 4;
+
+    /**
+     * @brief Activate/position a ruler indicator (0-based index 0..3).
+     * @param index Ruler index (0..3)
+     * @param timestamp Time-axis position of the ruler
+     * @param range Range-axis position of the ruler
+     */
+    void setRulerActive(int index, const QDateTime &timestamp, qreal range);
+
+    /** @brief Deactivate a single ruler (removes it from the graph). */
+    void clearRuler(int index);
+
+    /** @brief Deactivate all rulers and clear selection. */
+    void clearAllRulers();
+
+    /**
+     * @brief Select a ruler (turns it yellow); deselects all others.
+     * @param index Ruler index (0..3), or -1 to clear the selection.
+     *              Selecting an inactive ruler is ignored.
+     */
+    void setSelectedRuler(int index);
+
+    /** @brief Index of the currently selected ruler, or -1 if none. */
+    int selectedRuler() const { return m_selectedRuler; }
+
+    /** @brief Whether the given ruler index is currently active. */
+    bool isRulerActive(int index) const;
+
 protected:
     // Override the draw method to create scatterplots by default
     void draw() override;
@@ -47,8 +81,17 @@ private:
     void drawRTWSymbols();
     RTWSymbolDrawing::SymbolType symbolNameToType(const QString &symbolName) const;
 
+    // Ruler rendering and helpers
+    void drawRulers();
+    void removeRulerItems();
+    RTWSymbolDrawing::SymbolType rulerSymbolType(int index, bool selected) const;
+
     // RTW symbol drawing utility (symbols are stored in WaterfallData)
     RTWSymbolDrawing symbols;
+
+    // Ruler indicator state (view-local; driven by the main system via GraphLayout)
+    std::array<RulerState, RulerCount> m_rulers{};
+    int m_selectedRuler = -1;  // 0..3, or -1 for none
 
 signals:
     /**
@@ -65,6 +108,14 @@ signals:
      * @param symbolName The name of the clicked symbol
      */
     void rtwSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+
+    /**
+     * @brief Emitted when a ruler indicator is clicked (and thereby selected).
+     * @param index The 0-based ruler index (0..3)
+     * @param timestamp The ruler's time-axis position
+     * @param range The ruler's range-axis position
+     */
+    void rulerSelected(int index, const QDateTime &timestamp, qreal range);
 };
 
 #endif // RTWGRAPH_H

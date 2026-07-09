@@ -118,6 +118,44 @@ public:
      */
     std::vector<QString> getVisibleGraphNames() const;
 
+    /**
+     * @brief Highlight a time region in the history selection bar on all containers.
+     *
+     * Pass two timestamps to draw a highlighted band between them in each
+     * container's history selection visualizer (the narrow bar beside the timeline).
+     * Timestamps may be passed in any order; they are normalized internally.
+     *
+     * Uses the existing addTimeSelection() path: overlapping selections are merged,
+     * spans are clamped to the valid data range, and each container keeps at most
+     * MAX_TIME_SELECTIONS (5). If a container already has 5 selections, the new
+     * region is silently ignored for that container.
+     *
+     * @param startTime One boundary of the region.
+     * @param endTime   The other boundary of the region.
+     * @return true if at least one container accepted the selection; false if both
+     *         timestamps are invalid or every container was already at the limit.
+     */
+    bool highlightHistorySelectionRegion(const QDateTime &startTime, const QDateTime &endTime);
+
+    /**
+     * @brief Snapshot of all active history selections (start/end + stable id).
+     *
+     * Use together with the TimeSelectionsChanged() signal: when a selection is
+     * created or a specific existing selection is updated, the main system gets
+     * the full current set and can recalculate the one whose id/index changed.
+     */
+    std::vector<TimeSelectionSpan> getActiveTimeSelections() const;
+
+    /**
+     * @brief Explicitly choose which graph + data series drives the history-selection
+     *        valid range and the H selection, across all containers.
+     *
+     * Example: setHistorySelectionReferenceSeries(GraphType::BTW, "ADOPTED") to
+     * anchor the range to the longer measured series instead of the computed one.
+     * Pass an empty seriesLabel to clear the override.
+     */
+    void setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel);
+
     // Set the current time
     void setCurrentTime(const QTime &time);
     void deleteInteractiveMarkers();
@@ -229,6 +267,22 @@ public:
     bool removeBTWMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     bool removeRTWRMarker(const GraphType &graphType, const QDateTime &timestamp, float range, float toleranceMs = 1000, float rangeTolerance = 0.1f);
     
+    // ========== RTW Ruler indicator API ==========
+    // The main system owns up to 4 rulers (index 0..3). These forward to the
+    // RTW graph view(s); state lives in RTWGraph. At most one ruler is selected.
+    void setRtwRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearRtwRuler(int index);
+    void clearAllRtwRulers();
+    void setSelectedRtwRuler(int index);
+    int selectedRtwRuler() const;
+
+    // ========== BTW Ruler indicator API ==========
+    void setBtwRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearBtwRuler(int index);
+    void clearAllBtwRulers();
+    void setSelectedBtwRuler(int index);
+    int selectedBtwRuler() const;
+
     // Clear markers and symbols for specific graph type
     void clearRTWSymbols(const GraphType &graphType);
     void clearBTWSymbols(const GraphType &graphType);
@@ -246,53 +300,35 @@ public:
      * @return true if marker was created successfully
      */
     bool addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate = 0.0f);
-    
-    // ========== BTW Horizontal Line Management ==========
-    
+
     /**
-     * @brief Set horizontal line mode for BTW graphs
-     * @param graphType The graph type (should be BTW)
-     * @param mode The mode to set (Normal, DrawLine, or DeleteLine)
+     * @brief Bind click-placed manual markers on all BTW graphs to a specific series.
+     *
+     * When a user clicks to place a manual marker, the marker is positioned on the
+     * given series' interpolated range at the clicked time (the click's X position is
+     * ignored). Applies to every BTW graph across all containers. Pass an empty
+     * seriesLabel to clear the binding (markers then use the raw clicked X position).
+     *
+     * This replaces the old "snap to nearest visible series" behaviour.
      */
-    void setBTWHorizontalLineMode(const GraphType &graphType, BTWGraph::HorizontalLineMode mode);
+    void setBTWManualMarkerSeries(const QString &seriesLabel);
     
-    /**
-     * @brief Set horizontal line mode for BTW graphs (legacy boolean interface)
-     * @param graphType The graph type (should be BTW)
-     * @param enabled True to enable draw line mode, false for normal mode
-     */
+    // ========== Horizontal time line management (all graph types) ==========
+
+    void setHorizontalLineMode(HorizontalLineMode mode);
+    HorizontalLineMode horizontalLineMode() const;
+    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
+    QDateTime getHorizontalLineTimestamp(const QUuid &syncId) const;
+    bool removeHorizontalLine(const QUuid &syncId);
+    void clearHorizontalLines();
+    std::vector<HorizontalLineSyncData> getActiveHorizontalLines() const;
+
+    /** @deprecated Use setHorizontalLineMode() — graphType is ignored. */
+    void setBTWHorizontalLineMode(const GraphType &graphType, HorizontalLineMode mode);
     void setBTWHorizontalLineMode(const GraphType &graphType, bool enabled);
-    
-    /**
-     * @brief Add a horizontal line to a BTW graph at a specific time
-     * @param graphType The graph type (should be BTW)
-     * @param timestamp The time when the line should be drawn
-     * @param color The color of the line (default: yellow)
-     * @param width The width of the line (default: 2.0)
-     * @return Unique identifier for the line
-     */
     QUuid addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
-    
-    /**
-     * @brief Get the timestamp of a horizontal line by its ID
-     * @param graphType The graph type (should be BTW)
-     * @param lineId The unique identifier of the line
-     * @return The timestamp of the line, or invalid QDateTime if not found
-     */
     QDateTime getBTWHorizontalLineTimestamp(const GraphType &graphType, const QUuid &lineId) const;
-    
-    /**
-     * @brief Remove a horizontal line from a BTW graph by its ID
-     * @param graphType The graph type (should be BTW)
-     * @param lineId The unique identifier of the line to remove
-     * @return True if the line was found and removed
-     */
     bool removeBTWHorizontalLine(const GraphType &graphType, const QUuid &lineId);
-    
-    /**
-     * @brief Clear all horizontal lines from a BTW graph
-     * @param graphType The graph type (should be BTW)
-     */
     void clearBTWHorizontalLines(const GraphType &graphType);
     
     // ========== Shaded Region API ==========
@@ -418,9 +454,12 @@ public slots:
     void onTimeSelectionsCleared();
     void onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position);
     
-    // BTW Horizontal line sync slots - propagate lines to all containers
-    void onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    void onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    void onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData);
+    void onHorizontalLineSyncRemoved(const QUuid &syncId);
+    void onHorizontalLineSyncDragStarted(const QUuid &syncId);
+    void onHorizontalLineSyncDragEnded();
+    void onHorizontalLinesSyncCleared();
     
     // BTW Marker sync slots - propagate markers to all containers
     void onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData);
@@ -435,6 +474,14 @@ public slots:
     void onContainerIntervalChanged(TimeInterval interval);
 
 private:
+    void applyHorizontalLineModeToAllGraphs();
+    void applyHorizontalLineSyncToAllContainers(const HorizontalLineSyncData &lineData);
+    void refreshAllHorizontalLineVisuals();
+    QElapsedTimer m_horizontalLineDragThrottle;
+    QUuid m_pendingHorizontalLineDragSyncId;
+    HorizontalLineSyncData m_pendingHorizontalLineDragData;
+    bool m_hasPendingHorizontalLineDrag = false;
+
     LayoutType m_layoutType;
     QTimer *m_timer;
     std::vector<GraphContainer *> m_graphContainers;
@@ -501,9 +548,23 @@ signals:
      */
     void VisibleGraphsChanged();
 
+    // @deprecated Prefer TimeSelectionsChanged (vector form). Kept for backward
+    // compatibility; will be removed once a stable version ships.
     void TimeSelectionCreated(const TimeSelectionSpan &selection);
     void TimeSelectionModified(int index, const TimeSelectionSpan &newSpan);
     void TimeSelectionsCleared();
+
+    /**
+     * @brief Emitted on any change to the history-selection set (create / modify / clear).
+     * @param selections  The full current set of active selections (with stable ids).
+     * @param changedIndex Index into @p selections of the created/modified selection,
+     *                     or -1 when the set was cleared.
+     *
+     * This is the preferred integration point: the main system always receives the
+     * complete vector plus which entry changed, so an updated selection can be
+     * recalculated by id or index without tracking deltas itself.
+     */
+    void TimeSelectionsChanged(const std::vector<TimeSelectionSpan> &selections, int changedIndex);
     
     // Marker timestamp signals for external integration
     /**
@@ -520,6 +581,19 @@ signals:
      * @param symbolName The name of the clicked symbol
      */
     void RTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName);
+
+    /**
+     * @brief Emitted when an RTW ruler indicator is clicked (and thereby selected).
+     * @param index The 0-based ruler index (0..3)
+     * @param timestamp The ruler's time-axis position
+     * @param range The ruler's range-axis position
+     */
+    void RtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
+
+    /**
+     * @brief Emitted when a BTW ruler indicator is clicked (and thereby selected).
+     */
+    void BtwRulerSelected(int index, const QDateTime &timestamp, qreal range);
     
     /**
      * @brief Emitted when a BTW manual marker is placed
@@ -561,6 +635,12 @@ signals:
      * @param bearingRate The bearing rate value (from the box display)
      */
     void markerClickedWithData(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate);
+
+    /** @brief Emitted when the user draws a horizontal line (click in DrawLine mode). Not emitted by addHorizontalLine(). */
+    void HorizontalLineAdded(const QUuid &syncId, const QDateTime &timestamp);
+
+    /** @brief Emitted when the user removes a horizontal line (click in DrawLine/DeleteLine mode). Not emitted by removeHorizontalLine(). */
+    void HorizontalLineRemoved(const QUuid &syncId, const QDateTime &timestamp);
 };
 
 #endif // GRAPHLAYOUT_H

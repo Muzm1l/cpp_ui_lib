@@ -95,7 +95,9 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     if (m_showTimelineView)
     {
         DEBUG_OUT() << "GraphContainer constructor: Creating TimelineView with showTimelineView = true";
-        m_timelineView = new TimelineView(this, m_timer, m_syncState);
+        // Size the Abs/Rel and interval (dt) buttons to match the combobox and
+        // zoompanel rows so the timeline view aligns with the graph column.
+        m_timelineView = new TimelineView(this, m_timer, m_syncState, true, true, comboboxHeight, zoompanelHeight);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         m_mainLayout->addWidget(m_timelineView);
@@ -290,7 +292,11 @@ void GraphContainer::setShowTimelineView(bool showTimelineView)
     else
     {
         DEBUG_OUT() << "GraphContainer: Creating new TimelineView with visibility:" << showTimelineView;
-        m_timelineView = new TimelineView(this, m_timer, m_syncState);
+        // Match the Abs/Rel and interval (dt) button heights to the combobox and
+        // zoompanel rows so the timeline view aligns with the graph column.
+        int comboboxHeight = m_comboBox ? m_comboBox->sizeHint().height() : (TIMELINE_VIEW_BUTTON_SIZE / 2);
+        int zoompanelHeight = m_zoomPanel ? m_zoomPanel->maximumHeight() : (TIMELINE_VIEW_BUTTON_SIZE / 2);
+        m_timelineView = new TimelineView(this, m_timer, m_syncState, true, true, comboboxHeight, zoompanelHeight);
         // Set size policy to expand vertically
         m_timelineView->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Expanding);
         // Insert at position 0 (leftmost) to match the reversed layout order
@@ -1001,6 +1007,26 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         }
     });
 
+    // Connect horizontal line sync signals (all waterfall graph types)
+    connect(graph, &WaterfallGraph::horizontalLineSyncAdded,
+            this, &GraphContainer::HorizontalLineSyncAdded);
+    connect(graph, &WaterfallGraph::horizontalLineSyncUpdated,
+            this, &GraphContainer::HorizontalLineSyncUpdated);
+    connect(graph, &WaterfallGraph::horizontalLineSyncRemoved,
+            this, &GraphContainer::HorizontalLineSyncRemoved);
+    connect(graph, &WaterfallGraph::horizontalLineSyncDragStarted,
+            this, &GraphContainer::HorizontalLineSyncDragStarted);
+    connect(graph, &WaterfallGraph::horizontalLineSyncDragEnded,
+            this, &GraphContainer::HorizontalLineSyncDragEnded);
+    connect(graph, &WaterfallGraph::horizontalLinesSyncCleared,
+            this, &GraphContainer::HorizontalLinesSyncCleared);
+
+    if (m_syncState) {
+        graph->setHorizontalLineMode(m_syncState->horizontalLineMode);
+        for (const auto &line : m_syncState->getActiveHorizontalLines())
+            graph->createHorizontalLineFromSyncData(line);
+    }
+
     // Connect DeleteInteractiveMarkers signal to BTWGraph
     if (auto btwGraph = qobject_cast<BTWGraph*>(graph)) {
         connect(this, &GraphContainer::DeleteInteractiveMarkers,
@@ -1036,6 +1062,9 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::ShadedRegionSyncRemoved);
         connect(btwGraph, &BTWGraph::shadedRegionsCleared,
                 this, &GraphContainer::ShadedRegionsSyncCleared);
+
+        connect(btwGraph, &BTWGraph::rulerSelected,
+                this, &GraphContainer::onBtwRulerSelected);
         
         DEBUG_OUT() << "GraphContainer: Connected BTW marker and shaded region sync signals";
     }
@@ -1050,6 +1079,11 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
         connect(rtwGraph, &RTWGraph::rtwSymbolTimestampCaptured,
                 this, &GraphContainer::onRTWSymbolTimestampCaptured);
         DEBUG_OUT() << "GraphContainer: Connected RTW symbol timestamp signal";
+
+        // Connect RTW ruler selection signal
+        connect(rtwGraph, &RTWGraph::rulerSelected,
+                this, &GraphContainer::onRtwRulerSelected);
+        DEBUG_OUT() << "GraphContainer: Connected RTW ruler selection signal";
     }
 }
 
@@ -1143,6 +1177,15 @@ void GraphContainer::initializeWaterfallGraph(GraphType graphType)
         m_waterfallLayout->addWidget(targetGraph, 1);
         targetGraph->setVisible(true);
         applyCursorTimeToGraph(targetGraph);
+
+        if (m_syncState) {
+            targetGraph->setHorizontalLineMode(m_syncState->horizontalLineMode);
+            for (const auto &line : m_syncState->getActiveHorizontalLines()) {
+                if (!targetGraph->hasHorizontalLineWithSyncId(line.syncId))
+                    targetGraph->createHorizontalLineFromSyncData(line);
+            }
+            targetGraph->refreshHorizontalLineVisuals();
+        }
         
         DEBUG_OUT() << "GraphContainer: Switched to waterfall graph type:" << graphTypeToString(graphType);
     }
@@ -1462,19 +1505,19 @@ void GraphContainer::applySharedTimeAxisCursor(const QDateTime &time)
     }
 }
 
-void GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
+bool GraphContainer::addTimeSelection(const TimeSelectionSpan &selection)
 {
     DEBUG_OUT() << "GraphContainer: Adding time selection from" << selection.startTime.toString() << "to" << selection.endTime.toString();
 
     if (m_timelineSelectionView)
     {
-        m_timelineSelectionView->addTimeSelection(selection);
-        DEBUG_OUT() << "GraphContainer: Time selection added to timeline selection view";
+        bool added = m_timelineSelectionView->addTimeSelection(selection);
+        DEBUG_OUT() << "GraphContainer: Time selection added to timeline selection view:" << added;
+        return added;
     }
-    else
-    {
-        qWarning() << "GraphContainer: Timeline selection view is null - cannot add selection";
-    }
+
+    qWarning() << "GraphContainer: Timeline selection view is null - cannot add selection";
+    return false;
 }
 
 void GraphContainer::setTimeSelection(int index, const TimeSelectionSpan &selection)
@@ -1689,34 +1732,77 @@ void GraphContainer::onDataChanged(GraphType graphType)
         }
 
         // Update valid time range in TimeSelectionVisualizer from available data
-        if (m_timelineSelectionView)
+        refreshHistorySelectionValidRange();
+    }
+}
+
+std::pair<QDateTime, QDateTime> GraphContainer::getHistorySelectionValidRange() const
+{
+    // Explicit reference series (e.g. the longer "measured" series) takes priority
+    // so H / the valid range reflects that series' extent rather than whichever
+    // series happens to be shorter in the current graph's combined range.
+    if (m_hasSelectionReferenceSeries && !m_selectionReferenceSeriesLabel.isEmpty())
+    {
+        auto it = dataOptions.find(m_selectionReferenceGraphType);
+        if (it != dataOptions.end() && it->second &&
+            it->second->hasDataSeries(m_selectionReferenceSeriesLabel) &&
+            !it->second->isDataSeriesEmpty(m_selectionReferenceSeriesLabel))
         {
-            try
-            {
-                auto timeRange = getAvailableDataTimeRange();
-                if (timeRange.first.isValid() && timeRange.second.isValid())
-                {
-                    QTime startTime = timeRange.first.time();
-                    QTime endTime = timeRange.second.time();
-                    m_timelineSelectionView->setValidSelectionRange(startTime, endTime);
-                    DEBUG_OUT() << "GraphContainer: Updated TimeSelectionVisualizer valid range to" 
-                             << startTime.toString() << "to" << endTime.toString();
-                }
-                else
-                {
-                    // If time range is invalid, clear the valid range
-                    m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
-                    DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
-                }
-            }
-            catch (const std::runtime_error &e)
-            {
-                // If data is empty or not available, clear the valid range
-                m_timelineSelectionView->setValidSelectionRange(QTime(), QTime());
-                DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
-            }
+            return it->second->getTimeRangeSeries(m_selectionReferenceSeriesLabel);
+        }
+        // Fall through to combined range if the reference series isn't available yet.
+    }
+    return getAvailableDataTimeRange();
+}
+
+void GraphContainer::refreshHistorySelectionValidRange()
+{
+    if (!m_timelineSelectionView)
+        return;
+
+    try
+    {
+        auto timeRange = getHistorySelectionValidRange();
+        if (timeRange.first.isValid() && timeRange.second.isValid())
+        {
+            // Pass full QDateTime so a long measured range isn't truncated to time-of-day.
+            m_timelineSelectionView->setValidSelectionRange(timeRange.first, timeRange.second);
+            DEBUG_OUT() << "GraphContainer: Updated TimeSelectionVisualizer valid range to"
+                     << timeRange.first.toString() << "to" << timeRange.second.toString();
+        }
+        else
+        {
+            m_timelineSelectionView->setValidSelectionRange(QDateTime(), QDateTime());
+            DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range (invalid time range)";
         }
     }
+    catch (const std::runtime_error &e)
+    {
+        m_timelineSelectionView->setValidSelectionRange(QDateTime(), QDateTime());
+        DEBUG_OUT() << "GraphContainer: Cleared TimeSelectionVisualizer valid range -" << e.what();
+    }
+}
+
+void GraphContainer::setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel)
+{
+    if (seriesLabel.isEmpty())
+    {
+        clearHistorySelectionReferenceSeries();
+        return;
+    }
+    m_hasSelectionReferenceSeries = true;
+    m_selectionReferenceGraphType = graphType;
+    m_selectionReferenceSeriesLabel = seriesLabel;
+    DEBUG_OUT() << "GraphContainer: History-selection reference series set to"
+                << graphTypeToString(graphType) << "/" << seriesLabel;
+    refreshHistorySelectionValidRange();
+}
+
+void GraphContainer::clearHistorySelectionReferenceSeries()
+{
+    m_hasSelectionReferenceSeries = false;
+    m_selectionReferenceSeriesLabel.clear();
+    refreshHistorySelectionValidRange();
 }
 
 void GraphContainer::onDataChangedInteractive(GraphType graphType, const QString &seriesLabel)
@@ -1812,17 +1898,27 @@ void GraphContainer::onHistoryFullSelectionRequested()
 {
     // When user clicks H button with no selections: use "real time to BTW horizontal line" if a line exists, else full range
     WaterfallGraph *btwBase = getWaterfallGraph(GraphType::BTW);
-    BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwBase);
-    QDateTime lineTime = btwGraph ? btwGraph->getLatestHorizontalLineTimestamp() : QDateTime();
+    Q_UNUSED(btwBase);
+    // If multiple horizontal lines exist, consider the latest (most recent in time).
+    QDateTime lineTime;
+    for (auto &pair : m_waterfallGraphs) {
+        if (!pair.second)
+            continue;
+        const QDateTime t = pair.second->getLatestHorizontalLineTimestamp();
+        if (t.isValid() && (!lineTime.isValid() || t > lineTime))
+            lineTime = t;
+    }
     if (lineTime.isValid() && m_timelineSelectionView) {
+        // BTW line present: line becomes an endpoint, span runs line -> current time.
         QDateTime now = m_syncState ? m_syncState->effectiveTimelineEnd() : QDateTime::currentDateTime();
         TimeSelectionSpan span(lineTime < now ? lineTime : now, lineTime < now ? now : lineTime);
         m_timelineSelectionView->addTimeSelection(span);
         emit TimeSelectionCreated(span);
-        DEBUG_OUT() << "GraphContainer: History full selection from BTW line to real time:" << span.startTime.toString() << "to" << span.endTime.toString();
+        DEBUG_OUT() << "GraphContainer: History selection from BTW line to real time:" << span.startTime.toString() << "to" << span.endTime.toString();
     } else {
+        // No BTW line: select exactly one timeline interval ending at current time.
         if (m_timelineSelectionView)
-            m_timelineSelectionView->createFullSelection();
+            m_timelineSelectionView->createIntervalSelection();
     }
 }
 
@@ -1835,9 +1931,23 @@ void GraphContainer::onRTWRMarkerTimestampCaptured(const QDateTime &timestamp, c
 
 void GraphContainer::onRTWSymbolTimestampCaptured(const QDateTime &timestamp, const QPointF &position, const QString &symbolName)
 {
-    DEBUG_OUT() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz") 
+    DEBUG_OUT() << "GraphContainer: RTW symbol timestamp captured:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz")
              << "symbol:" << symbolName;
     emit RTWSymbolTimestampCaptured(timestamp, position, symbolName);
+}
+
+void GraphContainer::onRtwRulerSelected(int index, const QDateTime &timestamp, qreal range)
+{
+    DEBUG_OUT() << "GraphContainer: RTW ruler selected - index:" << index
+             << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit RtwRulerSelected(index, timestamp, range);
+}
+
+void GraphContainer::onBtwRulerSelected(int index, const QDateTime &timestamp, qreal range)
+{
+    DEBUG_OUT() << "GraphContainer: BTW ruler selected - index:" << index
+             << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BtwRulerSelected(index, timestamp, range);
 }
 
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
@@ -1862,6 +1972,62 @@ void GraphContainer::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDate
 {
     DEBUG_OUT() << "GraphContainer: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
     emit BTWHorizontalLineRemoved(lineId, timestamp);
+}
+
+void GraphContainer::onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (!pair.second)
+            continue;
+        if (pair.second->hasHorizontalLineWithSyncId(lineData.syncId))
+            pair.second->updateHorizontalLineFromSyncData(lineData);
+        else
+            pair.second->createHorizontalLineFromSyncData(lineData);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->updateHorizontalLineFromSyncData(lineData);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->deleteHorizontalLineBySyncId(syncId);
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncDragStarted(const QUuid &syncId)
+{
+    if (m_syncState)
+        m_syncState->draggingLineSyncId = syncId;
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->refreshHorizontalLineVisuals();
+    }
+}
+
+void GraphContainer::onHorizontalLineSyncDragEnded()
+{
+    if (m_syncState)
+        m_syncState->draggingLineSyncId = QUuid();
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->refreshHorizontalLineVisuals();
+    }
+}
+
+void GraphContainer::onHorizontalLinesSyncCleared()
+{
+    for (auto &pair : m_waterfallGraphs) {
+        if (pair.second)
+            pair.second->clearHorizontalLines();
+    }
 }
 
 void GraphContainer::onBTWMarkerSyncDataChanged(const BTWSyncMarkerData &markerData)

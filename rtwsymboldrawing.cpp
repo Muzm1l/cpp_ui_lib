@@ -9,6 +9,8 @@
 #include <cmath>
 
 static const int RTW_SYMBOL_FONT_SIZE = 10;
+// Match BTW numbered-circle glyph size (small circle centered in the pixmap canvas).
+static const qreal RTW_NUMBERED_CIRCLE_SIZE = 14.0;
 
 RTWSymbolDrawing::RTWSymbolDrawing(int baseSize)
     : size(baseSize)
@@ -65,8 +67,14 @@ void RTWSymbolDrawing::generateAll()
     cache[SymbolType::YellowCircle2] = makeYellowCircle2();
     cache[SymbolType::YellowCircle3] = makeYellowCircle3();
     cache[SymbolType::YellowCircle4] = makeYellowCircle4();
+    cache[SymbolType::WhiteCircle1] = makeNumberedCircle(1, Qt::white, Qt::black);
+    cache[SymbolType::WhiteCircle2] = makeNumberedCircle(2, Qt::white, Qt::black);
+    cache[SymbolType::WhiteCircle3] = makeNumberedCircle(3, Qt::white, Qt::black);
+    cache[SymbolType::WhiteCircle4] = makeNumberedCircle(4, Qt::white, Qt::black);
     cache[SymbolType::MaxSymbol] = makeMaxSymbol();
     cache[SymbolType::MinSymbol] = makeMinSymbol();
+    cache[SymbolType::Dummy1]    = makeDummy1();
+    cache[SymbolType::Dummy2]    = makeDummy2();
 }
 
 /* ----------------- Helpers ----------------- */
@@ -533,99 +541,134 @@ QPixmap RTWSymbolDrawing::BOTD(){
 }
 
 // Yellow solid circle with white number 1
+// Parameterized numbered circle: solid fill with a centered digit.
+// Used for ruler indicators (yellow = selected, white = active/unselected).
+QPixmap RTWSymbolDrawing::makeNumberedCircle(int digit, const QColor &fill, const QColor &textColor)
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    const qreal offset = (size - RTW_NUMBERED_CIRCLE_SIZE) / 2.0;
+    const QRectF circleRect(offset, offset, RTW_NUMBERED_CIRCLE_SIZE, RTW_NUMBERED_CIRCLE_SIZE);
+
+    p.setPen(Qt::NoPen);
+    p.setBrush(fill);
+    p.drawEllipse(circleRect);
+
+    p.setPen(textColor);
+    p.setBrush(Qt::NoBrush);
+    p.setFont(makeFont());
+    p.drawText(circleRect, Qt::AlignCenter, QString::number(digit));
+
+    return pix;
+}
+
 QPixmap RTWSymbolDrawing::makeYellowCircle1()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 1 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "1");
-
-    return pix;
+    return makeNumberedCircle(1, Qt::yellow, Qt::white);
 }
 
-// Yellow solid circle with white number 2
 QPixmap RTWSymbolDrawing::makeYellowCircle2()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 2 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "2");
-
-    return pix;
+    return makeNumberedCircle(2, Qt::yellow, Qt::white);
 }
 
-// Yellow solid circle with white number 3
 QPixmap RTWSymbolDrawing::makeYellowCircle3()
 {
-    QPixmap pix = blank();
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 3 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "3");
-
-    return pix;
+    return makeNumberedCircle(3, Qt::yellow, Qt::white);
 }
 
-// Yellow solid circle with white number 4
 QPixmap RTWSymbolDrawing::makeYellowCircle4()
+{
+    return makeNumberedCircle(4, Qt::yellow, Qt::white);
+}
+
+// Max symbol: like Dummy1 (yellow vertical line with 4 parallel dotted lines) but each
+// dotted line is slanted 45 degrees clockwise ("\") instead of horizontal.
+QPixmap RTWSymbolDrawing::makeMaxSymbol()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
     p.setRenderHint(QPainter::Antialiasing);
 
-    QRectF circleRect(3, 3, size-6, size-6);
-    
-    // Draw solid yellow circle
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::yellow);
-    p.drawEllipse(circleRect);
-    
-    // Draw white number 4 in center
-    p.setPen(Qt::white);
-    p.setBrush(Qt::NoBrush);
-    p.setFont(makeFont());
-    p.drawText(circleRect, Qt::AlignCenter, "4");
+    const qreal centerX = size / 2.0;
+    const qreal dotSize = 1.8;
+    const qreal dotStep = 2.4;                         // spacing between dot centres along the diagonal
+    const int   numDots = 4;
+    const int   numLines = 4;
+    const qreal comp = dotStep * 0.70710678;           // 45-degree x/y component
+    const qreal diag = (numDots - 1) * comp;           // total x (and y) span of one dotted line
+
+    // Yellow vertical spine
+    p.setPen(QPen(Qt::yellow, 2));
+    p.drawLine(QPointF(centerX, 3), QPointF(centerX, size - 3));
+
+    // 4 parallel diagonal dotted lines (45 deg clockwise), to the left of the spine.
+    // Each line runs from its upper-left dot down to its lower-right dot near the spine.
+    p.setPen(QPen(Qt::yellow, 1));
+    p.setBrush(QBrush(Qt::yellow));
+
+    const qreal lineSpacing = (size - 6.0 - diag) / (numLines - 1); // fit all lines vertically
+    const qreal xNear = centerX - 2.0;                 // dot nearest the spine (its high end)
+    for (int line = 0; line < numLines; ++line)
+    {
+        const qreal yTop = 3.0 + line * lineSpacing;   // near-spine dot of this line
+        for (int dot = 0; dot < numDots; ++dot)
+        {
+            // Extend outward (left) and downward: the line droops down away from the spine.
+            const qreal xPos = xNear - dot * comp;
+            const qreal yPos = yTop + dot * comp;
+            p.drawEllipse(QRectF(xPos - dotSize / 2, yPos - dotSize / 2, dotSize, dotSize));
+        }
+    }
 
     return pix;
 }
 
-// Max symbol: Yellow vertical line with 4 lines made of 4 cyan dots each behind it
-QPixmap RTWSymbolDrawing::makeMaxSymbol()
+// Min symbol: mirror image of the Max symbol - dotted lines slanted the other way ("/"),
+// on the right of the yellow vertical spine.
+QPixmap RTWSymbolDrawing::makeMinSymbol()
+{
+    QPixmap pix = blank();
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    const qreal centerX = size / 2.0;
+    const qreal dotSize = 1.8;
+    const qreal dotStep = 2.4;
+    const int   numDots = 4;
+    const int   numLines = 4;
+    const qreal comp = dotStep * 0.70710678;
+    const qreal diag = (numDots - 1) * comp;
+
+    // Yellow vertical spine
+    p.setPen(QPen(Qt::yellow, 2));
+    p.drawLine(QPointF(centerX, 3), QPointF(centerX, size - 3));
+
+    // 4 parallel diagonal dotted lines, mirrored about the spine (dots on the right, "/").
+    p.setPen(QPen(Qt::yellow, 1));
+    p.setBrush(QBrush(Qt::yellow));
+
+    const qreal lineSpacing = (size - 6.0 - diag) / (numLines - 1);
+    const qreal xNear = centerX + 2.0;                 // dot nearest the spine (its high end)
+    for (int line = 0; line < numLines; ++line)
+    {
+        const qreal yTop = 3.0 + line * lineSpacing;
+        for (int dot = 0; dot < numDots; ++dot)
+        {
+            // Mirror of Max: extend outward (right) and downward.
+            const qreal xPos = xNear + dot * comp;
+            const qreal yPos = yTop + dot * comp;
+            p.drawEllipse(QRectF(xPos - dotSize / 2, yPos - dotSize / 2, dotSize, dotSize));
+        }
+    }
+
+    return pix;
+}
+
+// Dummy 1 (former Max symbol): yellow vertical line with 4 lines made of 4 cyan dots each behind it
+QPixmap RTWSymbolDrawing::makeDummy1()
 {
     QPixmap pix = blank();
     QPainter p(&pix);
@@ -662,8 +705,8 @@ QPixmap RTWSymbolDrawing::makeMaxSymbol()
     return pix;
 }
 
-// Min symbol: Yellow vertical line with 4 lines made of 4 cyan dots each in front
-QPixmap RTWSymbolDrawing::makeMinSymbol()
+// Dummy 2 (former Min symbol): yellow vertical line with 4 lines made of 4 cyan dots each in front
+QPixmap RTWSymbolDrawing::makeDummy2()
 {
     QPixmap pix = blank();
     QPainter p(&pix);

@@ -4,6 +4,7 @@
 #include <QString>
 #include <QTime>
 #include <QDateTime>
+#include <QUuid>
 #include <vector>
 
 enum class TimeInterval
@@ -37,9 +38,16 @@ struct TimeSelectionSpan
 {
     QDateTime startTime;
     QDateTime endTime;
+    // Stable identity for a history selection. Null by default (time windows /
+    // scopes that reuse this struct don't need one); assigned when a history
+    // selection is actually created so the main system can address a specific
+    // selection for recalculation even if list indices differ across containers.
+    QUuid id;
 
     TimeSelectionSpan() = default;
     TimeSelectionSpan(const QDateTime &start, const QDateTime &end) : startTime(start), endTime(end) {}
+    TimeSelectionSpan(const QDateTime &start, const QDateTime &end, const QUuid &selectionId)
+        : startTime(start), endTime(end), id(selectionId) {}
 };
 
 struct Manoeuvre

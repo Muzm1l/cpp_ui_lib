@@ -5,6 +5,7 @@
 #include "timelineutils.h"
 #include "waterfalldata.h"
 #include "btwsymboldrawing.h"
+#include "sharedsyncstate.h"
 #include "circularbuffer.h"
 #include <cstdint>
 #include <QColor>
@@ -21,7 +22,9 @@
 #include <QGraphicsView>
 #include <QGraphicsPixmapItem>
 #include <QPixmap>
+#include <QList>
 #include <QMap>
+#include <QUuid>
 #include <QPair>
 #include <QMouseEvent>
 #include <QPainterPath>
@@ -224,6 +227,45 @@ protected:
     void clearBTWSymbolOverlayItems();
     /** BTW/RTW: extra overlay items after drawBTWSymbols() on FULL_REDRAW / INCREMENTAL_UPDATE (blue markers, R markers, etc.). */
     virtual void augmentOverlayPassAfterSymbols();
+
+    void drawHorizontalLines();
+    void invalidateHorizontalLineGraphicsItems();
+
+    struct HorizontalLineItem
+    {
+        QDateTime timestamp;
+        QColor color;
+        qreal width;
+        QUuid id;
+        QUuid syncId;
+        QGraphicsLineItem *lineItem;
+
+        HorizontalLineItem() : color(Qt::white), width(2.0), lineItem(nullptr) {}
+        HorizontalLineItem(const QDateTime &ts, const QColor &c, qreal w, const QUuid &requestedSyncId = QUuid())
+            : timestamp(ts), color(c), width(w), id(QUuid::createUuid()), lineItem(nullptr)
+        {
+            syncId = requestedSyncId.isNull() ? QUuid::createUuid() : requestedSyncId;
+        }
+    };
+
+    QList<HorizontalLineItem> m_horizontalLines;
+    QMap<QUuid, QUuid> m_syncIdToLineId;
+    bool m_applyingHorizontalLineSync = false;
+    HorizontalLineMode m_horizontalLineMode = HorizontalLineMode::Normal;
+    QUuid m_draggingLineId;
+    QUuid m_draggingLineSyncId;
+    bool m_lineDragActive = false;
+    bool m_lineDragMoved = false;
+    qreal m_lineDragStartY = 0.0;
+
+    bool handleHorizontalLinePress(const QPointF &scenePos);
+    bool handleHorizontalLineDrag(const QPointF &scenePos);
+    bool handleHorizontalLineRelease(Qt::MouseButton button);
+    int hitTestHorizontalLine(qreal sceneY) const;
+    void moveHorizontalLineTo(const QUuid &lineId, qreal sceneY);
+    void emitHorizontalLineSyncAdded(const QUuid &lineId);
+    void emitHorizontalLineSyncUpdated(const QUuid &lineId);
+    void emitHorizontalLineSyncRemoved(const QUuid &syncId);
     
     // Cached BTW symbol drawing (magenta circles)
     BTWSymbolDrawing m_btwSymbols;
@@ -406,6 +448,10 @@ protected:
     QGraphicsLineItem *crosshairVertical;
     bool crosshairEnabled;
 
+    // Configurable colours (defaults preserve prior behaviour)
+    QColor m_borderColor = QColor(150, 150, 150); // graph frame border
+    QColor m_crosshairColor = Qt::cyan;           // crosshair lines
+
     // Cursor callback helpers
     void notifyCursorTimeChanged(const QDateTime &time, qreal yPosition = -1.0);
     std::function<void(const QDateTime &, qreal)> cursorTimeChangedCallback;
@@ -510,6 +556,10 @@ public:
     // Crosshair control
     void setCrosshairEnabled(bool enabled);
     bool isCrosshairEnabled() const;
+
+    // Colour customization
+    void setBorderColor(const QColor &color);
+    void setCrosshairColor(const QColor &color);
     
     // Time axis cursor control
     void setTimeAxisCursor(const QDateTime &time);
@@ -628,7 +678,31 @@ public:
      */
     void reserveAllRenderingCachesCapacity(size_t scatterCapacity, size_t linePathsCapacity, size_t cachedDataCapacity);
 
+    // Synchronized horizontal time lines (mirrored on all waterfall graph types)
+    void setHorizontalLineMode(HorizontalLineMode mode);
+    HorizontalLineMode getHorizontalLineMode() const;
+    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0,
+                            const QUuid &syncId = QUuid());
+    QDateTime getHorizontalLineTimestamp(const QUuid &lineId) const;
+    QDateTime getFirstHorizontalLineTimestamp() const;
+    QDateTime getLatestHorizontalLineTimestamp() const;
+    bool removeHorizontalLine(const QUuid &lineId);
+    void clearHorizontalLines();
+    bool hasHorizontalLineWithSyncId(const QUuid &syncId) const;
+    void createHorizontalLineFromSyncData(const HorizontalLineSyncData &lineData);
+    void updateHorizontalLineFromSyncData(const HorizontalLineSyncData &lineData);
+    bool deleteHorizontalLineBySyncId(const QUuid &syncId);
+    QUuid getHorizontalLineSyncId(const QUuid &lineId) const;
+    HorizontalLineSyncData horizontalLineSyncDataForId(const QUuid &lineId) const;
+    void refreshHorizontalLineVisuals();
+
 signals:
+    void horizontalLineSyncAdded(const HorizontalLineSyncData &lineData);
+    void horizontalLineSyncUpdated(const HorizontalLineSyncData &lineData);
+    void horizontalLineSyncRemoved(const QUuid &syncId);
+    void horizontalLineSyncDragStarted(const QUuid &syncId);
+    void horizontalLineSyncDragEnded();
+    void horizontalLinesSyncCleared();
     void SelectionCreated(const TimeSelectionSpan &selection);
     /**
      * @brief Emitted when a marker timestamp and value change (new marker placed or marker clicked)

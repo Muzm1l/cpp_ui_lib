@@ -3,11 +3,12 @@
 
 #include "bdwgraph.h"
 #include "brwgraph.h"
-#include "btwgraph.h"  // For BTWGraph::HorizontalLineMode enum
+#include "btwgraph.h"
 #include "fdwgraph.h"
 #include "ftwgraph.h"
 #include "graphcontainer.h"
 #include "graphlayout.h"
+#include "sharedsyncstate.h"
 #include "ltwgraph.h"
 #include "rtwgraph.h"
 #include "simulator.h"
@@ -87,6 +88,7 @@ private:
     QLabel* markerTimestampLabel; ///< Label to display marker timestamp in first tab
     QLabel* rtwSymbolTimestampLabel; ///< Label to display RTW symbol timestamp when clicked
     QLabel* rtwRMarkerTimestampLabel; ///< Label to display RTW R marker timestamp when clicked
+    QLabel* rtwRulerStatusLabel = nullptr; ///< Label showing RTW ruler test / selection state
 
     // Manoeuvre management buttons
     QPushButton* addManoeuvreButton; ///< Button to add a manoeuvre to the graph layout
@@ -101,19 +103,24 @@ private:
     QPushButton* showHistorySelectionsButton; ///< Test button to show timeframe of history selections
     QPushButton* refreshVisibleGraphsButton = nullptr; ///< Button to refresh the on-screen graph names list
     QLabel* visibleGraphsLabel = nullptr; ///< Label showing names of graphs currently shown on screen
+    QPushButton* testRtwRulersButton = nullptr; ///< Button to exercise the RTW ruler API
+    QPushButton* clearRtwRulersButton = nullptr; ///< Button to clear all RTW rulers
 
     // Controls are duplicated across the Original View panel and a dedicated "Controls"
     // tab. These lists let the shared updaters keep every copy in sync.
     QList<QPushButton*> m_btwLineModeButtons;   ///< All BTW-mode toggle buttons (kept in sync)
     QList<QLabel*> m_visibleGraphsLabels;       ///< All "graphs on screen" labels (kept in sync)
+    QList<QLabel*> m_rtwRulerStatusLabels;     ///< All RTW ruler status labels (kept in sync)
     
     // BTW horizontal line mode state
-    BTWGraph::HorizontalLineMode m_currentBTWLineMode; ///< Current BTW horizontal line mode
+    HorizontalLineMode m_currentHorizontalLineMode; ///< Current horizontal line interaction mode
 
     
     // RTW Symbols test widget
     QWidget* rtwSymbolsTestWidget; ///< Widget for testing RTW symbols
     QWidget* btwSymbolsTestWidget; ///< Widget for testing BTW symbols
+    QLabel* btwRulerApiStatusLabel = nullptr; ///< Status label on the BTW Rulers API tab
+    QLabel* brwLineApiStatusLabel = nullptr; ///< Status label on the BRW Horizontal Line API tab
     
     // Time selection history storage (max 5 selections)
     std::vector<TimeSelectionSpan> timeSelectionHistory; ///< Vector to store up to 5 time selection timestamps
@@ -137,12 +144,16 @@ private:
     void initializeAllZoomPanelLimits();
     void setupRTWSymbolsTest(); ///< Setup RTW symbols test widget
     void setupBTWSymbolsTest(); ///< Setup BTW symbols gallery tab
+    void setupBtwRulersApiTestTab(); ///< Dedicated tab to exercise BTW ruler (numbered circle) API
+    void setupBrwHorizontalLineApiTestTab(); ///< Dedicated tab to exercise drawing horizontal lines from BRW
     void testBTWSymbolsAPI();   ///< Place predefined BTW symbols on the live BTW graph
     void setupTimeSelectionHistory(); ///< Setup time selection history storage
     void setupManoeuvreButton(); ///< Setup button to add manoeuvres
     void updateBTWLineModeButton(); ///< Update BTW line mode button text and style
     void setupVisibleGraphsWidget(); ///< Setup widget showing names of graphs currently on screen
     void updateVisibleGraphsWidget(); ///< Refresh the on-screen graph names via GraphLayout::getVisibleGraphNames()
+    void setupRtwRulersTest(); ///< Add RTW ruler API test controls to the Original View panel
+    void updateRtwRulerStatusLabel(const QString &text); ///< Update all RTW ruler status labels
     void setupControlsTab(); ///< Create a dedicated "Controls" tab with a spread-out duplicate of the controls
     void buildControlsInto(QWidget* host, QGridLayout* layout, bool spread); ///< Build the control buttons + graphs panel into a grid
 
@@ -245,6 +256,27 @@ private slots:
      * Cycles through Normal -> DrawLine -> DeleteLine -> Normal
      */
     void onBTWLineModeButtonClicked();
+
+    /** @brief Activate sample RTW rulers via GraphLayout API. */
+    void onTestRtwRulersButtonClicked();
+
+    /** @brief Clear all RTW rulers via GraphLayout API. */
+    void onClearRtwRulersButtonClicked();
+
+    /** @brief Activate sample BTW rulers via GraphLayout API. */
+    void onTestBtwRulersButtonClicked();
+
+    /** @brief Clear all BTW rulers via GraphLayout API. */
+    void onClearBtwRulersButtonClicked();
+
+    /** @brief Switch top-right panel to BRW and enable Draw Line mode for interactive test. */
+    void onPrepareBrwLineDrawTestClicked();
+
+    /** @brief Clear all synced horizontal lines via GraphLayout API. */
+    void onClearBrwHorizontalLinesClicked();
+
+    /** @brief Refresh the BRW line test tab with the current active line count. */
+    void onShowActiveHorizontalLinesClicked();
 
     // /**
     //  * @brief Updates the current time in the time visualizer

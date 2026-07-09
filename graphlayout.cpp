@@ -1,6 +1,7 @@
 #include "graphlayout.h"
 #include "navtimeutils.h"
 #include "btwgraph.h"
+#include "rtwgraph.h"
 #include "btwinteractiveoverlay.h"
 #include "debugutils.h"
 #include <QDebug>
@@ -279,6 +280,10 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
                 this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RtwRulerSelected,
+                this, &GraphLayout::RtwRulerSelected, Qt::UniqueConnection);
+        connect(container, &GraphContainer::BtwRulerSelected,
+                this, &GraphLayout::BtwRulerSelected, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
@@ -287,11 +292,19 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
         
-        // Connect BTW horizontal line signals
-        connect(container, &GraphContainer::BTWHorizontalLinePlaced,
-                this, &GraphLayout::onBTWHorizontalLinePlaced, Qt::UniqueConnection);
-        connect(container, &GraphContainer::BTWHorizontalLineRemoved,
-                this, &GraphLayout::onBTWHorizontalLineRemoved, Qt::UniqueConnection);
+        // Connect horizontal line sync signals
+        connect(container, &GraphContainer::HorizontalLineSyncAdded,
+                this, &GraphLayout::onHorizontalLineSyncAdded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncUpdated,
+                this, &GraphLayout::onHorizontalLineSyncUpdated, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncRemoved,
+                this, &GraphLayout::onHorizontalLineSyncRemoved, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncDragStarted,
+                this, &GraphLayout::onHorizontalLineSyncDragStarted, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncDragEnded,
+                this, &GraphLayout::onHorizontalLineSyncDragEnded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLinesSyncCleared,
+                this, &GraphLayout::onHorizontalLinesSyncCleared, Qt::UniqueConnection);
         
         connect(container, &GraphContainer::markerTimestampValueChanged,
                 this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
@@ -441,6 +454,10 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
                 this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RtwRulerSelected,
+                this, &GraphLayout::RtwRulerSelected, Qt::UniqueConnection);
+        connect(container, &GraphContainer::BtwRulerSelected,
+                this, &GraphLayout::BtwRulerSelected, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
@@ -449,11 +466,19 @@ void GraphLayout::initializeContainers()
         connect(container, &GraphContainer::BTWManualMarkerClicked,
                 this, &GraphLayout::BTWManualMarkerClicked, Qt::UniqueConnection);
         
-        // Connect BTW horizontal line signals
-        connect(container, &GraphContainer::BTWHorizontalLinePlaced,
-                this, &GraphLayout::onBTWHorizontalLinePlaced, Qt::UniqueConnection);
-        connect(container, &GraphContainer::BTWHorizontalLineRemoved,
-                this, &GraphLayout::onBTWHorizontalLineRemoved, Qt::UniqueConnection);
+        // Connect horizontal line sync signals
+        connect(container, &GraphContainer::HorizontalLineSyncAdded,
+                this, &GraphLayout::onHorizontalLineSyncAdded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncUpdated,
+                this, &GraphLayout::onHorizontalLineSyncUpdated, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncRemoved,
+                this, &GraphLayout::onHorizontalLineSyncRemoved, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncDragStarted,
+                this, &GraphLayout::onHorizontalLineSyncDragStarted, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLineSyncDragEnded,
+                this, &GraphLayout::onHorizontalLineSyncDragEnded, Qt::UniqueConnection);
+        connect(container, &GraphContainer::HorizontalLinesSyncCleared,
+                this, &GraphLayout::onHorizontalLinesSyncCleared, Qt::UniqueConnection);
         
         connect(container, &GraphContainer::markerTimestampValueChanged,
                 this, &GraphLayout::markerTimestampValueChanged, Qt::UniqueConnection);
@@ -1217,6 +1242,43 @@ std::vector<QString> GraphLayout::getVisibleGraphNames() const
     return names;
 }
 
+bool GraphLayout::highlightHistorySelectionRegion(const QDateTime &startTime, const QDateTime &endTime)
+{
+    if (!startTime.isValid() || !endTime.isValid())
+    {
+        DEBUG_OUT() << "GraphLayout: highlightHistorySelectionRegion ignored - invalid timestamps";
+        return false;
+    }
+
+    TimeSelectionSpan span(startTime, endTime);
+
+    bool anyAdded = false;
+    for (GraphContainer *container : m_graphContainers)
+    {
+        if (container && container->addTimeSelection(span))
+        {
+            anyAdded = true;
+        }
+    }
+
+    if (!anyAdded)
+    {
+        DEBUG_OUT() << "GraphLayout: highlightHistorySelectionRegion - no container accepted selection"
+                    << "(limit reached or clamped to invalid range)";
+        return false;
+    }
+
+    // Keep sync state and external listeners aligned with user-driven selections.
+    m_syncState.timeSelections.push_back(span);
+    emit TimeSelectionCreated(span);
+    emit TimeSelectionsChanged(m_syncState.timeSelections,
+                               static_cast<int>(m_syncState.timeSelections.size()) - 1);
+
+    DEBUG_OUT() << "GraphLayout: Highlighted history selection region from"
+                << span.startTime.toString() << "to" << span.endTime.toString();
+    return true;
+}
+
 int GraphLayout::getContainerIndex(const QString &containerLabel) const
 {
     auto it = std::find(m_containerLabels.begin(), m_containerLabels.end(), containerLabel);
@@ -1537,8 +1599,10 @@ void GraphLayout::onTimeSelectionCreated(const TimeSelectionSpan &selection)
         }
     }
     
-    // Emit the signal for external components
+    // Emit the signals for external components (deprecated single-span + preferred vector).
     emit TimeSelectionCreated(selection);
+    emit TimeSelectionsChanged(m_syncState.timeSelections,
+                               static_cast<int>(m_syncState.timeSelections.size()) - 1);
 }
 
 void GraphLayout::onTimeSelectionModified(int index, const TimeSelectionSpan &newSpan)
@@ -1552,6 +1616,21 @@ void GraphLayout::onTimeSelectionModified(int index, const TimeSelectionSpan &ne
             container->setTimeSelection(index, newSpan);
     }
     emit TimeSelectionModified(index, newSpan);
+    emit TimeSelectionsChanged(m_syncState.timeSelections, index);
+}
+
+std::vector<TimeSelectionSpan> GraphLayout::getActiveTimeSelections() const
+{
+    return m_syncState.timeSelections;
+}
+
+void GraphLayout::setHistorySelectionReferenceSeries(GraphType graphType, const QString &seriesLabel)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+            container->setHistorySelectionReferenceSeries(graphType, seriesLabel);
+    }
 }
 
 void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
@@ -1660,8 +1739,9 @@ void GraphLayout::onTimeSelectionsCleared()
         }
     }
 
-    // Emit the signal for external consumers
+    // Emit the signals for external consumers (deprecated + preferred vector form).
     emit TimeSelectionsCleared();
+    emit TimeSelectionsChanged(m_syncState.timeSelections, -1);
 }
 
 void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
@@ -1726,76 +1806,117 @@ void GraphLayout::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPoi
     addBTWSymbolToAllGraphs(timestamp, 0.0); // Range parameter is ignored, we find it from data points
 }
 
-void GraphLayout::onBTWHorizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp)
+void GraphLayout::applyHorizontalLineModeToAllGraphs()
 {
-    // Get the source container that emitted the signal
-    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
-    
-    DEBUG_OUT() << "GraphLayout: BTW horizontal line placed:" << lineId.toString() << "at" << timestamp.toString();
-    
-    // Propagate to all other containers (skip the source to avoid infinite loop)
-    for (auto *container : m_graphContainers)
-    {
-        if (!container) continue;
-        
-        // Skip the source container to avoid infinite loop
-        if (container == sourceContainer) continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                // Add the horizontal line to this BTW graph
-                // Use the same timestamp, color, and width as the source
-                // Note: We need to get the color and width from the source line
-                // For now, use default values (white, 2.0) - we could enhance this later
-                btwGraph->addHorizontalLine(timestamp, Qt::white, 2.0);
-                DEBUG_OUT() << "GraphLayout: Added horizontal line to container at" << timestamp.toString();
-            }
+    for (auto *container : m_graphContainers) {
+        if (!container)
+            continue;
+        for (const GraphType gt : {GraphType::BTW, GraphType::BDW, GraphType::RTW, GraphType::FTW,
+                                   GraphType::FDW, GraphType::BRW, GraphType::LTW}) {
+            if (WaterfallGraph *graph = container->getWaterfallGraph(gt))
+                graph->setHorizontalLineMode(m_syncState.horizontalLineMode);
         }
     }
 }
 
-void GraphLayout::onBTWHorizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp)
+void GraphLayout::applyHorizontalLineSyncToAllContainers(const HorizontalLineSyncData &lineData)
 {
-    // Get the source container that emitted the signal
-    GraphContainer *sourceContainer = qobject_cast<GraphContainer*>(sender());
-    
-    DEBUG_OUT() << "GraphLayout: BTW horizontal line removed:" << lineId.toString() << "at" << timestamp.toString();
-    
-    if (!timestamp.isValid())
-    {
-        DEBUG_OUT() << "GraphLayout: Invalid timestamp for line removal, skipping sync";
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncAdded(lineData);
+    }
+}
+
+void GraphLayout::refreshAllHorizontalLineVisuals()
+{
+    for (auto *container : m_graphContainers) {
+        if (!container)
+            continue;
+        for (const GraphType gt : {GraphType::BTW, GraphType::BDW, GraphType::RTW, GraphType::FTW,
+                                   GraphType::FDW, GraphType::BRW, GraphType::LTW}) {
+            if (WaterfallGraph *graph = container->getWaterfallGraph(gt))
+                graph->refreshHorizontalLineVisuals();
+        }
+    }
+}
+
+void GraphLayout::onHorizontalLineSyncAdded(const HorizontalLineSyncData &lineData)
+{
+    m_syncState.addOrUpdateHorizontalLine(lineData);
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncAdded(lineData);
+    }
+    // Main-system notification: user click/draw only (relayed from GraphContainer), not programmatic API.
+    if (qobject_cast<GraphContainer *>(sender())
+        && !lineData.syncId.isNull() && lineData.timestamp.isValid()) {
+        emit HorizontalLineAdded(lineData.syncId, lineData.timestamp);
+    }
+}
+
+void GraphLayout::onHorizontalLineSyncUpdated(const HorizontalLineSyncData &lineData)
+{
+    if (!m_horizontalLineDragThrottle.isValid())
+        m_horizontalLineDragThrottle.start();
+
+    if (m_syncState.draggingLineSyncId == lineData.syncId
+        && m_horizontalLineDragThrottle.elapsed() < INTERACTIVE_UPDATE_THROTTLE_MS) {
+        m_pendingHorizontalLineDragSyncId = lineData.syncId;
+        m_pendingHorizontalLineDragData = lineData;
+        m_hasPendingHorizontalLineDrag = true;
         return;
     }
-    
-    // Remove lines with matching timestamp from all other containers
-    for (auto *container : m_graphContainers)
-    {
-        if (!container) continue;
-        
-        // Skip the source container to avoid infinite loop
-        if (container == sourceContainer) continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                // Remove lines with matching timestamp (1ms tolerance)
-                const qreal timeTolerance = 0.001; // 1ms tolerance
-                int removed = btwGraph->removeHorizontalLineByTimestamp(timestamp, timeTolerance);
-                if (removed > 0)
-                {
-                    DEBUG_OUT() << "GraphLayout: Removed" << removed << "horizontal line(s) from container at" << timestamp.toString();
-                }
-            }
-        }
+
+    m_syncState.addOrUpdateHorizontalLine(lineData);
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncUpdated(lineData);
+    }
+    m_horizontalLineDragThrottle.restart();
+}
+
+void GraphLayout::onHorizontalLineSyncRemoved(const QUuid &syncId)
+{
+    const QDateTime timestamp = getHorizontalLineTimestamp(syncId);
+    m_syncState.removeHorizontalLine(syncId);
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncRemoved(syncId);
+    }
+    // Main-system notification: user click/delete only (relayed from GraphContainer), not programmatic API.
+    if (qobject_cast<GraphContainer *>(sender()) && !syncId.isNull())
+        emit HorizontalLineRemoved(syncId, timestamp);
+}
+
+void GraphLayout::onHorizontalLineSyncDragStarted(const QUuid &syncId)
+{
+    m_syncState.draggingLineSyncId = syncId;
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncDragStarted(syncId);
+    }
+}
+
+void GraphLayout::onHorizontalLineSyncDragEnded()
+{
+    if (m_hasPendingHorizontalLineDrag) {
+        onHorizontalLineSyncUpdated(m_pendingHorizontalLineDragData);
+        m_hasPendingHorizontalLineDrag = false;
+        m_pendingHorizontalLineDragSyncId = QUuid();
+    }
+    m_syncState.draggingLineSyncId = QUuid();
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLineSyncDragEnded();
+    }
+}
+
+void GraphLayout::onHorizontalLinesSyncCleared()
+{
+    m_syncState.clearHorizontalLines();
+    for (auto *container : m_graphContainers) {
+        if (container)
+            container->onHorizontalLinesSyncCleared();
     }
 }
 
@@ -2330,6 +2451,124 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
+// ========== RTW Ruler indicator API Implementation ==========
+// State is view-local on RTWGraph; these forward to every RTW graph view, mirroring
+// the BTW horizontal-line API (iterate containers -> getWaterfallGraph -> cast -> forward).
+
+void GraphLayout::setRtwRulerActive(int index, const QDateTime &timestamp, qreal range)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->setRulerActive(index, timestamp, range);
+    }
+}
+
+void GraphLayout::clearRtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->clearRuler(index);
+    }
+}
+
+void GraphLayout::clearAllRtwRulers()
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->clearAllRulers();
+    }
+}
+
+void GraphLayout::setSelectedRtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            rtwGraph->setSelectedRuler(index);
+    }
+}
+
+int GraphLayout::selectedRtwRuler() const
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
+            return rtwGraph->selectedRuler();
+    }
+    return -1;
+}
+
+// ========== BTW Ruler indicator API Implementation ==========
+
+void GraphLayout::setBtwRulerActive(int index, const QDateTime &timestamp, qreal range)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->setRulerActive(index, timestamp, range);
+    }
+}
+
+void GraphLayout::clearBtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->clearRuler(index);
+    }
+}
+
+void GraphLayout::clearAllBtwRulers()
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->clearAllRulers();
+    }
+}
+
+void GraphLayout::setSelectedBtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->setSelectedRuler(index);
+    }
+}
+
+int GraphLayout::selectedBtwRuler() const
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            return btwGraph->selectedRuler();
+    }
+    return -1;
+}
+
 bool GraphLayout::removeBTWSymbol(const GraphType &graphType, const QString &symbolName, const QDateTime &timestamp, float range, float toleranceMs, float rangeTolerance)
 {
     auto it = m_engines.find(graphType);
@@ -2555,6 +2794,33 @@ bool GraphLayout::addBTWManualMarker(const QDateTime &timestamp, float rangeValu
     return false;
 }
 
+void GraphLayout::setBTWManualMarkerSeries(const QString &seriesLabel)
+{
+    DEBUG_OUT() << "GraphLayout: Binding BTW manual markers to series:" << seriesLabel;
+
+    int graphsUpdated = 0;
+
+    // Apply to every BTW graph, even those not currently displayed.
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+
+        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
+        if (btwGraphBase)
+        {
+            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
+            if (btwGraph)
+            {
+                btwGraph->setManualMarkerSeries(seriesLabel);
+                graphsUpdated++;
+            }
+        }
+    }
+
+    DEBUG_OUT() << "GraphLayout: Set BTW manual marker series on" << graphsUpdated << "graph(s)";
+}
+
 void GraphLayout::clearBTWManualMarkers()
 {
     DEBUG_OUT() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";
@@ -2587,188 +2853,86 @@ void GraphLayout::clearBTWManualMarkers()
     DEBUG_OUT() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
 }
 
-// ========== BTW Horizontal Line API Implementation ==========
+// ========== Horizontal time line API ==========
 
-void GraphLayout::setBTWHorizontalLineMode(const GraphType &graphType, BTWGraph::HorizontalLineMode mode)
+void GraphLayout::setHorizontalLineMode(HorizontalLineMode mode)
 {
-    if (graphType != GraphType::BTW) {
-        qWarning() << "GraphLayout: setBTWHorizontalLineMode called for non-BTW graph type";
-        return;
+    m_syncState.horizontalLineMode = mode;
+    applyHorizontalLineModeToAllGraphs();
+}
+
+HorizontalLineMode GraphLayout::horizontalLineMode() const
+{
+    return m_syncState.horizontalLineMode;
+}
+
+QUuid GraphLayout::addHorizontalLine(const QDateTime &timestamp, const QColor &color, qreal width)
+{
+    HorizontalLineSyncData data(timestamp, color, width);
+    m_syncState.addOrUpdateHorizontalLine(data);
+    applyHorizontalLineSyncToAllContainers(data);
+    return data.syncId;
+}
+
+QDateTime GraphLayout::getHorizontalLineTimestamp(const QUuid &syncId) const
+{
+    for (const auto &line : m_syncState.getActiveHorizontalLines()) {
+        if (line.syncId == syncId)
+            return line.timestamp;
     }
-    
-    const char* modeStr = (mode == BTWGraph::HorizontalLineMode::Normal) ? "Normal" :
-                          (mode == BTWGraph::HorizontalLineMode::DrawLine) ? "DrawLine" : "DeleteLine";
-    DEBUG_OUT() << "GraphLayout: Setting BTW horizontal line mode to" << modeStr;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                btwGraph->setHorizontalLineMode(mode);
-            }
-        }
-    }
+    return QDateTime();
+}
+
+bool GraphLayout::removeHorizontalLine(const QUuid &syncId)
+{
+    onHorizontalLineSyncRemoved(syncId);
+    return true;
+}
+
+void GraphLayout::clearHorizontalLines()
+{
+    onHorizontalLinesSyncCleared();
+}
+
+std::vector<HorizontalLineSyncData> GraphLayout::getActiveHorizontalLines() const
+{
+    return m_syncState.getActiveHorizontalLines();
+}
+
+void GraphLayout::setBTWHorizontalLineMode(const GraphType &graphType, HorizontalLineMode mode)
+{
+    Q_UNUSED(graphType);
+    setHorizontalLineMode(mode);
 }
 
 void GraphLayout::setBTWHorizontalLineMode(const GraphType &graphType, bool enabled)
 {
-    // Legacy boolean interface for backward compatibility
-    setBTWHorizontalLineMode(graphType, enabled ? BTWGraph::HorizontalLineMode::DrawLine : BTWGraph::HorizontalLineMode::Normal);
+    Q_UNUSED(graphType);
+    setHorizontalLineMode(enabled ? HorizontalLineMode::DrawLine : HorizontalLineMode::Normal);
 }
 
 QUuid GraphLayout::addBTWHorizontalLine(const GraphType &graphType, const QDateTime &timestamp, const QColor &color, qreal width)
 {
-    if (graphType != GraphType::BTW) {
-        qWarning() << "GraphLayout: addBTWHorizontalLine called for non-BTW graph type";
-        return QUuid();
-    }
-    
-    DEBUG_OUT() << "GraphLayout: Adding BTW horizontal line at time" << timestamp.toString();
-    
-    QUuid lineId;
-    bool lineAdded = false;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                lineId = btwGraph->addHorizontalLine(timestamp, color, width);
-                lineAdded = true;
-            }
-        }
-    }
-    
-    if (lineAdded) {
-        // Redraw all graphs to show the line
-        redrawAllGraphs();
-    }
-    
-    return lineId;
+    Q_UNUSED(graphType);
+    return addHorizontalLine(timestamp, color, width);
 }
 
 QDateTime GraphLayout::getBTWHorizontalLineTimestamp(const GraphType &graphType, const QUuid &lineId) const
 {
-    if (graphType != GraphType::BTW) {
-        qWarning() << "GraphLayout: getBTWHorizontalLineTimestamp called for non-BTW graph type";
-        return QDateTime();
-    }
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                QDateTime timestamp = btwGraph->getHorizontalLineTimestamp(lineId);
-                if (timestamp.isValid())
-                {
-                    return timestamp;
-                }
-            }
-        }
-    }
-    
-    return QDateTime(); // Return invalid QDateTime if not found
+    Q_UNUSED(graphType);
+    return getHorizontalLineTimestamp(lineId);
 }
 
 bool GraphLayout::removeBTWHorizontalLine(const GraphType &graphType, const QUuid &lineId)
 {
-    if (graphType != GraphType::BTW) {
-        qWarning() << "GraphLayout: removeBTWHorizontalLine called for non-BTW graph type";
-        return false;
-    }
-    
-    DEBUG_OUT() << "GraphLayout: Removing BTW horizontal line ID" << lineId.toString();
-    
-    bool lineRemoved = false;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                if (btwGraph->removeHorizontalLine(lineId)) {
-                    lineRemoved = true;
-                }
-            }
-        }
-    }
-    
-    if (lineRemoved) {
-        // Redraw all graphs
-        redrawAllGraphs();
-    }
-    
-    return lineRemoved;
+    Q_UNUSED(graphType);
+    return removeHorizontalLine(lineId);
 }
 
 void GraphLayout::clearBTWHorizontalLines(const GraphType &graphType)
 {
-    if (graphType != GraphType::BTW) {
-        qWarning() << "GraphLayout: clearBTWHorizontalLines called for non-BTW graph type";
-        return;
-    }
-    
-    DEBUG_OUT() << "GraphLayout: Clearing all BTW horizontal lines";
-    
-    int linesCleared = 0;
-    
-    // Iterate through all containers to find BTW graphs
-    for (auto *container : m_graphContainers)
-    {
-        if (!container)
-            continue;
-        
-        // Get the BTW graph from the container
-        WaterfallGraph *btwGraphBase = container->getWaterfallGraph(GraphType::BTW);
-        if (btwGraphBase)
-        {
-            BTWGraph *btwGraph = qobject_cast<BTWGraph*>(btwGraphBase);
-            if (btwGraph)
-            {
-                btwGraph->clearHorizontalLines();
-                linesCleared++;
-            }
-        }
-    }
-    
-    // Redraw all graphs
-    redrawAllGraphs();
-    
-    DEBUG_OUT() << "GraphLayout: Cleared BTW horizontal lines from" << linesCleared << "graph(s)";
+    Q_UNUSED(graphType);
+    clearHorizontalLines();
 }
 
 // ========== Shaded Region API Implementation ==========

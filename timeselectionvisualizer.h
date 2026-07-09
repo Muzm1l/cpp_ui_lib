@@ -19,6 +19,7 @@
 #define MAX_TIME_SELECTIONS 5
 #define RESIZE_EDGE_THRESHOLD 4   // pixels from top/bottom edge for resize vs center drag
 #define MIN_SELECTION_SECONDS 1   // minimum duration when resizing
+#define SELECTION_SIDE_INSET 3    // horizontal inset of the selection so its inner border sits inside the component's outer border
 
 #include <utility>
 
@@ -36,15 +37,20 @@ public:
     explicit TimeVisualizerWidget(QWidget* parent = nullptr);
 
     // Time selection management
-    void addTimeSelection(TimeSelectionSpan span);
+    bool addTimeSelection(TimeSelectionSpan span);
     void setTimeSelection(int index, const TimeSelectionSpan& span);  // replace at index (for sync from other containers)
     void clearTimeSelections();
     bool hasTimeSelections() const { return !m_timeSelections.isEmpty(); }
     void createFullSelection();
+    // Create a selection exactly one timeline-interval long, ending at current time.
+    void createIntervalSelection();
 
-    // Valid selection range
+    // Valid selection range. Stored as full QDateTime so a long "measured" range
+    // is not truncated to time-of-day (which previously collapsed the H range to
+    // the shorter series).
+    void setValidSelectionRange(const QDateTime& start, const QDateTime& end);
     void setValidSelectionRange(const QTime& start, const QTime& end);
-    void setValidSelectionRange(const TimeSelectionSpan& span) { setValidSelectionRange(span.startTime.time(), span.endTime.time()); }
+    void setValidSelectionRange(const TimeSelectionSpan& span) { setValidSelectionRange(span.startTime, span.endTime); }
 
     // Properties
     void setTimeLineLength(const QTime& length);
@@ -70,9 +76,9 @@ private:
     QTime m_timeLineLength;
     QTime m_currentTime;
 
-    // Valid selection range (inclusive). If start or end is null, no range enforcement
-    QTime m_validStartTime;
-    QTime m_validEndTime;
+    // Valid selection range (inclusive). If start or end is invalid, no range enforcement.
+    QDateTime m_validStartDateTime;
+    QDateTime m_validEndDateTime;
 
     // Mouse selection state (creating new selection)
     bool m_isSelecting;
@@ -91,7 +97,7 @@ private:
     QTime yCoordinateToTime(int y) const;
     QDateTime timeAtY(int y) const;
     TimeSelectionSpan calculateSelectionSpan(int startY, int endY) const;
-    bool hasValidRange() const { return !m_validStartTime.isNull() && !m_validEndTime.isNull(); }
+    bool hasValidRange() const { return m_validStartDateTime.isValid() && m_validEndDateTime.isValid(); }
     TimeSelectionSpan clampToValidRange(const TimeSelectionSpan& span) const;
     QRect getSelectionRect(int index) const;
     std::pair<int, SelectionHitZone> hitTest(int x, int y) const;
@@ -106,14 +112,16 @@ public:
     ~TimeSelectionVisualizer();
 
     // Delegate methods to the visualizer widget
-    void addTimeSelection(TimeSelectionSpan span) { m_visualizerWidget->addTimeSelection(span); }
+    bool addTimeSelection(TimeSelectionSpan span) { return m_visualizerWidget->addTimeSelection(span); }
     void setTimeSelection(int index, const TimeSelectionSpan& span) { m_visualizerWidget->setTimeSelection(index, span); }
     void clearTimeSelections() { m_visualizerWidget->clearTimeSelections(); }
     void createFullSelection() { m_visualizerWidget->createFullSelection(); }
+    void createIntervalSelection() { m_visualizerWidget->createIntervalSelection(); }
     bool hasTimeSelections() const { return m_visualizerWidget->hasTimeSelections(); }
     void setTimeLineLength(const QTime& length) { m_visualizerWidget->setTimeLineLength(length); }
     void setTimeLineLength(TimeInterval interval) { m_visualizerWidget->setTimeLineLength(timeIntervalToQTime(interval)); }
     void setCurrentTime(const QTime& currentTime) { m_visualizerWidget->setCurrentTime(currentTime); }
+    void setValidSelectionRange(const QDateTime& start, const QDateTime& end) { m_visualizerWidget->setValidSelectionRange(start, end); }
     void setValidSelectionRange(const QTime& start, const QTime& end) { m_visualizerWidget->setValidSelectionRange(start, end); }
     void setValidSelectionRange(const TimeSelectionSpan& span) { m_visualizerWidget->setValidSelectionRange(span); }
 

@@ -4,6 +4,7 @@
 #include "waterfallgraph.h"
 #include "btwsymboldrawing.h"
 #include "waterfalldata.h"  // For BTWSymbolData
+#include "rulerstate.h"
 #include <QPushButton>
 #include <QCheckBox>
 #include <QVBoxLayout>
@@ -15,6 +16,7 @@
 #include <QUuid>
 #include <QGraphicsPolygonItem>
 #include <vector>
+#include <array>
 #include <mutex>
 
 // Forward declarations to avoid circular dependency
@@ -78,6 +80,19 @@ public:
      * @return Pointer to the created marker, or nullptr if creation failed
      */
     InteractiveGraphicsItem* addBTWManualMarker(const QDateTime &timestamp, qreal rangeValue, qreal bearingRate = 0.0);
+
+    /**
+     * @brief Choose which data series a click-placed manual marker binds to.
+     *
+     * When set to a non-empty, existing series label, clicking to place a manual
+     * marker uses that series' interpolated range at the clicked time (the click's
+     * X position is ignored). Pass an empty string to clear, in which case the
+     * marker is placed at the raw clicked X position.
+     *
+     * This replaces the previous "snap to nearest visible series" behaviour.
+     */
+    void setManualMarkerSeries(const QString &seriesLabel);
+    QString manualMarkerSeries() const;
     
     // ========== Marker Sync Methods ==========
     
@@ -147,6 +162,17 @@ public:
      * @param range Bearing/range value (X-axis) where the symbol should be displayed
      */
     void addBTWSymbol(BTWSymbolDrawing::SymbolType symbolType, const QDateTime &timestamp, qreal range);
+
+    // ========== Ruler indicator API ==========
+    // Up to 4 numbered circles; at most one selected at a time (yellow = selected).
+    static constexpr int RulerCount = 4;
+
+    void setRulerActive(int index, const QDateTime &timestamp, qreal range);
+    void clearRuler(int index);
+    void clearAllRulers();
+    void setSelectedRuler(int index);
+    int selectedRuler() const { return m_selectedRuler; }
+    bool isRulerActive(int index) const;
     
     /**
      * @brief Add a shaded region to the graph
@@ -170,90 +196,6 @@ public:
      */
     void clearShadedRegions();
 
-    // ========== Horizontal Line Management ==========
-    
-    /**
-     * @brief Enum for horizontal line interaction modes
-     */
-    enum class HorizontalLineMode {
-        Normal,      // Normal marker mode (default)
-        DrawLine,    // Draw lines mode: clicking adds lines, clicking on existing line deletes it
-        DeleteLine   // Delete mode: clicking only deletes lines, doesn't add new ones
-    };
-    
-    /**
-     * @brief Set horizontal line mode
-     * @param mode The mode to set (Normal, DrawLine, or DeleteLine)
-     */
-    void setHorizontalLineMode(HorizontalLineMode mode);
-    
-    /**
-     * @brief Set horizontal line mode (legacy boolean interface for backward compatibility)
-     * @param enabled True to enable draw line mode, false for normal mode
-     */
-    void setHorizontalLineMode(bool enabled);
-    
-    /**
-     * @brief Get current horizontal line mode
-     * @return Current mode
-     */
-    HorizontalLineMode getHorizontalLineMode() const;
-    
-    /**
-     * @brief Check if horizontal line mode is enabled (legacy method)
-     * @return True if in DrawLine or DeleteLine mode
-     */
-    bool isHorizontalLineMode() const;
-    
-    /**
-     * @brief Add a horizontal line at a specific time
-     * @param timestamp The time when the line should be drawn (horizontal line = constant time)
-     * @param color The color of the line (default: white)
-     * @param width The width of the line (default: 2.0)
-     * @return Unique identifier for the line
-     */
-    QUuid addHorizontalLine(const QDateTime &timestamp, const QColor &color = Qt::white, qreal width = 2.0);
-    
-    /**
-     * @brief Get the timestamp of a horizontal line by its ID
-     * @param lineId The unique identifier of the line
-     * @return The timestamp of the line, or invalid QDateTime if not found
-     */
-    QDateTime getHorizontalLineTimestamp(const QUuid &lineId) const;
-    
-    /**
-     * @brief Get the timestamp of the first horizontal line (if any).
-     * @return The timestamp of the first line, or invalid QDateTime if none
-     */
-    QDateTime getFirstHorizontalLineTimestamp() const;
-    
-    /**
-     * @brief Get the timestamp of the latest horizontal line (most recently added).
-     * Used e.g. to define history selection from real time to BTW line.
-     * @return The timestamp of the last line, or invalid QDateTime if none
-     */
-    QDateTime getLatestHorizontalLineTimestamp() const;
-    
-    /**
-     * @brief Remove a horizontal line by its ID
-     * @param lineId The unique identifier of the line to remove
-     * @return True if the line was found and removed
-     */
-    bool removeHorizontalLine(const QUuid &lineId);
-    
-    /**
-     * @brief Remove horizontal lines by timestamp (for syncing)
-     * @param timestamp The timestamp to match
-     * @param toleranceMs Time tolerance in milliseconds (default: 1ms)
-     * @return Number of lines removed
-     */
-    int removeHorizontalLineByTimestamp(const QDateTime &timestamp, qreal toleranceMs = 0.001);
-    
-    /**
-     * @brief Clear all horizontal lines
-     */
-    void clearHorizontalLines();
-
 public slots:
     void deleteInteractiveMarkers();
 
@@ -267,9 +209,6 @@ protected:
     // Override mouse event handlers to add interactive markers on click
     void onMouseClick(const QPointF &scenePos) override;
     void onMouseDrag(const QPointF &scenePos) override;
-
-    // Override mouse release to finalize horizontal-line drag/click
-    void mouseReleaseEvent(QMouseEvent *event) override;
 
     // Override resize event to update overlay
     void resizeEvent(QResizeEvent *event) override;
@@ -287,6 +226,11 @@ private:
     void drawBTWScatterplot();
     void drawCustomCircleMarkers();
     void addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwValue);
+
+    // Ruler rendering and helpers
+    void drawRulers();
+    void removeRulerItems();
+    BTWSymbolDrawing::SymbolType rulerSymbolType(int index, bool selected) const;
     
     // Interactive overlay setup
     void setupInteractiveOverlay();
@@ -296,6 +240,10 @@ private:
     
     // BTW symbol drawing utility (symbols are stored in WaterfallData)
     BTWSymbolDrawing symbols;
+
+    // Ruler indicator state (view-local; driven via GraphLayout)
+    std::array<RulerState, RulerCount> m_rulers{};
+    int m_selectedRuler = -1;
     
     // Store timestamps from automatic markers
     std::vector<QDateTime> m_automaticMarkerTimestamps;
@@ -323,50 +271,13 @@ private:
     // Static cached hatch brush for shaded regions (shared across all instances)
     static QBrush getCachedHatchBrush();
     
-    // Method to draw horizontal lines (cached)
-    void drawHorizontalLines();
-
-    // ---- Horizontal line drag-to-move support ----
-    /** Return the index of a horizontal line whose cached item is within the hit
-     *  threshold of the given scene Y, or -1 if none. */
-    int hitTestHorizontalLine(qreal sceneY) const;
-    /** Reposition a horizontal line to a new scene Y (clamped to the drawing area),
-     *  updating both its timestamp and its cached graphics item. */
-    void moveHorizontalLineTo(const QUuid &lineId, qreal sceneY);
-
-    QUuid m_draggingLineId;       // Id of the line currently being dragged (if any)
-    bool m_lineDragActive;        // True between press-on-line and release
-    bool m_lineDragMoved;         // True once the press has turned into an actual drag
-    qreal m_lineDragStartY;       // Scene Y at press, to distinguish click vs drag
-    
-    // Horizontal line storage structure
-    struct HorizontalLineItem
-    {
-        QDateTime timestamp;  // Time when the line should be drawn (horizontal line = constant time)
-        QColor color;  // Line color
-        qreal width;   // Line width
-        QUuid id;      // Unique identifier
-        QGraphicsLineItem *lineItem;  // Cached graphics item
-        
-        HorizontalLineItem() : color(Qt::white), width(2.0), lineItem(nullptr) {}
-        HorizontalLineItem(const QDateTime &ts, const QColor &c, qreal w) 
-            : timestamp(ts), color(c), width(w), id(QUuid::createUuid()), lineItem(nullptr) {}
-    };
-    
-    QList<HorizontalLineItem> m_horizontalLines;  // Store horizontal lines
-    HorizontalLineMode m_horizontalLineMode;  // Current horizontal line interaction mode
-    
     // Window size cache (Issue #3: Performance optimization)
     QSize m_cachedWindowSize;      // Cached window size
     qreal m_cachedMarkerRadius;    // Cached marker radius based on window size
     bool m_windowSizeCacheValid;   // Flag to track cache validity
 
-    /**
-     * Snap a manual marker to the visible series whose interpolated trace is horizontally
-     * nearest the click at the given time (clicked Y → timestamp).
-     */
-    bool snapManualMarkerToNearestSeriesAtTime(const QPointF &scenePos, const QDateTime &timestamp,
-                                               qreal &outRange, QString &outSeriesLabel) const;
+    // Series that click-placed manual markers bind to. Empty = use raw clicked X.
+    QString m_manualMarkerSeries;
     
     // Cache update function (Issue #3)
     void updateWindowSizeCache();
@@ -433,28 +344,18 @@ signals:
      */
     void shadedRegionsCleared();
     
-    // ========== Horizontal Line Signals ==========
-    
-    /**
-     * @brief Emitted when a horizontal line is placed
-     * @param lineId The unique identifier of the line
-     * @param timestamp The time when the line was placed
-     */
+    // Legacy horizontal line signals (still emitted via WaterfallGraph sync path)
     void horizontalLinePlaced(const QUuid &lineId, const QDateTime &timestamp);
-    
-    /**
-     * @brief Emitted when a horizontal line is removed
-     * @param lineId The unique identifier of the removed line
-     * @param timestamp The timestamp of the removed line
-     */
     void horizontalLineRemoved(const QUuid &lineId, const QDateTime &timestamp);
+    void horizontalLineMoved(const QUuid &lineId, const QDateTime &timestamp);
 
     /**
-     * @brief Emitted when a horizontal line is moved (dragged) to a new time
-     * @param lineId The unique identifier of the moved line
-     * @param timestamp The new timestamp of the line after the move
+     * @brief Emitted when a ruler indicator is clicked (and thereby selected).
+     * @param index The 0-based ruler index (0..3)
+     * @param timestamp The ruler's time-axis position
+     * @param range The ruler's range/bearing-axis position
      */
-    void horizontalLineMoved(const QUuid &lineId, const QDateTime &timestamp);
+    void rulerSelected(int index, const QDateTime &timestamp, qreal range);
 };
 
 #endif // BTWGRAPH_H

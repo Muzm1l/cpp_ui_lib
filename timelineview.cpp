@@ -805,9 +805,10 @@ void TimelineVisualizerWidget::renderBackgroundToCache()
         }
     }
     
-    // Draw border
+    // Draw outer border and an inner border (double border), inset by 3px.
     painter.setPen(QPen(QColor(150, 150, 150), 1));
     painter.drawRect(rect().adjusted(0, 0, -1, -1));
+    painter.drawRect(rect().adjusted(3, 3, -4, -4));
     
     // CRITICAL FIX: Slider is NOT drawn in background cache - it's drawn directly in paintEvent()
     // This ensures immediate updates during drag without expensive cache regeneration
@@ -915,8 +916,29 @@ void TimelineVisualizerWidget::paintEvent(QPaintEvent * /* event */)
         QRect sliderRect = SliderGeometry::calculateSliderRect(
             rect().height(), rect().width(), m_timeLineLength,
             m_sliderState.getYPosition());
-        QColor sliderColor(255, 255, 255, 128); // 50% opacity white
-        painter.fillRect(sliderRect, sliderColor);
+
+        // Make the slider 2px narrower (1px inset on each side).
+        sliderRect.adjust(1, 0, -1, 0);
+
+        // Semi-transparent white fill (50%) so the waterfall behind stays visible.
+        painter.fillRect(sliderRect, QColor(255, 255, 255, 128));
+
+        int leftX = sliderRect.left();
+        int rightX = sliderRect.right();
+        int topY = sliderRect.top();
+        int bottomY = sliderRect.bottom();
+
+        // Double horizontal lines on the top and bottom edges, separated by a 2px gap.
+        const int gap = 3; // 1px line + 2px gap
+        painter.setPen(QPen(QColor(255, 255, 255), 1));
+        painter.drawLine(leftX, topY, rightX, topY);
+        painter.drawLine(leftX, topY + gap, rightX, topY + gap);
+        painter.drawLine(leftX, bottomY, rightX, bottomY);
+        painter.drawLine(leftX, bottomY - gap, rightX, bottomY - gap);
+
+        // Thin single vertical lines on the sides.
+        painter.drawLine(leftX, topY, leftX, bottomY);
+        painter.drawLine(rightX, topY, rightX, bottomY);
     }
     
     // Draw only the crosshair timestamp label on top (lightweight, changes with mouse movement)
@@ -1545,20 +1567,20 @@ void TimelineVisualizerWidget::setTimeWindowSilent(const TimeSelectionSpan& wind
 // Navtime label calculation methods
 int TimelineVisualizerWidget::getLabelSpacingMinutes(TimeInterval interval) const
 {
-    // Determine label spacing based on interval:
-    // 15 minutes -> every 3 minutes
-    // 30 minutes -> every 6 minutes
-    // 1 hour -> every 12 minutes
-    // 2 hours -> every 24 minutes
-    // 3 hours -> every 36 minutes
-    // 6 hours -> every 72 minutes (1 hour 12 minutes)
-    // 12 hours -> every 144 minutes (2 hours 24 minutes)
+    // Show 3 divisions across the interval, so label spacing is a third of it:
+    // 15 minutes -> every 5 minutes
+    // 30 minutes -> every 10 minutes
+    // 1 hour -> every 20 minutes
+    // 2 hours -> every 40 minutes
+    // 3 hours -> every 60 minutes
+    // 6 hours -> every 120 minutes (2 hours)
+    // 12 hours -> every 240 minutes (4 hours)
     
     int intervalMinutes = static_cast<int>(interval);
     
-    // Calculate spacing as 20% of interval (rounded to nearest minute)
-    // This gives us: 15->3, 30->6, 60->12, 120->24, 180->36, 360->72, 720->144
-    int spacing = static_cast<int>(std::round(intervalMinutes * 0.2));
+    // Calculate spacing as a third of the interval (rounded to nearest minute)
+    // This gives us: 15->5, 30->10, 60->20, 120->40, 180->60, 360->120, 720->240
+    int spacing = static_cast<int>(std::round(intervalMinutes / 3.0));
     
     // Ensure minimum spacing of 1 minute
     return qMax(1, spacing);
@@ -1641,8 +1663,8 @@ void TimelineVisualizerWidget::drawNavTimeLabels(QPainter& painter, const QRect&
     // Calculate which labels to show
     std::vector<QDateTime> labels = calculateNavTimeLabels(currentNavTime, m_timeInterval, m_timeLineLength);
     
-    // Set text color to white for visibility on dark background
-    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    // Set text color to yellow for the time interval labels
+    painter.setPen(QPen(QColor(255, 255, 0), 1));
     QFontMetrics fm(painter.font());
     
     for (const QDateTime& labelNavTime : labels)
@@ -1832,7 +1854,8 @@ void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, 
     }
     
     // Draw cached labels - fast path (no QDateTime operations)
-    painter.setPen(QPen(QColor(255, 255, 255), 1));
+    // Yellow text color for the time interval labels
+    painter.setPen(QPen(QColor(255, 255, 0), 1));
     QFontMetrics fm(painter.font());
     int textHeight = fm.height();
     
@@ -1847,7 +1870,7 @@ void TimelineVisualizerWidget::drawRegularIntervalTimestamps(QPainter& painter, 
     }
 }
 
-TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible)
+TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncState *syncState, bool sliderVisible, bool chevronVisible, int timeModeButtonHeight, int intervalButtonHeight, bool showTimeModeButton)
     : QWidget(parent), 
     m_intervalChangeButton(nullptr), 
     m_timeModeChangeButton(nullptr), 
@@ -1871,7 +1894,7 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
 
     // Create button with grey background and white border
     m_intervalChangeButton = new QPushButton("dt: 00:15", this);
-    m_intervalChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, TIMELINE_VIEW_BUTTON_SIZE / 2);
+    m_intervalChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, intervalButtonHeight);
     m_intervalChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
     m_intervalChangeButton->setStyleSheet(
         "QPushButton {"
@@ -1889,25 +1912,28 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
         "    background-color: dimgrey;"
         "}");
 
-    // setup m_timeModeChangeButton
-    m_timeModeChangeButton = new QPushButton("Abs", this);
-    m_timeModeChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, TIMELINE_VIEW_BUTTON_SIZE / 2);
-    m_timeModeChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
-    m_timeModeChangeButton->setStyleSheet(
-        "QPushButton {"
-        "    background-color: black;"
-        "    border: 2px solid white;"
-        "    color: white;"
-        "    font-weight: bold;"
-        "    margin: 0px;"
-        "    padding: 0px;"
-        "}"
-        "QPushButton:hover {"
-        "    background-color: darkgrey;"
-        "}"
-        "QPushButton:pressed {"
-        "    background-color: dimgrey;"
-        "}");
+    // setup m_timeModeChangeButton (Abs/Rel). Optional: some views (e.g. SCW) hide it.
+    if (showTimeModeButton)
+    {
+        m_timeModeChangeButton = new QPushButton("Abs", this);
+        m_timeModeChangeButton->setFixedSize(TIMELINE_VIEW_GRAPHICS_VIEW_WIDTH, timeModeButtonHeight);
+        m_timeModeChangeButton->setContentsMargins(0, 0, 0, 0); // Remove button margins
+        m_timeModeChangeButton->setStyleSheet(
+            "QPushButton {"
+            "    background-color: black;"
+            "    border: 2px solid white;"
+            "    color: white;"
+            "    font-weight: bold;"
+            "    margin: 0px;"
+            "    padding: 0px;"
+            "}"
+            "QPushButton:hover {"
+            "    background-color: darkgrey;"
+            "}"
+            "QPushButton:pressed {"
+            "    background-color: dimgrey;"
+            "}");
+    }
 
     m_isAbsoluteTime = true;
     // updateTimeModeButtonText(m_isAbsoluteTime);
@@ -1916,12 +1942,14 @@ TimelineView::TimelineView(QWidget *parent, QTimer *timer, GraphContainerSyncSta
     m_visualizerWidget = new TimelineVisualizerWidget(this, m_syncState, sliderVisible, chevronVisible);
 
     // Add widgets to layout
-    m_layout->addWidget(m_timeModeChangeButton);
+    if (m_timeModeChangeButton)
+        m_layout->addWidget(m_timeModeChangeButton);
     m_layout->addWidget(m_intervalChangeButton);
     m_layout->addWidget(m_visualizerWidget, 1); // Stretch factor of 1 to fill remaining space
 
     // Connect button click to internal handler
-    connect(m_timeModeChangeButton, &QPushButton::clicked, this, &TimelineView::onTimeModeButtonClicked);
+    if (m_timeModeChangeButton)
+        connect(m_timeModeChangeButton, &QPushButton::clicked, this, &TimelineView::onTimeModeButtonClicked);
     connect(m_intervalChangeButton, &QPushButton::clicked, this, &TimelineView::onIntervalButtonClicked);
 
     // Connect slider signal to emit TimeScopeChanged
@@ -2084,7 +2112,8 @@ void TimelineView::onTimeModeButtonClicked()
 void TimelineView::updateTimeModeButtonText(bool isAbsoluteTime)
 {
     QString buttonText = isAbsoluteTime ? "Abs" : "Rel";
-    m_timeModeChangeButton->setText(buttonText);
+    if (m_timeModeChangeButton)
+        m_timeModeChangeButton->setText(buttonText);
 }
 
 void TimelineView::onVisibleTimeWindowChanged(const TimeSelectionSpan& selection)

@@ -2,9 +2,38 @@
 #define SHARED_SYNC_STATE_H
 
 #include "timelineutils.h"
+#include <QColor>
 #include <QDateTime>
 #include <QUuid>
 #include <vector>
+
+/** Interaction mode for synchronized horizontal time lines (constant-time overlays). */
+enum class HorizontalLineMode {
+    Normal,     ///< Default: drag lines to move; no click-to-draw/delete
+    DrawLine,   ///< Click empty area to add; click line (no drag) to delete
+    DeleteLine  ///< Click line to delete only
+};
+
+/** Payload for one logical horizontal line mirrored across all graphs/containers. */
+struct HorizontalLineSyncData
+{
+    QUuid syncId;
+    QDateTime timestamp;
+    QColor color;
+    qreal width;
+    bool isDeleted;
+
+    HorizontalLineSyncData()
+        : color(Qt::white), width(2.0), isDeleted(false) {}
+
+    HorizontalLineSyncData(const QDateTime &ts, const QColor &c = Qt::white, qreal w = 2.0)
+        : syncId(QUuid::createUuid())
+        , timestamp(ts)
+        , color(c)
+        , width(w)
+        , isDeleted(false)
+    {}
+};
 
 /**
  * @brief Data structure for synchronized BTW markers
@@ -287,6 +316,53 @@ public:
     {
         shadedRegions.clear();
         hasShadedRegions = false;
+    }
+
+    // ========== Horizontal line synchronization ==========
+
+    std::vector<HorizontalLineSyncData> horizontalLines;
+    bool hasHorizontalLines = false;
+    HorizontalLineMode horizontalLineMode = HorizontalLineMode::Normal;
+    QUuid draggingLineSyncId;
+
+    void addOrUpdateHorizontalLine(const HorizontalLineSyncData &line)
+    {
+        for (auto &l : horizontalLines) {
+            if (l.syncId == line.syncId) {
+                l = line;
+                hasHorizontalLines = true;
+                return;
+            }
+        }
+        horizontalLines.push_back(line);
+        hasHorizontalLines = true;
+    }
+
+    void removeHorizontalLine(const QUuid &syncId)
+    {
+        for (auto &l : horizontalLines) {
+            if (l.syncId == syncId) {
+                l.isDeleted = true;
+                return;
+            }
+        }
+    }
+
+    std::vector<HorizontalLineSyncData> getActiveHorizontalLines() const
+    {
+        std::vector<HorizontalLineSyncData> active;
+        for (const auto &l : horizontalLines) {
+            if (!l.isDeleted)
+                active.push_back(l);
+        }
+        return active;
+    }
+
+    void clearHorizontalLines()
+    {
+        horizontalLines.clear();
+        hasHorizontalLines = false;
+        draggingLineSyncId = QUuid();
     }
 };
 
