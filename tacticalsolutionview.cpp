@@ -391,11 +391,11 @@ QRectF TacticalSolutionView::getGuideBox(
     // Store the points
     pointStore->ownShipPoints = qMakePair(ownShipPosition, endpoint);
 
-    // Selected Track Vector
-    QPointF selectedTrackPosition = DrawUtils::bearingToCartesian(
+    // Selected Track Vector — base point on the sensor bearing line at track range
+    QPointF selectedTrackPosition = DrawUtils::calculateEndpoint(
+        ownShipPosition,
         selectedTrackRange,
-        selectedTrackBearing,
-        this->scene->sceneRect());
+        sensorBearing);
 
     endpoint = DrawUtils::calculateEndpoint(selectedTrackPosition, selectedTrackSpeed, selectedTrackCourse);
 
@@ -406,11 +406,11 @@ QRectF TacticalSolutionView::getGuideBox(
     // Store the points
     pointStore->selectedTrackPoints = qMakePair(selectedTrackPosition, endpoint);
 
-    // Adopted Track Vector
-    QPointF adoptedTrackPosition = DrawUtils::bearingToCartesian(
+    // Adopted Track Vector — base point on the sensor bearing line at track range
+    QPointF adoptedTrackPosition = DrawUtils::calculateEndpoint(
+        ownShipPosition,
         adoptedTrackRange,
-        adoptedTrackBearing,
-        this->scene->sceneRect());
+        sensorBearing);
 
     endpoint = DrawUtils::calculateEndpoint(adoptedTrackPosition, adoptedTrackSpeed, adoptedTrackCourse);
 
@@ -583,8 +583,8 @@ void TacticalSolutionView::setData(
 
 void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &pointStore)
 {
-    // Draw own ship vector (cyan)
-    drawCourseVectorFromEndpoints(pointStore.ownShipPoints.first, pointStore.ownShipPoints.second, Qt::cyan);
+    // Draw own ship vector (cyan hollow triangle at base)
+    drawCourseVectorFromEndpoints(pointStore.ownShipPoints.first, pointStore.ownShipPoints.second, Qt::cyan, true);
 
     // Draw selected track vector (yellow)
     drawCourseVectorFromEndpoints(pointStore.selectedTrackPoints.first, pointStore.selectedTrackPoints.second, Qt::yellow);
@@ -593,7 +593,7 @@ void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &poi
     drawCourseVectorFromEndpoints(pointStore.adoptedTrackPoints.first, pointStore.adoptedTrackPoints.second, Qt::red);
 }
 
-void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color)
+void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color, bool hollowTriangleMarker)
 {
     if (!scene)
         return;
@@ -605,8 +605,34 @@ void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoi
     QPen pen(color);
     QBrush brush(color);
 
-    // Draw filled circle at start point
-    scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius, radius * 2, radius * 2, pen, brush);
+    if (hollowTriangleMarker)
+    {
+        qreal triLen = 6;
+        qreal triHalfWidth = 4;
+        qreal angle = qAtan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
+        qreal perpAngle = angle + M_PI_2;
+
+        QPointF tip(
+            startPoint.x() + triLen * qCos(angle),
+            startPoint.y() + triLen * qSin(angle));
+        QPointF base1(
+            startPoint.x() + triHalfWidth * qCos(perpAngle),
+            startPoint.y() + triHalfWidth * qSin(perpAngle));
+        QPointF base2(
+            startPoint.x() - triHalfWidth * qCos(perpAngle),
+            startPoint.y() - triHalfWidth * qSin(perpAngle));
+
+        QPolygonF triangle;
+        triangle << tip << base1 << base2;
+
+        pen.setWidth(2);
+        scene->addPolygon(triangle, pen, Qt::NoBrush);
+    }
+    else
+    {
+        // Draw filled circle at start point
+        scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius, radius * 2, radius * 2, pen, brush);
+    }
 
     // Draw line from start to end point
     pen.setWidth(2);

@@ -50,7 +50,7 @@ private:
     void drawSelectedTrackVector(qreal sensorBearing, qreal selectedTrackRange, qreal selectedTrackBearing, qreal selectedTrackSpeed, qreal selectedTrackCourse);
     void drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed, qreal adoptedTrackCourse);
     void drawVectorsFromPointStore(const VectorPointPairs &pointStore);
-    void drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color);
+    void drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color, bool hollowTriangleMarker = false);
     double getFarthestDistance(VectorPointPairs *pointStore, const QPointF &linePoint1, const QPointF &linePoint2);
     QPair<QLineF, QLineF> getOutlineLines(const QLineF &line, const qreal distance);
 

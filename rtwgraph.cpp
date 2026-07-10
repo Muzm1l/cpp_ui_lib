@@ -8,6 +8,31 @@
 #include <QTime>
 #include <QtMath>
 
+namespace {
+
+// Tighten RTW symbol picking: mask-based shape + inset inside the pixmap bounds.
+static constexpr qreal kRtwSymbolClickInsetPx = 4.0;
+
+bool isRtwSymbolClickHit(const QGraphicsPixmapItem *item, const QPointF &scenePos)
+{
+    if (!item)
+        return false;
+
+    const QPointF localPos = item->mapFromScene(scenePos);
+    if (!item->contains(localPos))
+        return false;
+
+    QRectF hitRect = item->boundingRect().adjusted(
+        kRtwSymbolClickInsetPx, kRtwSymbolClickInsetPx,
+        -kRtwSymbolClickInsetPx, -kRtwSymbolClickInsetPx);
+    if (hitRect.width() <= 0.0 || hitRect.height() <= 0.0)
+        return true;
+
+    return hitRect.contains(localPos);
+}
+
+} // namespace
+
 /**
  * @brief Construct a new RTWGraph::RTWGraph object
  *
@@ -286,12 +311,13 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                 QVariant timestampVariant = pixmapItem->data(0);
                 QVariant symbolNameVariant = pixmapItem->data(1);
                 
-                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() && 
-                    symbolNameVariant.isValid()) {
+                if (timestampVariant.isValid() && timestampVariant.canConvert<QDateTime>() &&
+                    symbolNameVariant.isValid() &&
+                    isRtwSymbolClickHit(pixmapItem, scenePos)) {
                     // This is an RTW symbol - get timestamp and symbol name from stored data
                     QDateTime timestamp = timestampVariant.value<QDateTime>();
                     QString symbolName = symbolNameVariant.toString();
-                    
+
                     if (timestamp.isValid()) {
                         DEBUG_OUT() << "========================================";
                         DEBUG_OUT() << "RTW SYMBOL SELECTED - TIMESTAMP RETURNED";
@@ -300,13 +326,13 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                         DEBUG_OUT() << "RTWGraph: Symbol name:" << symbolName;
                         DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
                         DEBUG_OUT() << "========================================";
-                        
+
                         // Emit signal for external integration
                         emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
-                    } else {
-                        DEBUG_OUT() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
+                        return;
                     }
-                    // Don't call parent - we've handled the symbol click
+
+                    DEBUG_OUT() << "RTWGraph: RTW symbol clicked but timestamp is invalid";
                     return;
                 }
             }
@@ -706,6 +732,9 @@ void RTWGraph::drawRTWSymbols()
         // Use data(2) for range value
         pixmapItem->setData(2, symbolData.range);
         
+        // Hit-test only opaque pixels, not the full pixmap bounding rect.
+        pixmapItem->setShapeMode(QGraphicsPixmapItem::MaskShape);
+
         // Make pixmap item clickable (similar to R markers)
         pixmapItem->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);
         pixmapItem->setAcceptHoverEvents(true);
