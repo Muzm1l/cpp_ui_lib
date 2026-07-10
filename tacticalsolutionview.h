@@ -22,6 +22,11 @@ public:
         QPair<QPointF, QPointF> selectedTrackPoints;
     };
 
+    void setOwnShipData(
+        const qreal &ownShipSpeed,
+        const qreal &ownShipBearing,
+        const qreal &sensorBearing);
+
     void setData(
         const qreal &ownShipSpeed,
         const qreal &ownShipBearing,
@@ -33,7 +38,9 @@ public:
         const qreal &selectedTrackSpeed,
         const qreal &selectedTrackBearing,
         const qreal &adoptedTrackCourse,
-        const qreal &selectedTrackCourse);
+        const qreal &selectedTrackCourse,
+        bool showSelectedTrack = true,
+        bool showAdoptedTrack = true);
 
 protected:
     // void resizeEvent(QResizeEvent *event) override;
@@ -69,6 +76,12 @@ private:
         VectorPointPairs *pointStore);
 
     QRectF getZoomBoxFromGuideBox(const QRectF guidebox);
+    void applyDataAndDraw(
+        qreal ownShipSpeed,
+        qreal adoptedTrackSpeed,
+        qreal selectedTrackSpeed,
+        qreal adoptedTrackRange,
+        qreal selectedTrackRange);
 
 private:
     QGraphicsScene *scene;
@@ -85,6 +98,9 @@ private:
     qreal selectedTrackSpeed;
     qreal selectedTrackBearing;
     qreal selectedTrackCourse;
+    bool showSelectedTrack;
+    bool showAdoptedTrack;
+    bool hasData;
 };
 
 #endif // TACTICALSOLUTIONVIEW_H

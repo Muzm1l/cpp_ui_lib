@@ -41,6 +41,10 @@ TacticalSolutionView::TacticalSolutionView(QWidget *parent)
     // Enable mouse tracking
     // setMouseTracking(true);
 
+    showSelectedTrack = false;
+    showAdoptedTrack = false;
+    hasData = false;
+
     // Initial draw - DISABLED to prevent uninitialized value errors
     // draw();
 }
@@ -264,33 +268,30 @@ QPair<QLineF, QLineF> TacticalSolutionView::getOutlineLines(const QLineF &line, 
 
 double TacticalSolutionView::getFarthestDistance(VectorPointPairs *pointStore, const QPointF &linePoint1, const QPointF &linePoint2)
 {
-    auto d1 = DrawUtils::calculatePerpendicularDistance(
+    std::vector<qreal> distances;
+
+    distances.push_back(DrawUtils::calculatePerpendicularDistance(
         pointStore->ownShipPoints.second,
         linePoint1,
-        linePoint2);
+        linePoint2));
 
-    auto d2 = DrawUtils::calculatePerpendicularDistance(
-        pointStore->adoptedTrackPoints.second,
-        linePoint1,
-        linePoint2);
+    if (showAdoptedTrack)
+    {
+        distances.push_back(DrawUtils::calculatePerpendicularDistance(
+            pointStore->adoptedTrackPoints.second,
+            linePoint1,
+            linePoint2));
+    }
 
-    auto d3 = DrawUtils::calculatePerpendicularDistance(
-        pointStore->selectedTrackPoints.second,
-        linePoint1,
-        linePoint2);
+    if (showSelectedTrack)
+    {
+        distances.push_back(DrawUtils::calculatePerpendicularDistance(
+            pointStore->selectedTrackPoints.second,
+            linePoint1,
+            linePoint2));
+    }
 
-    std::vector<qreal> distances = {d1, d2, d3};
-    auto maxref = std::max_element(distances.begin(), distances.end());
-
-    // qDebug() << "own ship: " << d1;
-    // qDebug() << "adopted tracl: " << d2;
-    // qDebug() << "selected tracl: " << d3;
-
-    qreal maxValue = *maxref;
-
-    // qDebug() << "max distance: " << maxValue;
-
-    return maxValue;
+    return *std::max_element(distances.begin(), distances.end());
 }
 
 /**
@@ -391,35 +392,35 @@ QRectF TacticalSolutionView::getGuideBox(
     // Store the points
     pointStore->ownShipPoints = qMakePair(ownShipPosition, endpoint);
 
-    // Selected Track Vector — base point on the sensor bearing line at track range
-    QPointF selectedTrackPosition = DrawUtils::calculateEndpoint(
-        ownShipPosition,
-        selectedTrackRange,
-        sensorBearing);
+    if (showSelectedTrack)
+    {
+        // Selected Track Vector — base point on the sensor bearing line at track range
+        QPointF selectedTrackPosition = DrawUtils::calculateEndpoint(
+            ownShipPosition,
+            selectedTrackRange,
+            sensorBearing);
 
-    endpoint = DrawUtils::calculateEndpoint(selectedTrackPosition, selectedTrackSpeed, selectedTrackCourse);
+        endpoint = DrawUtils::calculateEndpoint(selectedTrackPosition, selectedTrackSpeed, selectedTrackCourse);
 
-    // Add to the guidebox list
-    guideBoxPoints.push_back(selectedTrackPosition);
-    guideBoxPoints.push_back(endpoint);
+        guideBoxPoints.push_back(selectedTrackPosition);
+        guideBoxPoints.push_back(endpoint);
+        pointStore->selectedTrackPoints = qMakePair(selectedTrackPosition, endpoint);
+    }
 
-    // Store the points
-    pointStore->selectedTrackPoints = qMakePair(selectedTrackPosition, endpoint);
+    if (showAdoptedTrack)
+    {
+        // Adopted Track Vector — base point on the sensor bearing line at track range
+        QPointF adoptedTrackPosition = DrawUtils::calculateEndpoint(
+            ownShipPosition,
+            adoptedTrackRange,
+            sensorBearing);
 
-    // Adopted Track Vector — base point on the sensor bearing line at track range
-    QPointF adoptedTrackPosition = DrawUtils::calculateEndpoint(
-        ownShipPosition,
-        adoptedTrackRange,
-        sensorBearing);
+        endpoint = DrawUtils::calculateEndpoint(adoptedTrackPosition, adoptedTrackSpeed, adoptedTrackCourse);
 
-    endpoint = DrawUtils::calculateEndpoint(adoptedTrackPosition, adoptedTrackSpeed, adoptedTrackCourse);
-
-    // Add to the guidebox list
-    guideBoxPoints.push_back(adoptedTrackPosition);
-    guideBoxPoints.push_back(endpoint);
-
-    // Store the points
-    pointStore->adoptedTrackPoints = qMakePair(adoptedTrackPosition, endpoint);
+        guideBoxPoints.push_back(adoptedTrackPosition);
+        guideBoxPoints.push_back(endpoint);
+        pointStore->adoptedTrackPoints = qMakePair(adoptedTrackPosition, endpoint);
+    }
 
     // Loop throught the guidebox points and find the min/max x,y co-ordinates amongt
     qreal xmin = 0;
@@ -466,6 +467,18 @@ QRectF TacticalSolutionView::getGuideBox(
         xmax - xmin,
         ymax - ymin);
 
+    if (guidebox.width() < 1.0 || guidebox.height() < 1.0)
+    {
+        qreal margin = std::min(this->scene->sceneRect().width(), this->scene->sceneRect().height()) * 0.1;
+        if (margin < 1.0)
+            margin = 1.0;
+        guidebox = QRectF(
+            ownShipPosition.x() - margin,
+            ownShipPosition.y() - margin,
+            margin * 2,
+            margin * 2);
+    }
+
     return guidebox;
 }
 
@@ -508,6 +521,73 @@ QRectF TacticalSolutionView::getZoomBoxFromGuideBox(const QRectF guidebox)
     return zoomBox;
 }
 
+void TacticalSolutionView::setOwnShipData(
+    const qreal &ownShipSpeed,
+    const qreal &ownShipBearing,
+    const qreal &sensorBearing)
+{
+    this->ownShipBearing = DrawUtils::capPolarAngle(ownShipBearing);
+    this->sensorBearing = DrawUtils::capPolarAngle(sensorBearing);
+    showSelectedTrack = false;
+    showAdoptedTrack = false;
+    hasData = true;
+
+    applyDataAndDraw(ownShipSpeed, 0.0, 0.0, 0.0, 0.0);
+}
+
+void TacticalSolutionView::applyDataAndDraw(
+    qreal rawOwnShipSpeed,
+    qreal rawAdoptedTrackSpeed,
+    qreal rawSelectedTrackSpeed,
+    qreal rawAdoptedTrackRange,
+    qreal rawSelectedTrackRange)
+{
+    if (!scene || scene->sceneRect().isEmpty())
+    {
+        this->ownShipSpeed = rawOwnShipSpeed;
+        this->adoptedTrackSpeed = rawAdoptedTrackSpeed;
+        this->selectedTrackSpeed = rawSelectedTrackSpeed;
+        this->adoptedTrackRange = rawAdoptedTrackRange;
+        this->selectedTrackRange = rawSelectedTrackRange;
+        this->draw();
+        return;
+    }
+
+    qreal sceneDim = std::min(scene->sceneRect().width(), scene->sceneRect().height());
+    qreal usableSceneSize = sceneDim * 0.8;
+
+    qreal maxRange = 0.0;
+    if (showAdoptedTrack)
+        maxRange = std::max(maxRange, rawAdoptedTrackRange);
+    if (showSelectedTrack)
+        maxRange = std::max(maxRange, rawSelectedTrackRange);
+
+    qreal maxSpeed = rawOwnShipSpeed;
+    if (showAdoptedTrack)
+        maxSpeed = std::max(maxSpeed, rawAdoptedTrackSpeed);
+    if (showSelectedTrack)
+        maxSpeed = std::max(maxSpeed, rawSelectedTrackSpeed);
+
+    qreal rangeNorm = 1.0;
+    qreal speedNorm = 1.0;
+
+    if (maxRange > 0)
+        rangeNorm = (usableSceneSize * 0.5) / maxRange;
+
+    if (maxSpeed > 0)
+        speedNorm = (usableSceneSize * 0.2) / maxSpeed;
+    else if (rawOwnShipSpeed > 0)
+        speedNorm = (usableSceneSize * 0.2) / rawOwnShipSpeed;
+
+    this->ownShipSpeed = rawOwnShipSpeed * speedNorm;
+    this->adoptedTrackSpeed = rawAdoptedTrackSpeed * speedNorm;
+    this->selectedTrackSpeed = rawSelectedTrackSpeed * speedNorm;
+    this->adoptedTrackRange = rawAdoptedTrackRange * rangeNorm;
+    this->selectedTrackRange = rawSelectedTrackRange * rangeNorm;
+
+    this->draw();
+}
+
 void TacticalSolutionView::setData(
     const qreal &ownShipSpeed,
     const qreal &ownShipBearing,
@@ -519,66 +599,26 @@ void TacticalSolutionView::setData(
     const qreal &selectedTrackSpeed,
     const qreal &selectedTrackBearing,
     const qreal &adoptedTrackCourse,
-    const qreal &selectedTrackCourse)
+    const qreal &selectedTrackCourse,
+    bool showSelectedTrack,
+    bool showAdoptedTrack)
 {
-    // Store bearings as-is (angles don’t scale)
     this->ownShipBearing = DrawUtils::capPolarAngle(ownShipBearing);
     this->sensorBearing = DrawUtils::capPolarAngle(sensorBearing);
     this->adoptedTrackBearing = DrawUtils::capPolarAngle(adoptedTrackBearing);
     this->selectedTrackBearing = DrawUtils::capPolarAngle(selectedTrackBearing);
     this->adoptedTrackCourse = DrawUtils::capPolarAngle(adoptedTrackCourse);
     this->selectedTrackCourse = DrawUtils::capPolarAngle(selectedTrackCourse);
+    this->showSelectedTrack = showSelectedTrack;
+    this->showAdoptedTrack = showAdoptedTrack;
+    hasData = true;
 
-    if (!scene || scene->sceneRect().isEmpty())
-    {
-        // If scene not ready, store raw values without scaling
-        this->ownShipSpeed = ownShipSpeed;
-        this->adoptedTrackSpeed = adoptedTrackSpeed;
-        this->selectedTrackSpeed = selectedTrackSpeed;
-        this->adoptedTrackRange = adoptedTrackRange;
-        this->selectedTrackRange = selectedTrackRange;
-        this->draw();
-        return;
-    }
-
-    // ------------------------------
-    // Step 1: Get scene dimensions
-    // ------------------------------
-    qreal sceneDim = std::min(scene->sceneRect().width(), scene->sceneRect().height());
-    qreal usableSceneSize = sceneDim * 0.8; // leave ~10% margin on each side
-
-    // ------------------------------
-    // Step 2: Compute max extents
-    // ------------------------------
-    qreal maxRange = std::max(adoptedTrackRange, selectedTrackRange);
-    qreal maxSpeed = std::max({ownShipSpeed, adoptedTrackSpeed, selectedTrackSpeed});
-
-    // ------------------------------
-    // Step 3: Compute normalization factors
-    // ------------------------------
-    qreal rangeNorm = 1.0;
-    qreal speedNorm = 1.0;
-
-    if (maxRange > 0)
-        rangeNorm = (usableSceneSize * 0.5) / maxRange; // ranges fit ~50% radius
-
-    if (maxSpeed > 0)
-        speedNorm = (usableSceneSize * 0.2) / maxSpeed; // speeds fit ~20% radius
-
-    // ------------------------------
-    // Step 4: Apply normalization
-    // ------------------------------
-    this->ownShipSpeed = ownShipSpeed * speedNorm;
-    this->adoptedTrackSpeed = adoptedTrackSpeed * speedNorm;
-    this->selectedTrackSpeed = selectedTrackSpeed * speedNorm;
-
-    this->adoptedTrackRange = adoptedTrackRange * rangeNorm;
-    this->selectedTrackRange = selectedTrackRange * rangeNorm;
-
-    // ------------------------------
-    // Step 5: Trigger redraw
-    // ------------------------------
-    this->draw();
+    applyDataAndDraw(
+        ownShipSpeed,
+        adoptedTrackSpeed,
+        selectedTrackSpeed,
+        adoptedTrackRange,
+        selectedTrackRange);
 }
 
 void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &pointStore)
@@ -586,11 +626,21 @@ void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &poi
     // Draw own ship vector (cyan hollow triangle at base)
     drawCourseVectorFromEndpoints(pointStore.ownShipPoints.first, pointStore.ownShipPoints.second, Qt::cyan, true);
 
-    // Draw selected track vector (yellow)
-    drawCourseVectorFromEndpoints(pointStore.selectedTrackPoints.first, pointStore.selectedTrackPoints.second, Qt::yellow);
+    if (showSelectedTrack)
+    {
+        drawCourseVectorFromEndpoints(
+            pointStore.selectedTrackPoints.first,
+            pointStore.selectedTrackPoints.second,
+            Qt::yellow);
+    }
 
-    // Draw adopted track vector (red)
-    drawCourseVectorFromEndpoints(pointStore.adoptedTrackPoints.first, pointStore.adoptedTrackPoints.second, Qt::red);
+    if (showAdoptedTrack)
+    {
+        drawCourseVectorFromEndpoints(
+            pointStore.adoptedTrackPoints.first,
+            pointStore.adoptedTrackPoints.second,
+            Qt::red);
+    }
 }
 
 void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color, bool hollowTriangleMarker)
