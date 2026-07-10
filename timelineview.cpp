@@ -550,7 +550,7 @@ int TimelineVisualizerWidget::getFixedNumberOfSegments() const
 {
     // Use a fixed number of segments for all time intervals
     // This ensures consistent drawing logic across all intervals
-    return 20; // Fixed number of segments
+    return 15; // Fixed number of segments
 }
 
 double TimelineVisualizerWidget::getMinimumSegmentHeight() const
