@@ -105,6 +105,10 @@ private:
     std::pair<int, SelectionHitZone> hitTest(int x, int y) const;
     static bool spansOverlapOrTouch(const TimeSelectionSpan &a, const TimeSelectionSpan &b);
     void mergeAllOverlappingSelections();
+    // Trim any selection that has scrolled below the visible window (older than
+    // currentTime - interval): the portion beyond the window is removed, and a
+    // selection that is fully outside the window is dropped entirely.
+    void trimSelectionsToVisibleRange();
 };
 
 class TimeSelectionVisualizer : public QWidget

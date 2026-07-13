@@ -248,15 +248,16 @@ void TimeVisualizerWidget::createFullSelection()
         span.endTime = QDateTime(currentDate.date(), endTime);
     }
 
-    addTimeSelection(span);
-    emit timeSelectionMade(span);
+    // Only report the selection if it was actually added (respects MAX_TIME_SELECTIONS).
+    if (addTimeSelection(span))
+        emit timeSelectionMade(span);
     update();
 }
 
 void TimeVisualizerWidget::createIntervalSelection()
 {
     // Anchor policy (no BTW line): span is exactly one timeline interval long,
-    // ending at the current time. Clamped to the valid data range if configured.
+    // ending at the latest available time. Clamped to the valid data range if configured.
     const int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
     if (totalSeconds <= 0) {
         // No usable interval configured; fall back to the full range behaviour.
@@ -264,7 +265,14 @@ void TimeVisualizerWidget::createIntervalSelection()
         return;
     }
 
-    const QDateTime end = QDateTime::currentDateTime();
+    // Anchor the interval to the END of the valid (data) range when one is
+    // configured, not to wall-clock "now". Anchoring to wall clock collapses the
+    // selection to a sliver whenever the reference series (e.g. the measured
+    // series) lags real time: clamping [now-interval, now] to [dataStart, dataEnd]
+    // with dataEnd < now leaves only [now-interval, dataEnd], which can be a few
+    // seconds. Anchoring to dataEnd guarantees a full interval of the most recent
+    // available data (or the whole series if it is shorter than one interval).
+    const QDateTime end = hasValidRange() ? m_validEndDateTime : QDateTime::currentDateTime();
     const QDateTime start = end.addSecs(-totalSeconds);
 
     TimeSelectionSpan span(start, end);
@@ -274,8 +282,9 @@ void TimeVisualizerWidget::createIntervalSelection()
             return;
     }
 
-    addTimeSelection(span);
-    emit timeSelectionMade(span);
+    // Only report the selection if it was actually added (respects MAX_TIME_SELECTIONS).
+    if (addTimeSelection(span))
+        emit timeSelectionMade(span);
     update();
 }
 
@@ -294,7 +303,42 @@ void TimeVisualizerWidget::setTimeLineLength(TimeInterval interval)
 void TimeVisualizerWidget::setCurrentTime(const QTime& currentTime)
 {
     m_currentTime = currentTime;
+    // As time advances the strip scrolls: the top is "now" and the bottom is
+    // "now - interval". Selections drift downward and eventually fall below the
+    // visible window; trim/remove the part that is no longer visible.
+    trimSelectionsToVisibleRange();
     updateVisualization();
+}
+
+void TimeVisualizerWidget::trimSelectionsToVisibleRange()
+{
+    if (m_timeSelections.isEmpty() || m_currentTime.isNull())
+        return;
+
+    const int totalSeconds = m_timeLineLength.hour() * 3600 + m_timeLineLength.minute() * 60 + m_timeLineLength.second();
+    if (totalSeconds <= 0)
+        return;
+
+    // Bottom of the visible window (oldest visible time). Built from the same
+    // wall-clock "now" the strip is drawn against so trimming matches the view.
+    const QDateTime nowDt(QDateTime::currentDateTime().date(), m_currentTime);
+    const QDateTime bottomDt = nowDt.addSecs(-totalSeconds);
+
+    for (int i = m_timeSelections.size() - 1; i >= 0; --i)
+    {
+        TimeSelectionSpan &span = m_timeSelections[i];
+
+        // Fully below the visible window: nothing of it remains on screen.
+        if (span.endTime <= bottomDt)
+        {
+            m_timeSelections.removeAt(i);
+            continue;
+        }
+
+        // Partially below: drop the region that has scrolled past the bottom.
+        if (span.startTime < bottomDt)
+            span.startTime = bottomDt;
+    }
 }
 
 void TimeVisualizerWidget::updateVisualization()
@@ -531,8 +575,12 @@ void TimeVisualizerWidget::mouseReleaseEvent(QMouseEvent* event)
             if (clamped.endTime >= clamped.startTime) span = clamped;
             else { update(); return; }
         }
-        addTimeSelection(span);
-        emit timeSelectionMade(span);
+        // Only report the selection if it was actually added. Once the maximum
+        // number of selections is reached the widget rejects the new one, and we
+        // must NOT emit - otherwise the backend/sync vector would keep growing
+        // past what the UI shows.
+        if (addTimeSelection(span))
+            emit timeSelectionMade(span);
         update();
     }
 }
@@ -559,8 +607,9 @@ void TimeVisualizerWidget::mouseDoubleClickEvent(QMouseEvent* event)
             span.endTime = QDateTime(currentDate.date(), endTime);
         }
 
-        addTimeSelection(span);
-        emit timeSelectionMade(span);
+        // Only report the selection if it was actually added (respects MAX_TIME_SELECTIONS).
+        if (addTimeSelection(span))
+            emit timeSelectionMade(span);
         update();
     }
 }
