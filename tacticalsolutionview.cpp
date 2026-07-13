@@ -220,6 +220,9 @@ void TacticalSolutionView::drawVectors()
         // Shade Half A
         DrawUtils::drawShadedPolygon(scene, halfA, pen, brush);
     }
+
+    // Own-ship triangle: fixed screen orientation, drawn last so it sits on top of vectors
+    drawFixedOwnShipTriangle(pointStore.ownShipPoints.first);
 }
 
 /**
@@ -643,6 +646,25 @@ void TacticalSolutionView::drawVectorsFromPointStore(const VectorPointPairs &poi
     }
 }
 
+void TacticalSolutionView::drawFixedOwnShipTriangle(const QPointF &anchor)
+{
+    if (!scene)
+        return;
+
+    // Fixed screen orientation: right angle at anchor, vertical leg up, horizontal leg right.
+    const qreal triHeight = 18;
+    const qreal triWidth = 8;
+
+    QPointF topLeft(anchor.x(), anchor.y() - triHeight);
+    QPointF bottomRight(anchor.x() + triWidth, anchor.y());
+
+    QPolygonF triangle;
+    triangle << anchor << topLeft << bottomRight;
+
+    QPen pen(Qt::cyan, 2);
+    scene->addPolygon(triangle, pen, Qt::NoBrush);
+}
+
 void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color, bool hollowTriangleMarker)
 {
     if (!scene)
@@ -655,33 +677,10 @@ void TacticalSolutionView::drawCourseVectorFromEndpoints(const QPointF &startPoi
     QPen pen(color);
     QBrush brush(color);
 
-    if (hollowTriangleMarker)
+    if (!hollowTriangleMarker)
     {
-        qreal triLen = 6;
-        qreal triHalfWidth = 4;
-        qreal angle = qAtan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
-        qreal perpAngle = angle + M_PI_2;
-
-        QPointF tip(
-            startPoint.x() + triLen * qCos(angle),
-            startPoint.y() + triLen * qSin(angle));
-        QPointF base1(
-            startPoint.x() + triHalfWidth * qCos(perpAngle),
-            startPoint.y() + triHalfWidth * qSin(perpAngle));
-        QPointF base2(
-            startPoint.x() - triHalfWidth * qCos(perpAngle),
-            startPoint.y() - triHalfWidth * qSin(perpAngle));
-
-        QPolygonF triangle;
-        triangle << tip << base1 << base2;
-
         pen.setWidth(2);
-        scene->addPolygon(triangle, pen, Qt::NoBrush);
-    }
-    else
-    {
-        // Draw filled circle at start point
-        scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius, radius * 2, radius * 2, pen, brush);
+        scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius, radius * 2, radius * 2, pen, Qt::NoBrush);
     }
 
     // Draw line from start to end point

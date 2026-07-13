@@ -5,7 +5,7 @@ This document describes the **Tactical Solution View** (`TacticalSolutionView`, 
 
 1. **Own-ship-only display** — TSV draws as soon as own-ship data is available; track
    vectors are optional.
-2. **Own-ship base marker** — hollow cyan triangle (not a filled circle).
+2. **Own-ship base marker** — hollow cyan right triangle (right angle at base).
 3. **Vector base points on the bearing line** — own ship, selected track, and adopted
    track all start on the green sensor bearing line.
 
@@ -141,9 +141,10 @@ current scene size and redraws automatically.
 
 ### Behaviour
 
-- **Own ship** base point: **hollow** triangle, **cyan** outline (`Qt::NoBrush`), tip pointing
-  along the own-ship course vector.
-- **Selected / adopted tracks** keep the existing **filled circle** at their base points
+- **Own ship** base point: **hollow right triangle** fixed in screen orientation (right angle
+  at base, vertical leg up, horizontal leg right). Does **not** rotate with course — only the
+  cyan vector line rotates. Outline colour: `Qt::cyan`, `Qt::NoBrush`.
+- **Selected (computed) and adopted tracks** use a **hollow circle** at their base points
   (yellow and red respectively).
 - The hollow triangle is **automatic** — no host configuration flag is required.
 
@@ -166,7 +167,7 @@ drawCourseVectorFromEndpoints(
     Qt::cyan,
     true);  // hollowTriangleMarker = true
 
-// Tracks — filled circle (hollowTriangleMarker defaults to false):
+// Tracks — hollow circle (hollowTriangleMarker defaults to false):
 drawCourseVectorFromEndpoints(start, end, Qt::yellow);
 drawCourseVectorFromEndpoints(start, end, Qt::red);
 ```
@@ -175,17 +176,20 @@ drawCourseVectorFromEndpoints(start, end, Qt::red);
 
 1. Add `bool hollowTriangleMarker = false` to your vector-drawing helper.
 2. When `hollowTriangleMarker` is **true** (own ship only):
-   - Compute course angle: `qAtan2(endY - startY, endX - startX)`.
-   - Build triangle: tip toward endpoint, base vertices perpendicular to course.
+   - Draw a **fixed-orientation** right triangle at `startPoint` (does not use course angle):
+     - Right angle at `startPoint`
+     - `topLeft = (startPoint.x(), startPoint.y() - triHeight)`
+     - `bottomRight = (startPoint.x() + triWidth, startPoint.y())`
    - Draw with `QPen(Qt::cyan, 2)` and `Qt::NoBrush`.
-3. When **false** (tracks): keep the filled-circle base marker.
+   - The course vector line is drawn separately and **does** rotate.
+3. When **false** (tracks): draw a **hollow circle** (`Qt::NoBrush` ellipse).
 4. Never pass `hollowTriangleMarker = true` for track vectors.
 
-| Vector | Base marker | Colour | `hollowTriangleMarker` |
-|--------|-------------|--------|------------------------|
-| Own ship | Hollow triangle | `Qt::cyan` | `true` |
-| Selected track | Filled circle | `Qt::yellow` | `false` (default) |
-| Adopted track | Filled circle | `Qt::red` | `false` (default) |
+| Vector | Base marker | Colour | Style |
+|--------|-------------|--------|-------|
+| Own ship | Hollow right triangle (fixed orientation) | `Qt::cyan` | Right angle at base; vertical up; horizontal right; vector rotates independently |
+| Selected (computed) track | Hollow circle | `Qt::yellow` | `Qt::NoBrush` ellipse |
+| Adopted track | Hollow circle | `Qt::red` | `Qt::NoBrush` ellipse |
 
 ### Where it lives
 
@@ -198,22 +202,20 @@ drawCourseVectorFromEndpoints(start, end, Qt::red);
 
 ```cpp
 if (hollowTriangleMarker) {
-    qreal triLen = 6;
-    qreal triHalfWidth = 4;
-    qreal angle = qAtan2(endPoint.y() - startPoint.y(), endPoint.x() - startPoint.x());
-    qreal perpAngle = angle + M_PI_2;
+    const qreal triHeight = 12;
+    const qreal triWidth = 8;
 
-    QPointF tip(startPoint.x() + triLen * qCos(angle),
-                startPoint.y() + triLen * qSin(angle));
-    QPointF base1(startPoint.x() + triHalfWidth * qCos(perpAngle),
-                  startPoint.y() + triHalfWidth * qSin(perpAngle));
-    QPointF base2(startPoint.x() - triHalfWidth * qCos(perpAngle),
-                  startPoint.y() - triHalfWidth * qSin(perpAngle));
+    QPointF topLeft(anchor.x(), anchor.y() - triHeight);
+    QPointF bottomRight(anchor.x() + triWidth, anchor.y());
 
     QPolygonF triangle;
-    triangle << tip << base1 << base2;
+    triangle << startPoint << topLeft << bottomRight;
     pen.setWidth(2);
     scene->addPolygon(triangle, pen, Qt::NoBrush);
+} else {
+    pen.setWidth(2);
+    scene->addEllipse(startPoint.x() - radius, startPoint.y() - radius,
+                      radius * 2, radius * 2, pen, Qt::NoBrush);
 }
 ```
 
@@ -296,8 +298,8 @@ zoomed view.
 
 After integration:
 
-- Own ship: hollow cyan triangle at the centre of the green bearing line.
-- Yellow and red filled circles on the **same** green line at distances proportional to range.
+- Own ship: hollow cyan right triangle at the centre of the green bearing line.
+- Yellow and red **hollow circles** on the **same** green line at distances proportional to range.
 - Course arrows may leave the bearing line; only **bases** are constrained to it.
 
 ---

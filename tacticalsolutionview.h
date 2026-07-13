@@ -58,6 +58,7 @@ private:
     void drawAdoptedTrackVector(qreal sensorBearing, qreal adoptedTrackRange, qreal adoptedTrackBearing, qreal adoptedTrackSpeed, qreal adoptedTrackCourse);
     void drawVectorsFromPointStore(const VectorPointPairs &pointStore);
     void drawCourseVectorFromEndpoints(const QPointF &startPoint, const QPointF &endPoint, const QColor &color, bool hollowTriangleMarker = false);
+    void drawFixedOwnShipTriangle(const QPointF &anchor);
     double getFarthestDistance(VectorPointPairs *pointStore, const QPointF &linePoint1, const QPointF &linePoint2);
     QPair<QLineF, QLineF> getOutlineLines(const QLineF &line, const qreal distance);
 
