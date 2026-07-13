@@ -34,7 +34,8 @@ public:
     static QString symbolTypeToName(SymbolType type);
     /** All names accepted by addBTWSymbol APIs. */
     static QStringList registeredSymbolNames();
-    /** Apply synced-state override for MagentaCircle. */
+    /** Resolve stored symbol name to the type to draw. MagentaCircle always draws
+     *  hollow regardless of synced state (isSynced retained for API compatibility). */
     static SymbolType resolveDisplayType(const QString &symbolName, bool isSynced);
 
 private:

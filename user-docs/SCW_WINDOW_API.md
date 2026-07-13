@@ -108,9 +108,10 @@ still updates the SCW timeline's relative labels without the button.
 
 ## 4. Magenta "synced" circles — how the sync is meant to work
 
-Placing a **BTW marker** should drop a filled magenta circle (`"MagentaCircle"`, drawn as
-`MagentaCircleSynced`) on the other graphs **and** on the SCW graphs. The reference path
-(as wired in the sandbox) is:
+Placing a **BTW marker** should drop a **hollow** magenta circle (`"MagentaCircle"`) on the
+other graphs **and** on the SCW graphs. The circle is drawn hollow everywhere; the
+`isSynced` flag no longer changes its appearance. The reference path (as wired in the
+sandbox) is:
 
 ```
 User places a BTW manual marker           (or host calls GraphLayout::addBTWMarker)

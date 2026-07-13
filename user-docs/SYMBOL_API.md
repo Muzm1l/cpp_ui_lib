@@ -76,7 +76,9 @@ Use the enum overload or **`BTWSymbolDrawing::symbolTypeToName()`** / **`symbolN
 
 ### 2.3 Synced magenta circles
 
-When a symbol is added with the internal **`isSynced = true`** flag (e.g. via **`GraphLayout::addBTWSymbolToAllGraphs()`** after a BTW marker), a stored name of **`MagentaCircle`** is drawn as a **filled** circle (**`MagentaCircleSynced`** appearance) via **`BTWSymbolDrawing::resolveDisplayType()`**.
+The BTW marker symbol (**`MagentaCircle`**) is always drawn as a **hollow** circle — identically on the BTW graph, other waterfall graph types, and SCW graphs. The internal **`isSynced`** flag (set e.g. via **`GraphLayout::addBTWSymbolToAllGraphs()`** after a BTW marker) **no longer changes its appearance**; **`BTWSymbolDrawing::resolveDisplayType()`** keeps it hollow.
+
+The filled variant is available only by explicitly requesting the **`MagentaCircleSynced`** name/type.
 
 Direct **`addBTWSymbol`** calls use **`isSynced = false`** unless you write to **`WaterfallData`** yourself.
 

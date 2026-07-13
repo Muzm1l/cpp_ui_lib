@@ -93,11 +93,13 @@ QStringList BTWSymbolDrawing::registeredSymbolNames()
 
 BTWSymbolDrawing::SymbolType BTWSymbolDrawing::resolveDisplayType(const QString &symbolName, bool isSynced)
 {
-    SymbolType type = symbolNameToType(symbolName);
-    if (isSynced && type == SymbolType::MagentaCircle) {
-        return SymbolType::MagentaCircleSynced;
-    }
-    return type;
+    // The BTW marker symbol (MagentaCircle) is always rendered as a HOLLOW circle,
+    // identically on the BTW graph, other waterfall graph types, and SCW graphs.
+    // The synced state no longer changes its appearance (previously it upgraded to
+    // the filled MagentaCircleSynced). Filled remains available only by explicitly
+    // requesting the MagentaCircleSynced symbol name/type.
+    Q_UNUSED(isSynced);
+    return symbolNameToType(symbolName);
 }
 
 void BTWSymbolDrawing::generateAll()
