@@ -44,7 +44,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
 
     InteractiveGraphicsItem *marker = new InteractiveGraphicsItem();
     marker->setPos(position);
-    marker->setSize(QSizeF(20, 20));
+    marker->setSize(QSizeF(12, 12));
 
     // Set custom drawing function for data point (head/tail distinction: head = filled circle at one end)
     marker->setCustomDrawFunction([marker](QPainter *painter, const QRectF &rect) {
@@ -56,8 +56,8 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
         qreal lineWidth = marker->getLineWidth();
         Qt::PenStyle lineStyle = marker->getLineStyle();
         
-        // Calculate marker radius based on the original size (20x20)
-        qreal markerRadius = 10.0; // Half of the 20x20 size
+        // Calculate marker radius based on the original size (12x12)
+        qreal markerRadius = 6.0; // Half of the 12x12 size
         
         // Draw circle outline (transparent fill) at the center of the item
         painter->setPen(QPen(markerColor, lineWidth, lineStyle));
@@ -80,7 +80,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::addDataPointMarker(const QPointF
         painter->drawLine(QPointF(0, 0), endPoint);    // head stem
         
         // Draw head: filled circle at endPoint so head is visually distinct from tail
-        qreal headRadius = 3.0;
+        qreal headRadius = 2.0;
         painter->setPen(QPen(lineColor, lineWidth));
         painter->setBrush(QBrush(lineColor));
         painter->drawEllipse(endPoint, headRadius, headRadius);
@@ -518,7 +518,7 @@ void BTWInteractiveOverlay::updateBearingRateBox(InteractiveGraphicsItem *marker
     
     // Get marker position (use scene position for absolute coordinates)
     QPointF markerPos = marker->scenePos();
-    qreal markerRadius = 10.0; // Match the marker radius in addDataPointMarker
+    qreal markerRadius = 6.0; // Match the marker radius in addDataPointMarker
     qreal currentRotation = marker->rotation(); // Get current rotation angle
     
     // Normalize rotation to 0-359 degrees (one full rotation = 360 values: 0 to 359)
@@ -975,7 +975,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
     // Create the marker using similar logic to addDataPointMarker
     InteractiveGraphicsItem *marker = new InteractiveGraphicsItem();
     marker->setPos(screenPos);
-    marker->setSize(QSizeF(20, 20));
+    marker->setSize(QSizeF(12, 12));
     
     // Set custom drawing function (same as addDataPointMarker: head/tail distinction)
     marker->setCustomDrawFunction([marker](QPainter *painter, const QRectF &rect) {
@@ -986,7 +986,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
         qreal lineWidth = marker->getLineWidth();
         Qt::PenStyle lineStyle = marker->getLineStyle();
         
-        qreal markerRadius = 10.0;
+        qreal markerRadius = 6.0;
         
         painter->setPen(QPen(markerColor, lineWidth, lineStyle));
         painter->setBrush(QBrush(Qt::transparent));
@@ -1004,7 +1004,7 @@ InteractiveGraphicsItem* BTWInteractiveOverlay::createMarkerFromData(const BTWSy
         painter->setPen(QPen(lineColor, lineWidth, lineStyle));
         painter->drawLine(QPointF(0, 0), startPoint);  // tail
         painter->drawLine(QPointF(0, 0), endPoint);    // head stem
-        qreal headRadius = 3.0;
+        qreal headRadius = 2.0;
         painter->setPen(QPen(lineColor, lineWidth));
         painter->setBrush(QBrush(lineColor));
         painter->drawEllipse(endPoint, headRadius, headRadius);  // head

@@ -111,7 +111,10 @@ signals:
 
     /**
      * @brief Emitted when a ruler indicator is clicked.
-     * Does not change selection; use setSelectedRuler() via GraphLayout for that.
+     * Does not change selection; use setSelectedRuler() for that.
+     * @param index The 0-based ruler index (0..3)
+     * @param timestamp The ruler's time-axis position
+     * @param range The ruler's range-axis position
      */
     void rulerClicked(int index, const QDateTime &timestamp, qreal range);
 };

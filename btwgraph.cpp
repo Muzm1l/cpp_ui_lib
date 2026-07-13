@@ -533,7 +533,7 @@ void BTWGraph::updateWindowSizeCache()
 {
     m_cachedWindowSize = this->size();
     // Calculate marker radius based on cached window size
-    m_cachedMarkerRadius = std::min(0.04 * m_cachedWindowSize.width(), 12.0);
+    m_cachedMarkerRadius = std::min(0.025 * m_cachedWindowSize.width(), 7.0);
     m_windowSizeCacheValid = true;
 }
 

@@ -1,12 +1,13 @@
-# Manual: Ruler indicators (BTW + RTW unified)
+# Manual: Ruler indicators (RTW and BTW)
 
 This document describes the **ruler** system — up to four numbered circle
-indicators drawn on **both BTW and RTW** graphs — and the public API for
+indicators drawn on the **RTW** and **BTW** graphs — and the public API for
 driving them.
 
-One `GraphLayout` call positions a ruler on **both** graph types. Selection
-(yellow highlight) is **API-only**; clicking a ruler returns its timestamp
-without changing selection.
+State is **view-local** to each graph widget (`RTWGraph` / `BTWGraph`); the
+**`GraphLayout`** API forwards commands to the graph view(s) and re-emits the
+click signal. Selection (yellow highlight) is **API-only**; clicking a ruler
+returns its timestamp without changing selection.
 
 **See also:** [`SYMBOL_API.md`](./SYMBOL_API.md) for general BTW/RTW symbol APIs.
 
@@ -18,8 +19,8 @@ without changing selection.
 |------|---------|
 | **Ruler** | One of four (index `0..3`) indicators owned by the main system. Each ruler is positioned by a **`timestamp`** (time axis) and a **`range`** (range/bearing axis). |
 | **Active** | A ruler that is currently shown on the graph. There can be **0, 1, 2, 3 or 4** active rulers at any time. |
-| **Selected** | The single highlighted ruler. **At most one** ruler (or zero) may be selected at a time. Changed **only via API** (`setSelectedRuler`). |
-| **Indicator glyph** | A numbered circle: **yellow** (`YellowCircle1..4`) when **selected**, **white** (`WhiteCircle1..4`) when **active but unselected**. |
+| **Selected** | The single highlighted ruler. **At most one** ruler (or zero) may be selected at a time. Changed **only via API** (`setSelectedRtwRuler` / `setSelectedBtwRuler`). |
+| **Indicator glyph** | A numbered circle: **yellow** (`YellowCircle1..4`) when **selected**, **white** (`WhiteCircle1..4`) when **active but unselected**. RTW uses `RTWSymbolDrawing`; BTW uses `BTWSymbolDrawing`. |
 
 Visual states per ruler:
 
@@ -32,55 +33,69 @@ Visual states per ruler:
 
 ---
 
-## 2. `GraphLayout` API (unified BTW + RTW)
+## 2. RTW — `GraphLayout` API
 
 ```cpp
-void setRulerActive(int index, const QDateTime &timestamp, qreal range);
-void clearRuler(int index);
-void clearAllRulers();
-void setSelectedRuler(int index);   // -1 clears; inactive index ignored
-int  selectedRuler() const;         // -1 if none
+void setRtwRulerActive(int index, const QDateTime &timestamp, qreal range);
+void clearRtwRuler(int index);
+void clearAllRtwRulers();
+void setSelectedRtwRuler(int index);
+int selectedRtwRuler() const;
 
 signals:
-    void RulerClicked(int index, const QDateTime &timestamp, qreal range, GraphType graphType);
+    // Emitted on click. Returns the ruler's timestamp; does NOT change selection.
+    void RtwRulerClicked(int index, const QDateTime &timestamp, qreal range);
 ```
 
-- `setRulerActive` / `clearRuler` / `clearAllRulers` / `setSelectedRuler` apply to
-  **every BTW and RTW graph** in every container.
-- `RulerClicked` is emitted when the operator clicks an active ruler glyph. It
-  returns the ruler's **timestamp** (plus index, range, and which graph was
-  clicked). It does **not** change selection.
+Chain: `RTWGraph::rulerClicked` → `GraphContainer::RtwRulerClicked` →
+`GraphLayout::RtwRulerClicked`.
 
-Chain:
-
-```
-BTWGraph::rulerClicked / RTWGraph::rulerClicked
-  → GraphContainer::RulerClicked
-  → GraphLayout::RulerClicked
-```
-
-### Example
+### RTW example
 
 ```cpp
-const QDateTime t0 = QDateTime::currentDateTime();
-
-layout->setRulerActive(0, t0.addSecs(-300), 12.0);
-layout->setRulerActive(1, t0.addSecs(-180), 30.0);
-layout->setSelectedRuler(1);   // yellow highlight on ruler 2 — API only
-
-connect(layout, &GraphLayout::RulerClicked,
-        backend, [](int index, const QDateTime &timestamp, qreal range, GraphType graphType) {
-    backend->onRulerClicked(index, timestamp, range, graphType);
-});
-
-layout->clearAllRulers();
+layout->setRtwRulerActive(0, t0.addSecs(-300), 10.0);
+layout->setRtwRulerActive(1, t0.addSecs(-180), 15.0);
+layout->setSelectedRtwRuler(1);   // yellow highlight — API only
+connect(layout, &GraphLayout::RtwRulerClicked, ...);   // click returns timestamp
+layout->clearAllRtwRulers();
 ```
 
 ---
 
-## 3. Direct graph API (`RTWGraph` / `BTWGraph`)
+## 3. BTW — `GraphLayout` API
 
-For standalone graph instances outside `GraphLayout`:
+Same semantics as RTW; forwards to `BTWGraph` views
+(`container->getWaterfallGraph(GraphType::BTW)`). On BTW, **`range`** is the
+bearing / horizontal (X) axis value.
+
+```cpp
+void setBtwRulerActive(int index, const QDateTime &timestamp, qreal range);
+void clearBtwRuler(int index);
+void clearAllBtwRulers();
+void setSelectedBtwRuler(int index);
+int selectedBtwRuler() const;
+
+signals:
+    // Emitted on click. Returns the ruler's timestamp; does NOT change selection.
+    void BtwRulerClicked(int index, const QDateTime &timestamp, qreal range);
+```
+
+Chain: `BTWGraph::rulerClicked` → `GraphContainer::BtwRulerClicked` →
+`GraphLayout::BtwRulerClicked`.
+
+### BTW example
+
+```cpp
+layout->setBtwRulerActive(0, t0.addSecs(-300), 45.0);
+layout->setBtwRulerActive(1, t0.addSecs(-180), 90.0);
+layout->setSelectedBtwRuler(1);   // yellow highlight — API only
+connect(layout, &GraphLayout::BtwRulerClicked, ...);   // click returns timestamp
+layout->clearAllBtwRulers();
+```
+
+---
+
+## 4. Direct graph API (`RTWGraph` / `BTWGraph`)
 
 ```cpp
 static constexpr int RulerCount = 4;
@@ -88,11 +103,12 @@ static constexpr int RulerCount = 4;
 void setRulerActive(int index, const QDateTime &timestamp, qreal range);
 void clearRuler(int index);
 void clearAllRulers();
-void setSelectedRuler(int index);
-int  selectedRuler() const;
+void setSelectedRuler(int index);   // -1 clears; inactive index ignored
+int  selectedRuler() const;         // -1 if none
 bool isRulerActive(int index) const;
 
 signals:
+    // Emitted on click. Returns the ruler's timestamp; does NOT change selection.
     void rulerClicked(int index, const QDateTime &timestamp, qreal range);
 ```
 
@@ -108,16 +124,16 @@ struct RulerState {
 
 ---
 
-## 4. Rules and behavior
+## 5. Rules and behavior
 
-- **Unified positioning:** One `setRulerActive` call places the ruler on both BTW
-  and RTW with the same timestamp and range value.
-- **Selection is API-only:** `setSelectedRuler` is the only way to change the
-  yellow highlight. Clicking a ruler does **not** call `setSelectedRuler`.
-- **Click returns timestamp:** `RulerClicked` carries `index`, `timestamp`,
-  `range`, and `graphType` (which graph the operator clicked).
+- **Selection is API-only:** `setSelectedRuler` / `setSelectedRtwRuler` /
+  `setSelectedBtwRuler` is the only way the yellow highlight changes. Selecting
+  one ruler deselects all others. Clicking a ruler does **not** change selection.
 - **Selecting an inactive ruler is ignored.** Activate it first with
-  `setRulerActive`.
+  `setRulerActive` if you want it selectable.
+- **Clicking** an active ruler on the graph emits the click signal
+  (`rulerClicked` → `RtwRulerClicked` / `BtwRulerClicked`), returning its
+  `index`, `timestamp`, and `range`. It does **not** change selection.
 - **Off-range rulers are not drawn.** If a ruler's mapped position falls outside
   the visible drawing area (zoom / time window), its glyph is skipped; it
   reappears when back in range. Its active/selected state is preserved.
@@ -126,7 +142,7 @@ struct RulerState {
 
 ---
 
-## 5. Where things live
+## 6. Where things live
 
 | Concern | File |
 |---------|------|
@@ -137,15 +153,3 @@ struct RulerState {
 | BTW ruler state + rendering | `btwgraph.h` / `btwgraph.cpp` |
 | Container relay slots + signals | `graphcontainer.h` / `graphcontainer.cpp` |
 | Layout-level API + signals | `graphlayout.h` / `graphlayout.cpp` |
-
----
-
-## 6. Quick reference
-
-| Goal | Call / connect to |
-|------|-------------------|
-| Activate ruler on BTW + RTW | `layout->setRulerActive(index, timestamp, range)` |
-| Highlight a ruler (yellow) | `layout->setSelectedRuler(index)` |
-| Clear one / all rulers | `layout->clearRuler(index)` / `layout->clearAllRulers()` |
-| Receive timestamp on click | `connect(..., RulerClicked, ...)` |
-| Query selected ruler | `layout->selectedRuler()` |

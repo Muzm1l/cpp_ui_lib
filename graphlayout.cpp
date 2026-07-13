@@ -280,8 +280,10 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
                 this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
-        connect(container, &GraphContainer::RulerClicked,
-                this, &GraphLayout::RulerClicked, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RtwRulerClicked,
+                this, &GraphLayout::RtwRulerClicked, Qt::UniqueConnection);
+        connect(container, &GraphContainer::BtwRulerClicked,
+                this, &GraphLayout::BtwRulerClicked, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
@@ -452,8 +454,10 @@ void GraphLayout::initializeContainers()
                 this, &GraphLayout::RTWRMarkerTimestampCaptured, Qt::UniqueConnection);
         connect(container, &GraphContainer::RTWSymbolTimestampCaptured,
                 this, &GraphLayout::RTWSymbolTimestampCaptured, Qt::UniqueConnection);
-        connect(container, &GraphContainer::RulerClicked,
-                this, &GraphLayout::RulerClicked, Qt::UniqueConnection);
+        connect(container, &GraphContainer::RtwRulerClicked,
+                this, &GraphLayout::RtwRulerClicked, Qt::UniqueConnection);
+        connect(container, &GraphContainer::BtwRulerClicked,
+                this, &GraphLayout::BtwRulerClicked, Qt::UniqueConnection);
         connect(container, &GraphContainer::BTWManualMarkerPlaced,
                 this, &GraphLayout::onBTWManualMarkerPlaced, Qt::UniqueConnection);
         // Also forward the signal for external integration
@@ -2505,9 +2509,11 @@ void GraphLayout::addRTWSymbol(const GraphType &graphType, const QString &symbol
     }
 }
 
-// ========== Ruler indicator API (BTW + RTW unified) ==========
+// ========== RTW Ruler indicator API Implementation ==========
+// State is view-local on RTWGraph; these forward to every RTW graph view, mirroring
+// the BTW horizontal-line API (iterate containers -> getWaterfallGraph -> cast -> forward).
 
-void GraphLayout::setRulerActive(int index, const QDateTime &timestamp, qreal range)
+void GraphLayout::setRtwRulerActive(int index, const QDateTime &timestamp, qreal range)
 {
     for (auto *container : m_graphContainers)
     {
@@ -2515,12 +2521,10 @@ void GraphLayout::setRulerActive(int index, const QDateTime &timestamp, qreal ra
             continue;
         if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
             rtwGraph->setRulerActive(index, timestamp, range);
-        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
-            btwGraph->setRulerActive(index, timestamp, range);
     }
 }
 
-void GraphLayout::clearRuler(int index)
+void GraphLayout::clearRtwRuler(int index)
 {
     for (auto *container : m_graphContainers)
     {
@@ -2528,12 +2532,10 @@ void GraphLayout::clearRuler(int index)
             continue;
         if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
             rtwGraph->clearRuler(index);
-        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
-            btwGraph->clearRuler(index);
     }
 }
 
-void GraphLayout::clearAllRulers()
+void GraphLayout::clearAllRtwRulers()
 {
     for (auto *container : m_graphContainers)
     {
@@ -2541,12 +2543,10 @@ void GraphLayout::clearAllRulers()
             continue;
         if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
             rtwGraph->clearAllRulers();
-        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
-            btwGraph->clearAllRulers();
     }
 }
 
-void GraphLayout::setSelectedRuler(int index)
+void GraphLayout::setSelectedRtwRuler(int index)
 {
     for (auto *container : m_graphContainers)
     {
@@ -2554,12 +2554,10 @@ void GraphLayout::setSelectedRuler(int index)
             continue;
         if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
             rtwGraph->setSelectedRuler(index);
-        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
-            btwGraph->setSelectedRuler(index);
     }
 }
 
-int GraphLayout::selectedRuler() const
+int GraphLayout::selectedRtwRuler() const
 {
     for (auto *container : m_graphContainers)
     {
@@ -2567,6 +2565,62 @@ int GraphLayout::selectedRuler() const
             continue;
         if (auto *rtwGraph = qobject_cast<RTWGraph*>(container->getWaterfallGraph(GraphType::RTW)))
             return rtwGraph->selectedRuler();
+    }
+    return -1;
+}
+
+// ========== BTW Ruler indicator API Implementation ==========
+
+void GraphLayout::setBtwRulerActive(int index, const QDateTime &timestamp, qreal range)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->setRulerActive(index, timestamp, range);
+    }
+}
+
+void GraphLayout::clearBtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->clearRuler(index);
+    }
+}
+
+void GraphLayout::clearAllBtwRulers()
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->clearAllRulers();
+    }
+}
+
+void GraphLayout::setSelectedBtwRuler(int index)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+        if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
+            btwGraph->setSelectedRuler(index);
+    }
+}
+
+int GraphLayout::selectedBtwRuler() const
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
         if (auto *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW)))
             return btwGraph->selectedRuler();
     }

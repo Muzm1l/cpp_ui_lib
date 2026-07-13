@@ -1064,9 +1064,7 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::ShadedRegionsSyncCleared);
 
         connect(btwGraph, &BTWGraph::rulerClicked,
-                this, [this](int index, const QDateTime &timestamp, qreal range) {
-                    onRulerClicked(index, timestamp, range, GraphType::BTW);
-                });
+                this, &GraphContainer::onBtwRulerClicked);
         
         DEBUG_OUT() << "GraphContainer: Connected BTW marker and shaded region sync signals";
     }
@@ -1082,12 +1080,10 @@ void GraphContainer::setupWaterfallGraphProperties(WaterfallGraph *graph, GraphT
                 this, &GraphContainer::onRTWSymbolTimestampCaptured);
         DEBUG_OUT() << "GraphContainer: Connected RTW symbol timestamp signal";
 
-        // Connect RTW ruler selection signal
+        // Connect RTW ruler click signal
         connect(rtwGraph, &RTWGraph::rulerClicked,
-                this, [this](int index, const QDateTime &timestamp, qreal range) {
-                    onRulerClicked(index, timestamp, range, GraphType::RTW);
-                });
-        DEBUG_OUT() << "GraphContainer: Connected RTW ruler selection signal";
+                this, &GraphContainer::onRtwRulerClicked);
+        DEBUG_OUT() << "GraphContainer: Connected RTW ruler click signal";
     }
 }
 
@@ -1965,12 +1961,18 @@ void GraphContainer::onRTWSymbolTimestampCaptured(const QDateTime &timestamp, co
     emit RTWSymbolTimestampCaptured(timestamp, position, symbolName);
 }
 
-void GraphContainer::onRulerClicked(int index, const QDateTime &timestamp, qreal range, GraphType graphType)
+void GraphContainer::onRtwRulerClicked(int index, const QDateTime &timestamp, qreal range)
 {
-    DEBUG_OUT() << "GraphContainer: Ruler clicked index" << index
-                << "graph" << static_cast<int>(graphType)
-                << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-    emit RulerClicked(index, timestamp, range, graphType);
+    DEBUG_OUT() << "GraphContainer: RTW ruler clicked - index:" << index
+             << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit RtwRulerClicked(index, timestamp, range);
+}
+
+void GraphContainer::onBtwRulerClicked(int index, const QDateTime &timestamp, qreal range)
+{
+    DEBUG_OUT() << "GraphContainer: BTW ruler clicked - index:" << index
+             << "timestamp:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
+    emit BtwRulerClicked(index, timestamp, range);
 }
 
 void GraphContainer::onBTWManualMarkerPlaced(const QDateTime &timestamp, const QPointF &position)
