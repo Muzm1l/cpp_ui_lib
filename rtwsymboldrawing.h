@@ -42,15 +42,23 @@ public:
 
     RTWSymbolDrawing(int baseSize = 20);  // size in pixels (reduced from 40)
 
-    void draw(QPainter* p, QPointF pos, SymbolType type);
-    const QPixmap& get(SymbolType type) const;
+    // Every symbol has two variants: the plain glyph (boxed = false, drawn normally)
+    // and the same glyph enclosed in a selection rectangle (boxed = true, drawn when
+    // the symbol is clicked/selected).
+    void draw(QPainter* p, QPointF pos, SymbolType type, bool boxed = false);
+    const QPixmap& get(SymbolType type, bool boxed = false) const;
 
 private:
     int size;
-    QMap<SymbolType, QPixmap> cache;
+    QMap<SymbolType, QPixmap> cache;        // plain glyphs (no rectangle)
+    QMap<SymbolType, QPixmap> cacheBoxed;   // same glyphs enclosed in a rectangle
 
 private:
     void generateAll();
+
+    // Produce the "with rectangle" variant of a base glyph by overlaying an enclosing
+    // selection rectangle. Keeps the plain and boxed sets in sync automatically.
+    QPixmap addSelectionRectangle(const QPixmap &base) const;
 
     // functions to generate each symbol
     QPixmap makeTM();

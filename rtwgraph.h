@@ -93,6 +93,27 @@ private:
     std::array<RulerState, RulerCount> m_rulers{};
     int m_selectedRuler = -1;  // 0..3, or -1 for none
 
+    // Currently selected RTW symbol. A selected symbol is drawn with its enclosing
+    // rectangle (the "boxed" variant); everything else is drawn plain. At most one
+    // symbol is selected at a time. Clicking the selected symbol again clears it.
+    bool m_hasSelectedSymbol = false;
+    QDateTime m_selectedSymbolTime;
+    QString m_selectedSymbolName;
+    float m_selectedSymbolRange = 0.0f;
+
+    // True when symbolData matches the currently selected symbol.
+    bool isSymbolSelected(const RTWSymbolData &symbolData) const;
+
+    // Currently selected yellow "R" marker (drawn boxed when selected). At most one at
+    // a time; clicking the selected marker again clears it.
+    bool m_hasSelectedRMarker = false;
+    QDateTime m_selectedRMarkerTime;
+    float m_selectedRMarkerRange = 0.0f;
+
+    // Resolve/toggle the R marker nearest a click (within the click radius). Returns
+    // true when a marker was hit (selection toggled, redraw + signal issued).
+    bool handleRMarkerClick(const QPointF &scenePos);
+
 signals:
     /**
      * @brief Emitted when an R marker is clicked

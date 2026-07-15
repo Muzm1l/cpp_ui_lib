@@ -10,8 +10,14 @@
 
 namespace {
 
-// Tighten RTW symbol picking: mask-based shape + inset inside the pixmap bounds.
-static constexpr qreal kRtwSymbolClickInsetPx = 4.0;
+// RTW symbol picking. Symbols use BoundingRectShape (see drawRTWSymbols) so the whole
+// glyph area is clickable — hollow outline/letter symbols would otherwise miss clicks
+// aimed at their transparent centre. We then tighten the pickable area with an inset.
+static constexpr qreal kRtwSymbolClickInsetPx = 3.0;
+
+// Click radius (scene px) for the yellow "R" markers, measured from the marker centre.
+// Kept small so a large text bounding box does not create an oversized hit zone.
+static constexpr qreal kRMarkerClickRadiusPx = 8.0;
 
 bool isRtwSymbolClickHit(const QGraphicsPixmapItem *item, const QPointF &scenePos)
 {
@@ -19,16 +25,23 @@ bool isRtwSymbolClickHit(const QGraphicsPixmapItem *item, const QPointF &scenePo
         return false;
 
     const QPointF localPos = item->mapFromScene(scenePos);
-    if (!item->contains(localPos))
-        return false;
 
     QRectF hitRect = item->boundingRect().adjusted(
         kRtwSymbolClickInsetPx, kRtwSymbolClickInsetPx,
         -kRtwSymbolClickInsetPx, -kRtwSymbolClickInsetPx);
     if (hitRect.width() <= 0.0 || hitRect.height() <= 0.0)
-        return true;
+        return item->boundingRect().contains(localPos);
 
     return hitRect.contains(localPos);
+}
+
+// Distance-based hit test for the yellow "R" text markers.
+bool isRMarkerClickHit(const QGraphicsTextItem *textItem, const QPointF &scenePos)
+{
+    if (!textItem)
+        return false;
+    const QPointF center = textItem->scenePos() + textItem->boundingRect().center();
+    return QLineF(center, scenePos).length() <= kRMarkerClickRadiusPx;
 }
 
 } // namespace
@@ -233,64 +246,19 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
     // CRITICAL FIX: Check if we clicked on an R marker in overlayScene (not graphicsScene)
     // R markers are now in overlayScene, not graphicsScene
     if (overlayScene) {
-        // Use a more robust detection method: check all items at the position
-        // and also check items within a small bounding box around the click
-        // This handles cases where the click is slightly off the text bounding box
-        
-        // First, try the exact position
-        QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
-        
-        // If no item found at exact position, try a small bounding box search
-        // This helps when clicking near but not exactly on the text
-        if (!itemAtPos) {
-            const qreal searchRadius = 10.0; // Search within 10 pixels
-            QRectF searchRect(scenePos.x() - searchRadius, scenePos.y() - searchRadius,
-                           searchRadius * 2, searchRadius * 2);
-            QList<QGraphicsItem*> itemsInArea = overlayScene->items(searchRect, Qt::IntersectsItemShape, Qt::DescendingOrder);
-            
-            // Look for R markers in the nearby items
-            for (QGraphicsItem *item : itemsInArea) {
-                QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(item);
-                if (textItem && textItem->toPlainText() == "R" && textItem->defaultTextColor() == Qt::yellow) {
-                    itemAtPos = item;
-                    DEBUG_OUT() << "RTWGraph: Found R marker using bounding box search";
-                    break;
-                }
-            }
+        // R markers first: resolved directly against actual marker positions with a
+        // small click radius. This is independent of itemAt() (whose result can be the
+        // selection box child or the oversized text bounding box) and reliably tightens
+        // the R-marker hit zone.
+        if (handleRMarkerClick(scenePos)) {
+            return;
         }
-        
+
+        // For rulers and symbols, find the item under the cursor.
+        QGraphicsItem *itemAtPos = overlayScene->itemAt(scenePos, QTransform());
+
         DEBUG_OUT() << "RTWGraph: itemAtPos:" << itemAtPos << "at scene position:" << scenePos;
         if (itemAtPos) {
-            QGraphicsTextItem *textItem = qgraphicsitem_cast<QGraphicsTextItem*>(itemAtPos);
-            DEBUG_OUT() << "RTWGraph: textItem:" << textItem;
-            if (textItem) {
-                QString text = textItem->toPlainText();
-                DEBUG_OUT() << "RTWGraph: Text item text:" << text;
-                if (text == "R" && textItem->defaultTextColor() == Qt::yellow) {
-                    // This is an R marker - calculate timestamp from Y position
-                    // Use the marker's actual Y position for more accuracy
-                    qreal yPos = textItem->scenePos().y() + textItem->boundingRect().height() / 2.0;
-                    QDateTime timestamp = mapScreenToTime(yPos);
-                    
-                    if (timestamp.isValid()) {
-                        DEBUG_OUT() << "========================================";
-                        DEBUG_OUT() << "RTW R MARKER SELECTED - TIMESTAMP RETURNED";
-                        DEBUG_OUT() << "========================================";
-                        DEBUG_OUT() << "RTWGraph: R marker clicked at scene position:" << scenePos;
-                        DEBUG_OUT() << "RTWGraph: Marker Y position:" << yPos;
-                        DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
-                        DEBUG_OUT() << "========================================";
-                        
-                        // Emit signal for external integration
-                        emit rMarkerTimestampCaptured(timestamp, scenePos);
-                    } else {
-                        DEBUG_OUT() << "RTWGraph: R marker clicked at:" << scenePos << "- Could not determine timestamp (invalid)";
-                    }
-                    // Don't call parent - we've handled the R marker click
-                    return;
-                }
-            }
-            
             // Check if we clicked on a ruler indicator (tagged pixmap item)
             QGraphicsPixmapItem *rulerCandidate = qgraphicsitem_cast<QGraphicsPixmapItem*>(itemAtPos);
             if (rulerCandidate && rulerCandidate->data(1).toString() == QStringLiteral("RULER")) {
@@ -327,6 +295,27 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                         DEBUG_OUT() << "RTWGraph: TIMESTAMP:" << timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz");
                         DEBUG_OUT() << "========================================";
 
+                        // Toggle the "boxed" selection: clicking the already-selected
+                        // symbol clears it; clicking any other symbol selects that one.
+                        const float range = pixmapItem->data(2).toFloat();
+                        if (m_hasSelectedSymbol &&
+                            m_selectedSymbolName == symbolName &&
+                            m_selectedSymbolTime == timestamp &&
+                            qAbs(m_selectedSymbolRange - range) < 1e-4f)
+                        {
+                            m_hasSelectedSymbol = false;
+                        }
+                        else
+                        {
+                            m_hasSelectedSymbol = true;
+                            m_selectedSymbolTime = timestamp;
+                            m_selectedSymbolName = symbolName;
+                            m_selectedSymbolRange = range;
+                        }
+                        // Redraw so the clicked symbol swaps to its boxed variant
+                        // (and any previously selected symbol reverts to plain).
+                        forceFullRedraw();
+
                         // Emit signal for external integration
                         emit rtwSymbolTimestampCaptured(timestamp, scenePos, symbolName);
                         return;
@@ -353,6 +342,52 @@ void RTWGraph::onMouseDrag(const QPointF &scenePos)
     DEBUG_OUT() << "RTWGraph mouse dragged to scene position:" << scenePos;
     // Call parent implementation
     WaterfallGraph::onMouseDrag(scenePos);
+}
+
+bool RTWGraph::handleRMarkerClick(const QPointF &scenePos)
+{
+    if (!dataSource)
+        return false;
+
+    // Find the R marker whose drawn position is nearest the click, within the radius.
+    const std::vector<RTWRMarkerData> markers = dataSource->getRTWRMarkers();
+    const RTWRMarkerData *best = nullptr;
+    qreal bestDist = 0.0;
+    for (const auto &marker : markers)
+    {
+        const QPointF markerPos = mapDataToScreen(marker.range, marker.timestamp);
+        const qreal dist = QLineF(markerPos, scenePos).length();
+        if (dist <= kRMarkerClickRadiusPx && (!best || dist < bestDist))
+        {
+            best = &marker;
+            bestDist = dist;
+        }
+    }
+
+    if (!best)
+        return false;
+
+    // Toggle the boxed selection: clicking the selected marker clears it.
+    if (m_hasSelectedRMarker &&
+        m_selectedRMarkerTime == best->timestamp &&
+        qAbs(m_selectedRMarkerRange - best->range) < 1e-4f)
+    {
+        m_hasSelectedRMarker = false;
+    }
+    else
+    {
+        m_hasSelectedRMarker = true;
+        m_selectedRMarkerTime = best->timestamp;
+        m_selectedRMarkerRange = best->range;
+    }
+
+    // Redraw so the marker swaps to/from its boxed variant.
+    forceFullRedraw();
+
+    DEBUG_OUT() << "RTW R MARKER CLICKED - timestamp:" << best->timestamp.toString("yyyy-MM-dd hh:mm:ss.zzz")
+                << "selected:" << m_hasSelectedRMarker;
+    emit rMarkerTimestampCaptured(best->timestamp, scenePos);
+    return true;
 }
 
 /**
@@ -470,6 +505,19 @@ void RTWGraph::drawCustomRMarkers()
             
             // CRITICAL FIX: R markers are now in overlayScene (interactive overlay) instead of graphicsScene
             overlayScene->addItem(rMarker);
+
+            // If this marker is selected, enclose it in a rectangle (the "boxed"
+            // variant). Added as a child so it is cleaned up with the marker.
+            const bool boxed = m_hasSelectedRMarker &&
+                               m_selectedRMarkerTime == timestamp &&
+                               qAbs(m_selectedRMarkerRange - static_cast<float>(range)) < 1e-4f;
+            if (boxed)
+            {
+                QGraphicsRectItem *box = new QGraphicsRectItem(textRect.adjusted(3, 3, -3, -3), rMarker);
+                box->setPen(QPen(Qt::white, 1));
+                box->setBrush(Qt::NoBrush);
+            }
+
             markersDrawn++;
         }
     }
@@ -569,6 +617,14 @@ RTWSymbolDrawing::SymbolType RTWGraph::symbolNameToType(const QString &symbolNam
  * @brief Draw all stored RTW symbols on the graph
  *
  */
+bool RTWGraph::isSymbolSelected(const RTWSymbolData &symbolData) const
+{
+    return m_hasSelectedSymbol &&
+           m_selectedSymbolName == symbolData.symbolName &&
+           m_selectedSymbolTime == symbolData.timestamp &&
+           qAbs(m_selectedSymbolRange - symbolData.range) < 1e-4f;
+}
+
 void RTWGraph::drawRTWSymbols()
 {
     // Follow the same pattern as R markers - read symbols from dataSource
@@ -691,8 +747,10 @@ void RTWGraph::drawRTWSymbols()
         // Convert symbol name to SymbolType
         RTWSymbolDrawing::SymbolType symbolType = symbolNameToType(symbolData.symbolName);
         
-        // Get the pixmap for this symbol type
-        const QPixmap& symbolPixmap = symbols.get(symbolType);
+        // Get the pixmap for this symbol type. A selected symbol is drawn with its
+        // enclosing rectangle (boxed variant); all others are drawn plain.
+        const bool boxed = isSymbolSelected(symbolData);
+        const QPixmap& symbolPixmap = symbols.get(symbolType, boxed);
         
         // Validate pixmap before using it
         if (symbolPixmap.isNull() || symbolPixmap.width() <= 0 || symbolPixmap.height() <= 0)
@@ -732,8 +790,10 @@ void RTWGraph::drawRTWSymbols()
         // Use data(2) for range value
         pixmapItem->setData(2, symbolData.range);
         
-        // Hit-test only opaque pixels, not the full pixmap bounding rect.
-        pixmapItem->setShapeMode(QGraphicsPixmapItem::MaskShape);
+        // Hit-test against the pixmap bounding rect (tightened by an inset in
+        // isRtwSymbolClickHit). MaskShape would only register clicks on opaque pixels,
+        // so clicks aimed at the hollow centre of outline/letter symbols were missed.
+        pixmapItem->setShapeMode(QGraphicsPixmapItem::BoundingRectShape);
 
         // Make pixmap item clickable (similar to R markers)
         pixmapItem->setAcceptedMouseButtons(Qt::LeftButton | Qt::RightButton);

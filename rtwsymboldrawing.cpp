@@ -18,19 +18,21 @@ RTWSymbolDrawing::RTWSymbolDrawing(int baseSize)
     generateAll();
 }
 
-void RTWSymbolDrawing::draw(QPainter* p, QPointF pos, SymbolType type)
+void RTWSymbolDrawing::draw(QPainter* p, QPointF pos, SymbolType type, bool boxed)
 {
-    const QPixmap& pix = cache[type];
+    const QPixmap& pix = get(type, boxed);
     p->drawPixmap(pos.x() - pix.width()/2,
                   pos.y() - pix.height()/2,
                   pix);
 }
 
-const QPixmap& RTWSymbolDrawing::get(SymbolType type) const
+const QPixmap& RTWSymbolDrawing::get(SymbolType type, bool boxed) const
 {
+    const QMap<SymbolType, QPixmap> &source = boxed ? cacheBoxed : cache;
+
     // Use constFind to safely access the cache without creating default entries
-    auto it = cache.constFind(type);
-    if (it != cache.constEnd())
+    auto it = source.constFind(type);
+    if (it != source.constEnd())
     {
         return it.value();
     }
@@ -75,6 +77,30 @@ void RTWSymbolDrawing::generateAll()
     cache[SymbolType::MinSymbol] = makeMinSymbol();
     cache[SymbolType::Dummy1]    = makeDummy1();
     cache[SymbolType::Dummy2]    = makeDummy2();
+
+    // Build the "with rectangle" set for every symbol from its plain counterpart so
+    // the two sets never drift apart when a glyph is edited or a new symbol is added.
+    for (auto it = cache.constBegin(); it != cache.constEnd(); ++it)
+    {
+        cacheBoxed[it.key()] = addSelectionRectangle(it.value());
+    }
+}
+
+// Overlay an enclosing selection rectangle on a copy of the base glyph. The rectangle
+// hugs the pixmap edge so it reads as a "boxed" (selected) version of any symbol,
+// including glyphs that already contain a shape (TM/CircleI/R/…).
+QPixmap RTWSymbolDrawing::addSelectionRectangle(const QPixmap &base) const
+{
+    QPixmap pix = base;
+    QPainter p(&pix);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    p.setPen(QPen(Qt::white, 1));
+    p.setBrush(Qt::NoBrush);
+    // Inset by 1px so the 1px border is not clipped at the pixmap boundary.
+    p.drawRect(QRectF(1, 1, size - 2, size - 2));
+
+    return pix;
 }
 
 /* ----------------- Helpers ----------------- */
