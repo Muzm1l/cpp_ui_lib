@@ -22,6 +22,50 @@ uses it.
 
 ---
 
+## 1a. Where the circle is placed (X / range)
+
+The circle's **time (Y)** always comes from the BTW marker timestamp. Its **range (X)**
+now follows a per-graph rule:
+
+| Graph family | Has middle line? | Circle X is drawn on… |
+|--------------|------------------|-----------------------|
+| SCW (8 graphs), BDW, BRW, FDW | **Yes** (dashed middle line) | the **middle line** (zero-axis X), tracked live through zoom/pan |
+| BTW *(source)*, RTW, LTW, FTW | No | the **solution series** trace (default `"ADOPTED"`), interpolated at the marker time |
+
+**How it is implemented**
+
+- **Middle-line graphs** snap the circle to the middle line at *draw* time, so no data
+  lookup or re-sync is needed — it always sits on the line even while zooming/panning.
+  `WaterfallGraph::drawBTWSymbols()` overrides the symbol's X with the zero-axis X when
+  `magentaCircleOnMiddleLine()` returns `true`. That hook returns `m_zeroAxisEnabled`
+  (true for SCW graphs) and is overridden to `true` in `BDWGraph` / `BRWGraph` /
+  `FDWGraph`.
+- **Graphs without a middle line** store the range resolved from the **solution series**
+  at add time (`GraphLayout::resolveMagentaCircleRange()` →
+  `WaterfallData::interpolateSeriesRangeAtTime("ADOPTED", …)`), falling back to the
+  nearest data point across series if the solution series has no data.
+
+### Re-syncing when the solution changes
+
+Solution-series values change whenever the computed solution is updated. Because the
+circle stores a resolved range (rather than recomputing every frame — that would
+"overload the system"), the host must ask for a refresh:
+
+```cpp
+// Optional: change which series is the "solution" (default "ADOPTED").
+layout->setMagentaCircleSolutionSeries(QStringLiteral("ADOPTED"));
+
+// After feeding a new solution into the ADOPTED series, move the circles onto it:
+layout->resyncBTWSymbols();
+```
+
+`resyncBTWSymbols()` only recomputes stored ranges for existing `MagentaCircle` symbols
+(O(number of circles)) and redraws once — it does **not** re-run the full fan-out.
+Middle-line graphs are unaffected by solution changes (they stay on the line), so calling
+it is cheap and safe to invoke each time a new solution arrives.
+
+---
+
 ## 2. Where hollow vs filled is decided
 
 All waterfall-family graphs (BTW, RTW, and the 8 SCW graphs are `WaterfallGraph`
@@ -118,6 +162,9 @@ markers are moved or the sync fires more than once.
 | Concern | File / symbol |
 |---------|---------------|
 | Shared render / hollow-vs-filled decision | `waterfallgraph.cpp` (BTW symbol draw loop) → `BTWSymbolDrawing::resolveDisplayType()` |
+| Middle-line snap (X override) | `waterfallgraph.cpp` — `drawBTWSymbols()` + `magentaCircleOnMiddleLine()` (overridden in `bdwgraph.h`/`brwgraph.h`/`fdwgraph.h`) |
+| Solution-series range resolution | `graphlayout.cpp` — `resolveMagentaCircleRange()`; `setMagentaCircleSolutionSeries()` |
+| Re-sync circles to updated solution | `graphlayout.cpp` — `resyncBTWSymbols()` |
 | Hollow pixmap | `btwsymboldrawing.cpp` — `makeMagentaCircle()` (`Qt::NoBrush`) |
 | Filled pixmap (explicit only) | `btwsymboldrawing.cpp` — `makeMagentaCircleSynced()` |
 | Symbol types | `btwsymboldrawing.h` — `SymbolType::MagentaCircle`, `MagentaCircleSynced` |

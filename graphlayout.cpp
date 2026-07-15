@@ -3,6 +3,7 @@
 #include "btwgraph.h"
 #include "rtwgraph.h"
 #include "btwinteractiveoverlay.h"
+#include "btwsymboldrawing.h"
 #include "debugutils.h"
 #include <QDebug>
 #include <QElapsedTimer>
@@ -2879,6 +2880,51 @@ void GraphLayout::setBTWManualMarkerSeries(const QString &seriesLabel)
     DEBUG_OUT() << "GraphLayout: Set BTW manual marker series on" << graphsUpdated << "graph(s)";
 }
 
+void GraphLayout::setSeriesRenderMode(const GraphType &graphType, const QString &seriesLabel, bool asLine)
+{
+    DEBUG_OUT() << "GraphLayout: Set series render mode" << seriesLabel
+                << "on graph type" << static_cast<int>(graphType)
+                << "->" << (asLine ? "line" : "scatter");
+
+    int graphsUpdated = 0;
+
+    // Apply to this graph type in every container, even those not currently shown.
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+
+        WaterfallGraph *graph = container->getWaterfallGraph(graphType);
+        if (graph)
+        {
+            graph->setSeriesRenderMode(seriesLabel, asLine);
+            graphsUpdated++;
+        }
+    }
+
+    // Refresh any visible container showing this graph type.
+    redrawGraph(graphType);
+
+    DEBUG_OUT() << "GraphLayout: Series render mode applied on" << graphsUpdated << "graph(s)";
+}
+
+void GraphLayout::clearSeriesRenderModes(const GraphType &graphType)
+{
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+
+        WaterfallGraph *graph = container->getWaterfallGraph(graphType);
+        if (graph)
+        {
+            graph->clearSeriesRenderModes();
+        }
+    }
+
+    redrawGraph(graphType);
+}
+
 void GraphLayout::clearBTWManualMarkers()
 {
     DEBUG_OUT() << "GraphLayout: Clearing BTW manual markers (interactive overlay markers)";
@@ -3328,40 +3374,12 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* u
             continue;
         }
         
-        // Find the data point at this timestamp in this graph's data
-        // We need to find the range (Y value) of the data point at this timestamp
+        // Resolve the range for the magenta circle: prefer the solution series
+        // (e.g. "ADOPTED"), fall back to the nearest data point across series.
+        // Middle-line graphs (BDW/BRW/FDW) still store this value, but render the
+        // circle on the middle line (see WaterfallGraph::drawBTWSymbols).
         qreal dataPointRange = 0.0;
-        bool foundDataPoint = false;
-        
-        // Get all series labels for this data source
-        std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
-        
-        // Try to find a data point at the given timestamp (within tolerance)
-        const qint64 timeToleranceMs = 1000; // 1 second tolerance
-        qint64 closestTimeDiff = timeToleranceMs;
-        
-        for (const QString &seriesLabel : seriesLabels)
-        {
-            // Use binary search to find closest data point
-            qreal candidateValue;
-            size_t candidateIndex;
-            if (dataSource->findClosestDataPoint(seriesLabel, timestamp, closestTimeDiff, candidateValue, candidateIndex))
-            {
-                // Calculate actual time difference
-                const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-                if (candidateIndex < timestamps.size()) {
-                    qint64 timeDiff = qAbs(timestamps[candidateIndex].msecsTo(timestamp));
-                    if (timeDiff < closestTimeDiff)
-                    {
-                        closestTimeDiff = timeDiff;
-                        dataPointRange = candidateValue;
-                        foundDataPoint = true;
-                    }
-                }
-            }
-        }
-        
-        if (!foundDataPoint)
+        if (!resolveMagentaCircleRange(dataSource, timestamp, dataPointRange))
         {
             DEBUG_OUT() << "GraphLayout: No data point found at timestamp" << timestamp.toString() << "in graph type" << static_cast<int>(graphType) << "- skipping";
             continue;
@@ -3438,34 +3456,9 @@ bool GraphLayout::addBTWSymbolToGraph(WaterfallData *dataSource, const QDateTime
         }
     }
     
-    // Find the data point at this timestamp
+    // Resolve range from the solution series (fallback: nearest data point).
     qreal dataPointRange = 0.0;
-    bool foundDataPoint = false;
-    
-    std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
-    const qint64 timeToleranceMs = 1000; // 1 second tolerance
-    qint64 closestTimeDiff = timeToleranceMs;
-    
-    for (const QString &seriesLabel : seriesLabels)
-    {
-        qreal candidateValue;
-        size_t candidateIndex;
-        if (dataSource->findClosestDataPoint(seriesLabel, timestamp, closestTimeDiff, candidateValue, candidateIndex))
-        {
-            const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
-            if (candidateIndex < timestamps.size()) {
-                qint64 timeDiff = qAbs(timestamps[candidateIndex].msecsTo(timestamp));
-                if (timeDiff < closestTimeDiff)
-                {
-                    closestTimeDiff = timeDiff;
-                    dataPointRange = candidateValue;
-                    foundDataPoint = true;
-                }
-            }
-        }
-    }
-    
-    if (!foundDataPoint)
+    if (!resolveMagentaCircleRange(dataSource, timestamp, dataPointRange))
     {
         return false;
     }
@@ -3473,6 +3466,122 @@ bool GraphLayout::addBTWSymbolToGraph(WaterfallData *dataSource, const QDateTime
     // Add magenta circle symbol to this graph's data source
     dataSource->addBTWSymbol("MagentaCircle", timestamp, dataPointRange);
     return true;
+}
+
+bool GraphLayout::resolveMagentaCircleRange(WaterfallData *dataSource, const QDateTime &timestamp, qreal &outRange) const
+{
+    if (!dataSource)
+    {
+        return false;
+    }
+
+    // Preferred: place the circle on the configured solution series (e.g. "ADOPTED"),
+    // interpolated at the marker timestamp. This is what graphs without a middle line
+    // (RTW/LTW/FTW) use to keep the circle on the solution trace.
+    if (!m_solutionSeriesLabel.isEmpty())
+    {
+        qreal interpolated = 0.0;
+        if (dataSource->interpolateSeriesRangeAtTime(m_solutionSeriesLabel, timestamp, interpolated))
+        {
+            outRange = interpolated;
+            return true;
+        }
+    }
+
+    // Fallback: nearest data point across any series within a 1s tolerance.
+    const qint64 timeToleranceMs = 1000;
+    qint64 closestTimeDiff = timeToleranceMs;
+    bool foundDataPoint = false;
+
+    std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+    for (const QString &seriesLabel : seriesLabels)
+    {
+        qreal candidateValue;
+        size_t candidateIndex;
+        if (dataSource->findClosestDataPoint(seriesLabel, timestamp, closestTimeDiff, candidateValue, candidateIndex))
+        {
+            const std::vector<QDateTime> &timestamps = dataSource->getTimestampsSeries(seriesLabel);
+            if (candidateIndex < timestamps.size())
+            {
+                qint64 timeDiff = qAbs(timestamps[candidateIndex].msecsTo(timestamp));
+                if (timeDiff < closestTimeDiff)
+                {
+                    closestTimeDiff = timeDiff;
+                    outRange = candidateValue;
+                    foundDataPoint = true;
+                }
+            }
+        }
+    }
+
+    return foundDataPoint;
+}
+
+void GraphLayout::setMagentaCircleSolutionSeries(const QString &seriesLabel)
+{
+    m_solutionSeriesLabel = seriesLabel;
+    DEBUG_OUT() << "GraphLayout: Magenta circle solution series set to" << seriesLabel;
+}
+
+QString GraphLayout::magentaCircleSolutionSeries() const
+{
+    return m_solutionSeriesLabel;
+}
+
+void GraphLayout::resyncBTWSymbols()
+{
+    DEBUG_OUT() << "GraphLayout: Re-syncing magenta circles to solution series" << m_solutionSeriesLabel;
+
+    std::vector<GraphType> allGraphTypes = getDataSourceLabels();
+    for (GraphType graphType : allGraphTypes)
+    {
+        // BTW is the source graph and never carries synced magenta circles.
+        if (graphType == GraphType::BTW)
+        {
+            continue;
+        }
+
+        WaterfallData *dataSource = getDataSource(graphType);
+        if (!dataSource || dataSource->getBTWSymbolsCount() == 0)
+        {
+            continue;
+        }
+
+        // Recompute stored ranges in place: read once, rewrite ranges for magenta
+        // circles, and preserve every other symbol / field. O(number of circles).
+        std::vector<BTWSymbolData> symbols = dataSource->getBTWSymbols();
+        bool changed = false;
+        for (BTWSymbolData &symbol : symbols)
+        {
+            if (BTWSymbolDrawing::symbolNameToType(symbol.symbolName) != BTWSymbolDrawing::SymbolType::MagentaCircle)
+            {
+                continue;
+            }
+            qreal newRange = symbol.range;
+            if (resolveMagentaCircleRange(dataSource, symbol.timestamp, newRange) &&
+                qAbs(static_cast<float>(newRange) - symbol.range) > 1e-4f)
+            {
+                symbol.range = static_cast<float>(newRange);
+                changed = true;
+            }
+        }
+
+        if (!changed)
+        {
+            continue;
+        }
+
+        dataSource->clearBTWSymbols();
+        for (const BTWSymbolData &symbol : symbols)
+        {
+            dataSource->addBTWSymbol(symbol.symbolName, symbol.timestamp, symbol.range, symbol.isSynced);
+        }
+
+        redrawGraph(graphType);
+    }
+
+    // Single redraw pass so every container reflects the updated circles.
+    redrawAllGraphs();
 }
 
 void GraphLayout::addBTWSymbolsForExistingBTWMarkers()

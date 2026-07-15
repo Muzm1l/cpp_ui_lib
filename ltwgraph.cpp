@@ -87,7 +87,7 @@ void LTWGraph::draw()
             {
                 QColor seriesColor = getSeriesColor(seriesLabel);
                 
-                if (seriesLabel == "ADOPTED")
+                if (shouldRenderSeriesAsLine(seriesLabel))
                 {
                     // Draw ADOPTED series as solid line (no points)
                     // Draw during both full redraw and incremental updates

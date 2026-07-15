@@ -138,7 +138,7 @@ void RTWGraph::draw()
         {
             if (isSeriesVisible(seriesLabel))
             {
-                if (seriesLabel == "ADOPTED")
+                if (shouldRenderSeriesAsLine(seriesLabel))
                 {
                     // Draw ADOPTED series as line
                     // CRITICAL FIX: Draw during both full redraw and incremental updates

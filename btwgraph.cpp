@@ -120,7 +120,7 @@ void BTWGraph::draw()
             {
                 QColor seriesColor = getSeriesColor(seriesLabel);
                 
-                if (seriesLabel == "ADOPTED")
+                if (shouldRenderSeriesAsLine(seriesLabel))
                 {
                     // Draw ADOPTED series as solid line (no points)
                     // Draw during both full redraw and incremental updates
@@ -880,20 +880,28 @@ void BTWGraph::addBTWSymbolToOtherGraphs(const QDateTime &timestamp, qreal btwVa
             
             if (symbolExists) continue; // Skip if symbol already exists
             
-            // Check if there's a datapoint at this timestamp using binary search
+            // Resolve the range for the magenta circle. Prefer the solution series
+            // ("ADOPTED") so graphs without a middle line keep the circle on the
+            // solution trace; fall back to the nearest data point across series.
+            // (Middle-line graphs render the circle on the middle line regardless.)
             bool hasDataPoint = false;
             qreal dataValue = 0.0;
-            size_t unusedIndex;
-            
-            // Check all series in the data source using binary search
-            std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
-            for (const QString &seriesLabel : seriesLabels)
+            if (dataSource->interpolateSeriesRangeAtTime(QStringLiteral("ADOPTED"), timestamp, dataValue))
             {
-                // Use binary search to find closest data point (within 1 second = 1000ms)
-                if (dataSource->findClosestDataPoint(seriesLabel, timestamp, 1000, dataValue, unusedIndex))
+                hasDataPoint = true;
+            }
+            else
+            {
+                size_t unusedIndex;
+                std::vector<QString> seriesLabels = dataSource->getDataSeriesLabels();
+                for (const QString &seriesLabel : seriesLabels)
                 {
-                    hasDataPoint = true;
-                    break;
+                    // Use binary search to find closest data point (within 1 second = 1000ms)
+                    if (dataSource->findClosestDataPoint(seriesLabel, timestamp, 1000, dataValue, unusedIndex))
+                    {
+                        hasDataPoint = true;
+                        break;
+                    }
                 }
             }
             

@@ -24,6 +24,7 @@
 #include <QPixmap>
 #include <QList>
 #include <QMap>
+#include <QSet>
 #include <QUuid>
 #include <QPair>
 #include <QMouseEvent>
@@ -82,6 +83,17 @@ public:
     // Line vs scatterplot drawing configuration
     void setUseLineDrawing(bool useLines);
     bool getUseLineDrawing() const;
+
+    // Per-series render mode. Forces a single series to draw as a continuous line
+    // (asLine = true) or scatterplot (asLine = false), independent of the whole-graph
+    // setUseLineDrawing() flag. Takes effect immediately (rebuilds cached geometry).
+    // Note: "ADOPTED" defaults to a line even without an explicit override.
+    void setSeriesRenderMode(const QString &seriesLabel, bool asLine);
+    // Effective render mode for a series (accounts for whole-graph mode, per-series
+    // overrides, and the ADOPTED default).
+    bool isSeriesRenderedAsLine(const QString &seriesLabel) const;
+    // Drop all per-series overrides (reverts to whole-graph mode + ADOPTED default).
+    void clearSeriesRenderModes();
 
     // Data handling (delegates to data source)
     void setData(const QString &seriesLabel, const std::vector<float> &yData, const std::vector<QDateTime> &timestamps);
@@ -226,6 +238,16 @@ protected:
     virtual void redrawDataLayerForVisibleTimeRange();
     bool shouldRenderSeriesAsLine(const QString &seriesLabel) const;
     virtual void drawBTWSymbols();
+    /**
+     * @brief Whether magenta BTW sync circles should snap to the graph's middle line.
+     *
+     * Graphs that show a dashed middle line (SCW via setZeroAxisEnabled; BDW/BRW/FDW
+     * override this to true) draw the magenta circle on that line (X = zero-axis value)
+     * so it tracks the middle line regardless of zoom/pan. Graphs without a middle line
+     * (BTW/RTW/LTW/FTW) return false and the circle is drawn at its stored range
+     * (placed on the solution series by the fan-out).
+     */
+    virtual bool magentaCircleOnMiddleLine() const { return m_zeroAxisEnabled; }
     void clearBTWSymbolOverlayItems();
     /** BTW/RTW: extra overlay items after drawBTWSymbols() on FULL_REDRAW / INCREMENTAL_UPDATE (blue markers, R markers, etc.). */
     virtual void augmentOverlayPassAfterSymbols();
@@ -383,6 +405,7 @@ protected:
     QMap<QString, QColor> m_dataLineColors;  // Colors per series for data lines
     bool m_needsWaterfallRedraw;  // Flag for full waterfall redraw
     bool m_useLineDrawing;  // Flag to use line drawing instead of scatterplot for all series
+    QSet<QString> m_lineSeriesLabels;  // Series explicitly forced to line rendering (per-series override)
     
     // Waterfall buffer management methods
     void initializeWaterfallBuffer(const QSize &size);

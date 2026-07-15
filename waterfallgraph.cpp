@@ -892,6 +892,47 @@ bool WaterfallGraph::getUseLineDrawing() const
     return m_useLineDrawing;
 }
 
+void WaterfallGraph::setSeriesRenderMode(const QString &seriesLabel, bool asLine)
+{
+    if (seriesLabel.isEmpty())
+        return;
+
+    const bool currentlyForcedLine = m_lineSeriesLabels.contains(seriesLabel);
+    if (asLine == currentlyForcedLine)
+        return; // No change to the explicit override set.
+
+    if (asLine)
+        m_lineSeriesLabels.insert(seriesLabel);
+    else
+        m_lineSeriesLabels.remove(seriesLabel);
+
+    // Invalidate the rendered time window so the cached scatter/line geometry for
+    // this series is rebuilt on the next draw (same reset setUseLineDrawing() does).
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
+    postCommand(StyleChange{});
+    drainRenderQueueSynchronously();
+    DEBUG_OUT() << "Series" << seriesLabel << "render mode ->" << (asLine ? "line" : "scatter");
+}
+
+bool WaterfallGraph::isSeriesRenderedAsLine(const QString &seriesLabel) const
+{
+    return shouldRenderSeriesAsLine(seriesLabel);
+}
+
+void WaterfallGraph::clearSeriesRenderModes()
+{
+    if (m_lineSeriesLabels.isEmpty())
+        return;
+
+    m_lineSeriesLabels.clear();
+    m_renderedTimeMin = QDateTime();
+    m_renderedTimeMax = QDateTime();
+    postCommand(StyleChange{});
+    drainRenderQueueSynchronously();
+    DEBUG_OUT() << "Cleared all per-series render-mode overrides";
+}
+
 /**
  * @brief Check if the grid is currently enabled.
  *
@@ -1195,8 +1236,13 @@ void WaterfallGraph::refreshOverlaysAfterVisibleTimeRangeChange()
 
 bool WaterfallGraph::shouldRenderSeriesAsLine(const QString &seriesLabel) const
 {
+    // Whole-graph override wins.
     if (m_useLineDrawing)
         return true;
+    // Explicit per-series override.
+    if (m_lineSeriesLabels.contains(seriesLabel))
+        return true;
+    // Default: the ADOPTED solution trace always renders as a line.
     return seriesLabel.compare(QStringLiteral("ADOPTED"), Qt::CaseInsensitive) == 0;
 }
 
@@ -1533,7 +1579,15 @@ void WaterfallGraph::drawBTWSymbols()
             continue;
         }
 
-        const QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
+        QPointF screenPos = mapDataToScreen(symbolData.range, symbolData.timestampEpoch);
+        // Middle-line graphs (SCW, BDW, BRW, FDW): pin the circle to the dashed middle
+        // line so it tracks the zero-axis position regardless of zoom/pan. The stored
+        // range still feeds the Y mapping via the timestamp; only X is overridden.
+        if (magentaCircleOnMiddleLine())
+        {
+            const QPointF middlePos = mapDataToScreen(m_zeroAxisValue, symbolData.timestampEpoch);
+            screenPos.setX(middlePos.x());
+        }
         if (!drawingArea.contains(screenPos))
         {
             item->setVisible(false);

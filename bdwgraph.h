@@ -32,6 +32,9 @@ protected:
     void refreshOverlaysAfterVisibleTimeRangeChange() override;
     void augmentOverlayPassAfterSymbols() override;
 
+    // BDW always shows a dashed middle line; magenta sync circles snap to it.
+    bool magentaCircleOnMiddleLine() const override { return true; }
+
 private:
     // BDW-specific properties and methods can be added here
     void drawBDWScatterplot();

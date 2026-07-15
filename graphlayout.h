@@ -312,6 +312,45 @@ public:
      * This replaces the old "snap to nearest visible series" behaviour.
      */
     void setBTWManualMarkerSeries(const QString &seriesLabel);
+
+    /**
+     * @brief Choose whether a specific series on a graph type renders as a continuous
+     *        line or a scatterplot.
+     *
+     * Applies to the given graph type across every container (current and hidden), so
+     * the setting sticks when the graph is shown. @p asLine = true draws the series as
+     * a line, false as a scatterplot. Independent per series; other series are
+     * unaffected. ("ADOPTED" defaults to a line even without an explicit call.)
+     *
+     * Example: layout->setSeriesRenderMode(GraphType::RTW, "RTW-1", true);
+     */
+    void setSeriesRenderMode(const GraphType &graphType, const QString &seriesLabel, bool asLine);
+
+    /** Drop all per-series render-mode overrides for a graph type (all containers). */
+    void clearSeriesRenderModes(const GraphType &graphType);
+
+    /**
+     * @brief Set the series that magenta BTW sync circles follow on graphs without a
+     *        middle line (BTW/RTW/LTW/FTW).
+     *
+     * Graphs that draw a dashed middle line (BDW/BRW/FDW, and SCW graphs in the SCW
+     * window) always render the circle on that middle line. For the remaining graph
+     * types the circle is placed on this series' interpolated range at the marker's
+     * timestamp. Defaults to "ADOPTED". Pass an empty label to fall back to the
+     * nearest-data-point heuristic.
+     */
+    void setMagentaCircleSolutionSeries(const QString &seriesLabel);
+    QString magentaCircleSolutionSeries() const;
+
+    /**
+     * @brief Re-sync existing magenta BTW circles to the current solution series.
+     *
+     * Call after the solution series data changes so the circles on middle-line-less
+     * graphs move onto the updated trace. Only recomputes stored ranges (O(number of
+     * circles)) and issues a single redraw per affected graph type — it does not
+     * re-run the full fan-out, so it is safe to call frequently.
+     */
+    void resyncBTWSymbols();
     
     // ========== Horizontal time line management (all graph types) ==========
 
@@ -520,6 +559,11 @@ private:
     // Helper to add BTW symbol to a single graph without redraw (for batch processing)
     bool addBTWSymbolToGraph(WaterfallData *dataSource, const QDateTime &timestamp, bool skipIfExists = true);
 
+    // Resolve the range at which a magenta circle should be stored for a graph:
+    // the solution series' interpolated value at the timestamp, falling back to the
+    // nearest data point across the graph's series. Returns false if nothing found.
+    bool resolveMagentaCircleRange(WaterfallData *dataSource, const QDateTime &timestamp, qreal &outRange) const;
+
     // Container synchronization state
     GraphContainerSyncState m_syncState;
 
@@ -530,6 +574,9 @@ private:
     int          m_scopeBusWriterToken = -1;
 
     QDateTime m_systemStartTimeAtInit;
+
+    // Series that magenta BTW sync circles follow on graphs without a middle line.
+    QString m_solutionSeriesLabel = QStringLiteral("ADOPTED");
 
     void propagateSystemStartTimeToContainers();
 
