@@ -15,7 +15,9 @@
 #include "waterfalldata.h"
 #include "waterfallgraph.h"
 #include "zoompanel.h"
+#include "chevroncombobox.h"
 #include <QComboBox>
+#include <QColor>
 #include <QDateTime>
 #include <QHBoxLayout>
 #include <QString>
@@ -181,6 +183,15 @@ public:
     QString getChevronLabel1() const;
     QString getChevronLabel2() const;
     QString getChevronLabel3() const;
+
+    /**
+     * @brief Set the color of the drop-down (graph-type selector) indicator.
+     *
+     * The indicator is drawn as a circle enclosing a downward double-chevron.
+     * @param color Color used for the circle outline and the chevron.
+     */
+    void setDropdownArrowColor(const QColor &color);
+    QColor dropdownArrowColor() const;
 
     // Manoeuvre methods
     void setManoeuvres(const std::vector<Manoeuvre> *manoeuvres);
@@ -365,7 +376,7 @@ signals:
 private:
     QHBoxLayout *m_mainLayout;
     QVBoxLayout *m_waterfallLayout;
-    QComboBox *m_comboBox;
+    ChevronComboBox *m_comboBox;
     ZoomPanel *m_zoomPanel;
     WaterfallGraph *m_currentWaterfallGraph;
     TimeSelectionVisualizer *m_timelineSelectionView;

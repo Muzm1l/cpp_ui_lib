@@ -66,11 +66,13 @@ GraphLayout::GraphLayout(QWidget *parent, LayoutType layoutType, QTimer *timer, 
 
     // Install the ONE writer of GraphContainerSyncState::currentTimeScope.
     // Every other place that wrote that field has been removed: this callback
-    // is the single ingress point.
+    // is the single ingress point. Also notify external listeners of slider
+    // window changes (live drag + commit + programmatic).
     m_scopeBusWriterToken = m_scopeBus.subscribe(
         [this](const TimeScopeBus::Snapshot& s) {
             m_syncState.currentTimeScope = s.span;
             m_syncState.hasTimeScope     = true;
+            emit SliderTimeRangeChanged(s.span.startTime, s.span.endTime);
         });
 }
 
@@ -424,7 +426,10 @@ void GraphLayout::initializeContainers()
     for (auto *container : m_graphContainers)
     {
         if (container)
+        {
             container->attachScopeBus(&m_scopeBus);
+            container->setDropdownArrowColor(m_dropdownArrowColor);
+        }
     }
 
     // Attach data sources to containers
@@ -1712,6 +1717,30 @@ void GraphLayout::onContainerIntervalChanged(TimeInterval interval)
             DEBUG_OUT() << "GraphLayout: Interval set on container via API";
         }
     }
+
+    emit TimeIntervalChanged(interval);
+}
+
+TimeInterval GraphLayout::getTimeInterval() const
+{
+    if (m_syncState.hasInterval)
+        return m_syncState.currentInterval;
+    return TimeInterval::FifteenMinutes;
+}
+
+std::pair<QDateTime, QDateTime> GraphLayout::getSliderTimeRange() const
+{
+    const TimeSelectionSpan span = getSliderTimeScope();
+    return {span.startTime, span.endTime};
+}
+
+TimeSelectionSpan GraphLayout::getSliderTimeScope() const
+{
+    if (m_syncState.hasTimeScope)
+        return m_syncState.currentTimeScope;
+    if (m_scopeBus.hasScope())
+        return m_scopeBus.currentScope();
+    return TimeSelectionSpan();
 }
 
 // onContainerTimeScopeChanged removed: time-scope propagation is now centralized
@@ -2923,6 +2952,22 @@ void GraphLayout::clearSeriesRenderModes(const GraphType &graphType)
     }
 
     redrawGraph(graphType);
+}
+
+void GraphLayout::setDropdownArrowColor(const QColor &color)
+{
+    m_dropdownArrowColor = color;
+
+    for (auto *container : m_graphContainers)
+    {
+        if (container)
+            container->setDropdownArrowColor(color);
+    }
+}
+
+QColor GraphLayout::dropdownArrowColor() const
+{
+    return m_dropdownArrowColor;
 }
 
 void GraphLayout::clearBTWManualMarkers()

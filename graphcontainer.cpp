@@ -56,7 +56,7 @@ GraphContainer::GraphContainer(QWidget *parent, bool showTimelineView, std::map<
     m_waterfallLayout->setContentsMargins(0, 0, 0, 0);
 
     // Create ComboBox
-    m_comboBox = new QComboBox(this);
+    m_comboBox = new ChevronComboBox(this);
     m_comboBox->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
 
     // Create ZoomPanel
@@ -2221,6 +2221,17 @@ QString GraphContainer::getChevronLabel3() const
         qWarning() << "GraphContainer: Cannot get chevron label - timeline view is null";
         return QString();
     }
+}
+
+void GraphContainer::setDropdownArrowColor(const QColor &color)
+{
+    if (m_comboBox)
+        m_comboBox->setArrowColor(color);
+}
+
+QColor GraphContainer::dropdownArrowColor() const
+{
+    return m_comboBox ? m_comboBox->arrowColor() : QColor();
 }
 
 void GraphContainer::setManoeuvres(const std::vector<Manoeuvre> *manoeuvres)

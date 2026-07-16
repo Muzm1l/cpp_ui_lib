@@ -57,7 +57,8 @@ SOURCES += \
     manoeuvreoverlay.cpp \
     debugutils.cpp \
     sharedcachestore.cpp \
-    scopebus.cpp
+    scopebus.cpp \
+    chevroncombobox.cpp
 
 HEADERS += \
     graphcontainer.h \
@@ -94,7 +95,8 @@ HEADERS += \
     debugutils.h \
     rendercommands.h \
     sharedcachestore.h \
-    scopebus.h
+    scopebus.h \
+    chevroncombobox.h
 
 FORMS += \
     mainwindow.ui

@@ -311,6 +311,9 @@ void RTWGraph::onMouseClick(const QPointF &scenePos)
                             m_selectedSymbolTime = timestamp;
                             m_selectedSymbolName = symbolName;
                             m_selectedSymbolRange = range;
+                            // Only one selection box at a time: selecting a symbol
+                            // clears any selected R marker.
+                            m_hasSelectedRMarker = false;
                         }
                         // Redraw so the clicked symbol swaps to its boxed variant
                         // (and any previously selected symbol reverts to plain).
@@ -379,6 +382,9 @@ bool RTWGraph::handleRMarkerClick(const QPointF &scenePos)
         m_hasSelectedRMarker = true;
         m_selectedRMarkerTime = best->timestamp;
         m_selectedRMarkerRange = best->range;
+        // Only one selection box at a time: selecting an R marker clears any
+        // selected symbol.
+        m_hasSelectedSymbol = false;
     }
 
     // Redraw so the marker swaps to/from its boxed variant.

@@ -182,6 +182,34 @@ public:
     TimeScopeBus* getScopeBus() { return &m_scopeBus; }
 
     /**
+     * @brief Current timeline length / interval (e.g. 15 or 30 minutes).
+     *
+     * The enum's underlying integer value is the length in minutes
+     * (`FifteenMinutes == 15`, `ThirtyMinutes == 30`, …). Until the user
+     * (or an API) has set an interval, returns `FifteenMinutes` (the UI default).
+     *
+     * Listen to @ref TimeIntervalChanged for live updates.
+     */
+    TimeInterval getTimeInterval() const;
+
+    /**
+     * @brief Start and end time of the current timeline-slider window.
+     *
+     * Returns the shared visible time scope that all containers follow.
+     * Either boundary may be invalid if no scope has been published yet
+     * (e.g. immediately after construction, before the first slider update).
+     *
+     * Listen to @ref SliderTimeRangeChanged for live updates while the slider
+     * is dragged (and on release / programmatic seeks).
+     */
+    std::pair<QDateTime, QDateTime> getSliderTimeRange() const;
+
+    /**
+     * @brief Same as getSliderTimeRange(), as a TimeSelectionSpan.
+     */
+    TimeSelectionSpan getSliderTimeScope() const;
+
+    /**
      * @brief Session / system start time for timeline slider mapping (range from this time to effective timeline end).
      * @see GraphLayout(QWidget*, LayoutType, QTimer*, seriesLabelsMap, systemStartTimeAtInit) to set at construction.
      */
@@ -328,6 +356,18 @@ public:
 
     /** Drop all per-series render-mode overrides for a graph type (all containers). */
     void clearSeriesRenderModes(const GraphType &graphType);
+
+    /**
+     * @brief Set the color of every graph's drop-down (graph-type selector) indicator.
+     *
+     * The indicator is drawn as a circle enclosing a downward double-chevron. The color
+     * is applied to all current containers and remembered so containers created later
+     * (e.g. on layout changes) inherit it.
+     *
+     * Example: layout->setDropdownArrowColor(QColor("#00E5FF"));
+     */
+    void setDropdownArrowColor(const QColor &color);
+    QColor dropdownArrowColor() const;
 
     /**
      * @brief Set the series that magenta BTW sync circles follow on graphs without a
@@ -578,6 +618,9 @@ private:
     // Series that magenta BTW sync circles follow on graphs without a middle line.
     QString m_solutionSeriesLabel = QStringLiteral("ADOPTED");
 
+    // Color of the drop-down (graph-type selector) circular double-chevron indicator.
+    QColor m_dropdownArrowColor = QColor(0x00, 0x4C, 0x99); // dark blue
+
     void propagateSystemStartTimeToContainers();
 
     // Manoeuvre drawing state
@@ -594,6 +637,20 @@ signals:
      * Listeners can call getVisibleGraphNames() to read the new state.
      */
     void VisibleGraphsChanged();
+
+    /**
+     * @brief Emitted when the shared timeline interval changes (e.g. 15 → 30 min).
+     * @param interval The new interval. Underlying integer value is minutes.
+     */
+    void TimeIntervalChanged(TimeInterval interval);
+
+    /**
+     * @brief Emitted whenever the timeline-slider visible window changes —
+     *        during drag (throttled), on release, and on programmatic seeks.
+     * @param startTime Inclusive start of the visible window
+     * @param endTime   Inclusive end of the visible window
+     */
+    void SliderTimeRangeChanged(const QDateTime &startTime, const QDateTime &endTime);
 
     // @deprecated Prefer TimeSelectionsChanged (vector form). Kept for backward
     // compatibility; will be removed once a stable version ships.

@@ -39,7 +39,7 @@
        <attribute name="title">
         <string>Original View</string>
        </attribute>
-       <widget class="QComboBox" name="layoutSelectionComboBox">
+       <widget class="ChevronComboBox" name="layoutSelectionComboBox">
         <property name="geometry">
          <rect>
           <x>1100</x>
@@ -227,6 +227,11 @@
    <extends>QWidget</extends>
    <header>zoompanel.h</header>
    <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>ChevronComboBox</class>
+   <extends>QComboBox</extends>
+   <header>chevroncombobox.h</header>
   </customwidget>
  </customwidgets>
  <resources/>
