@@ -328,10 +328,16 @@ Usually pass `GraphType::BTW`. Placing a BTW marker fans magenta circles onto ot
 
 ```cpp
 bool addBTWManualMarker(const QDateTime &t, float rangeValue, float bearingRate = 0.0f);
-void clearBTWManualMarkers();
+bool removeBTWManualMarker(const QDateTime &t, qint64 toleranceMs = 1000);  // + magenta circles
+void clearBTWManualMarkers();  // overlay only — does not strip magenta circles
 void setBTWManualMarkerSeries(const QString &seriesLabel);  // empty = use click X
 void deleteInteractiveMarkers();  // all containers
 ```
+
+`removeBTWManualMarker` matches by timestamp (±`toleranceMs`), deletes the pink
+overlay marker from every synced container, and removes the fanned-out
+`MagentaCircle` symbols from the other graph types. See
+[`BTW_MANUAL_MARKER_SERIES_API.md`](./BTW_MANUAL_MARKER_SERIES_API.md) §3a.
 
 ### Rulers (indices 0..3)
 

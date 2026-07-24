@@ -330,6 +330,20 @@ public:
     bool addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate = 0.0f);
 
     /**
+     * @brief Remove a single manual (pink) BTW marker at a given time, together with
+     *        the magenta sync circles that were fanned out to the other graphs.
+     *
+     * Matching is by timestamp within @p toleranceMs (applied to both the interactive
+     * manual markers and the magenta circles). The deletion is propagated to every
+     * container so all synced copies disappear together.
+     *
+     * @param timestamp   The timestamp of the marker to remove.
+     * @param toleranceMs Time matching tolerance in milliseconds (default 1000).
+     * @return true if at least one manual marker or magenta circle was removed.
+     */
+    bool removeBTWManualMarker(const QDateTime &timestamp, qint64 toleranceMs = 1000);
+
+    /**
      * @brief Bind click-placed manual markers on all BTW graphs to a specific series.
      *
      * When a user clicks to place a manual marker, the marker is positioned on the
@@ -592,6 +606,10 @@ private:
     
     // Helper to add BTW symbol (magenta circle) to all graphs at a timestamp
     void addBTWSymbolToAllGraphs(const QDateTime &timestamp, float range);
+
+    // Helper to remove magenta circles (MagentaCircle BTW symbols) from all graphs
+    // at a timestamp within a time tolerance (ms). Returns true if any were removed.
+    bool removeBTWSymbolFromAllGraphs(const QDateTime &timestamp, qint64 toleranceMs);
     
     // Batch method to add magenta circles for all existing BTW markers (more efficient)
     void addBTWSymbolsForExistingBTWMarkers();

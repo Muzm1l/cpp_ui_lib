@@ -3002,6 +3002,74 @@ void GraphLayout::clearBTWManualMarkers()
     DEBUG_OUT() << "GraphLayout: Cleared BTW manual markers from" << markersCleared << "graph(s)";
 }
 
+bool GraphLayout::removeBTWManualMarker(const QDateTime &timestamp, qint64 toleranceMs)
+{
+    if (!timestamp.isValid())
+    {
+        DEBUG_OUT() << "GraphLayout::removeBTWManualMarker: invalid timestamp";
+        return false;
+    }
+
+    const qint64 targetEpoch = timestamp.toMSecsSinceEpoch();
+    const qint64 tolerance = qMax<qint64>(0, toleranceMs);
+
+    // 1) Collect the sync IDs of manual (pink) markers whose timestamp matches.
+    //    Manual markers are synced across containers with identical IDs, so scanning
+    //    the first available BTW overlay is enough to build the deletion set.
+    std::vector<QUuid> idsToRemove;
+    for (auto *container : m_graphContainers)
+    {
+        if (!container)
+            continue;
+
+        BTWGraph *btwGraph = qobject_cast<BTWGraph*>(container->getWaterfallGraph(GraphType::BTW));
+        if (!btwGraph || !btwGraph->getInteractiveOverlay())
+            continue;
+
+        BTWInteractiveOverlay *overlay = btwGraph->getInteractiveOverlay();
+        const QList<InteractiveGraphicsItem*> markers = overlay->getAllMarkers();
+        for (InteractiveGraphicsItem *marker : markers)
+        {
+            if (!marker)
+                continue;
+            const BTWSyncMarkerData data = overlay->getMarkerData(marker);
+            if (data.id.isNull() || !data.timestamp.isValid())
+                continue;
+            if (qAbs(data.timestamp.toMSecsSinceEpoch() - targetEpoch) <= tolerance)
+                idsToRemove.push_back(data.id);
+        }
+        break; // markers are synced across containers; one overlay is authoritative
+    }
+
+    // 2) Delete each matching manual marker from every container and the sync state.
+    for (const QUuid &id : idsToRemove)
+    {
+        for (auto *container : m_graphContainers)
+        {
+            if (container)
+                container->onBTWMarkerSyncDeleted(id);
+        }
+        m_syncState.removeBTWMarker(id);
+    }
+
+    // 3) Remove the magenta sync circles fanned out to the other graphs.
+    const bool circlesRemoved = removeBTWSymbolFromAllGraphs(timestamp, tolerance);
+
+    const bool anyRemoved = !idsToRemove.empty() || circlesRemoved;
+    if (anyRemoved)
+    {
+        redrawAllGraphs();
+        DEBUG_OUT() << "GraphLayout::removeBTWManualMarker: removed" << idsToRemove.size()
+                    << "manual marker(s) and magenta circle(s) at" << timestamp.toString();
+    }
+    else
+    {
+        DEBUG_OUT() << "GraphLayout::removeBTWManualMarker: nothing found at" << timestamp.toString();
+    }
+
+    return anyRemoved;
+}
+
 // ========== Horizontal time line API ==========
 
 void GraphLayout::setHorizontalLineMode(HorizontalLineMode mode)
@@ -3477,6 +3545,60 @@ void GraphLayout::addBTWSymbolToAllGraphs(const QDateTime &timestamp, float /* u
     }
     
     DEBUG_OUT() << "GraphLayout: Finished adding BTW symbols to all graphs";
+}
+
+bool GraphLayout::removeBTWSymbolFromAllGraphs(const QDateTime &timestamp, qint64 toleranceMs)
+{
+    if (!timestamp.isValid())
+    {
+        return false;
+    }
+
+    const QDateTime windowStart = timestamp.addMSecs(-toleranceMs);
+    const QDateTime windowEnd = timestamp.addMSecs(toleranceMs);
+
+    bool anyRemoved = false;
+    std::vector<GraphType> allGraphTypes = getDataSourceLabels();
+
+    for (GraphType graphType : allGraphTypes)
+    {
+        // BTW carries the manual marker itself, not the fanned-out magenta circles.
+        if (graphType == GraphType::BTW)
+        {
+            continue;
+        }
+
+        WaterfallData *dataSource = getDataSource(graphType);
+        if (!dataSource)
+        {
+            continue;
+        }
+
+        // Query the magenta circles in the match window, then remove each one by its
+        // own stored range (ranges differ per graph, so we can't assume a shared value).
+        const std::vector<BTWSymbolData> symbols = dataSource->getBTWSymbolsWithinTimeRange(windowStart, windowEnd);
+        bool removedHere = false;
+        for (const BTWSymbolData &symbol : symbols)
+        {
+            if (BTWSymbolDrawing::symbolNameToType(symbol.symbolName) != BTWSymbolDrawing::SymbolType::MagentaCircle)
+            {
+                continue;
+            }
+            if (dataSource->removeBTWSymbol(symbol.symbolName, symbol.timestamp, symbol.range,
+                                            static_cast<float>(toleranceMs), 0.5f))
+            {
+                removedHere = true;
+                anyRemoved = true;
+            }
+        }
+
+        if (removedHere)
+        {
+            redrawGraph(graphType);
+        }
+    }
+
+    return anyRemoved;
 }
 
 bool GraphLayout::addBTWSymbolToGraph(WaterfallData *dataSource, const QDateTime &timestamp, bool skipIfExists)

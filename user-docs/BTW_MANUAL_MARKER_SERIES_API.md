@@ -84,9 +84,79 @@ void setBTWManualMarkerSeries(const QString &seriesLabel);
 // Programmatic placement — does NOT use series binding; range is explicit.
 bool addBTWManualMarker(const QDateTime &timestamp, float rangeValue, float bearingRate = 0.0f);
 
+// Remove one manual marker (and its magenta sync circles) by timestamp.
+bool removeBTWManualMarker(const QDateTime &timestamp, qint64 toleranceMs = 1000);
+
 // Remove all interactive overlay markers from every BTW graph.
 void clearBTWManualMarkers();
 ```
+
+---
+
+## 3a. Delete one marker by timestamp
+
+**Header:** `graphlayout.h`
+
+```cpp
+/**
+ * Remove a single manual (pink) BTW marker at a given time, together with
+ * the magenta sync circles that were fanned out to the other graphs.
+ *
+ * Matching is by timestamp within toleranceMs (applied to both the interactive
+ * manual markers and the magenta circles). The deletion is propagated to every
+ * container so all synced copies disappear together.
+ *
+ * @return true if at least one manual marker or magenta circle was removed.
+ */
+bool removeBTWManualMarker(const QDateTime &timestamp, qint64 toleranceMs = 1000);
+```
+
+### What it removes
+
+A placed manual marker is two linked things:
+
+| Piece | Where it lives | What it looks like |
+|-------|----------------|--------------------|
+| **Manual marker** | BTW interactive overlay (synced across containers via `QUuid`) | Pink interactive circle + angled line |
+| **Magenta sync circles** | `WaterfallData` BTW symbols on every *other* graph type (`MagentaCircle`) | Hollow magenta circle |
+
+`removeBTWManualMarker()` deletes **both**. `clearBTWManualMarkers()` only clears the
+overlay markers — it does **not** strip the magenta circles from RTW/LTW/FTW/BDW/… .
+
+### How it works
+
+```
+layout->removeBTWManualMarker(timestamp, toleranceMs)
+  1. Scan first BTW overlay's markers; collect sync IDs whose timestamp
+     is within toleranceMs of the target (one overlay is enough — IDs are shared).
+  2. For each ID: container->onBTWMarkerSyncDeleted(id) on every container
+     + m_syncState.removeBTWMarker(id)
+  3. removeBTWSymbolFromAllGraphs(timestamp, toleranceMs)
+     → for each non-BTW data source, remove MagentaCircle symbols in the time window
+  4. redrawAllGraphs()
+  → returns true if any marker or circle was removed
+```
+
+### Example
+
+```cpp
+// Delete the marker that was just placed (and its magenta circles everywhere).
+layout->removeBTWManualMarker(placedTimestamp);
+
+// Tighter match window (250 ms) when clocks are precise:
+layout->removeBTWManualMarker(placedTimestamp, 250);
+```
+
+### Notes / edge cases
+
+| Case | Behaviour |
+|------|-----------|
+| Invalid timestamp | Returns `false`; no changes. |
+| No marker in the time window | Returns `false`. |
+| Multiple markers within tolerance | **All** matching markers (and their circles) are removed. |
+| Circles without a matching overlay marker | Still removed if a `MagentaCircle` exists in the window (e.g. left over from an earlier clear). |
+| SCW panes | Magenta circles on SCW are **not** auto-removed by this API. Host must mirror deletion if SCW was wired via `BTWSymbolAddedToAllGraphs` (same pattern as add). |
+| vs `clearBTWManualMarkers()` | Clear = all overlay markers, no circle cleanup. Remove-by-time = one (or few) markers **plus** circles. |
 
 ### Example: bind markers to the adopted (measured) series
 
@@ -248,15 +318,23 @@ When placing markers from code (e.g. replaying a saved solution), use
 layout->addBTWManualMarker(timestamp, rangeValue, bearingRate);
 ```
 
-### 7.4 Clearing markers and bindings
+### 7.4 Clearing / deleting markers and bindings
 
 ```cpp
-layout->clearBTWManualMarkers();                  // remove overlay markers
-layout->setBTWManualMarkerSeries(QString());      // revert to raw X clicks
+// Delete one marker + its magenta circles by time:
+layout->removeBTWManualMarker(timestamp);             // default ±1000 ms
+layout->removeBTWManualMarker(timestamp, 250);        // tighter window
+
+// Delete all overlay markers (does NOT remove magenta circles):
+layout->clearBTWManualMarkers();
+
+// Revert click placement to raw X (does not remove markers):
+layout->setBTWManualMarkerSeries(QString());
 ```
 
-These are independent: clearing markers does not clear the series binding, and clearing
-the binding does not remove existing markers.
+These are independent: clearing markers does not clear the series binding, clearing
+the binding does not remove existing markers, and `removeBTWManualMarker` is the
+only call that also strips the fanned-out magenta circles for that timestamp.
 
 ---
 
@@ -309,6 +387,7 @@ Each overlay marker stores:
 | Bind click markers to a series | `layout->setBTWManualMarkerSeries("ADOPTED")` |
 | Revert to raw X clicks | `layout->setBTWManualMarkerSeries(QString())` |
 | Place marker at explicit range | `layout->addBTWManualMarker(ts, range)` |
+| Remove **one** marker + magenta circles by time | `layout->removeBTWManualMarker(ts[, tolMs])` |
 | Remove all overlay markers | `layout->clearBTWManualMarkers()` |
 | Receive (time, range) on placement | `connect(..., markerTimestampValueChanged, ...)` |
 | Per-graph binding (no layout) | `btwGraph->setManualMarkerSeries(label)` |

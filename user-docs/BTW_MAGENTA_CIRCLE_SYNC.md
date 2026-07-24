@@ -208,6 +208,25 @@ Q_ASSERT(BTWSymbolDrawing::resolveDisplayType("MagentaCircle", false)
 
 ---
 
+## 5a. Removing a circle by timestamp
+
+To delete **one** manual marker **and** its fanned-out magenta circles:
+
+```cpp
+layout->removeBTWManualMarker(timestamp);           // default ±1000 ms
+layout->removeBTWManualMarker(timestamp, 250);      // tighter window
+```
+
+This uses `GraphLayout::removeBTWSymbolFromAllGraphs()` internally to strip
+`MagentaCircle` symbols from every non-BTW data source in the time window, then
+redraws. Full details: [`BTW_MANUAL_MARKER_SERIES_API.md`](./BTW_MANUAL_MARKER_SERIES_API.md) §3a.
+
+**Note:** `clearBTWManualMarkers()` only clears the pink overlay markers — it does
+**not** remove the magenta circles. Prefer `removeBTWManualMarker` when you need
+both cleaned up for a specific time.
+
+---
+
 ## 6. Summary
 
 - One render path (`resolveDisplayType`) → consistent look across BTW, waterfall, SCW.
