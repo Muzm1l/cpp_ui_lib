@@ -175,21 +175,23 @@ void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& inte
     // Calculate time window based on Y position
     QDateTime now = timelineEnd.isValid() ? timelineEnd : QDateTime::currentDateTime();
     
-    // When dragging, use range from application start time to current time
-    // When not dragging, use normal 12-hour range
+    // The draggable band is always at most 12 hours: from max(applicationStart, now - 12h) to now.
+    // This keeps the timeline (and the data pulled for the selected window) bounded to 12 hours,
+    // even when the application/system start time is several days in the past.
+    const QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
     QDateTime rangeStart;
     int totalMinutes;
     
     if (isDragging && applicationStartTime.isValid())
     {
-        // Dragging: range from application start to current time
-        rangeStart = applicationStartTime;
+        // Dragging: range from the effective start (clamped to 12h) to current time
+        rangeStart = (applicationStartTime > twelveHoursAgo) ? applicationStartTime : twelveHoursAgo;
         totalMinutes = static_cast<int>(rangeStart.msecsTo(now) / 60000);
     }
     else
     {
         // Normal behavior: 12 hours ago to now
-        rangeStart = now.addSecs(-12 * 3600);
+        rangeStart = twelveHoursAgo;
         totalMinutes = SliderGeometry::getTwelveHoursInMinutes();
     }
     
@@ -204,10 +206,10 @@ void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& inte
     int intervalSeconds = interval.hour() * 3600 + interval.minute() * 60 + interval.second();
     QDateTime windowStart = windowEnd.addSecs(-intervalSeconds);
     
-    // CRITICAL FIX: Block slider movement below system start time when dragging
-    if (isDragging && applicationStartTime.isValid() && windowStart < applicationStartTime)
+    // CRITICAL FIX: Block slider movement below the effective start (12h floor) when dragging
+    if (isDragging && applicationStartTime.isValid() && windowStart < rangeStart)
     {
-        windowStart = applicationStartTime;
+        windowStart = rangeStart;
         // Recalculate window end to maintain interval, but clamp to not exceed "now"
         windowEnd = windowStart.addSecs(intervalSeconds);
         if (windowEnd > now)
@@ -215,10 +217,10 @@ void SliderState::syncTimeWindowFromPosition(int widgetHeight, const QTime& inte
             windowEnd = now;
             // If windowEnd is clamped, adjust windowStart to maintain interval
             windowStart = windowEnd.addSecs(-intervalSeconds);
-            // Ensure windowStart doesn't go below application start time
-            if (windowStart < applicationStartTime)
+            // Ensure windowStart doesn't go below the effective start (12h floor)
+            if (windowStart < rangeStart)
             {
-                windowStart = applicationStartTime;
+                windowStart = rangeStart;
             }
         }
         // Sync slider Y position to the clamped window so the thumb cannot be dragged below system start
@@ -240,10 +242,13 @@ void SliderState::syncPositionFromTimeWindow(int widgetHeight, const QDateTime& 
     // Calculate position based on the END time (top represents "now")
     // Use application-start→now when rangeStart is valid so "recent past" windows map to correct Y (not Y≈0)
     QDateTime now = timelineEnd.isValid() ? timelineEnd : QDateTime::currentDateTime();
-    QDateTime rangeStartActual = rangeStart.isValid() ? rangeStart : now.addSecs(-12 * 3600);
-    int totalMinutes = rangeStart.isValid()
-        ? qMax(1, static_cast<int>(rangeStartActual.msecsTo(now) / 60000))
-        : SliderGeometry::getTwelveHoursInMinutes();
+    // Clamp the range start to a rolling 12-hour floor so the mapping never exceeds 12 hours,
+    // even when the application/system start time is several days in the past.
+    const QDateTime twelveHoursAgo = now.addSecs(-12 * 3600);
+    QDateTime rangeStartActual = (rangeStart.isValid() && rangeStart > twelveHoursAgo)
+        ? rangeStart
+        : twelveHoursAgo;
+    int totalMinutes = qMax(1, static_cast<int>(rangeStartActual.msecsTo(now) / 60000));
     
     // Minutes from range start to the window end time
     int minutesFromStart = rangeStartActual.msecsTo(m_timeWindow.endTime) / 60000;
