@@ -119,6 +119,15 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         container->setShowTimeSelectionVisualizer(true); // Reset to visible by default
     }
 
+    // Reset this widget's own size constraints before applying the new mode.
+    // updateLayoutSizing() uses setFixedWidth/setFixedHeight, which pin BOTH the
+    // minimum and maximum size. Without clearing them here, a stale minimum size
+    // from a previous non-hidden layout would persist and leave a blank rectangle
+    // (sized like the last visible layout) when switching to HIDDEN. Cleared
+    // unconditionally so it applies on every mode change, including HIDDEN.
+    setMinimumSize(0, 0);
+    setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
+
     switch (m_layoutType)
     {
     case LayoutType::GPW1W:
@@ -236,12 +245,16 @@ void GraphLayout::setLayoutType(LayoutType layoutType)
         break;
     }
 
-    // Reset container sizes before recalculating to prevent size carryover from previous layout
+    // Reset container sizes before recalculating to prevent size carryover from previous layout.
+    // setContainerWidth/Height/Size use setFixedSize, which also pins the minimum size, so
+    // clearing only the size policy is not enough; explicitly reset min/max to prevent a hidden
+    // layout from retaining the previous mode's footprint as a stale blank rectangle.
     for (auto *container : m_graphContainers)
     {
         if (container)
         {
-            // Remove fixed size constraints to allow recalculation
+            container->setMinimumSize(0, 0);
+            container->setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
             container->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         }
     }
